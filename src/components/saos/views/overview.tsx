@@ -15,6 +15,7 @@ import {
   Flame,
   Layers,
   Radio,
+  ScanSearch,
   ScrollText,
   ShieldCheck,
   XCircle,
@@ -40,7 +41,7 @@ import {
 import { Sparkline } from "../charts";
 import { fmt, short, timeAgo, useLive, useTick } from "../lib";
 import type { LiveResult } from "../lib";
-import type { ChainGate, SelftestData, StatusData } from "../types";
+import type { ChainGate, LastAuditData, SelftestData, StatusData } from "../types";
 import { PageHead, type ViewId } from "../shell";
 
 export function ViewOverview({
@@ -52,6 +53,7 @@ export function ViewOverview({
 }) {
   useTick(12000);
   const selftest = useLive<SelftestData>("/api/saos/kernel", 60000);
+  const lastAudit = useLive<LastAuditData>("/api/saos/audit", 30000);
 
   if (status.error && !status.data) {
     return <ErrorNotice message={status.error} onRetry={status.refresh} />;
@@ -277,6 +279,36 @@ export function ViewOverview({
                 <p className="text-[10px] text-zinc-600">הבדיקה חוזרת אוטומטית כל 60 שניות</p>
                 <Btn variant="secondary" size="xs" onClick={selftest.refresh}>
                   <Activity size={11} /> הרץ שוב
+                </Btn>
+              </div>
+              {/* ביקורת מלאה אחרונה — קישור למבקר-השרשרת */}
+              <div className="pt-3 border-t border-white/[0.05] flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[10px] text-zinc-600 flex items-center gap-1.5 flex-wrap">
+                  <ScanSearch size={11} className="shrink-0" />
+                  ביקורת מלאה אחרונה:
+                  {lastAudit.data?.hasAudit && lastAudit.data.last ? (
+                    <span
+                      className={
+                        lastAudit.data.last.verdict
+                          ? "text-emerald-400/90 font-medium"
+                          : "text-rose-400/90 font-medium"
+                      }
+                    >
+                      {lastAudit.data.last.verdict
+                        ? `שלמות מוכחת (${lastAudit.data.last.sealsOk}/${lastAudit.data.last.sealsAudited} חותמים)`
+                        : "נמצאו אי-התאמות"}
+                    </span>
+                  ) : lastAudit.data ? (
+                    <span className="text-zinc-500">טרם הורצה</span>
+                  ) : (
+                    <span className="text-zinc-600">…</span>
+                  )}
+                  {lastAudit.data?.hasAudit && lastAudit.data.last && (
+                    <span className="text-zinc-600">· {timeAgo(lastAudit.data.last.at)}</span>
+                  )}
+                </p>
+                <Btn variant="ghost" size="xs" onClick={() => onNav("proofs")}>
+                  לביקורת המלאה <ArrowLeft size={11} />
                 </Btn>
               </div>
             </>

@@ -119,7 +119,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Anchoring Platform · v5.1</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Anchoring Platform · v5.2</p>
           </div>
         </div>
 
@@ -272,7 +272,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v5.1.0 — קונסולת עגינה מוסדית
+              SAOS Sovereign Platform v5.2.0 — קונסולת עגינה מוסדית
             </span>
             <span className="flex items-center gap-3">
               <a
@@ -304,12 +304,12 @@ export function PageHead({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-5">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+      <div className="min-w-0 flex-1">
         <h2 className="text-xl font-bold tracking-tight text-zinc-50">{title}</h2>
         {sub && <p className="mt-1 text-xs text-zinc-500 leading-relaxed max-w-2xl">{sub}</p>}
       </div>
-      {actions && <div className="shrink-0 flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

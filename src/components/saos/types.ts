@@ -244,3 +244,68 @@ export interface EvidencePackSummary {
   chainOk: boolean;
   receipt: string;
 }
+
+// ─── v5.2: Full-Chain Auditor (מבקר-שרשרת כללי) ─────────────────────────────
+
+export interface AuditSealRow {
+  height: number;
+  leaves: number;
+  gasUsed: number;
+  rootMatches: boolean;
+  stateRootMatches: boolean | null;
+  gasMatches: boolean | null;
+  leafDigestsOk: number;
+  proofsVerified: number;
+  leavesCountMatches: boolean;
+  verdict: boolean;
+  error: string | null;
+}
+
+export interface AuditData {
+  ok: boolean;
+  verdict: boolean;
+  at: string;
+  durationMs: number;
+  sealsAudited: number;
+  sealsOk: number;
+  rootsMatched: number;
+  stateRootsMatched: number;
+  leavesChecked: number;
+  leavesOk: number;
+  kernel: {
+    ok: boolean;
+    gasUsed: number;
+    stateRoot: string;
+    checks: { name: string; pass: boolean; detail: string }[];
+  };
+  seals: AuditSealRow[];
+  receiptsChain: {
+    ok: boolean;
+    brokenAt: number | null;
+    breakCount: number;
+    count: number;
+    tailOk: boolean;
+  };
+  notes: string[];
+  auditDigest: string;
+  receipt?: string;
+  error?: string;
+}
+
+export interface LastAuditInfo {
+  at: string;
+  verdict: boolean;
+  sealsAudited: number;
+  sealsOk: number;
+  leavesChecked: number;
+  leavesOk: number;
+  auditDigest: string | null;
+  receiptDigest: string;
+}
+
+export interface LastAuditData {
+  ok: boolean;
+  hasAudit: boolean;
+  last?: LastAuditInfo;
+  error?: string;
+}
