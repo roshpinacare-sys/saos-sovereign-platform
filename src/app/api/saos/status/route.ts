@@ -2,13 +2,35 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { anchoringMatrix } from "@/lib/saos/anchor-gates";
 import { HISTORIC_ANCHORS } from "@/lib/saos/historic";
+import { probeHiveRc, hiveAnchorAccount } from "@/lib/saos/hive-rc-live";
+import { probeTronVault } from "@/lib/saos/tron-live";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const rcPct = Number(process.env.HIVE_RC_PCT ?? 0.6);
-    const tronEnergy = Number(process.env.TRON_ENERGY ?? 0);
+    // v9 — LIVE resource gates: the HIVE RC is MEASURED against the public
+    // chain (60s cache) and the TRON vault state is probed read-only. On
+    // any probe failure we fall back to the static env values and say so —
+    // never a fabricated "live" number.
+    const hiveRc = await probeHiveRc(hiveAnchorAccount());
+    const rcPct = hiveRc.ok ? hiveRc.rcPct : Number(process.env.HIVE_RC_PCT ?? 0.6);
+    const rcSource: "live" | "env" = hiveRc.ok ? "live" : "env";
+
+    const tronSlots = await db.vaultSlot.findMany({
+      where: { network: "TRON", address: { not: null } },
+      select: { address: true }
+    });
+    const tronLive = await probeTronVault(tronSlots.map((s) => s.address as string));
+    const tronEnergy = tronLive.ok
+      ? tronLive.totalEnergy > 0
+        ? tronLive.totalEnergy
+        : tronLive.funded > 0
+          ? 1
+          : 0
+      : Number(process.env.TRON_ENERGY ?? 0);
+
+    const matrix = anchoringMatrix(rcPct, tronEnergy);
 
     const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = await Promise.all([
       db.sealRecord.findMany({
@@ -27,7 +49,36 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       motto: "אנחנו מנצחים את הבלוקצ'יין",
-      matrix: anchoringMatrix(rcPct, tronEnergy),
+      matrix,
+      live: {
+        hive: hiveRc.ok
+          ? {
+              ok: true,
+              account: hiveRc.account,
+              rcPct: hiveRc.rcPct,
+              currentMana: hiveRc.currentMana,
+              maxRc: hiveRc.maxRc,
+              hoursToLightFloor: hiveRc.hoursToLightFloor,
+              measuredAt: hiveRc.measuredAt,
+              source: rcSource
+            }
+          : {
+              ok: false,
+              account: hiveRc.account,
+              rcPct,
+              measuredAt: hiveRc.measuredAt,
+              source: rcSource,
+              error: hiveRc.error
+            },
+        tron: {
+          ok: tronLive.ok,
+          checked: tronLive.checked,
+          funded: tronLive.funded,
+          totalBalanceTrx: tronLive.totalBalanceTrx,
+          measuredAt: tronLive.measuredAt,
+          error: tronLive.error
+        }
+      },
       historic: HISTORIC_ANCHORS,
       seals: seals.map((s) => ({
         id: s.id,

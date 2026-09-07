@@ -119,7 +119,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Anchoring Platform · v7.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Anchoring Platform · v9.0</p>
           </div>
         </div>
 
@@ -272,7 +272,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v7.0.0 — קונסולת עגינה מוסדית · LIVE ANCHOR
+              SAOS Sovereign Platform v9.0.0 — קונסולת עגינה מוסדית · AUTO-ANCHOR + HIVE LIVE-READY
             </span>
             <span className="flex items-center gap-3">
               <a

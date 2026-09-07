@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { applyTx, genesisState, stateRootOf, type KernelTx } from "@/lib/saos/kernel";
 import { buildMerkleTree } from "@/lib/saos/merkle";
 import { canonicalDigest, canonicalize } from "@/lib/saos/canonical-json";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { anchoringMatrix } from "@/lib/saos/anchor-gates";
+import { fireAutoAnchorForNewSeal } from "@/lib/saos/auto-anchor";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,12 @@ export const dynamic = "force-dynamic";
  *   3. assemble merkle root over the batch leaves
  *   4. persist SealRecord + leaves + AnchorTx rows (honest statuses)
  *   5. chain an evidence receipt
- * Anchors here are ADVISORY (no signing keys in this sandbox) — statuses say so.
+ *   6. after(response): AUTO-ANCHOR — the fresh seal is fired to the live
+ *      STEEM chain (v9) — same discipline as the manual pulse, dedupe,
+ *      vault gate, fail-closed self-verify, chained receipt. If the auto
+ *      pulse is disabled the seal simply waits for a human press (honest).
+ * Advisory anchor rows describe the at-seal-time matrix; the weave rows
+ * with real txids are the live ledger.
  */
 export async function POST(req: Request) {
   try {
@@ -107,10 +113,28 @@ export async function POST(req: Request) {
       data: { op: "seal", detail: `height=${seal.height} root=${root.slice(0, 16)}…` }
     });
 
+    // 6. AUTO-ANCHOR (v9) — fires AFTER the response is sent; the seal
+    // creation UX never waits for the chain. Failures are recorded as
+    // evidence by the shared discipline — never thrown into the void.
+    const sealId = seal.id;
+    after(async () => {
+      try {
+        const fired = await fireAutoAnchorForNewSeal(sealId);
+        if (!fired.ok && !fired.skipped) {
+          console.log(`[auto-anchor] height=${seal.height} FAILED: ${fired.error?.slice(0, 120)}`);
+        }
+      } catch (e) {
+        console.log(
+          `[auto-anchor] height=${seal.height} EXCEPTION: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`
+        );
+      }
+    });
+
     return NextResponse.json({
       ok: true,
       seal: { id: seal.id, height: seal.height, root, stateRoot, leaves: leafPayloads.length, gasUsed: state.gasUsed },
       anchors: anchorRows.map((a) => ({ network: a.network, status: a.status, gate: a.gate })),
+      autoAnchor: "pending", // the pulse fires after this response — watch the ledger
       receipt: receipt.digest
     });
   } catch (e) {

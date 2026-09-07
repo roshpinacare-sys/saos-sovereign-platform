@@ -1,4 +1,14 @@
-# SAOS Sovereign Platform v8.0 — FRESH KEY · LIVE ANCHOR #3 (Stage 2 → LIVE → RESEAL)
+# SAOS Sovereign Platform — v9.0.0 · AUTO-ANCHOR
+
+**אנחנו מנצחים את הבלוקצ'יין.** פלטפורמת העגינה הריבונית חוצת-הרשתות (STEEM · BLURT · HIVE · TRON).
+
+## v9.0.0 — פעימה אוטומטית + מדידות חיות (AUTO-ANCHOR + LIVE PROBES)
+
+- **איטום ← עגינה אוטומטית**: כל חותם חדש נורה ל-STEEM החיה מיד לאחר יצירתו (`after`-response) — אותה דיסציפלינה אחת של הלחיצה הידנית: dedupe, שער-כספת, self-verify fail-closed, קבלה משורשרת לכל הצלחה/כישלון. מיפסק ON/OFF מהקונסולה (PlatformSetting). הוכח בפועל: חותם #8 → `df910f7cef3f…` בבלוק 109,383,049.
+- **שערי-משאבים נמדדים, לא מוצהרים**: RC של HIVE נמדד חי מול `rc_api.find_rc_accounts` (רוטציית צמתים, מטמון 60ש'); 6 כתובות ה-TRON נבדקות מול TronGrid. המטריצה נופלת בכנות ל-env רק בכשל מדידה.
+- **HIVE live-ready מוכח**: ה-WIF מהכספת נגזר בשרת ומושווה מול `active key_auths` של HIVE החיה (headcorner — חשבון קדם-פורק; אותו מפתח מוסמך בשתי הרשתות). מודול שידור מלא (`@hiveio/dhive`, chain_id קבוע, whitelist) — מגודר במקור עד שה-RC יחצה 8%.
+- **כנות**: הסירוב המגודר הוא תשובה מתועדת — "אף מפתח לא נפתח, אף חתימה לא נוסתה, אף RC לא נוצל".
+- API אדיטיבי: `/api/saos/live-probes`, `/api/saos/anchor-auto`, `/api/saos/broadcast/hive`; `status` ו-`energy` מדווחים ערכים חיים.
 
 > **אנחנו מנצחים את הבלוקצ'יין**
 

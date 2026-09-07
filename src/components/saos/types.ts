@@ -40,6 +40,10 @@ export interface StatusStats {
 export interface StatusData {
   ok: boolean;
   matrix: ChainGate[];
+  live?: {
+    hive: StatusLiveInfo;
+    tron: { ok: boolean; checked: number; funded: number; totalBalanceTrx: number; measuredAt: string; error?: string };
+  };
   historic: { network: string; txRef: string | null; state: string; note: string }[];
   seals: SealRow[];
   receipts: ReceiptRow[];
@@ -452,5 +456,137 @@ export interface LivePulseResult {
   anchorId?: string;
   receipt?: string;
   message?: string;
+  error?: string;
+}
+
+// ─── v9: AUTO-ANCHOR + LIVE PROBES (פעימה אוטומטית + מדידות חיות) ────────────
+
+export interface LiveProbesData {
+  ok: boolean;
+  hive: {
+    ok: boolean;
+    account: string;
+    exists: boolean;
+    rcPct: number;
+    currentMana: number | null;
+    maxRc: number | null;
+    hoursToLightFloor: number | null;
+    hoursToHeavyFloor: number | null;
+    vestingShares: number | null;
+    delegatedVesting: number | null;
+    receivedVesting: number | null;
+    apiNode: string | null;
+    measuredAt: string;
+    error?: string;
+  };
+  tron: {
+    ok: boolean;
+    checked: number;
+    funded: number;
+    totalBalanceTrx: number;
+    totalEnergy: number;
+    energizeReady: boolean;
+    measuredAt: string;
+    addresses: { address: string; funded: boolean; balanceTrx: number; energy: number; net: number }[];
+    error?: string;
+  };
+  usage?: string;
+}
+
+export interface StatusLiveInfo {
+  ok: boolean;
+  account?: string;
+  rcPct?: number;
+  currentMana?: number | null;
+  maxRc?: number | null;
+  hoursToLightFloor?: number | null;
+  measuredAt?: string;
+  source?: "live" | "env" | "sim";
+  error?: string;
+}
+
+export interface AutoAnchorData {
+  ok: boolean;
+  enabled: boolean;
+  stats: {
+    totalPulses: number;
+    lastAuto: {
+      id: string;
+      height: number;
+      txid: string | null;
+      status: string;
+      source: string;
+      confirmedByHistory: boolean;
+      at: string;
+    } | null;
+  };
+  pulses: {
+    id: string;
+    height: number;
+    txid: string | null;
+    status: string;
+    source: string;
+    confirmedByHistory: boolean;
+    at: string;
+  }[];
+  discipline?: string;
+  error?: string;
+}
+
+export interface AutoAnchorToggleResult {
+  ok: boolean;
+  enabled: boolean;
+  message: string;
+  error?: string;
+}
+
+export interface HiveReadinessData {
+  ok: boolean;
+  readiness: {
+    ok: boolean;
+    network: string;
+    account: string;
+    accountExists: boolean;
+    activeKeyAuthorized: boolean | null;
+    vaultActivePub: string | null;
+    chainActivePub: string | null;
+    rc: { pct: number | null; live: boolean; hoursToLightFloor: number | null };
+    gate: string;
+    verdict: string;
+    at: string;
+    error?: string;
+  };
+  seal: {
+    height: number;
+    root: string;
+    stateRoot: string;
+    leaves: number;
+    gasUsed: number;
+  } | null;
+  alreadyAnchored: boolean;
+  existing: { txid: string | null; status: string; at: string } | null;
+  error?: string;
+}
+
+export interface HivePulseResult {
+  ok: boolean;
+  already?: boolean;
+  gated?: boolean;
+  gate?: string;
+  height?: number;
+  rc?: { pct: number | null; live: boolean; hoursToLightFloor: number | null };
+  network?: string;
+  account?: string;
+  authority?: string;
+  txid?: string | null;
+  block?: number | null;
+  confirmedByHistory?: boolean;
+  selfVerified?: boolean;
+  rcPctAtBroadcast?: number | null;
+  explorer?: string | null;
+  anchorId?: string;
+  receipt?: string;
+  message?: string;
+  note?: string;
   error?: string;
 }

@@ -145,3 +145,13 @@ model VaultSlot {
   @@unique([network, slot])
   @@index([network])
 }
+
+// ─── v9: Platform settings (הגדרות-פלטפורמה) ──────────────────────────────
+// Key/value runtime settings (auto-anchor toggle). Never holds secrets —
+// control-plane state only. Additive, honest, togglable from the console.
+
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

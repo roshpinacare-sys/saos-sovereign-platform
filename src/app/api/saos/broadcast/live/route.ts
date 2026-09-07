@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { appendChainedReceipt } from "@/lib/chained-receipt";
-import {
-  anchorSealLiveOnSteem,
-  explorerLink,
-  verifyInclusion,
-  type LiveAnchorRow,
-  type LiveSeal
-} from "@/lib/saos/anchor-live";
+import { explorerLink, verifyInclusion, type LiveAnchorRow } from "@/lib/saos/anchor-live";
+import { fireLiveAnchorOnSteem } from "@/lib/saos/auto-anchor";
 
 export const dynamic = "force-dynamic";
 
@@ -184,117 +178,42 @@ export async function POST(req: Request) {
       );
     }
 
-    // dedupe — one live anchor per seal height (re-broadcast only via a fresh seal)
-    const existing = await db.anchorTx.findFirst({
-      where: { kind: "weave", network: "STEEM", sealId: seal.id, txid: { not: null } },
-      orderBy: { createdAt: "desc" },
-      include: { seal: { select: { height: true, root: true } } }
-    });
-    if (existing) {
-      const meta = safeParse(existing.meta) ?? {};
+    // dedupe + gate + THE LIVE PULSE — one shared discipline with the
+    // auto-anchor (v9): manual press and platform fire land in the SAME
+    // code path (dedupe → vault gate → self-verify → broadcast → receipt)
+    const result = await fireLiveAnchorOnSteem(seal, "manual");
+    if (result.already) {
       return NextResponse.json({
         ok: true,
         already: true,
         height: seal.height,
         root: seal.root,
-        txid: existing.txid,
-        explorer: existing.txid ? explorerLink(existing.txid) : null,
-        block: typeof meta.block === "number" ? meta.block : null,
-        confirmedByHistory: meta.confirmedByHistory === true,
+        txid: result.txid ?? null,
+        explorer: result.explorer ?? null,
         message: `חותם #${seal.height} כבר מעוגן חי`
       });
     }
-
-    // gate — the vault must be sealed for STEEM (the signing identity)
-    const slot = await db.vaultSlot.findFirst({ where: { network: "STEEM", keyState: "sealed" } });
-    if (!slot) {
-      return NextResponse.json(
-        { ok: false, error: "כספת STEEM לא נאטמה — חבר את שלב 2 קודם (רישום הכספת)" },
-        { status: 200 }
-      );
+    if (result.skipped === "vault-gate") {
+      return NextResponse.json({ ok: false, error: result.error }, { status: 200 });
     }
-
-    // THE LIVE PULSE
-    const liveSeal: LiveSeal = {
-      height: seal.height,
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, error: result.error, anchorId: result.anchorId, receipt: result.receipt });
+    }
+    return NextResponse.json({
+      ok: true,
+      network: "STEEM",
+      account: result.account ?? "headcorner",
+      authority: "active",
+      height: result.height,
       root: seal.root,
-      stateRoot: seal.stateRoot,
-      leaves: seal.leavesCount,
-      gasUsed: seal.gasUsed
-    };
-
-    try {
-      const outcome = await anchorSealLiveOnSteem(liveSeal);
-      const row = await db.anchorTx.create({
-        data: {
-          sealId: seal.id,
-          network: "STEEM",
-          kind: "weave",
-          txid: outcome.txid, // from the chain node — never fabricated
-          status: outcome.confirmedByHistory ? "anchored" : "broadcast",
-          gate: null,
-          meta: JSON.stringify({
-            live: true,
-            payload: outcome.payload,
-            account: outcome.account,
-            authority: outcome.authority,
-            block: outcome.block,
-            confirmedByHistory: outcome.confirmedByHistory,
-            selfVerified: outcome.selfVerified,
-            explorer: outcome.explorer,
-            at: outcome.at
-          })
-        }
-      });
-      const receipt = await appendChainedReceipt(
-        "anchor-live-steem",
-        {
-          height: outcome.height,
-          root: outcome.root,
-          txid: outcome.txid,
-          block: outcome.block,
-          confirmedByHistory: outcome.confirmedByHistory,
-          anchorRowId: row.id
-        },
-        { sealId: seal.id }
-      );
-      await db.opLog.create({
-        data: {
-          op: "anchor-live-steem",
-          detail: `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmedByHistory}`
-        }
-      });
-      return NextResponse.json({ ok: true, ...outcome, anchorId: row.id, receipt: receipt.digest });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "live broadcast failed";
-      // a failed pulse is still evidence — recorded honestly, txid never faked
-      const row = await db.anchorTx.create({
-        data: {
-          sealId: seal.id,
-          network: "STEEM",
-          kind: "weave",
-          txid: null,
-          status: "failed",
-          gate: msg.slice(0, 200),
-          meta: JSON.stringify({
-            live: true,
-            attemptedAt: new Date().toISOString(),
-            height: seal.height,
-            root: seal.root,
-            error: msg.slice(0, 300)
-          })
-        }
-      });
-      const receipt = await appendChainedReceipt(
-        "anchor-live-steem-failed",
-        { height: seal.height, root: seal.root, error: msg.slice(0, 200), anchorRowId: row.id },
-        { sealId: seal.id }
-      );
-      await db.opLog.create({
-        data: { op: "anchor-live-failed", detail: `height=${seal.height} ${msg.slice(0, 120)}` }
-      });
-      return NextResponse.json({ ok: false, error: msg, anchorId: row.id, receipt: receipt.digest });
-    }
+      txid: result.txid ?? null,
+      block: result.block ?? null,
+      confirmedByHistory: result.confirmedByHistory ?? false,
+      selfVerified: true,
+      explorer: result.explorer ?? null,
+      anchorId: result.anchorId,
+      receipt: result.receipt
+    });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "live-broadcast failed" },

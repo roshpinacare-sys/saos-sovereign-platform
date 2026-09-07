@@ -75,7 +75,10 @@ export function ViewSeals({ status }: { status: LiveResult<StatusData> }) {
       toast.push({
         tone: "green",
         title: `חותם #${res.data.seal.height} נחתם בהצלחה`,
-        desc: `${res.data.seal.leaves} עלים · gas ${res.data.seal.gasUsed} · שורש ${short(res.data.seal.root)}`
+        desc:
+          res.data.autoAnchor === "pending"
+            ? `${res.data.seal.leaves} עלים · שורש ${short(res.data.seal.root)} · פעימת עגינה אוטומטית נורתה — צפה בספר העוגנים בעוד רגע`
+            : `${res.data.seal.leaves} עלים · gas ${res.data.seal.gasUsed} · שורש ${short(res.data.seal.root)}`
       });
       setMemo("");
       status.refresh();

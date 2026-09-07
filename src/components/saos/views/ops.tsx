@@ -10,19 +10,23 @@
 
 import { useMemo, useState } from "react";
 import {
+  Activity,
   BadgeCheck,
   CheckCircle2,
   Fingerprint,
+  Gauge as GaugeIcon,
   History,
   KeyRound,
   Lock,
   RadioTower,
+  RefreshCw,
   ScrollText,
   Send,
   ShieldCheck,
   Users,
   Vault as VaultIcon,
-  Wallet
+  Wallet,
+  Zap
 } from "lucide-react";
 import {
   Btn,
@@ -44,14 +48,19 @@ import {
   Th,
   useToast
 } from "../ui";
-import { MeterBar } from "../charts";
+import { MeterBar, Gauge } from "../charts";
 import { fullTime, postJson, short, timeAgo, useLive, useTick } from "../lib";
 import type { LiveResult } from "../lib";
 import type {
+  AutoAnchorData,
+  AutoAnchorToggleResult,
   BroadcastListData,
   BroadcastResult,
   Envelope,
+  HivePulseResult,
+  HiveReadinessData,
   LiveAnchorLedgerData,
+  LiveProbesData,
   LivePulseResult,
   LiveReadinessData,
   OpsData,
@@ -230,6 +239,91 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
     }
     setRechecking(null);
     liveLedger.refresh();
+  };
+
+  // ─── v9: פעימה אוטומטית + מדידות חיות ─────────────────────────────────
+  const auto = useLive<AutoAnchorData>("/api/saos/anchor-auto", 20000);
+  const probes = useLive<LiveProbesData>("/api/saos/live-probes", 60000);
+  const hiveReady = useLive<HiveReadinessData>("/api/saos/broadcast/hive", 45000);
+  const [toggling, setToggling] = useState(false);
+  const [probing, setProbing] = useState(false);
+  const [hivePulsing, setHivePulsing] = useState(false);
+  const [hivePulseResult, setHivePulseResult] = useState<HivePulseResult | null>(null);
+
+  const doToggleAuto = async () => {
+    if (toggling || !auto.data) return;
+    setToggling(true);
+    const res = await postJson<AutoAnchorToggleResult>("/api/saos/anchor-auto", {
+      enabled: !auto.data.enabled
+    });
+    setToggling(false);
+    if (res.ok && res.data) {
+      auto.refresh();
+      ops.refresh();
+      toast.push({
+        tone: res.data.enabled ? "green" : "gold",
+        title: res.data.enabled ? "פעימה אוטומטית דלוקה" : "פעימה אוטומטית כבויה",
+        desc: res.data.message
+      });
+    } else {
+      toast.push({ tone: "rose", title: "החלפת המצב נכשלה", desc: res.error ?? res.data?.error ?? "שגיאה" });
+    }
+  };
+
+  const doForceProbe = async () => {
+    if (probing) return;
+    setProbing(true);
+    try {
+      await fetch("/api/saos/live-probes?force=1", { cache: "no-store" });
+      probes.refresh();
+      hiveReady.refresh();
+      toast.push({
+        tone: "green",
+        title: "מדידה טרייה הושלמה",
+        desc: "RC של HIVE ומצב הכספת ב-TRON נמדדו מול הרשתות הציבוריות כעת"
+      });
+    } catch {
+      toast.push({ tone: "rose", title: "המדידה נכשלה", desc: "כשל רשת" });
+    }
+    setProbing(false);
+  };
+
+  const doHivePulse = async () => {
+    if (hivePulsing) return;
+    setHivePulsing(true);
+    setHivePulseResult(null);
+    try {
+      // direct fetch — a gated refusal (HTTP 200 + {ok:false, gated:true}) is
+      // DATA, and postJson collapses it to {error}; the full honest body
+      // (gate, note, rc) must survive into the UI
+      const r = await fetch("/api/saos/broadcast/hive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      });
+      const data = (await r.json()) as HivePulseResult;
+      setHivePulsing(false);
+      setHivePulseResult(data);
+      hiveReady.refresh();
+      ops.refresh();
+      if (data.ok) {
+        toast.push({
+          tone: data.already ? "gold" : "green",
+          title: data.already ? `חותם #${data.height} כבר מעוגן ב-HIVE` : `עוגן HIVE חי נחת — חותם #${data.height}`,
+          desc: data.txid ? `txid ${short(data.txid)}` : "הפעימה תועדה"
+        });
+      } else {
+        toast.push({
+          tone: data.gated ? "gold" : "rose",
+          title: data.gated ? "השער סגור — סירוב בכנות" : "שידור HIVE נכשל",
+          desc: (data.gated ? data.note ?? "" : data.error ?? "שגיאה").slice(0, 90)
+        });
+      }
+    } catch {
+      setHivePulsing(false);
+      setHivePulseResult({ ok: false, error: "כשל רשת" });
+      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: "השרת לא ענה" });
+    }
   };
 
   // ─── מעטפות שידור ─────────────────────────────────────────────────────────
@@ -686,9 +780,429 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
                 </Table>
               </div>
 
-              {/* כנות רשתות */}
+              {/* כנות רשתות — מדודה חיה (v9) */}
               <Callout tone="zinc" icon={<RadioTower size={14} />}>
-                <span className="font-semibold">מצב שאר הרשתות (כנה):</span> HIVE — rc-gated ‏(0.6%&lt;8%, התאוששות ~20%/יום; החתימה מוכחה אך התקציב חסום) · BLURT — עמלה מדודה + קירור-צמתים · TRON — transit עד energize. הפעימה החיה פותחת את STEEM בלבד — בכנות, בלי להעמיד פנים.
+                <span className="font-semibold">מצב שאר הרשתות (מדוד, לא מוצהר):</span>{" "}
+                {probes.data?.hive.ok
+                  ? `HIVE — RC חי ${probes.data.hive.rcPct.toFixed(2)}% מול רצפת 8% (מדד ${timeAgo(probes.data.hive.measuredAt)})`
+                  : "HIVE — המדידה החיה נכשלה, נופלים בכנות לערך הסביבתי"}{" "}
+                ·{" "}
+                {probes.data?.tron.ok
+                  ? `TRON — ${probes.data.tron.funded}/${probes.data.tron.checked} כתובות כספת ממומנות (מדד ${timeAgo(probes.data.tron.measuredAt)})`
+                  : "TRON — מדידת הכספת נכשלה"}{" "}
+                · BLURT — עמלה מדודה + קירור-צמתים. הפעימה החיה פותחת את STEEM בלבד — בכנות.
+              </Callout>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v9: פעימה אוטומטית — איטום ← עגינה ─────────────────────────── */}
+      <Panel accent={auto.data?.enabled ?? false}>
+        <PanelHeader
+          icon={<Zap size={15} />}
+          title="פעימה אוטומטית — איטום ← עגינה"
+          sub="כל חותם חדש נורה ל-STEEM החיה מיד לאחר יצירתו (after-response): אותה דיסציפלינה אחת עם הלחיצה הידנית — dedupe, שער-כספת, self-verify fail-closed, קבלה משורשרת לכל הצלחה או כישלון"
+          actions={
+            auto.data ? (
+              <div className="flex items-center gap-2">
+                <Pill tone={auto.data.enabled ? "green" : "zinc"}>
+                  <Activity size={10} />
+                  {auto.data.enabled ? "auto: ON" : "auto: OFF"}
+                </Pill>
+                <Toggle
+                  checked={auto.data.enabled}
+                  onChange={doToggleAuto}
+                  loading={toggling}
+                  labelOn="דלוק — כל חותם חדש מעוגן אוטומטית"
+                  labelOff="כבוי — העיגון ממתין ללחיצת אדם"
+                />
+              </div>
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-4">
+          {auto.loading && !auto.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : auto.data?.error ? (
+            <ErrorNotice message={auto.data.error} onRetry={auto.refresh} />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat label="מצב" value={auto.data?.enabled ? "דלוק · אוטונומי" : "כבוי · ידני"} icon={<Zap size={13} />} />
+                <SealStat label="סה״כ פעימות חיות" value={String(auto.data?.stats.totalPulses ?? 0)} icon={<RadioTower size={13} />} />
+                <SealStat
+                  label="פעימה אוטומטית אחרונה"
+                  value={auto.data?.stats.lastAuto ? `חותם #${auto.data.stats.lastAuto.height}` : "— טרם בוצעה"}
+                  icon={<History size={13} />}
+                />
+                <SealStat
+                  label="מצב הירי"
+                  value={
+                    auto.data?.stats.lastAuto
+                      ? auto.data.stats.lastAuto.status === "anchored"
+                        ? "anchored ✓"
+                        : auto.data.stats.lastAuto.status
+                      : "ממתין לחותם הבא"
+                  }
+                  icon={<ShieldCheck size={13} />}
+                />
+              </div>
+
+              {auto.data?.stats.lastAuto && (
+                <Callout tone={auto.data.stats.lastAuto.status === "anchored" ? "green" : "gold"} icon={<Zap size={14} />}>
+                  <span className="font-semibold">הירי האוטומטי האחרון — חותם #{auto.data.stats.lastAuto.height}</span>{" "}
+                  · {timeAgo(auto.data.stats.lastAuto.at)} ·{" "}
+                  {auto.data.stats.lastAuto.txid ? (
+                    <span dir="ltr" className="font-mono text-[11px]">{short(auto.data.stats.lastAuto.txid)}</span>
+                  ) : (
+                    "ללא txid (כנות — לא זויף לעולם)"
+                  )}
+                  {auto.data.stats.lastAuto.confirmedByHistory && " · נראה בהיסטוריה החיה ✓"}
+                </Callout>
+              )}
+
+              {/* יומן הפעימות האחרונות */}
+              {(auto.data?.pulses ?? []).length > 0 && (
+                <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+                  <div className="px-3.5 py-2.5 border-b border-white/[0.06] flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-zinc-200">פעימות חיות אחרונות — מקור: אוטומטי/ידני</p>
+                    <span className="text-[10px] text-zinc-600" dir="ltr">source=auto|manual</span>
+                  </div>
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>חותם</Th>
+                        <Th>מקור</Th>
+                        <Th>txid</Th>
+                        <Th>מצב</Th>
+                        <Th>היסטוריה</Th>
+                        <Th>מתי</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(auto.data?.pulses ?? []).map((p) => (
+                        <tr key={p.id} className="hover:bg-white/[0.015] transition-colors">
+                          <Td className="font-semibold">#{p.height}</Td>
+                          <Td>
+                            <Pill tone={p.source === "auto" ? "gold" : "zinc"}>{p.source}</Pill>
+                          </Td>
+                          <Td>
+                            {p.txid ? (
+                              <span dir="ltr" className="font-mono text-[11px] text-emerald-300/90">{short(p.txid)}</span>
+                            ) : (
+                              <span className="text-zinc-600 text-[11px]">—</span>
+                            )}
+                          </Td>
+                          <Td>
+                            <Pill tone={p.status === "anchored" ? "green" : p.status === "failed" ? "rose" : "gold"}>
+                              {p.status}
+                            </Pill>
+                          </Td>
+                          <Td>{p.confirmedByHistory ? <Pill tone="green">✓</Pill> : "—"}</Td>
+                          <Td className="text-zinc-500 text-[11px] whitespace-nowrap">{timeAgo(p.at)}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
+
+              <Callout tone="zinc" icon={<ShieldCheck size={14} />}>
+                <span className="font-semibold">דיסציפלינה אחת, שני מקורות:</span> לחיצת אדם וירי אוטומטי נופלים לאותו
+                קוד בדיוק (<span dir="ltr" className="font-mono text-[11px]">fireLiveAnchorOnSteem</span>) — dedupe
+                לכל חותם, שער כספת sealed, self-verify בטרם חתימה, וקבלה משורשרת גם לכישלון. החלפת המצב נרשמת
+                ביומן התפעול — גם מישור-הבקרה ניתן לביקורת.
+              </Callout>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v9: HIVE — מוכנות חיה (RC מדוד, מפתח מוכח) ──────────────────── */}
+      <Panel accent={hiveReady.data?.readiness.gate === "open"}>
+        <PanelHeader
+          icon={<GaugeIcon size={15} />}
+          title="HIVE — מוכנות חיה · RC מדוד + מפתח מוכח"
+          sub="החסם ההיסטורי היחיד של HIVE היה RC — כעת הוא נמדד חי מול השרשרת הציבורית (rc_api), ומפתח ה-active של הכספת מוכח מוסמך ב-chain החיה. שני התנאים מתועדים; כשה-RC חוצה את הרצפה — הפעימה יורה"
+          actions={
+            hiveReady.data?.readiness ? (
+              <Pill
+                tone={
+                  hiveReady.data.readiness.gate === "open"
+                    ? "green"
+                    : hiveReady.data.readiness.gate === "gated-rc"
+                      ? "gold"
+                      : "rose"
+                }
+              >
+                <GaugeIcon size={10} />
+                {hiveReady.data.readiness.gate === "open"
+                  ? "שער פתוח"
+                  : hiveReady.data.readiness.gate === "gated-rc"
+                    ? "חמוש · מגודר-RC"
+                    : "חסום"}
+              </Pill>
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-4">
+          {hiveReady.loading && !hiveReady.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : hiveReady.data?.error && !hiveReady.data?.readiness ? (
+            <ErrorNotice message={hiveReady.data.error} onRetry={hiveReady.refresh} />
+          ) : !hiveReady.data?.readiness ? null : (
+            <>
+              {/* מד מחוון RC חי */}
+              <div className="flex flex-col sm:flex-row items-center gap-5 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
+                <Gauge
+                  pct={hiveReady.data.readiness.rc.pct ?? 0}
+                  tone={
+                    (hiveReady.data.readiness.rc.pct ?? 0) >= 12
+                      ? "green"
+                      : (hiveReady.data.readiness.rc.pct ?? 0) >= 8
+                        ? "gold"
+                        : "rose"
+                  }
+                  centerLabel="RC חי"
+                  markers={[
+                    { at: 8, label: "קל 8%" },
+                    { at: 12, label: "כבד 12%" }
+                  ]}
+                />
+                <div className="flex-1 w-full space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <MiniStat
+                      label="RC נמדד"
+                      value={`${(hiveReady.data.readiness.rc.pct ?? 0).toFixed(2)}%`}
+                      tone={(hiveReady.data.readiness.rc.pct ?? 0) >= 8 ? "gold" : "rose"}
+                    />
+                    <MiniStat
+                      label="שעות לסף-קל (8%)"
+                      value={
+                        hiveReady.data.readiness.rc.hoursToLightFloor !== null
+                          ? `~${hiveReady.data.readiness.rc.hoursToLightFloor} שע׳`
+                          : "—"
+                      }
+                    />
+                  </div>
+                  <MiniStat
+                    label="חשבון עוגן (מדוד)"
+                    value={hiveReady.data.readiness.account}
+                    ltr
+                  />
+                  <p className="text-[10px] text-zinc-600 flex items-center gap-1.5">
+                    <RefreshCw size={11} />
+                    מדידה חיה מ-<span dir="ltr" className="font-mono">{probes.data?.hive.apiNode ?? "—"}</span> ·{" "}
+                    {probes.data?.hive.measuredAt ? timeAgo(probes.data.hive.measuredAt) : "—"} · רגן ~20%/יום
+                  </p>
+                </div>
+              </div>
+
+              {/* הוכחת הסמכת המפתח — מדודה מול השרשרת */}
+              <div className="rounded-xl border border-white/[0.06] bg-black/20 p-3.5 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <KeyRound size={13} className="text-amber-300/70" />
+                  <p className="text-xs font-bold text-zinc-200">הוכחת הסמכה — המפתח מהכספת מול השרשרת החיה</p>
+                  <Pill tone={hiveReady.data.readiness.activeKeyAuthorized === true ? "green" : "rose"}>
+                    {hiveReady.data.readiness.activeKeyAuthorized === true ? "מוסמך ✓" : "לא אומת"}
+                  </Pill>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <HashLine
+                    label="הכספת (נגזר בשרת)"
+                    value={hiveReady.data.readiness.vaultActivePub}
+                    tone="gold"
+                  />
+                  <HashLine
+                    label="HIVE active (מהשרשרת)"
+                    value={hiveReady.data.readiness.chainActivePub}
+                    tone={hiveReady.data.readiness.activeKeyAuthorized === true ? "green" : "zinc"}
+                  />
+                </div>
+                <p className="text-[10px] text-zinc-600 leading-relaxed">
+                  אותו WIF שכבר הוכח בקרב STEEM (3 עוגנים חיים) נגזר בצד-השרת למפתח-ציבורי ומושווה מול
+                  active key_auths של החשבון ב-HIVE החיה — ההשוואה עצמה היא ההוכחה, בלי לשדר ולו RC אחד.
+                </p>
+              </div>
+
+              {/* פסק-דין כנה */}
+              <Callout
+                tone={
+                  hiveReady.data.readiness.gate === "open"
+                    ? "green"
+                    : hiveReady.data.readiness.gate === "gated-rc"
+                      ? "gold"
+                      : "rose"
+                }
+                icon={<GaugeIcon size={14} />}
+              >
+                {hiveReady.data.readiness.verdict}
+                {hiveReady.data.readiness.gate === "gated-rc" && (
+                  <span className="block mt-1 text-[11px] text-zinc-500">
+                    כשהמד החי יחצה 8% — הכפתור למטה יורה פעימת HIVE חית אמיתית (custom_json ‏saos.weave.v1 בסמכות active מהמפתח שכבר הוכח מוסמך).
+                  </span>
+                )}
+              </Callout>
+
+              {/* פעולות */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Btn variant="secondary" size="md" loading={probing} onClick={doForceProbe}>
+                  <RefreshCw size={14} /> מדוד שוב (טרי)
+                </Btn>
+                <Btn
+                  variant={hiveReady.data.readiness.gate === "open" ? "primary" : "secondary"}
+                  size="md"
+                  loading={hivePulsing}
+                  disabled={hiveReady.data.readiness.gate !== "open" && hiveReady.data.readiness.gate !== "gated-rc"}
+                  onClick={doHivePulse}
+                >
+                  <RadioTower size={14} />
+                  {hiveReady.data.readiness.gate === "open"
+                    ? `שדר עוגן HIVE חי — חותם #${hiveReady.data.seal?.height ?? 0}`
+                    : "נסה פעימה — יסרב בכנות עד חציית הרצפה"}
+                </Btn>
+                <p className="text-[11px] text-zinc-500 leading-relaxed flex-1">
+                  השער נאכף בשרת לפני שנוגעים במפתח: סירוב מתועד כתשובה כנה, אף RC לא נוצל, אף חתימה לא נוסתה.
+                  הכישלון-עד-רגע-הפתיחה הוא חלק מהמשמעת.
+                </p>
+              </div>
+
+              {/* תוצאת פעימת HIVE */}
+              {hivePulseResult && !hivePulseResult.ok && (
+                <Callout tone={hivePulseResult.gated ? "gold" : "rose"} icon={<Lock size={14} />}>
+                  <span className="font-semibold">
+                    {hivePulseResult.gated ? "השער סגור — הסירוב עצמו הוא המשמעת:" : "השידור נכשל בכנות:"}
+                  </span>{" "}
+                  <span dir="auto">{hivePulseResult.error}</span>
+                  {hivePulseResult.note && (
+                    <span className="block mt-1 text-[11px] text-zinc-500" dir="auto">{hivePulseResult.note}</span>
+                  )}
+                </Callout>
+              )}
+              {hivePulseResult && hivePulseResult.ok && (
+                <Callout tone={hivePulseResult.already ? "gold" : "green"} icon={<CheckCircle2 size={14} />}>
+                  <div className="space-y-1.5">
+                    <p className="font-semibold">
+                      {hivePulseResult.already
+                        ? hivePulseResult.message ?? "כבר מעוגן"
+                        : `עוגן HIVE חי נחת — חותם #${hivePulseResult.height}`}
+                      {hivePulseResult.confirmedByHistory === true && " · נראה בהיסטוריה החיה ✓"}
+                    </p>
+                    {hivePulseResult.txid && (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                        <HashLine label="txid" value={hivePulseResult.txid} tone="green" />
+                        {hivePulseResult.block != null && (
+                          <span dir="ltr" className="font-mono text-zinc-400">block #{hivePulseResult.block}</span>
+                        )}
+                        {hivePulseResult.explorer && (
+                          <a
+                            href={hivePulseResult.explorer}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-amber-300/90 underline underline-offset-2 hover:text-amber-200"
+                          >
+                            hiveblockexplorer ↗
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Callout>
+              )}
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v9: TRON — כספת מדודה ───────────────────────────────────────── */}
+      <Panel>
+        <PanelHeader
+          icon={<Wallet size={15} />}
+          title="TRON — מצב כספת מדוד"
+          sub="6 כתובות הכספת נבדקות מול TronGrid הציבורי (קריאה בלבד): כתובת ללא חשבון בשרשרת מחזירה ריק — ה-transit האמיתי, לא הצהרה. המצב מתעדכן מהרשת ולא מהסביבה"
+          actions={
+            probes.data?.tron ? (
+              <Pill tone={probes.data.tron.energizeReady ? "green" : "zinc"}>
+                {probes.data.tron.funded}/{probes.data.tron.checked} ממומנות
+              </Pill>
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-3">
+          {probes.loading && !probes.data ? (
+            <Skeleton className="h-16 rounded-lg" />
+          ) : probes.data?.tron.error && !probes.data.tron.ok ? (
+            <ErrorNotice message={probes.data.tron.error} onRetry={probes.refresh} />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat label="כתובות שנבדקו" value={String(probes.data?.tron.checked ?? 0)} icon={<Wallet size={13} />} />
+                <SealStat
+                  label="ממומנות (יש חשבון)"
+                  value={String(probes.data?.tron.funded ?? 0)}
+                  icon={<ShieldCheck size={13} />}
+                />
+                <SealStat label="יתרה כוללת" value={`${(probes.data?.tron.totalBalanceTrx ?? 0).toFixed(2)} TRX`} icon={<Wallet size={13} />} />
+                <SealStat
+                  label="מצב"
+                  value={probes.data?.tron.energizeReady ? "מוכן ל-energize" : "transit · energy-0 מדוד"}
+                  icon={<Zap size={13} />}
+                />
+              </div>
+              <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>כתובת כספת</Th>
+                      <Th>חשבון בשרשרת</Th>
+                      <Th>יתרה</Th>
+                      <Th>אנרגיה</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(probes.data?.tron.addresses ?? []).map((a) => (
+                      <tr key={a.address} className="hover:bg-white/[0.015] transition-colors">
+                        <Td>
+                          <span dir="ltr" className="font-mono text-[11px] text-zinc-400">
+                            {a.address.slice(0, 12)}…{a.address.slice(-4)}
+                          </span>
+                        </Td>
+                        <Td>
+                          {a.funded ? <Pill tone="green">קיים</Pill> : <Pill tone="zinc">לא הופעל</Pill>}
+                        </Td>
+                        <Td className="tabular-nums text-[11px]" dir="ltr">
+                          {a.balanceTrx > 0 ? `${a.balanceTrx.toFixed(2)} TRX` : "—"}
+                        </Td>
+                        <Td className="tabular-nums text-[11px]" dir="ltr">
+                          {a.energy > 0 ? a.energy : "—"}
+                        </Td>
+                      </tr>
+                    ))}
+                    {(probes.data?.tron.addresses ?? []).length === 0 && (
+                      <tr>
+                        <Td className="text-zinc-600 text-[11px]">—</Td>
+                        <Td className="text-zinc-600 text-[11px]">אין כתובות TRON רשומות — חבר את שלב 2</Td>
+                        <Td>—</Td>
+                        <Td>—</Td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
+              </div>
+              <Callout tone="zinc" icon={<Zap size={14} />}>
+                <span className="font-semibold">המשמעות:</span> energy-0 שנמדד = המצב האמיתי. רגע שתופעל כתובת
+                ותיטען — המד יראה זאת (עדכון אוטומטי), השער ייפתח, ומודול ה-energize
+                (<span dir="ltr" className="font-mono text-[11px]">freezeBalanceV2 + delegateResource</span>) כבר מוכן
+                בפלטפורמה וממתין לתקציב.
               </Callout>
             </>
           )}
@@ -1112,6 +1626,83 @@ function SealStat({
           "text-sm font-bold text-zinc-100 tabular-nums",
           ltr && "font-mono"
         )}
+        dir={ltr ? "ltr" : undefined}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/** v9 — מפסק-מצב נגיש (role=switch) לפעימה האוטומטית. */
+function Toggle({
+  checked,
+  onChange,
+  loading,
+  labelOn,
+  labelOff
+}: {
+  checked: boolean;
+  onChange: () => void;
+  loading?: boolean;
+  labelOn: string;
+  labelOff: string;
+}) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      aria-label={checked ? labelOn : labelOff}
+      title={checked ? labelOn : labelOff}
+      onClick={onChange}
+      disabled={loading}
+      className={cn(
+        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
+        checked
+          ? "border-amber-400/50 bg-amber-400/25"
+          : "border-white/[0.12] bg-zinc-900",
+        loading && "opacity-60 cursor-wait"
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "absolute h-5 w-5 rounded-full shadow transition-all duration-200",
+          checked
+            ? "start-[26px] bg-amber-300"
+            : "start-[3px] bg-zinc-500"
+        )}
+      />
+    </button>
+  );
+}
+
+/** v9 — מחוון-מיני מקומי (מספר + גוון) לפאנלי המוכנות החיה. */
+function MiniStat({
+  label,
+  value,
+  tone = "default",
+  ltr = false
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "gold" | "rose" | "green";
+  ltr?: boolean;
+}) {
+  const toneCls =
+    tone === "gold"
+      ? "text-amber-300"
+      : tone === "rose"
+        ? "text-rose-300"
+        : tone === "green"
+          ? "text-emerald-300"
+          : "text-zinc-100";
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 flex items-baseline justify-between gap-2 min-w-0">
+      <p className="text-[10px] text-zinc-500 font-semibold tracking-wide shrink-0">{label}</p>
+      <p
+        className={cn("text-xs font-bold tabular-nums truncate", toneCls, ltr && "font-mono")}
         dir={ltr ? "ltr" : undefined}
       >
         {value}

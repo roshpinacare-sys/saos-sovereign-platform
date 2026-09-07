@@ -8,6 +8,7 @@ import {
 } from "@/lib/saos/tron-energize";
 import { hiveRcRecoveryPlan, HIVE_RC_REGEN_PCT_PER_DAY } from "@/lib/saos/anchor-gates";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
+import { probeHiveRc, hiveAnchorAccount } from "@/lib/saos/hive-rc-live";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,26 @@ export async function GET(req: Request) {
     const net = (url.searchParams.get("net") ?? "tron").toLowerCase();
 
     if (net === "hive") {
-      const rcPct = Number(url.searchParams.get("rc") ?? 0.6);
+      // v9 — the RC behind the recovery plan is MEASURED live against the
+      // public HIVE chain (60s cache). The ?rc= override stays (what-if
+      // simulations are a legitimate planning tool) but the DEFAULT is
+      // now reality, not a stale env snapshot.
+      let rcPct: number;
+      let rcSource: "live" | "sim";
+      const sim = url.searchParams.get("rc");
+      if (sim !== null && Number.isFinite(Number(sim))) {
+        rcPct = Number(sim);
+        rcSource = "sim";
+      } else {
+        const live = await probeHiveRc(hiveAnchorAccount());
+        if (live.ok) {
+          rcPct = live.rcPct;
+          rcSource = "live";
+        } else {
+          rcPct = 0.6; // honest fallback — stated as such
+          rcSource = "sim";
+        }
+      }
       const plan = hiveRcRecoveryPlan(rcPct);
 
       const receipt = await appendChainedReceipt(
@@ -31,6 +51,7 @@ export async function GET(req: Request) {
         network: "HIVE",
         params: { regenPctPerDay: HIVE_RC_REGEN_PCT_PER_DAY, lightFloor: 8, heavyFloor: 12 },
         plan,
+        rcSource,
         receipt: receipt.digest
       });
     }

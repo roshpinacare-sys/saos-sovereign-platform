@@ -1,6 +1,6 @@
 {
   "name": "saos-sovereign-foundry",
-  "version": "8.0.0",
+  "version": "9.0.0",
   "private": true,
   "description": "SAOS Sovereign Platform v7 — LIVE ANCHOR: cross-network anchoring with live STEEM custom_json broadcast from the sealed vault. אנחנו מנצחים את הבלוקצ'יין",
   "scripts": {
@@ -10,15 +10,16 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
+    "@hiveio/dhive": "1.3.6",
+    "@prisma/client": "^6.16.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.545.0",
     "next": "16.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "@prisma/client": "^6.16.2",
-    "lucide-react": "^0.545.0",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^3.3.1",
-    "class-variance-authority": "^0.7.1",
-    "steem": "0.7.11"
+    "steem": "0.7.11",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
