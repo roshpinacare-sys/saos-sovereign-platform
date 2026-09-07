@@ -1,30 +1,33 @@
-# SAOS Sovereign Foundry v3 — Sovereign Command Deck
+# SAOS Sovereign Platform v4 — Institutional Console
 
 > **אנחנו מנצחים את הבלוקצ'יין**
 
 הפרויקט הנבחר — מסונתז ממחקר-עומק של 10 ארכיונים (~11,500 קבצים, 66MB).
-v3 מחליף את ממשק המשתמש במלואו ב"סיפון-פיקוד" (Command Deck): נוכחות חיה, ולידציה,
-הגיון, שימושיות ובהירות. העותק החי (מה שמוצג בפריוויו) רץ בשורש הסנדבוקס עם אותו קוד בדיוק.
+v4 מחליף את ממשק המשתמש במלואו ב"קונסולה מוסדית": מעטפת אפליקציה מקצועית
+(סרגל-צד + סרגל-עליון חי), טבלאות נתונים אמיתיות, טיימליינים, מדדים ו-SVG נטול-תלויות.
+העותק החי (מה שמוצג בפריוויו) רץ בשורש הסנדבוקס עם אותו קוד בדיוק.
 
 ## מה זה
 
-פלטפורמת Next.js 16 (App Router, TypeScript, Tailwind 4, Prisma/SQLite) עם חמישה מגדלים:
+פלטפורמת Next.js 16 (App Router, TypeScript, Tailwind 4, Prisma/SQLite) עם שישה עמודי קונסולה:
 
-| מגדל | מה עושה |
+| עמוד | מה עושה |
 |---|---|
-| **מגדל-פיקוח** | KPI חיים (count-up), מטריצת עגינה (STEEM ✅ / BLURT ✅ / HIVE ⏳ rc-gated / TRON 🚧 transit), פעימת חתימה עם ולידציה, selftest עם מדד-זמן, שרשרת-ראיות |
-| **אנרגיה** | מחשבון TRX energize עם gauge כיסוי (freezeBalanceV2 + delegateResource), תוכנית Hive RC עם מדד ספים 8%/12% |
-| **כלכלה** | סימולטור זרמי harvest עם עמודות יחס, גלגל-חור חזותי, **שמירת תמונות-מצב** (EconomySnapshot) |
-| **הוכחות** | verify-pack לכל חותם (בחירת גובה), באנר שלמות, מפת-הוכחה חזותית, מתכון אימות עצמאי |
-| **פורץ דרך** | פסק-הדין על 10 ארכיונים + מפת-דרכים עם שלב 1 מסומן-ממומש |
+| **לוח בקרה** | KPI חיים (count-up + sparkline), מטריצת עגינה (STEEM ✅ / BLURT ✅ / HIVE ⏳ rc-gated / TRON 🚧 transit), חותמים אחרונים, יומן ראיות, בריאות גרעין |
+| **איטום ועגינה** | פעימה מבוקרת-ולידציה (Stepper 3–24 + memo), "מה יקרה", טבלת שרשרת עם שורות-נפתחות (קבלה, עוגנים, שערים) |
+| **הוכחות** | verify-pack לכל חותם (בחירת גובה), באנר שלמות, השוואת שורשים, מסלול-הוכלה, מתכון אימות עצמאי |
+| **ריבונות אנרגיה** | TRX energize עם gauge כיסוי ונקודת-איזון, תוכנית Hive RC עם מדד ספים 8%/12%, טיימליינים |
+| **כלכלה** | סימולטור 9 מחוונים, זרמים עם MeterBar, גלגל-חור חזותי, שמירת תמונות-מצב (EconomySnapshot) |
+| **מחקר ומפת-דרך** | ההכרעה המסונתזת, לוח-שלבים (שלב 1 ממומש), דירוג 10 הארכיונים |
 
-## החדש ב-v3 (Command Deck)
+## החדש ב-v4 (Institutional Console)
 
-- **מעטפת חיה**: טיקר-שרשרת בזמן-אמת ב-header (גובה, חותמים, קבלות, רענון), LiveDot פועם, רענון אוטומטי כל 12 שניות (pause-on-hidden)
-- **SDS-2** — מערכת עיצוב ריבונית **zero-dependency**: Card, Badge, Button, Stat (count-up), Progress, Slider, Tabs נגישים (role=tablist + חצים), Skeleton (shimmer), Toast, CopyButton, Gauge (SVG), ErrorBanner, EmptyState, Field/TextInput — הכל על clsx+cva+tailwind-merge בלבד
-- **ולידציה**: קלט stamps 3–24 עם הודעת שגיאה, clamp בשרת לכל 9 פרמטרי הכלכלה, שגיאות-API כבאנר עם "נסה שוב" — לעולם לא 500
-- **שימושיות**: העתקה בלחיצה לכל hash/root/קבלה/txid, מטרות-מגע ≥44px, focus-visible, prefers-reduced-motion
-- **ארכיטקטורת רכיבים**: page.tsx דק (הרכבה בלבד) + shell + 5 מגדלים + hooks (useLive/useCountUp/postJson) — מודולרי לתחזוקה
+- **מעטפת אפליקציה**: סרגל-צד עם ניווט מקובץ + סטטוס שרשרת חי, סרגל-עליון עם שעון מוסדי (Asia/Jerusalem), pill-חיבור, רענון; ניווט-מובייל גליל-אופקי; כותרת-תחתונה דביקה
+- **SDS-4** — מערכת עיצוב מוסדית **zero-dependency**: Panel, Btn, Pill, Kpi (count-up), Table, Timeline, Stepper, RangeSlider, Callout, Toast, CopyBtn, HashLine + charts (Gauge, Sparkline, MeterBar) — הכל על clsx+tailwind-merge+lucide בלבד
+- **טבלאות נתונים אמיתיות**: שרשרת חותמים עם שורות-נפתחות (קבלת-ראיות, מצב עוגנים, שערים פעילים) — במקום רשימות ad-hoc
+- **RTL מוסדי**: ערכי KPI מיושרים לימין עם קריאת מספרים LTR (bidi-aware), mono לכל hash
+- **ולידציה**: Stepper 3–24, memo ≤ 80 עם מונה, שגיאות-API כהודעות-נתונים עם "נסה שוב" — לעולם לא 500
+- **ניווט-מקלדת**: Alt+1..6 למעבר מהיר בין עמודים + כותרת דפדפן דינמית
 
 ## המודולים הריבוניים (`src/lib/saos/`)
 
@@ -64,7 +67,7 @@ bun run dev            # http://localhost:3000
 
 ## מפת-דרכים (מתוך פסק-הדין)
 
-1. ~~**היום**: מגדל-פיקוח חי~~ ✅ **ממומש** (kernel selftest, verify-pack, מחשבוני אנרגיה, Command Deck v3)
+1. ~~**היום**: מגדל-פיקוח חי~~ ✅ **ממומש** (kernel selftest, verify-pack, מחשבוני אנרגיה, Institutional Console v4)
 2. מפתחות אמיתיים חוזרים (כספת מהארכיון) → פעימה אמיתית → **HIVE נוחת**
 3. **TRON ישיר** — הימור TRX ממומן → יישובי USDT נושאי-stateRoot → עגינה אמיתית
 4. **גלגל-החור** — grid pools + inbound rail מממנים את האנרגיה בעצמם
