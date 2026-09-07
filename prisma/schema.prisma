@@ -1,0 +1,127 @@
+// SAOS Sovereign Foundry v2 — data model
+// The platform state: sovereign chain seals, public anchors, energy plans,
+// economy simulations, evidence receipts and the research verdict ledger.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Sovereign chain: sealing roots (שורשי-האיטום) ────────────────────────────
+
+model SealRecord {
+  id          String       @id @default(cuid())
+  height      Int          @unique // chain height at seal time
+  root        String       @unique // merkle root of the batch (hex)
+  leavesCount Int
+  stateRoot   String // sha256 of canonical kernel state
+  gasUsed     Int
+  note        String?
+  createdAt   DateTime     @default(now())
+  anchors     AnchorTx[]
+  leaves      SealLeaf[]
+  receipts    EvidenceReceipt[]
+
+  @@index([createdAt])
+}
+
+model SealLeaf {
+  id      String     @id @default(cuid())
+  sealId  String
+  seal    SealRecord @relation(fields: [sealId], references: [id], onDelete: Cascade)
+  index   Int
+  kind    String // stamp | seal | harvest | relay | wallet
+  payload String // canonical JSON of the leaf
+  digest  String // sha256 of canonical payload
+
+  @@unique([sealId, index])
+  @@index([digest])
+}
+
+// ─── Public anchoring (העגינה הציבורית) ──────────────────────────────────────
+
+model AnchorTx {
+  id        String      @id @default(cuid())
+  sealId    String?
+  seal      SealRecord? @relation(fields: [sealId], references: [id])
+  network   String // STEEM | BLURT | HIVE | TRON
+  kind      String // weave | checkpoint | identity
+  txid      String? // null while pending/gated — honest, never fabricated
+  status    String // anchored | pending | gated | transit
+  gate      String? // why not anchored yet (rc-floor, cooldown, energy-0 ...)
+  meta      String? // JSON extras (rc %, energy, cooldown minutes...)
+  createdAt DateTime    @default(now())
+
+  @@index([network, status])
+  @@index([sealId])
+}
+
+// ─── Energy sovereignty (ריבונות אנרגיה) ─────────────────────────────────────
+
+model EnergyPlan {
+  id          String   @id @default(cuid())
+  network     String // TRON | HIVE
+  mode        String // energize | powerup | delegate
+  trxStaked   Int? // sun
+  energyOut   Int? // estimated daily energy
+  settlements Int? // USDT settlements per day (~65k energy each)
+  burnCost    Int? // sun/day if no staking
+  rcFloorPct  Float? // hive floors
+  notes       String?
+  payload     String // full canonical plan JSON
+  createdAt   DateTime @default(now())
+}
+
+// ─── Economy (המשק — harvest & grid) ────────────────────────────────────────
+
+model EconomySnapshot {
+  id          String   @id @default(cuid())
+  label       String
+  inputs      String // canonical JSON inputs
+  streams     String // JSON per-stream output
+  totalPerDay Float
+  flywheelPct Float
+  createdAt   DateTime @default(now())
+}
+
+// ─── Evidence (ראיות — hash-chained receipts) ────────────────────────────────
+
+model EvidenceReceipt {
+  id         String      @id @default(cuid())
+  kind       String // seal | selftest | verify-pack | energy-plan | economy-sim
+  digest     String      @unique
+  prevDigest String?
+  payload    String
+  seal       SealRecord? @relation(fields: [sealId], references: [id])
+  sealId     String?
+  createdAt  DateTime    @default(now())
+
+  @@index([kind])
+}
+
+// ─── Research verdict ledger (פסק-הדין של המחקר) ─────────────────────────────
+
+model ResearchFinding {
+  id       String @id @default(cuid())
+  archive  String @unique
+  rank     Int
+  score    Int // 0..100 trailblazer score
+  verdict  String
+  salvage  String // JSON top salvage items
+  evidence String // JSON validation evidence
+}
+
+// ─── Ops audit (יומן תפעול) ─────────────────────────────────────────────────
+
+model OpLog {
+  id        String   @id @default(cuid())
+  op        String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([op])
+}
