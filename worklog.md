@@ -270,3 +270,46 @@ Stage Summary:
 - רשת-7 שרשראות חיה בקונסולה: Ethereum ו-Solana (שחיבר הבעלים עם סוכן אחר) משולבים כרכבי-מדידה read-only עם RPC ציבורי מאומת.
 - מפת האקוסיסטם: 8 ריפואים פועלים כאורגניזם אחד — הצעד הבא: עוגנים אמיתיים על EVM/SVM (deterministic replay → merkle root → txid + read-back).
 - אבטחה: הטוקן/ה-.env/ה-DB הוסרו ממעקב הגיט לפני דחיפת v10.0.0; ה-remote נקי מסודות.
+
+---
+Task ID: 1
+Agent: Explore (repos investigator)
+Task: בחינת 7 הריפואים הנוספים של roshpinacare-sys בגיטהאב — מפתחות, אינטגרציות ETH/SOL, קשרים לפרויקט הריבוני
+
+Work Log:
+- אימתי טוקן (ghp_36…, user=roshpinacare-sys, 8 ריפואים פרטיים). מטא-דאטה: כל 7 הריפואים branch=main; נדחפו כולם ב-2026-09-07 (steem 23:22 — פעיל-כרגע דרך gitkeeper).
+- שלפתי עצי-קבצים רקורסיביים לכל 7 הריפואים (steem=11,351 blobs, Saosmartwallet=209, saos-dex=66, saos-sovereign-foundry=82, anchor-baseline=3, roshpina=208, Project-files=10 זיפים). סרקתי שמות-קבצים לפי תבניות env/key/secret/seed/wallet/eth/sol.
+- קראתי README+package.json של steem/Saosmartwallet/saos-dex; .env.example של saos-dex ו-foundry; .env של anchor-baseline (DATABASE_URL בלבד); docs/secret-hygiene.md + multi-agent-map.md + cross-agent-findings.md של foundry; anchors.json+relay.ts של saos-dex; wallets.cjs/xwallet.cjs/gas_tank.json/xnet_map.json/fleet_vault.cjs של steem; גזרות bridge של roshpina; eco-registry של Saosmartwallet.
+- בדקתי קומיטים: זיהיתי דחיפות-סוכן פעילות (steem gitkeeper כל ~20 דק׳; foundry קומיט 3a822dc 23:14 "task-12: Ethereum + Solana dry-run networks" — נדחף במהלך הביקורת; saos-dex 8338bce "relay keys recovered from steem@main agent/fleet_keys.enc").
+- הורדתי את 10 הזיפים של Project-files וסרקתי תוכן (תבניות: ghp_/github_pat_/0x-hex64/base58-88/WIF-51-52/מנומוניק) — כל ההתאמות טופלו: 0x73ed…0001 = קבוע BLS12-381 (לא מפתח); ghp_AB…7890 = טוקן-דמה בסקריפט הוכחת-רשעות; KZ9W9… ב-pnpm-lock = hash. אפס מפתחות ETH/SOL/STEEM בטקסט-גלוי באף זיפ.
+- בדקתי את ההיסטוריה של anchor-baseline: upload/חח.txt (101B) נמחק ב-1baa8ca אך ניתן לשחזור מקומיט 634ccf8 — מכיל GitHub fine-grained PAT (github…aSlp, אורך 93, שורה 2). הודפס מסוכה בלבד.
+- בדקתי היסטוריית הכספת ב-steem: איטום מחדש כל ~30 דק׳ עם סיסמה חדשה — כל גרסה (מעטפת+סיסמה) נשארת בהיסטוריית הגיט (סבבים לא מוחקים סודות ישנים).
+- סריקת תוכן מלאה של עצי FETCH_HEAD בכל הריפואים (git grep) ל-github_pat/ghp/WIF/hex64/base58-88 — נקי מסודות אמיתיים ב-HEAD (למעט ממצאי הכספת וההיסטוריה לעיל). db/custom.db של Saosmartwallet נבדק — ריק לחלוטין (סכמה בלבד).
+
+Stage Summary:
+- steem (197MB): אמא-הרשת של SAOS — צי 11-25 חשבונות Steem/Hive, SAOS-NET (שרשרת-צל דטרמיניסטית, צ'קפוינטים מעוגנים), דמון gitkeeper חי, cloud-heart Action שפותח את הכספת בענן. אינטגרציית ETH/SOL אמיתית: גזירת ארנקים ריבונית (EVM m/44'/60' + TRON 44'/195' + BTC 84'/0' + SOL ed25519(sha256(seed|sol|name))), xwallet.cjs (Paymaster EIP-191+ecrecover, Solana devnet MEMO, דלי-גז), מפת-12-רשתות חיה. מפתחות: fleet_keys.enc (170,905B, AES-256-GCM) + fleet_keys.meta.json עם סיסמה בטקסט-גלוי (e7TYNM…lBv4 באיטום 23:18) — מדיניות Task 82 מכוונת; הכספת מכילה WIF-י צי+תפקידים, wallets-seed (שורש EVM/TRON/SOL/BTC), tron-mnemonic, xwallets, .env (GITHUB_TOKEN). רישום-כתובות ציבורי: sovereign/node/wallets-public.json (12 סוכנים × evm/tron/sol/btc). חמור: כל איטום-מחדש נשמר בהיסטוריה עם סיסמתו — סבב לא מוחק.
+- Saosmartwallet (443KB): ארנק self-custodial למשפחת Steem + SAOS GRID (מרכז-פיקוד שסורק חי את 8 הריפואים דרך GitHub API + 5 רשתות). M0+M1+M2 מאומתים מול chain (סריאליזציה זהה-ביטית, Argon2id+AES-GCM vault, policy, Shamir). אין ETH/SOL; WETH/SAOS מסומן sim. אפס מפתחות בריפו; db/custom.db ריק.
+- saos-dex (250KB): הבורסה הריבונית — קרנל דטרמיניסטי+AMM 30bps+relay עם read-back. זהות TRON נגזרת מה-scalar של WIF ה-STEEM. מפתחות ב-.env בלבד (בזיכרון); קומיט 8338bce מתעד שהמפתחות שוחזרו מהכספת של steem. עוגנים חיים: steem e7514750… + hive c36ae87e… (h552, headcorner).
+- saos-sovereign-foundry (583KB): פלטפורמת עגינה שנייה (סוכן מקביל) — v2.3.0, מסמכי-אבטחה מופתיים (hash-only admin, תור-חתימה keyless). ETH/SOL: מודולים חדשים 3a822dc (23:14) — dry-run, keyless, probes קריאה-בלבד, מסרבים ל-URL-ים עם מפתח. אפס סודות; מיפוי-רב-סוכנים מתעד את כל 8 הריפואים וממליץ: סיבוב הטוקן ב-saos-repo remote + הסרת .env מ-anchor-baseline.
+- anchor-baseline (1KB): ריפו-סמן (Folder A). .env ב-HEAD = DATABASE_URL בלבד (שפיר). חמור: GitHub PAT fine-grained בהיסטוריה (upload/חח.txt @634ccf8, נמחק אך ניתן לשחזור) → דרוש סיבוב.
+- roshpina (481KB): קרנל אמון (דרכוני Ed25519, escrow, יומן-שקיפות, PQC) — קומיט אחד. אין ETH/SOL, אין מפתחות. קשר: .bridge/pending-anchors.jsonl — תפר ש-steem צורך (use-roshpina) — עוגנים זורמים ל-SAOS-NET.
+- Project-files (64MB, 10 זיפים): ארכיון היסטורי. זיפו steem-main (1).zip מכיל כספת ישנה (29,089B, 2026-09-06, count=2) + סיסמתה במלואה ב-meta (lCRMl6…omcQ) + .env (DATABASE_URL בלבד). שאר הזיפים נקו מסודות (VITE_APP_ID בלבד ב-tfa; טוקן-דמה ב-unified).
+- מסקנות למהנדס-ראשי: (1) כל 7 הריפואים אורגניזם אחד סביב SAOS — steem הוא מקור-המפתחות וההוכחות, הפלטפורמות/בורסה/ארנק/קרנל מתחברים אליו (headcorner, saos.weave.v1, גשר-roshpina, GRID, כספת). (2) ממצא-אבטחה #1: כספת-הצי ב-steem עם סיסמה בטקסט-גלוי ב-meta.json + איטומים היסטוריים לא נמחקים — כל מי שיש לו גישת-קריאה לריפו מחזיק למעשה את כל המפתחות (STEEM/HIVE/EVM/TRON/SOL/BTC). זו מדיניות-מפעיל מכוונת (Task 82, ריפו פרטי, זמינות), אך יש לתעד סיכון זה באופן מפורש. (3) ממצא #2: PAT של anchor-baseline בהיסטוריה — לסובב. (4) אין אף מפתח-פרטי ETH/SOL בטקסט-גלוי באף HEAD; הכתובות הציבוריות EVM/SOL רשומות ב-wallets-public.json ומעוגנות במעטפת. (5) אינטגרציית ETH/SOL אמיתית קיימת ב-steem (גזירה+paymaster+devnet), ואילו foundry הוסיף הלילה מודולים יבשים keyless — המשך טבעי: עוגן EVM/SVM חי דרך SignRequest חיצוני.
+
+---
+Task ID: 2
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: סנכרון v10 (ETH+SOL מהסוכן השני) + בחינת ה-API החי + שדרוג UI ל-v11.0.0 "COMMAND DECK" + מסקנות-ביצוע בממשק + דחיפה לגיטהאב.
+
+Work Log:
+- גיליתי שהסנדבוקס סונכרן ל-v10.0.0 (8eb93ba — "7-CHAIN GRID + ETHEREUM + SOLANA RAILS") על-ידי הסוכן השני: 17 מודולי ליבה (eth-sol-live.ts 302 ש', broadcast.ts, live-probes, auto-anchor) ו-15 מסלולי API. הרימוט נבדק ב-fetch — אותו commit.
+- אימתתי את ה-APIs החיים: /api/saos/status (מטריצה + 8 חותמים + 76 עלים), /api/saos/live-probes (ETH בלוק 25.9M · גז 0.04 Gwei; SOL slot 445M · epoch 1030 · 53%; HIVE RC 0%; TRON 0/6 ממומנות).
+- שדרגתי את shell.tsx: פס-פיקוד 7-רשתות חי (ChainTicker) — SAOS-NET גובה + STEEM/BLURT עוגן + HIVE RC + TRON מעבר + ETH בלוק + SOL slot, נגלל אופקית במובייל, sticky מתחת לסרגל-העליון, ריענון משותף (status+probes).
+- שדרגתי את overview.tsx: (1) מצגת "7-CHAIN GRID" — 7 אריחי GridTile עם נתונים חיים וצבעי-tone לפי מצב; (2) פאנל "מסקנות-ביצוע · ביקורת 8 הריפואים" — 4 Callouts לפי דחיפות (רוטציית PAT דחופה / סיכון הכספת / ETH-SOL נקי / אורגניזם-אחד).
+- עדכנת מיתוג: v11.0.0 COMMAND DECK בסרגל-צד, בכותרת-התחתונה ובכותרת page.tsx.
+- lint: נקי. dev.log: כל המסלולים 200. agent-browser: דסקטופ 1280px + מובייל 375px (פס-פיקוד נגלל, ניווט-גלולות, 2 עמודות), ניווט בין תצוגות תקין, ברוזר טרי: 0 שגיאות, נתונים חיים מוצגים (ETH 25,928,776 · SOL 445M).
+
+Stage Summary:
+- v11.0.0 COMMAND DECK: פס-פיקוד 7-רשתות חי + מצגת 7-CHAIN GRID כפרוטגוניסט + מסקנות-ביצוע מביקורת 8 הריפואים מוצגות בממשק לבעלים.
+- מסקנות-ביצוע מרכזיות: (1) רוטציית PAT דחופה ב-anchor-baseline; (2) קבלת-סיכון רשמית לכספת steem או העברה לניהול-סודות; (3) אין מפתחות ETH/SOL פרטיים בטקסט-גלוי — הרכבים read-only; (4) הצעד הבא: עוגן EVM/SVM עם SignRequest חסר-מפתח.
+- הדחיפה לגיטהאב בוצעה בסוף סשן זה (commit v11.0.0).

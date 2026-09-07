@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v10 — Institutional Console.
- * הרכבה דקה: AppShell + 8 עמודים. קיצורי-מקלדת Alt+1..8.
+ * SAOS Sovereign Platform v11 — COMMAND DECK.
+ * הרכבה דקה: AppShell (פס-פיקוד 7-רשתות חי) + 8 עמודים. קיצורי-מקלדת Alt+1..8.
  */
 
 import { useEffect, useState } from "react";

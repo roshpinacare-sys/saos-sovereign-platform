@@ -11,18 +11,25 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
+  Coins,
   FileText,
+  Fingerprint,
   Flame,
+  Hexagon,
+  KeyRound,
   Layers,
+  Network,
   Radio,
   ScanSearch,
   ScrollText,
+  ShieldAlert,
   ShieldCheck,
   XCircle,
   Zap
 } from "lucide-react";
 import {
   Btn,
+  Callout,
   CopyBtn,
   ErrorNotice,
   HashLine,
@@ -39,9 +46,15 @@ import {
   Th
 } from "../ui";
 import { Sparkline } from "../charts";
-import { fmt, short, timeAgo, useLive, useTick } from "../lib";
+import { fmt, fmtInt, short, timeAgo, useLive, useTick } from "../lib";
 import type { LiveResult } from "../lib";
-import type { ChainGate, LastAuditData, SelftestData, StatusData } from "../types";
+import type {
+  ChainGate,
+  LastAuditData,
+  LiveProbesData,
+  SelftestData,
+  StatusData
+} from "../types";
 import { PageHead, type ViewId } from "../shell";
 
 export function ViewOverview({
@@ -54,6 +67,7 @@ export function ViewOverview({
   useTick(12000);
   const selftest = useLive<SelftestData>("/api/saos/kernel", 60000);
   const lastAudit = useLive<LastAuditData>("/api/saos/audit", 30000);
+  const probes = useLive<LiveProbesData>("/api/saos/live-probes", 20000);
 
   if (status.error && !status.data) {
     return <ErrorNotice message={status.error} onRetry={status.refresh} />;
@@ -68,9 +82,159 @@ export function ViewOverview({
   return (
     <div className="space-y-5 animate-view">
       <PageHead
-        title="לוח בקרה"
-        sub="מצב הרשת הריבונית בזמן אמת — שרשרת החותמים, מטריצת העגינה, יומן הראיות ובריאות הגרעין. מתעדכן אוטומטית כל 12 שניות."
+        title="לוח בקרה — Command Deck"
+        sub="מצב הרשת הריבונית בזמן אמת: שבע מסילות במדידה חיה, שרשרת החותמים, יומן הראיות, בריאות הגרעין ומסקנות-ביצוע מביקורת הריפואים. מתעדכן אוטומטית."
       />
+
+      {/* ═══ 7-CHAIN GRID — מצגת הדגל ═══ */}
+      <Panel>
+        <PanelHeader
+          icon={<Network size={15} />}
+          title="רשת-הרשתות הריבונית · 7-CHAIN GRID"
+          sub="SAOS-NET (ריבונית) + STEEM · BLURT · HIVE · TRON (מסילות-עגינה) + ETHEREUM · SOLANA (רכבי-רשת חדשים שחיבר הבעלים) — מדידה חיה read-only מול RPC ציבורי"
+          actions={
+            <Btn variant="ghost" size="xs" onClick={() => onNav("networks")}>
+              כל המדידות <ArrowLeft size={11} />
+            </Btn>
+          }
+        />
+        <PanelBody className="p-3 sm:p-4">
+          {probes.loading && !probes.data && status.loading && !d ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <Skeleton key={i} className="h-[108px] rounded-xl" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
+              <GridTile
+                name="SAOS-NET"
+                tag="שרשרת ריבונית"
+                tone="gold"
+                icon={<Hexagon size={14} />}
+                metric={stats?.lastHeight != null ? `#${stats.lastHeight}` : "—"}
+                metricLabel="גובה שרשרת"
+                sub={stats ? `${fmt(stats.seals)} חותמים · ${fmt(stats.leaves)} עלים` : "גרעין דטרמיניסטי"}
+              />
+              <GridTile
+                name="STEEM"
+                tag="עוגן פעיל"
+                tone="green"
+                icon={<Anchor size={14} />}
+                metric="saos.weave.v1"
+                metricLabel="מסילת-עגינה ראשית"
+                sub={(d?.matrix ?? []).find((m) => m.network === "STEEM")?.status === "anchored" ? "חתימות active חיות" : "היסטוריה לאימות"}
+              />
+              <GridTile
+                name="BLURT"
+                tag="עוגן פעיל"
+                tone="green"
+                icon={<Anchor size={14} />}
+                metric="low-s · canonical"
+                metricLabel="חתימה קנונית"
+                sub="0.05 + 0.2 × KB · cooldown 30 דק׳"
+              />
+              <GridTile
+                name="HIVE"
+                tag={probes.data?.hive ? "חסום-RC" : "RC-gated"}
+                tone="rose"
+                icon={<Clock size={14} />}
+                metric={
+                  probes.data?.hive?.rcPct != null ? `RC ${probes.data.hive.rcPct.toFixed(2)}%` : "—"
+                }
+                metricLabel={
+                  probes.data?.hive?.hoursToLightFloor != null
+                    ? `התאוששות ~${probes.data.hive.hoursToLightFloor} ש׳`
+                    : "רצפה 8%"
+                }
+                sub={`headcorner · mana ${fmt(probes.data?.hive?.currentMana ?? 0)}`}
+              />
+              <GridTile
+                name="TRON"
+                tag="רכב-מעבר"
+                tone="zinc"
+                icon={<Zap size={14} />}
+                metric={
+                  probes.data?.tron
+                    ? `${probes.data.tron.funded}/${probes.data.tron.checked} ממומנות`
+                    : "—"
+                }
+                metricLabel="כתובות כספת"
+                sub={probes.data?.tron?.energizeReady ? "energize מוכן" : "המודול מוכן בפלטפורמה"}
+              />
+              <GridTile
+                name="ETHEREUM"
+                tag={probes.data?.eth?.ok ? "רכב-חי" : "מנותק"}
+                tone={probes.data?.eth?.ok ? "green" : "zinc"}
+                icon={<Coins size={14} />}
+                metric={
+                  probes.data?.eth?.blockNumber != null
+                    ? fmtInt(probes.data.eth.blockNumber)
+                    : "—"
+                }
+                metricLabel={
+                  probes.data?.eth?.gasPriceGwei != null
+                    ? `mainnet · גז ${probes.data.eth.gasPriceGwei} Gwei`
+                    : "mainnet"
+                }
+                sub={probes.data?.eth?.endpoint ?? "RPC ציבורי"}
+              />
+              <GridTile
+                name="SOLANA"
+                tag={probes.data?.sol?.ok ? "רכב-חי" : "מנותק"}
+                tone={probes.data?.sol?.ok ? "green" : "zinc"}
+                icon={<Fingerprint size={14} />}
+                metric={probes.data?.sol?.slot != null ? fmtInt(probes.data.sol.slot) : "—"}
+                metricLabel={
+                  probes.data?.sol?.epoch != null
+                    ? `epoch ${probes.data.sol.epoch} · ${probes.data.sol.epochProgressPct ?? "—"}%`
+                    : "mainnet-beta"
+                }
+                sub={
+                  probes.data?.sol?.solanaCore
+                    ? `solana-core ${probes.data.sol.solanaCore}`
+                    : "RPC רשמי"
+                }
+              />
+            </div>
+          )}
+          <p className="mt-3 text-[10px] text-zinc-600 leading-relaxed">
+            כישלון הוא נתון, לא קריסה — כל מדידה מוצגת בכנות גם כשהיא מנותקת · מטמון 60 שנ׳ · בלי מפתחות, בלי שידור.
+          </p>
+        </PanelBody>
+      </Panel>
+
+      {/* ═══ מסקנות ביצוע — ביקורת 8 הריפואים ═══ */}
+      <Panel>
+        <PanelHeader
+          icon={<ShieldAlert size={15} />}
+          title="מסקנות-ביצוע · ביקורת 8 הריפואים של הרשת"
+          sub="בחינת כל התיקיות בגיטהאב (roshpinacare-sys) — אורגניזם-אחד: 8 ריפואים · 5 סוכנים · רשת-אחת. המסקנות לפי דחיפות."
+          actions={<Pill tone="amber">לביצוע הבעלים</Pill>}
+        />
+        <PanelBody className="space-y-2.5">
+          <Callout tone="rose" icon={<KeyRound size={14} className="text-rose-300" />}>
+            <span className="font-bold">דחוף — רוטציית PAT:</span> אסימון GitHub פרטי ניתן לשחזור
+            מהיסטוריית <span dir="ltr" className="font-mono">anchor-baseline</span> (upload/חח.txt,
+            נמחק ב-1baa8ca אך קיים בהיסטוריה). להחליף את הטוקן בהקדם — ממש כפי שסוכן-המציאה כבר המליץ.
+          </Callout>
+          <Callout tone="gold" icon={<ShieldAlert size={14} className="text-amber-300" />}>
+            <span className="font-bold">הכספת (steem/fleet_keys):</span> מוצפנת AES-256-GCM אך ה-passphrase
+            ב-plaintext בהיסטוריה — מדיניות מכוונת (Task-82, זמינות-תחילה). כל איטום משאיר עותק
+            היסטורי. לקבל את הסיכון רשמית או להעביר לניהול-סודות חיצוני.
+          </Callout>
+          <Callout tone="green" icon={<ShieldCheck size={14} className="text-emerald-300" />}>
+            <span className="font-bold">ETH/SOL — נקי:</span> אין מפתחות פרטיים בטקסט-גלוי באף HEAD
+            של הריפואים. הרכבים שחוברו הם read-only (מדידה) — והקוד החתום חי בעותקים אחרים
+            (xwallet paymaster · SPL-MEMO devnet). הצעד הבא: עוגן EVM/SVM עם SignRequest חסר-מפתח.
+          </Callout>
+          <Callout tone="zinc" icon={<Network size={14} className="text-zinc-400" />}>
+            <span className="font-bold">אורגניזם-אחד:</span> steem הוא מקור המפתחות וההוכחות (SAOS-NET,
+            שומר-על-עצמו), saos-dex הבורסה, Saosmartwallet הארנק, roshpina גשר-ההוכחות, foundry
+            היאיר — והפלטפורמה הזו היא בית-העגינה הקנוני של כולם.
+          </Callout>
+        </PanelBody>
+      </Panel>
 
       {/* KPI */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -320,6 +484,83 @@ export function ViewOverview({
           ) : null}
         </PanelBody>
       </Panel>
+    </div>
+  );
+}
+
+// ─── GridTile — אריח 7-CHAIN GRID ───────────────────────────────────────────
+
+interface GridTileProps {
+  name: string;
+  tag: string;
+  tone: "gold" | "green" | "rose" | "zinc";
+  icon: React.ReactNode;
+  metric: string;
+  metricLabel: string;
+  sub: string;
+}
+
+const TILE_TONES: Record<GridTileProps["tone"], { frame: string; dot: string; metric: string }> = {
+  gold: {
+    frame: "border-amber-400/30 bg-gradient-to-b from-amber-400/[0.07] to-transparent",
+    dot: "bg-amber-400",
+    metric: "text-amber-300"
+  },
+  green: {
+    frame: "border-emerald-400/25 bg-white/[0.015]",
+    dot: "bg-emerald-400",
+    metric: "text-emerald-300"
+  },
+  rose: {
+    frame: "border-rose-400/25 bg-rose-400/[0.03]",
+    dot: "bg-rose-400",
+    metric: "text-rose-300"
+  },
+  zinc: {
+    frame: "border-white/[0.08] bg-white/[0.015]",
+    dot: "bg-zinc-500",
+    metric: "text-zinc-200"
+  }
+};
+
+function GridTile({ name, tag, tone, icon, metric, metricLabel, sub }: GridTileProps) {
+  const t = TILE_TONES[tone];
+  const isNumeric = /[0-9]/.test(metric);
+  return (
+    <div
+      className={`relative rounded-xl border ${t.frame} px-3 pt-3 pb-2.5 overflow-hidden transition-colors hover:border-white/[0.2] min-w-0`}
+    >
+      <div className="flex items-center justify-between gap-1.5">
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="shrink-0 grid place-items-center h-5 w-5 rounded-md border border-white/[0.08] bg-black/25 text-zinc-500">
+            {icon}
+          </span>
+          <span dir="ltr" className="text-[11px] font-bold tracking-tight text-zinc-200 truncate">
+            {name}
+          </span>
+        </span>
+        <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden>
+          <span className={`absolute inline-flex h-full w-full rounded-full ${t.dot} opacity-60 animate-ping`} />
+          <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${t.dot}`} />
+        </span>
+      </div>
+      <p
+        dir={isNumeric ? "ltr" : "auto"}
+        className={`mt-2 text-[15px] font-bold tabular-nums tracking-tight ${t.metric} truncate text-right`}
+        title={metric}
+      >
+        {metric}
+      </p>
+      <p className="text-[9.5px] text-zinc-500 leading-snug truncate" title={metricLabel}>
+        {metricLabel}
+      </p>
+      <p className="mt-1.5 pt-1.5 border-t border-white/[0.05] text-[9px] truncate" title={`${tag} · ${sub}`}>
+        <span className={tone === "gold" ? "text-amber-300/90" : tone === "green" ? "text-emerald-300/80" : tone === "rose" ? "text-rose-300/80" : "text-zinc-400"}>
+          {tag}
+        </span>
+        <span className="text-zinc-600"> · {sub}</span>
+      </p>
+      <span className="absolute top-0 start-0 h-full w-[2px] rounded-s-xl bg-white/[0.06]" aria-hidden />
     </div>
   );
 }

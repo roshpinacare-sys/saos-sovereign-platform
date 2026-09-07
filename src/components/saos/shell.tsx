@@ -1,16 +1,18 @@
 "use client";
 
 /**
- * SAOS v4 — מעטפת קונסולה מוסדית.
- * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + ניווט-גלילה (מובייל) + כותרת-תחתונה דביקה.
+ * SAOS v11 — מעטפת COMMAND DECK.
+ * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 7-רשתות חי**
+ * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · SOLANA) + ניווט-גלילה (מובייל)
+ * + כותרת-תחתונה דביקה.
  */
 
 import { Anchor, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
-import { timeAgo, useClock, useTick } from "./lib";
+import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
-import type { StatusData } from "./types";
+import type { LiveProbesData, StatusData } from "./types";
 
 export type ViewId = "overview" | "networks" | "seals" | "ops" | "proofs" | "energy" | "economy" | "research";
 
@@ -107,9 +109,11 @@ export function AppShell({
   const def = VIEWS.find((v) => v.id === view)!;
   const stats = status.data?.stats;
   const live = !status.error && !!status.data;
+  const probes = useLive<LiveProbesData>("/api/saos/live-probes", 20000);
 
   const doRefresh = () => {
     status.refresh();
+    probes.refresh();
     setSpinning(true);
     setTimeout(() => setSpinning(false), 700);
   };
@@ -127,7 +131,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Anchoring Platform · v10.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Command Deck · v11.0</p>
           </div>
         </div>
 
@@ -269,6 +273,9 @@ export function AppShell({
           </nav>
         </header>
 
+        {/* פס-פיקוד 7-רשתות — חי מול live-probes (SAOS-NET + 6 מסילות חיצוניות) */}
+        <ChainTicker height={stats?.lastHeight} status={status} probes={probes} />
+
         {/* תוכן */}
         <main className="relative flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-10">
           <div className="console-grid pointer-events-none absolute inset-x-0 top-0 h-64" aria-hidden />
@@ -280,7 +287,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v10.0.0 — קונסולת עגינה מוסדית · 7-CHAIN GRID + ETHEREUM + SOLANA
+              SAOS Sovereign Platform v11.0.0 — COMMAND DECK · 7-CHAIN GRID: SAOS-NET + STEEM · BLURT · HIVE · TRON + ETHEREUM · SOLANA
             </span>
             <span className="flex items-center gap-3">
               <a
@@ -295,6 +302,147 @@ export function AppShell({
             </span>
           </div>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+// ─── ChainTicker — פס-פיקוד 7-רשתות חי ───────────────────────────────────────
+// SAOS-NET (גובה) · STEEM/BLURT (עוגן) · HIVE (RC) · TRON (מעבר)
+// · ETHEREUM (בלוק) · SOLANA (slot) — מדידה read-only מול RPC ציבורי.
+
+interface TickerChip {
+  id: string;
+  name: string;
+  value: string;
+  tone: "gold" | "green" | "amber" | "rose" | "zinc";
+  label: string;
+}
+
+function dotTone(t: TickerChip["tone"]): string {
+  switch (t) {
+    case "gold":
+      return "bg-amber-400";
+    case "green":
+      return "bg-emerald-400";
+    case "amber":
+      return "bg-amber-300";
+    case "rose":
+      return "bg-rose-400";
+    default:
+      return "bg-zinc-500";
+  }
+}
+
+function ChainTicker({
+  height,
+  status,
+  probes
+}: {
+  height: number | undefined;
+  status: LiveResult<StatusData>;
+  probes: LiveResult<LiveProbesData>;
+}) {
+  const matrix = status.data?.matrix ?? [];
+  const gateOf = (n: string) => matrix.find((m) => m.network === n);
+  const p = probes.data;
+
+  const hive = gateOf("HIVE");
+  const tronGate = gateOf("TRON");
+  const hiveRc = p?.hive?.rcPct ?? null;
+
+  const chips: TickerChip[] = [
+    {
+      id: "saosnet",
+      name: "SAOS-NET",
+      value: height != null ? `#${height}` : "…",
+      tone: "gold",
+      label: "שרשרת ריבונית"
+    },
+    {
+      id: "steem",
+      name: "STEEM",
+      value: "עוגן",
+      tone: gateOf("STEEM")?.status === "anchored" ? "green" : "amber",
+      label: "מסילת-עגינה"
+    },
+    {
+      id: "blurt",
+      name: "BLURT",
+      value: "עוגן",
+      tone: gateOf("BLURT")?.status === "anchored" ? "green" : "amber",
+      label: "מסילת-עגינה"
+    },
+    {
+      id: "hive",
+      name: "HIVE",
+      value: hiveRc != null ? `RC ${hiveRc.toFixed(1)}%` : hive?.status === "gated" ? "חסום-RC" : "…",
+      tone: hive?.status === "gated" || (hiveRc != null && hiveRc < 8) ? "rose" : "green",
+      label: "RC-gated"
+    },
+    {
+      id: "tron",
+      name: "TRON",
+      value: tronGate?.status === "transit" ? "מעבר" : (tronGate?.status ?? "…"),
+      tone: tronGate?.status === "anchored" ? "green" : "zinc",
+      label: "רכב-מעבר"
+    },
+    {
+      id: "eth",
+      name: "ETHEREUM",
+      value: p?.eth?.blockNumber != null ? fmtInt(p.eth.blockNumber) : "…",
+      tone: p?.eth?.ok ? "green" : "zinc",
+      label: p?.eth?.gasPriceGwei != null ? `${p.eth.gasPriceGwei} Gwei` : "רכב-חי"
+    },
+    {
+      id: "sol",
+      name: "SOLANA",
+      value: p?.sol?.slot != null ? fmtInt(p.sol.slot) : "…",
+      tone: p?.sol?.ok ? "green" : "zinc",
+      label:
+        p?.sol?.epoch != null
+          ? `epoch ${p.sol.epoch}${p.sol.epochProgressPct != null ? ` · ${p.sol.epochProgressPct}%` : ""}`
+          : "רכב-חי"
+    }
+  ];
+
+  const online =
+    (p?.hive?.ok ? 1 : 0) + (p?.tron?.ok ? 1 : 0) + (p?.eth?.ok ? 1 : 0) + (p?.sol?.ok ? 1 : 0);
+
+  return (
+    <div
+      className="sticky top-14 z-20 border-b border-white/[0.05] bg-zinc-950/80 backdrop-blur-md"
+      role="status"
+      aria-label="פס-פיקוד 7 רשתות חי"
+    >
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto scroll-slim h-9">
+        <span className="hidden sm:inline-flex items-center gap-1.5 shrink-0 pe-2 me-1 border-e border-white/[0.06] text-[9px] font-bold tracking-wider text-amber-400/80 uppercase">
+          7-Chain
+        </span>
+        {chips.map((c) => (
+          <span
+            key={c.id}
+            title={c.label}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 hover:bg-white/[0.04] transition-colors"
+          >
+            <span className="relative flex h-1.5 w-1.5" aria-hidden>
+              <span className={`absolute inline-flex h-full w-full rounded-full ${dotTone(c.tone)} opacity-60 animate-ping`} />
+              <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${dotTone(c.tone)}`} />
+            </span>
+            <span dir="ltr" className="text-[10px] font-bold tracking-tight text-zinc-300">
+              {c.name}
+            </span>
+            <span
+              dir={/[0-9]/.test(c.value) ? "ltr" : "rtl"}
+              className="text-[10px] font-semibold tabular-nums text-zinc-500 whitespace-nowrap"
+            >
+              {c.value}
+            </span>
+          </span>
+        ))}
+        <span className="shrink-0 ms-auto ps-2 text-[9px] text-zinc-600 hidden sm:inline" dir="ltr">
+          probes {online}/4
+        </span>
       </div>
     </div>
   );
