@@ -1,6 +1,6 @@
 {
   "name": "saos-sovereign-foundry",
-  "version": "7.0.0",
+  "version": "8.0.0",
   "private": true,
   "description": "SAOS Sovereign Platform v7 — LIVE ANCHOR: cross-network anchoring with live STEEM custom_json broadcast from the sealed vault. אנחנו מנצחים את הבלוקצ'יין",
   "scripts": {
