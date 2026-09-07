@@ -1,8 +1,8 @@
 {
   "name": "saos-sovereign-foundry",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "SAOS Sovereign Foundry v2 — cross-network anchoring, energy sovereignty and evidence-carrying economy platform. אנחנו מנצחים את הבלוקצ'יין",
+  "description": "SAOS Sovereign Foundry v3 — Sovereign Command Deck: cross-network anchoring, energy sovereignty and evidence-carrying economy platform. אנחנו מנצחים את הבלוקצ'יין",
   "scripts": {
     "dev": "next dev -p 3000",
     "lint": "next lint",

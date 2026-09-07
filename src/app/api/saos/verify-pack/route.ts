@@ -6,16 +6,34 @@ import { forgeReceipt } from "@/lib/saos/evidence";
 export const dynamic = "force-dynamic";
 
 /**
- * verify-pack — the public proof surface: latest seal → merkle tree →
- * inclusion proof for every leaf → independent verification.
+ * verify-pack — the public proof surface.
+ * GET /api/saos/verify-pack            → latest seal
+ * GET /api/saos/verify-pack?height=N   → seal at height N (anyone can verify any seal)
+ * Latest seal → merkle tree → inclusion proof for every leaf → independent verification.
  * Anyone can verify without trusting us. (steem-main verify-pack discipline)
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const seal = await db.sealRecord.findFirst({
-      orderBy: { createdAt: "desc" },
-      include: { leaves: true }
-    });
+    const heightParam = new URL(req.url).searchParams.get("height");
+
+    const seal =
+      heightParam !== null
+        ? await db.sealRecord.findUnique({
+            where: { height: Number(heightParam) },
+            include: { leaves: true }
+          })
+        : await db.sealRecord.findFirst({
+            orderBy: { createdAt: "desc" },
+            include: { leaves: true }
+          });
+
+    if (heightParam !== null && !seal) {
+      return NextResponse.json({
+        ok: true,
+        empty: true,
+        message: `אין חותם בגובה ${heightParam} — בחר גובה קיים`
+      });
+    }
 
     if (!seal || seal.leaves.length === 0) {
       return NextResponse.json({
@@ -41,7 +59,7 @@ export async function GET() {
     const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
     const receipt = await forgeReceipt(
       "verify-pack",
-      { sealRoot: seal.root, leaves: leaves.length, allVerified, rootMatches },
+      { sealRoot: seal.root, height: seal.height, leaves: leaves.length, allVerified, rootMatches },
       prev?.digest ?? null
     );
     try {
@@ -63,6 +81,7 @@ export async function GET() {
         height: seal.height,
         root: seal.root,
         stateRoot: seal.stateRoot,
+        note: seal.note,
         createdAt: seal.createdAt
       },
       tree: { leaves: leaves.length, levels: tree.levels.length, root: tree.root },

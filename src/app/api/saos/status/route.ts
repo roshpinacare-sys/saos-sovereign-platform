@@ -10,14 +10,18 @@ export async function GET() {
     const rcPct = Number(process.env.HIVE_RC_PCT ?? 0.6);
     const tronEnergy = Number(process.env.TRON_ENERGY ?? 0);
 
-    const [seals, receipts, opCount] = await Promise.all([
+    const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = await Promise.all([
       db.sealRecord.findMany({
         orderBy: { createdAt: "desc" },
         take: 8,
         include: { anchors: true, _count: { select: { leaves: true } } }
       }),
       db.evidenceReceipt.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
-      db.opLog.count()
+      db.opLog.count(),
+      db.sealRecord.count(),
+      db.evidenceReceipt.count(),
+      db.sealRecord.aggregate({ _sum: { gasUsed: true, leavesCount: true } }),
+      db.sealRecord.findFirst({ orderBy: { height: "desc" }, select: { height: true, createdAt: true } })
     ]);
 
     return NextResponse.json({
@@ -46,7 +50,15 @@ export async function GET() {
         prevDigest: r.prevDigest,
         at: r.createdAt
       })),
-      opsLogged: opCount
+      opsLogged: opCount,
+      stats: {
+        seals: totalSeals,
+        receipts: totalReceipts,
+        leaves: agg._sum.leavesCount ?? 0,
+        gas: agg._sum.gasUsed ?? 0,
+        lastHeight: lastSeal?.height ?? 0,
+        lastSealAt: lastSeal?.createdAt ?? null
+      }
     });
   } catch (e) {
     return NextResponse.json(

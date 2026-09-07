@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const t0 = performance.now();
     const result = await kernelSelftest();
+    const durationMs = Math.round(performance.now() - t0);
 
     // evidence receipt for this selftest run (hash-chained)
     const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
@@ -29,7 +31,7 @@ export async function GET() {
       // digest collision on repeat runs — receipt chain stays intact, run continues
     }
 
-    return NextResponse.json({ ok: result.ok, result, receipt: receipt.digest });
+    return NextResponse.json({ ok: result.ok, result, durationMs, receipt: receipt.digest });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "selftest failed" },
