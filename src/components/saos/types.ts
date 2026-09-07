@@ -148,3 +148,92 @@ export interface ResearchData {
   findings: Finding[];
   synthesis: { chosen: string; why: string[]; roadmap: string[] };
 }
+
+// ─── v5: Anchor Operations (מבצעי עגינה — מוכנות שלב 2) ─────────────────────
+
+export interface VaultSlotRow {
+  network: string;
+  slot: string;
+  purpose: string;
+  address: string | null;
+  fingerprint: string | null;
+  keyState: string;
+  updatedAt: string | null;
+}
+
+export interface VaultData {
+  ok: boolean;
+  slots: VaultSlotRow[];
+  stats: { total: number; registered: number };
+  productionAuthority: string;
+}
+
+export interface VaultPostResult {
+  ok: boolean;
+  slot: { network: string; slot: string; address: string; fingerprint: string; keyState: string };
+  receipt: string;
+}
+
+export interface Envelope {
+  network: string;
+  mode: string;
+  broadcastable: boolean;
+  blockers: string[];
+  payload: string; // canonical JSON של הפעולה — בדיוק מה שייחתם
+  fee: string | null;
+  signing: string;
+  digest: string;
+}
+
+export interface BroadcastResult {
+  ok: boolean;
+  height: number;
+  root: string;
+  dryRun: boolean;
+  at: string;
+  envelopes: Envelope[];
+  receipt: string;
+}
+
+export interface BroadcastListItem {
+  id: string;
+  height: number;
+  network: string;
+  mode: string;
+  digest: string;
+  at: string;
+}
+
+export interface BroadcastListData {
+  ok: boolean;
+  empty?: boolean;
+  message?: string;
+  envelopes: BroadcastListItem[];
+}
+
+export interface OpsRow {
+  id: string;
+  op: string;
+  detail: string | null;
+  at: string;
+}
+
+export interface OpsData {
+  ok: boolean;
+  ops: OpsRow[];
+  total: number;
+  byOp: { op: string; count: number }[];
+}
+
+export interface EvidencePackSummary {
+  ok: boolean;
+  format: string;
+  generatedAt: string;
+  packDigest: string;
+  height: number;
+  leaves: number;
+  rootMatches: boolean;
+  allVerified: boolean;
+  chainOk: boolean;
+  receipt: string;
+}

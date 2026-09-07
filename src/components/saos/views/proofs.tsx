@@ -9,6 +9,7 @@ import { useState } from "react";
 import {
   BadgeCheck,
   CheckCircle2,
+  FileDown,
   FileSearch,
   GitBranch,
   Layers,
@@ -33,15 +34,55 @@ import {
   Tag
 } from "../ui";
 import { MeterBar } from "../charts";
-import { fmt, short, useLive } from "../lib";
-import type { SealRow, VerifyPackData } from "../types";
+import { fmt, short, useLive, useToast } from "../lib";
+import type { EvidencePackSummary, SealRow, VerifyPackData } from "../types";
 import { PageHead } from "../shell";
 import { cn } from "../ui";
 
 export function ViewProofs({ seals }: { seals: SealRow[] }) {
+  const toast = useToast();
   const [height, setHeight] = useState("latest");
   const url = height === "latest" ? "/api/saos/verify-pack" : `/api/saos/verify-pack?height=${height}`;
   const vp = useLive<VerifyPackData>(url, 30000);
+  const [exporting, setExporting] = useState(false);
+
+  const doExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const packUrl =
+        height === "latest" ? "/api/saos/evidence-pack" : `/api/saos/evidence-pack?height=${height}`;
+      const res = await fetch(packUrl, { cache: "no-store" });
+      const text = await res.text();
+      const data = JSON.parse(text) as Partial<EvidencePackSummary> & { empty?: boolean; message?: string; error?: string };
+      if (data.ok === true && typeof data.height === "number" && typeof data.packDigest === "string") {
+        const blob = new Blob([text], { type: "application/json" });
+        const a = document.createElement("a");
+        const href = URL.createObjectURL(blob);
+        a.href = href;
+        a.download = `saos-evidence-pack-h${data.height}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 1500);
+        toast.push({
+          tone: "green",
+          title: `חבילת-ראיות #${data.height} הורדה`,
+          desc: `${data.leaves} עלים · packDigest ${short(data.packDigest)}`
+        });
+      } else {
+        toast.push({
+          tone: "rose",
+          title: "ייצוא החבילה נכשל",
+          desc: data.error ?? data.message ?? "שגיאה לא ידועה"
+        });
+      }
+    } catch (e) {
+      toast.push({ tone: "rose", title: "ייצור החבילה נכשל", desc: e instanceof Error ? e.message : "כשל רשת" });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-5 animate-view">
@@ -63,6 +104,9 @@ export function ViewProofs({ seals }: { seals: SealRow[] }) {
                 </option>
               ))}
             </select>
+            <Btn variant="success" size="sm" loading={exporting} onClick={doExport} title="הורד את חבילת-הראיות המלאה — הוכחות מכלילות, קבלות ושרשרת — קובץ JSON עצמאי">
+              <FileDown size={12} /> הורד חבילת ראיות
+            </Btn>
             <Btn variant="secondary" size="sm" onClick={vp.refresh}>
               <RefreshCcw size={12} /> אמת מחדש
             </Btn>
