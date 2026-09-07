@@ -1,8 +1,8 @@
 {
   "name": "saos-sovereign-foundry",
-  "version": "6.0.0",
+  "version": "7.0.0",
   "private": true,
-  "description": "SAOS Sovereign Foundry v3 — Sovereign Command Deck: cross-network anchoring, energy sovereignty and evidence-carrying economy platform. אנחנו מנצחים את הבלוקצ'יין",
+  "description": "SAOS Sovereign Platform v7 — LIVE ANCHOR: cross-network anchoring with live STEEM custom_json broadcast from the sealed vault. אנחנו מנצחים את הבלוקצ'יין",
   "scripts": {
     "dev": "next dev -p 3000",
     "lint": "next lint",
@@ -17,7 +17,8 @@
     "lucide-react": "^0.545.0",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.3.1",
-    "class-variance-authority": "^0.7.1"
+    "class-variance-authority": "^0.7.1",
+    "steem": "0.7.11"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

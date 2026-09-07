@@ -51,6 +51,9 @@ import type {
   BroadcastListData,
   BroadcastResult,
   Envelope,
+  LiveAnchorLedgerData,
+  LivePulseResult,
+  LiveReadinessData,
   OpsData,
   SealConnectResult,
   SealStatusData,
@@ -173,6 +176,60 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
         desc: res.data?.error ?? res.error ?? "שגיאה לא ידועה"
       });
     }
+  };
+
+  // ─── פעימת עגינה חיה (STEEM) ──────────────────────────────────────────
+  const liveReady = useLive<LiveReadinessData>("/api/saos/broadcast/live", 30000);
+  const liveLedger = useLive<LiveAnchorLedgerData>("/api/saos/broadcast/live?list=1", 20000);
+  const [pulsing, setPulsing] = useState(false);
+  const [pulseResult, setPulseResult] = useState<LivePulseResult | null>(null);
+  const [rechecking, setRechecking] = useState<string | null>(null);
+
+  const doLivePulse = async () => {
+    if (pulsing) return;
+    setPulsing(true);
+    setPulseResult(null);
+    const res = await postJson<LivePulseResult>("/api/saos/broadcast/live", {});
+    setPulsing(false);
+    if (res.ok && res.data) {
+      setPulseResult(res.data);
+      liveReady.refresh();
+      liveLedger.refresh();
+      ops.refresh();
+      broadcasts.refresh();
+      if (res.data.ok) {
+        toast.push({
+          tone: res.data.already ? "gold" : "green",
+          title: res.data.already ? `חותם #${res.data.height} כבר מעוגן` : `עוגן חי נחת — חותם #${res.data.height}`,
+          desc: res.data.txid ? `txid ${short(res.data.txid)} · השרשרת הציבורית` : "הפעימה תועדה"
+        });
+      } else {
+        toast.push({ tone: "rose", title: "השידור החי נכשל", desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות" });
+      }
+    } else {
+      setPulseResult({ ok: false, error: res.error ?? "כשל רשת" });
+      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
+    }
+  };
+
+  const doRecheck = async (id: string) => {
+    if (rechecking) return;
+    setRechecking(id);
+    try {
+      const res = await fetch(`/api/saos/broadcast/live?recheck=${encodeURIComponent(id)}`, { cache: "no-store" });
+      const json = (await res.json()) as { ok: boolean; confirmedByHistory?: boolean; error?: string };
+      if (json.ok && json.confirmedByHistory) {
+        toast.push({ tone: "green", title: "אומת בהיסטוריה החיה", desc: "העוגן נראה ב-account_history של השרשרת" });
+      } else if (json.ok) {
+        toast.push({ tone: "gold", title: "עדיין לא נראה בהיסטוריה", desc: "אינדוקס ההיסטוריה מפגר — נסה שוב בעוד דקה" });
+      } else {
+        toast.push({ tone: "rose", title: "אימות-מחדש נכשל", desc: json.error ?? "שגיאה" });
+      }
+    } catch {
+      toast.push({ tone: "rose", title: "אימות-מחדש נכשל", desc: "כשל רשת" });
+    }
+    setRechecking(null);
+    liveLedger.refresh();
   };
 
   // ─── מעטפות שידור ─────────────────────────────────────────────────────────
@@ -419,6 +476,219 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
               {/* חוזה-אמת */}
               <Callout tone="zinc" icon={<Lock size={14} />}>
                 <span className="font-semibold">חוזה-האמת של שלב 2:</span> החיבור מעביר זהויות-ציבוריות בלבד למניפסט. מפתחות החתימה נשארים חתומים במעטפת ה-AES בצד-השרת ומשמשים רק לחתימת-עגינה כשהשערים (RC/עמלה/אנרגיה) מאפשרים. כל חיבור משורשר לקבלות הראיות.
+              </Callout>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* ─── פעימת עגינה חיה — STEEM ────────────────────────────────────── */}
+      <Panel accent={liveReady.data?.alreadyAnchored ?? false}>
+        <PanelHeader
+          icon={<RadioTower size={15} />}
+          title="פעימת עגינה חיה — STEEM"
+          sub="המסלול שהוכח בייצור: custom_json ‏saos.weave.v1 בסמכות active ממפתח הכספת, משודר לשרשרת הציבורית ומאומת בהיסטוריה החיה — שורש מרקל של החותם נוחת בפועל"
+          actions={
+            liveReady.data?.ok ? (
+              liveReady.data.alreadyAnchored ? (
+                <Pill tone="green">
+                  <CheckCircle2 size={10} /> anchored
+                </Pill>
+              ) : liveReady.data.ready ? (
+                <Pill tone="gold">
+                  <RadioTower size={10} /> live-ready
+                </Pill>
+              ) : (
+                <Pill tone="zinc">ממתין לחותם</Pill>
+              )
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-4">
+          {liveReady.loading && !liveReady.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : liveReady.error && !liveReady.data ? (
+            <ErrorNotice message={liveReady.error} onRetry={liveReady.refresh} />
+          ) : !liveReady.data?.ready ? (
+            <EmptyBlock
+              icon={<RadioTower size={20} />}
+              title="אין חותם לעיגון"
+              desc="צור חותם בעמוד האיטום — שורש מרקל חי הוא המטען שהפעימה משדרת."
+            />
+          ) : !liveReady.data.vault.sealed ? (
+            <Callout tone="gold" icon={<Lock size={14} />}>
+              <span className="font-semibold">הכספת לא נאטמה — הפעימה חסומה.</span> חבר את שלב 2 (האיטום) קודם; מפתח החתימה חייב להיות מאומת-GCM בצד-השרת לפני שידור אמיתי.
+            </Callout>
+          ) : (
+            <>
+              {/* מחווני מוכנות */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat label="חותם לשידור" value={`#${liveReady.data.seal?.height ?? 0}`} icon={<ScrollText size={13} />} />
+                <SealStat label="חשבון-חותם" value={liveReady.data.vault.account ?? "—"} icon={<KeyRound size={13} />} ltr />
+                <SealStat label="סמכות" value="active · saos.weave.v1" icon={<ShieldCheck size={13} />} />
+                <SealStat label="מצב כספת" value="sealed · GCM ✓" icon={<VaultIcon size={13} />} />
+              </div>
+
+              <HashLine label="root" value={liveReady.data.seal?.root ?? null} tone="gold" />
+
+              {/* הכפתור הגדול */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Btn
+                  variant={liveReady.data.alreadyAnchored ? "secondary" : "primary"}
+                  size="md"
+                  loading={pulsing}
+                  disabled={liveReady.data.alreadyAnchored}
+                  onClick={doLivePulse}
+                >
+                  <RadioTower size={14} />
+                  {pulsing
+                    ? "משדר לשרשרת החיה…"
+                    : liveReady.data.alreadyAnchored
+                      ? "החותם מעוגן ✓"
+                      : `שדר עוגן חי — חותם #${liveReady.data.seal?.height ?? 0}`}
+                </Btn>
+                <p className="text-[11px] text-zinc-500 leading-relaxed flex-1">
+                  שידור אמיתי חד-פעמי לכל חותם: הפלטפורמה חותמת את הפעולה המאושרת בלבד (custom_json אחד — אפס העברות כספים, אפס שינוי סמכויות), משדרת ל-api.steemit.com, ומאמתת את ההכללה ב-account_history החי. כל פעימה — הצלחה או כישלון — משורשרת לקבלות הראיות.
+                </p>
+              </div>
+
+              {/* תוצאת הפעימה */}
+              {pulseResult && pulseResult.ok && (
+                <Callout tone={pulseResult.already ? "gold" : "green"} icon={<CheckCircle2 size={14} />}>
+                  <div className="space-y-1.5">
+                    <p className="font-semibold">
+                      {pulseResult.already
+                        ? pulseResult.message ?? "כבר מעוגן"
+                        : `עוגן חי נחת — חותם #${pulseResult.height}`}
+                      {pulseResult.confirmedByHistory === true && " · נראה בהיסטוריה החיה ✓"}
+                    </p>
+                    {pulseResult.txid && (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                        <HashLine label="txid" value={pulseResult.txid} tone="green" />
+                        {pulseResult.block != null && (
+                          <span dir="ltr" className="font-mono text-zinc-400">block #{pulseResult.block}</span>
+                        )}
+                        {pulseResult.explorer && (
+                          <a
+                            href={pulseResult.explorer}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-amber-300/90 underline underline-offset-2 hover:text-amber-200"
+                          >
+                            steemscan ↗
+                          </a>
+                        )}
+                        {pulseResult.receipt && (
+                          <span className="text-zinc-500" dir="ltr">receipt {short(pulseResult.receipt)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Callout>
+              )}
+              {pulseResult && !pulseResult.ok && (
+                <Callout tone="rose" icon={<History size={14} />}>
+                  <span className="font-semibold">השידור נכשל — תועד בכנות, שום txid לא זויף:</span>{" "}
+                  <span dir="auto">{pulseResult.error}</span>
+                  {pulseResult.receipt && (
+                    <span className="block mt-1 text-[11px] text-zinc-500" dir="ltr">
+                      receipt {short(pulseResult.receipt)} — the failure itself is evidence
+                    </span>
+                  )}
+                </Callout>
+              )}
+
+              {/* ספר עוגנים חיים */}
+              <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+                <div className="px-3.5 py-2.5 border-b border-white/[0.06] flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-zinc-200">ספר עוגנים חיים — txid אמיתי מהשרשרת בלבד</p>
+                  <span className="text-[10px] text-zinc-600" dir="ltr">kind=weave · status∈anchored/broadcast/failed</span>
+                </div>
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>חותם</Th>
+                      <Th>txid</Th>
+                      <Th>בלוק</Th>
+                      <Th>היסטוריה</Th>
+                      <Th>מצב</Th>
+                      <Th>מתי</Th>
+                      <Th></Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(liveLedger.data?.anchors ?? []).length === 0 ? (
+                      <tr>
+                        <Td className="text-zinc-600 text-[11px]" >—</Td>
+                        <Td className="text-zinc-600 text-[11px]">אין עוגנים חיים עדיין</Td>
+                        <Td>—</Td>
+                        <Td>—</Td>
+                        <Td>—</Td>
+                        <Td>—</Td>
+                        <Td></Td>
+                      </tr>
+                    ) : (
+                      (liveLedger.data?.anchors ?? []).map((a) => (
+                        <tr key={a.id} className="hover:bg-white/[0.015] transition-colors">
+                          <Td className="font-semibold">#{a.height}</Td>
+                          <Td>
+                            {a.txid ? (
+                              <a
+                                href={`https://steemscan.com/transaction/${a.txid}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                dir="ltr"
+                                className="font-mono text-[11px] text-emerald-300/90 hover:text-emerald-200 underline underline-offset-2"
+                                title={a.txid}
+                              >
+                                {short(a.txid)}
+                              </a>
+                            ) : (
+                              <span className="text-zinc-600 text-[11px]">— (לא זויף לעולם)</span>
+                            )}
+                          </Td>
+                          <Td className="tabular-nums text-[11px]" dir="ltr">{a.block ? `#${a.block}` : "—"}</Td>
+                          <Td>
+                            {a.confirmedByHistory ? (
+                              <Pill tone="green">✓</Pill>
+                            ) : a.txid ? (
+                              <Pill tone="zinc">מפגר</Pill>
+                            ) : (
+                              "—"
+                            )}
+                          </Td>
+                          <Td>
+                            <Pill tone={a.status === "anchored" ? "green" : a.status === "failed" ? "rose" : "gold"}>
+                              {a.status}
+                            </Pill>
+                          </Td>
+                          <Td className="text-zinc-500 text-[11px]">{timeAgo(a.at)}</Td>
+                          <Td>
+                            {a.txid && !a.confirmedByHistory && (
+                              <button
+                                onClick={() => doRecheck(a.id)}
+                                disabled={rechecking === a.id}
+                                className="text-[11px] text-amber-300/80 hover:text-amber-200 disabled:opacity-50"
+                                title="אמת מחדש בהיסטוריה החיה"
+                              >
+                                {rechecking === a.id ? "בודק…" : "אמת שוב"}
+                              </button>
+                            )}
+                          </Td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </Table>
+              </div>
+
+              {/* כנות רשתות */}
+              <Callout tone="zinc" icon={<RadioTower size={14} />}>
+                <span className="font-semibold">מצב שאר הרשתות (כנה):</span> HIVE — rc-gated ‏(0.6%&lt;8%, התאוששות ~20%/יום; החתימה מוכחה אך התקציב חסום) · BLURT — עמלה מדודה + קירור-צמתים · TRON — transit עד energize. הפעימה החיה פותחת את STEEM בלבד — בכנות, בלי להעמיד פנים.
               </Callout>
             </>
           )}

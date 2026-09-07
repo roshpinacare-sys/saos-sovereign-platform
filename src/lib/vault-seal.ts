@@ -219,6 +219,51 @@ export async function sealExists(): Promise<boolean> {
   }
 }
 
+// ─── Signing session (STAGE 2 → LIVE) ─────────────────────────────────────
+//
+// The ONLY sanctioned way a private key leaves the envelope: it doesn't.
+// withRoleWif opens the seal, extracts the requested role's WIF from the
+// vault .env and hands it to `fn` INSIDE the server process. The WIF never
+// appears in return values, logs, receipts, DB rows or responses — `fn`'s
+// own return value is scrubbed by its caller (anchor-live whitelists the
+// exact operation shape it will sign before opening the session).
+
+export type SigningRole = "posting" | "active";
+
+export interface SigningAuthority {
+  account: string;
+  /** registered public key for the role (STM…) — public by definition */
+  rolePub: string | null;
+}
+
+/**
+ * Server-side signing session over the sealed vault.
+ * Returns only PUBLIC material (account + role public key) plus whatever
+ * `fn` returns — the caller is responsible for keeping fn's result secret-free.
+ */
+export async function withRoleWif<T>(
+  role: SigningRole,
+  fn: (wif: string, authority: SigningAuthority) => Promise<T>
+): Promise<{ authority: SigningAuthority; result: T }> {
+  const bundle = await openSeal();
+  const env: Record<string, string> = {};
+  (bundle.files[".env"] ?? "").split("\n").forEach((line) => {
+    const i = line.indexOf("=");
+    if (i > 0) env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  });
+  const account = (env.AGENT_ACCOUNT || "headcorner").toLowerCase();
+  const wif = role === "active" ? env.ACTIVE_WIF : env.POSTING_WIF;
+  if (!wif || !wif.startsWith("5")) {
+    throw new Error(`vault: ${role} signing key absent from envelope`);
+  }
+  const authority: SigningAuthority = {
+    account,
+    rolePub: pubOnly(role === "active" ? env.ACTIVE_WIF_PUB : env.POSTING_WIF_PUB)
+  };
+  const result = await fn(wif, authority);
+  return { authority, result };
+}
+
 // ─── Stage-2 manifest mapping (seal → VAULT_MANIFEST slots) ────────────────
 
 export interface Stage2Assignment {

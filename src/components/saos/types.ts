@@ -395,3 +395,62 @@ export interface SealConnectResult {
   receipt: string;
   error?: string;
 }
+
+// ─── LIVE ANCHOR PULSE (v7) ─────────────────────────────────────────────────
+
+export interface LiveReadinessData {
+  ok: boolean;
+  ready: boolean;
+  seal: {
+    height: number;
+    root: string;
+    stateRoot: string;
+    leaves: number;
+    gasUsed: number;
+  } | null;
+  alreadyAnchored: boolean;
+  existing: { txid: string | null; status: string; at: string } | null;
+  vault: { sealed: boolean; account: string | null };
+  error?: string;
+}
+
+export interface LiveAnchorLedgerRow {
+  id: string;
+  height: number;
+  root: string;
+  txid: string | null;
+  block: number | null;
+  confirmedByHistory: boolean;
+  status: string;
+  at: string;
+  payload: string;
+  account: string;
+}
+
+export interface LiveAnchorLedgerData {
+  ok: boolean;
+  empty?: boolean;
+  message?: string;
+  anchors: LiveAnchorLedgerRow[];
+  error?: string;
+}
+
+export interface LivePulseResult {
+  ok: boolean;
+  already?: boolean;
+  network?: string;
+  account?: string;
+  authority?: string;
+  height?: number;
+  root?: string;
+  payload?: string;
+  txid?: string | null;
+  block?: number | null;
+  confirmedByHistory?: boolean;
+  selfVerified?: boolean;
+  explorer?: string | null;
+  anchorId?: string;
+  receipt?: string;
+  message?: string;
+  error?: string;
+}
