@@ -96,6 +96,7 @@ model EvidenceReceipt {
   digest     String      @unique
   prevDigest String?
   payload    String
+  at         String? // the EXACT timestamp inside the digest (Receipt.at) — nullable for legacy rows; recovered via digest brute-force
   seal       SealRecord? @relation(fields: [sealId], references: [id])
   sealId     String?
   createdAt  DateTime    @default(now())
@@ -124,4 +125,23 @@ model OpLog {
   createdAt DateTime @default(now())
 
   @@index([op])
+}
+
+// ─── v5: Vault registry (רישום כספת — כתובות ציבוריות בלבד) ────────────────
+// Public watch addresses per network/slot. NEVER holds signing keys —
+// keys live in the offline AES vault (stage 2). Honest by construction.
+
+model VaultSlot {
+  id          String   @id @default(cuid())
+  network     String // STEEM | BLURT | HIVE | TRON
+  slot        String // foundry/active | foundry/manual-sign | vault-1..6
+  address     String? // public watch address — not a secret, not a key
+  fingerprint String? // sha256(canonical({network, slot, address})) — registration integrity
+  keyState    String   @default("missing") // missing = key in offline vault
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([network, slot])
+  @@index([network])
 }

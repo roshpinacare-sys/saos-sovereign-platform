@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { simulateEconomy, DEFAULT_ECONOMY, type EconomyInput } from "@/lib/saos/economy";
-import { forgeReceipt } from "@/lib/saos/evidence";
+import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -75,24 +75,15 @@ export async function GET(req: Request) {
 
     const result = simulateEconomy(input);
 
-    const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
-    const receipt = await forgeReceipt(
+    const receipt = await appendChainedReceipt(
       "economy-sim",
       // canonical discipline: integers only — SAOS as micro-units (×100)
       {
         totalPerDayMicro: Math.round(result.totalPerDay * 100),
         retainedMicro: Math.round(result.retainedPerDay * 100),
         flywheelPct: Math.round(input.flywheelPct)
-      },
-      prev?.digest ?? null
+      }
     );
-    try {
-      await db.evidenceReceipt.create({
-        data: { kind: receipt.kind, digest: receipt.digest, prevDigest: receipt.prevDigest, payload: JSON.stringify(receipt.payload) }
-      });
-    } catch {
-      /* collision tolerated */
-    }
 
     return NextResponse.json({
       ok: true,
@@ -133,24 +124,12 @@ export async function POST(req: Request) {
       }
     });
 
-    const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
-    const receipt = await forgeReceipt(
-      "economy-sim",
-      {
-        snapshotId: snapshot.id,
-        label,
-        totalPerDayMicro: Math.round(result.totalPerDay * 100),
-        flywheelPct: Math.round(input.flywheelPct)
-      },
-      prev?.digest ?? null
-    );
-    try {
-      await db.evidenceReceipt.create({
-        data: { kind: receipt.kind, digest: receipt.digest, prevDigest: receipt.prevDigest, payload: JSON.stringify(receipt.payload) }
-      });
-    } catch {
-      /* collision tolerated */
-    }
+    const receipt = await appendChainedReceipt("economy-sim", {
+      snapshotId: snapshot.id,
+      label,
+      totalPerDayMicro: Math.round(result.totalPerDay * 100),
+      flywheelPct: Math.round(input.flywheelPct)
+    });
     await db.opLog.create({
       data: { op: "economy-snapshot", detail: `label=${label} total=${result.totalPerDay}` }
     });

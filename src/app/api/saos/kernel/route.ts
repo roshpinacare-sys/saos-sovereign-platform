@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { kernelSelftest } from "@/lib/saos/kernel";
-import { forgeReceipt } from "@/lib/saos/evidence";
-import { db } from "@/lib/db";
+import { appendChainedReceipt } from "@/lib/chained-receipt";
 
 export const dynamic = "force-dynamic";
 
@@ -11,25 +10,12 @@ export async function GET() {
     const result = await kernelSelftest();
     const durationMs = Math.round(performance.now() - t0);
 
-    // evidence receipt for this selftest run (hash-chained)
-    const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
-    const receipt = await forgeReceipt(
-      "selftest",
-      { ok: result.ok, stateRoot: result.stateRoot, gasUsed: result.gasUsed },
-      prev?.digest ?? null
-    );
-    try {
-      await db.evidenceReceipt.create({
-        data: {
-          kind: receipt.kind,
-          digest: receipt.digest,
-          prevDigest: receipt.prevDigest,
-          payload: JSON.stringify(receipt.payload)
-        }
-      });
-    } catch {
-      // digest collision on repeat runs — receipt chain stays intact, run continues
-    }
+    // evidence receipt for this selftest run — serialized hash-chain append
+    const receipt = await appendChainedReceipt("selftest", {
+      ok: result.ok,
+      stateRoot: result.stateRoot,
+      gasUsed: result.gasUsed
+    });
 
     return NextResponse.json({ ok: result.ok, result, durationMs, receipt: receipt.digest });
   } catch (e) {
