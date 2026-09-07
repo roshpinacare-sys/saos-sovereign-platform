@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v5 — Institutional Console.
- * הרכבה דקה: AppShell + 7 עמודים. קיצורי-מקלדת Alt+1..7.
+ * SAOS Sovereign Platform v10 — Institutional Console.
+ * הרכבה דקה: AppShell + 8 עמודים. קיצורי-מקלדת Alt+1..8.
  */
 
 import { useEffect, useState } from "react";
@@ -11,6 +11,7 @@ import { ToastProvider } from "@/components/saos/ui";
 import { useLive } from "@/components/saos/lib";
 import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
+import { ViewNetworks } from "@/components/saos/views/networks";
 import { ViewSeals } from "@/components/saos/views/seals";
 import { ViewOps } from "@/components/saos/views/ops";
 import { ViewProofs } from "@/components/saos/views/proofs";
@@ -20,6 +21,7 @@ import { ViewResearch } from "@/components/saos/views/research";
 
 const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
+  networks: "רשתות חיות",
   seals: "איטום ועגינה",
   ops: "מבצעי עגינה",
   proofs: "הוכחות",
@@ -32,7 +34,7 @@ export default function Home() {
   const [view, setView] = useState<ViewId>("overview");
   const status = useLive<StatusData>("/api/saos/status", 12000);
 
-  // קיצורי-מקלדת: Alt+1..7 לניווט מהיר
+  // קיצורי-מקלדת: Alt+1..8 לניווט מהיר
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey) return;
@@ -55,6 +57,7 @@ export default function Home() {
     <ToastProvider>
       <AppShell view={view} onNav={setView} status={status}>
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
+        {view === "networks" && <ViewNetworks status={status} />}
         {view === "seals" && <ViewSeals status={status} />}
         {view === "ops" && <ViewOps status={status} />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}

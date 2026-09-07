@@ -490,7 +490,36 @@ export interface LiveProbesData {
     addresses: { address: string; funded: boolean; balanceTrx: number; energy: number; net: number }[];
     error?: string;
   };
+  eth?: EthProbe;
+  sol?: SolProbe;
   usage?: string;
+}
+
+// ─── v10: ETHEREUM + SOLANA rails (רשתות-רכב חדשות — מדידה חיה) ──────────────
+
+export interface EthProbe {
+  ok: boolean;
+  chainId: number | null;
+  blockNumber: number | null;
+  gasPriceGwei: number | null;
+  endpoint: string | null;
+  measuredAt: string;
+  error?: string;
+}
+
+export interface SolProbe {
+  ok: boolean;
+  health: string | null;
+  slot: number | null;
+  blockHeight: number | null;
+  epoch: number | null;
+  epochProgressPct: number | null;
+  absoluteSlot: number | null;
+  transactionCount: number | null;
+  solanaCore: string | null;
+  endpoint: string | null;
+  measuredAt: string;
+  error?: string;
 }
 
 export interface StatusLiveInfo {

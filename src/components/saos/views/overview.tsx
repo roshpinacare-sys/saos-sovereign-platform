@@ -119,7 +119,12 @@ export function ViewOverview({
         <PanelHeader
           icon={<Radio size={15} />}
           title="מטריצת עגינה חוצת-רשתות"
-          sub="STEEM · BLURT · HIVE · TRON — מצב, שערים והחלמה"
+          sub="STEEM · BLURT · HIVE · TRON — מצב, שערים והחלמה · + Ethereum & Solana במדידה חיה"
+          actions={
+            <Btn variant="ghost" size="xs" onClick={() => onNav("networks")}>
+              רשת-7 חיה <ArrowLeft size={11} />
+            </Btn>
+          }
         />
         <PanelBody className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {status.loading && !d

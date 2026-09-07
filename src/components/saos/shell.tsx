@@ -5,14 +5,14 @@
  * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + ניווט-גלילה (מובייל) + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ExternalLink, GitBranch, RadioTower, RefreshCcw, ShieldCheck } from "lucide-react";
+import { Anchor, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { timeAgo, useClock, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { StatusData } from "./types";
 
-export type ViewId = "overview" | "seals" | "ops" | "proofs" | "energy" | "economy" | "research";
+export type ViewId = "overview" | "networks" | "seals" | "ops" | "proofs" | "energy" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -30,6 +30,14 @@ export const VIEWS: ViewDef[] = [
     short: "בקרה",
     desc: "מצב הפלטפורמה בזמן אמת — שרשרת, מטריצה ובריאות הגרעין",
     icon: <Anchor size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "networks",
+    label: "רשתות חיות",
+    short: "רשתות",
+    desc: "רשת-7 שרשראות במדידה חיה — כולל Ethereum ו-Solana שחוברו",
+    icon: <Globe2 size={16} />,
     group: "תפעול"
   },
   {
@@ -119,7 +127,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Anchoring Platform · v9.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Anchoring Platform · v10.0</p>
           </div>
         </div>
 
@@ -272,7 +280,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v9.0.0 — קונסולת עגינה מוסדית · AUTO-ANCHOR + HIVE LIVE-READY
+              SAOS Sovereign Platform v10.0.0 — קונסולת עגינה מוסדית · 7-CHAIN GRID + ETHEREUM + SOLANA
             </span>
             <span className="flex items-center gap-3">
               <a
