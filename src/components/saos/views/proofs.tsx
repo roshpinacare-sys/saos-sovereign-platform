@@ -13,8 +13,10 @@ import {
   FileSearch,
   GitBranch,
   Layers,
+  Link2,
   ListChecks,
   RefreshCcw,
+  ScrollText,
   ShieldAlert,
   XCircle
 } from "lucide-react";
@@ -31,10 +33,11 @@ import {
   Pill,
   Skeleton,
   SkeletonPanel,
-  Tag
+  Tag,
+  useToast
 } from "../ui";
 import { MeterBar } from "../charts";
-import { fmt, short, useLive, useToast } from "../lib";
+import { fmt, short, useLive } from "../lib";
 import type { EvidencePackSummary, SealRow, VerifyPackData } from "../types";
 import { PageHead } from "../shell";
 import { cn } from "../ui";
@@ -281,6 +284,9 @@ function ProofBundle({ data: d }: { data: VerifyPackData }) {
         </PanelBody>
       </Panel>
 
+      {/* שרשרת קבלות-הראיות */}
+      {d.receiptsChain && <ReceiptsChainPanel chain={d.receiptsChain} />}
+
       {/* מתכון אימות */}
       <Panel accent>
         <PanelHeader
@@ -312,5 +318,112 @@ function ProofBundle({ data: d }: { data: VerifyPackData }) {
         </PanelBody>
       </Panel>
     </>
+  );
+}
+
+// ─── ReceiptsChainPanel — שרשרת קבלות-הראיות עם דיווח כן ────────────────────
+
+function ReceiptsChainPanel({
+  chain
+}: {
+  chain: NonNullable<VerifyPackData["receiptsChain"]>;
+}) {
+  const { ok, brokenAt, breakCount, count, tailOk } = chain;
+  const prefix = brokenAt ?? count;
+  const tailStart = brokenAt !== null ? brokenAt + 1 : count;
+  const tailLen = Math.max(0, count - tailStart);
+  const prefixPct = count > 0 ? (prefix / count) * 100 : 0;
+  const tailPct = count > 0 ? (tailLen / count) * 100 : 0;
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<Link2 size={15} />}
+        title="שרשרת קבלות-הראיות"
+        sub="כל פעולה בפלטפורמה משורשרת-האש לקודמתה — הדיג'סט מחושב מחדש לכל קבלה"
+        actions={
+          <Pill tone={ok ? "green" : tailOk ? "gold" : "rose"}>
+            {ok ? "רציפות מלאה" : tailOk ? "התפצלות היסטורית · זנב חי" : "שרשרת קרועה"}
+          </Pill>
+        }
+      />
+      <PanelBody className="space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Kpi label="קבלות בשרשרת" value={count} icon={<ScrollText size={15} />} />
+          <Kpi
+            label="נקודות שבר"
+            value={breakCount}
+            tone={breakCount === 0 ? "green" : "rose"}
+            icon={<ShieldAlert size={15} />}
+          />
+          <Kpi
+            label="שבר ראשון"
+            value={brokenAt !== null ? `#${brokenAt}` : "—"}
+            icon={<GitBranch size={15} />}
+          />
+          <Kpi
+            label="זנב חי (12 אחרונות)"
+            value={tailOk ? "רציף" : "קרוע"}
+            tone={tailOk ? "green" : "rose"}
+            icon={<CheckCircle2 size={15} />}
+          />
+        </div>
+
+        {/* פס יחסים — קידומת שרושרה · נקודת פיצול · זנב חי */}
+        <div dir="ltr" className="rounded-lg border border-white/[0.06] bg-black/20 p-3.5 space-y-2">
+          <div
+            className="flex items-center gap-1 h-3"
+            role="img"
+            aria-label={`קבלות שרושרו: ${prefix}. התפצלות${brokenAt !== null ? ` בקבלה ${brokenAt}` : " אין"}. זנב: ${tailLen}`}
+          >
+            {prefix > 0 && (
+              <div
+                className="h-full rounded-sm bg-emerald-400/70"
+                style={{ width: `${prefixPct}%` }}
+                title={`${prefix} קבלות שרושרו מהבלידה`}
+              />
+            )}
+            {brokenAt !== null && (
+              <div
+                className="h-full w-1.5 rounded-sm bg-amber-400 shrink-0 shadow-[0_0_8px_rgba(251,191,36,0.5)]"
+                title={`התפצלות בקבלה #${brokenAt}`}
+              />
+            )}
+            {tailLen > 0 && (
+              <div
+                className={cn("h-full rounded-sm", tailOk ? "bg-emerald-400/70" : "bg-rose-400/70")}
+                style={{ width: `${Math.max(tailPct, 2)}%` }}
+                title={`${tailLen} קבלות${tailOk ? " — שרשור רציף" : " — קרוע"}`}
+              />
+            )}
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-zinc-600 font-mono">
+            <span>genesis · #0</span>
+            {brokenAt !== null && <span className="text-amber-400/80">fork · #{brokenAt}</span>}
+            <span>head · #{count - 1}</span>
+          </div>
+        </div>
+
+        {ok ? (
+          <Callout tone="green" icon={<CheckCircle2 size={14} />}>
+            <span className="font-semibold">רציפות מלאה:</span> כל {count} הקבלות משורשרות-האש מהבלידה —
+            כל digest אומת מחדש וכל prevDigest ממשיך את קודמתו בדיוק.
+          </Callout>
+        ) : tailOk ? (
+          <Callout tone="gold" icon={<ShieldAlert size={14} />}>
+            <span className="font-semibold">דיווח כן — התפצלות היסטורית בקבלה #{brokenAt}:</span>{" "}
+            שתי קבלות נכתבו במקביל לפני שהוסדרה הכתיבה בסדרה. ההיסטוריה לא נמחקת ולא מתוקנת —
+            מנוע האימות תופס את הפיצול בדיוק, וזה בדיוק תפקידו.{" "}
+            <span className="font-semibold">מאז ההסדרה</span> כל קבלה חדשה נשרשרת רציף — הזנב החי
+            (12 האחרונות) אומת כרציף.
+          </Callout>
+        ) : (
+          <Callout tone="rose" icon={<XCircle size={14} />}>
+            <span className="font-semibold">הזנב החי קרוע:</span> הקבלות האחרונות לא משורשרות —{" "}
+            {breakCount} נקודות שבר, הראשונה ב-#{brokenAt}. דרושה בדיקת שלמות.
+          </Callout>
+        )}
+      </PanelBody>
+    </Panel>
   );
 }

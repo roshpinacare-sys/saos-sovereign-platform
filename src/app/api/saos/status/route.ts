@@ -37,12 +37,16 @@ export async function GET() {
         leaves: s._count.leaves,
         gasUsed: s.gasUsed,
         createdAt: s.createdAt,
-        anchors: s.anchors.map((a) => ({
-          network: a.network,
-          status: a.status,
-          txid: a.txid,
-          gate: a.gate
-        }))
+        // weave anchors only = the live per-network anchoring state;
+        // dry-run envelopes (kind="envelope") are shown in the ops view
+        anchors: s.anchors
+          .filter((a) => a.kind === "weave")
+          .map((a) => ({
+            network: a.network,
+            status: a.status,
+            txid: a.txid,
+            gate: a.gate
+          }))
       })),
       receipts: receipts.map((r) => ({
         kind: r.kind,

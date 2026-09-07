@@ -96,6 +96,7 @@ model EvidenceReceipt {
   digest     String      @unique
   prevDigest String?
   payload    String
+  at         String? // the EXACT timestamp inside the digest (Receipt.at) — nullable for legacy rows; recovered via digest brute-force
   seal       SealRecord? @relation(fields: [sealId], references: [id])
   sealId     String?
   createdAt  DateTime    @default(now())

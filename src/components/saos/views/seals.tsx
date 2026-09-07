@@ -249,9 +249,9 @@ function SealRow({
         </Td>
         <Td>
           <span className="flex gap-1">
-            {seal.anchors.map((a) => (
+            {seal.anchors.map((a, i) => (
               <span
-                key={a.network}
+                key={`${a.network}-${i}`}
                 title={`${a.network}: ${a.status}${a.gate ? ` · ${a.gate}` : ""}`}
                 className={cn(
                   "inline-flex items-center rounded border px-1 py-px text-[9px] font-bold",
@@ -284,8 +284,8 @@ function SealRow({
                   <p className="text-[10px] font-semibold text-zinc-500 flex items-center gap-1.5">
                     <Anchor size={11} /> מצב עוגנים
                   </p>
-                  {seal.anchors.map((a) => (
-                    <div key={a.network} className="flex items-center justify-between gap-2">
+                  {seal.anchors.map((a, i) => (
+                    <div key={`${a.network}-${i}`} className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold text-zinc-300" dir="ltr">
                         {a.network}
                       </span>
@@ -309,8 +309,8 @@ function SealRow({
                   ) : (
                     seal.anchors
                       .filter((a) => a.gate)
-                      .map((a) => (
-                        <p key={a.network} dir="ltr" className="text-[10px] font-mono text-rose-300/70 break-all text-left">
+                      .map((a, i) => (
+                        <p key={`${a.network}-${i}`} dir="ltr" className="text-[10px] font-mono text-rose-300/70 break-all text-left">
                           {a.network}: {a.gate}
                         </p>
                       ))

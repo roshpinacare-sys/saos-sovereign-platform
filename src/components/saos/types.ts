@@ -70,6 +70,13 @@ export interface VerifyPackData {
   sampleProof?: { leaf: string; root: string; path: { sibling: string; dir: string }[] };
   howToVerify?: string[];
   receipt?: string;
+  receiptsChain?: {
+    ok: boolean;
+    brokenAt: number | null;
+    breakCount: number;
+    count: number;
+    tailOk: boolean;
+  };
 }
 
 export interface EnergyTron {

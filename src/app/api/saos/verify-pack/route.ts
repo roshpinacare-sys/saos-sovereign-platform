@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { buildMerkleTree, merkleProof, verifyMerkleProof } from "@/lib/saos/merkle";
-import { forgeReceipt } from "@/lib/saos/evidence";
+import { canonicalDigest } from "@/lib/saos/canonical-json";
+import { appendChainedReceipt } from "@/lib/chained-receipt";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,61 @@ export const dynamic = "force-dynamic";
  * GET /api/saos/verify-pack            → latest seal
  * GET /api/saos/verify-pack?height=N   → seal at height N (anyone can verify any seal)
  * Latest seal → merkle tree → inclusion proof for every leaf → independent verification.
+ * Also verifies the hash-chained receipts ledger: full walk + tail health.
  * Anyone can verify without trusting us. (steem-main verify-pack discipline)
  */
+
+async function receiptsChainStatus() {
+  const rows = await db.evidenceReceipt.findMany({
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { kind: true, payload: true, prevDigest: true, digest: true, createdAt: true, at: true }
+  });
+  const ledger = rows.map((r) => ({
+    kind: r.kind,
+    // the receipt's own `at` (committed inside the digest); legacy fallback = insert time
+    at: r.at ?? r.createdAt.toISOString(),
+    payload: safeJson(r.payload),
+    prevDigest: r.prevDigest,
+    digest: r.digest
+  }));
+  // full walk — recompute every digest + prev chaining
+  let prev: string | null = null;
+  const breaks: number[] = [];
+  for (let i = 0; i < ledger.length; i++) {
+    const r = ledger[i]!;
+    const recomputed = await canonicalDigest({
+      kind: r.kind,
+      at: r.at,
+      payload: r.payload,
+      prevDigest: r.prevDigest
+    });
+    if (recomputed !== r.digest || r.prevDigest !== prev) breaks.push(i);
+    prev = r.digest;
+  }
+  // tail health — are the newest 12 receipts perfectly chained among themselves?
+  const tailN = Math.min(12, ledger.length);
+  let tailOk = true;
+  for (let i = ledger.length - tailN + 1; i < ledger.length; i++) {
+    if (ledger[i]!.prevDigest !== ledger[i - 1]!.digest) tailOk = false;
+  }
+  return {
+    ok: breaks.length === 0,
+    brokenAt: breaks.length > 0 ? breaks[0]! : null,
+    breakCount: breaks.length,
+    count: ledger.length,
+    tailOk: tailOk && tailN > 0
+  };
+}
+
+function safeJson(s: string | null): Record<string, unknown> {
+  if (!s) return {};
+  try {
+    const v = JSON.parse(s);
+    return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
 export async function GET(req: Request) {
   try {
     const heightParam = new URL(req.url).searchParams.get("height");
@@ -56,24 +110,14 @@ export async function GET(req: Request) {
     }
     const allVerified = proofs.every((p) => p.verified);
 
-    const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
-    const receipt = await forgeReceipt(
-      "verify-pack",
-      { sealRoot: seal.root, height: seal.height, leaves: leaves.length, allVerified, rootMatches },
-      prev?.digest ?? null
-    );
-    try {
-      await db.evidenceReceipt.create({
-        data: {
-          kind: receipt.kind,
-          digest: receipt.digest,
-          prevDigest: receipt.prevDigest,
-          payload: JSON.stringify(receipt.payload)
-        }
-      });
-    } catch {
-      // repeat-run digest collision — tolerated
-    }
+    const receipt = await appendChainedReceipt("verify-pack", {
+      sealRoot: seal.root,
+      height: seal.height,
+      leaves: leaves.length,
+      allVerified,
+      rootMatches
+    });
+    const receiptsChain = await receiptsChainStatus();
 
     return NextResponse.json({
       ok: true,
@@ -90,6 +134,7 @@ export async function GET(req: Request) {
       proofs,
       sampleProof: await merkleProof(tree, 0),
       receipt: receipt.digest,
+      receiptsChain,
       howToVerify: [
         "קח את sampleProof.path",
         "hash = leaf; לכל צעד: dir==='R' ? sha256(hash+sibling) : sha256(sibling+hash)",

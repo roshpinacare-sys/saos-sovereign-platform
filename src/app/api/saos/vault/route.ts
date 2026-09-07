@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { forgeReceipt } from "@/lib/saos/evidence";
+import { appendChainedReceipt } from "@/lib/chained-receipt";
 import {
   isKnownNetwork,
   isValidPublicAddress,
@@ -98,24 +98,10 @@ export async function POST(req: Request) {
       update: { address, fingerprint, keyState: "missing" }
     });
 
-    const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
-    const receipt = await forgeReceipt(
+    const receipt = await appendChainedReceipt(
       "vault-register",
-      { network, slot, address, fingerprint },
-      prev?.digest ?? null
+      { network, slot, address, fingerprint }
     );
-    try {
-      await db.evidenceReceipt.create({
-        data: {
-          kind: receipt.kind,
-          digest: receipt.digest,
-          prevDigest: receipt.prevDigest,
-          payload: JSON.stringify(receipt.payload)
-        }
-      });
-    } catch {
-      /* collision tolerated */
-    }
     await db.opLog.create({
       data: { op: "vault-register", detail: `${network}/${slot}=${address}` }
     });

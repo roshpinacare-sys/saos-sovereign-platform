@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { applyTx, genesisState, stateRootOf, type KernelTx } from "@/lib/saos/kernel";
 import { buildMerkleTree } from "@/lib/saos/merkle";
 import { canonicalDigest, canonicalize } from "@/lib/saos/canonical-json";
-import { forgeReceipt } from "@/lib/saos/evidence";
+import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { anchoringMatrix } from "@/lib/saos/anchor-gates";
 
 export const dynamic = "force-dynamic";
@@ -97,22 +97,12 @@ export async function POST(req: Request) {
     }));
     await db.anchorTx.createMany({ data: anchorRows });
 
-    // 5. evidence receipt
-    const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
-    const receipt = await forgeReceipt(
+    // 5. evidence receipt — serialized append (no concurrent forks)
+    const receipt = await appendChainedReceipt(
       "seal",
       { sealId: seal.id, height: seal.height, root, leaves: leafPayloads.length, stateRoot },
-      prev?.digest ?? null
+      { sealId: seal.id }
     );
-    await db.evidenceReceipt.create({
-      data: {
-        kind: receipt.kind,
-        digest: receipt.digest,
-        prevDigest: receipt.prevDigest,
-        payload: JSON.stringify(receipt.payload),
-        sealId: seal.id
-      }
-    });
     await db.opLog.create({
       data: { op: "seal", detail: `height=${seal.height} root=${root.slice(0, 16)}…` }
     });

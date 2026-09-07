@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { forgeReceipt } from "@/lib/saos/evidence";
+import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { buildEnvelopes, type SaosNetwork } from "@/lib/saos/broadcast";
 
 export const dynamic = "force-dynamic";
@@ -143,9 +143,8 @@ export async function POST(req: Request) {
       }))
     });
 
-    // chained receipt — the preparation itself is evidence
-    const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
-    const receipt = await forgeReceipt(
+    // chained receipt — the preparation itself is evidence (serialized append)
+    const receipt = await appendChainedReceipt(
       "broadcast-dry-run",
       {
         height: seal.height,
@@ -153,21 +152,8 @@ export async function POST(req: Request) {
         envelopes: envelopes.length,
         digests: envelopes.map((e) => e.digest)
       },
-      prev?.digest ?? null
+      { sealId: seal.id }
     );
-    try {
-      await db.evidenceReceipt.create({
-        data: {
-          kind: receipt.kind,
-          digest: receipt.digest,
-          prevDigest: receipt.prevDigest,
-          payload: JSON.stringify(receipt.payload),
-          sealId: seal.id
-        }
-      });
-    } catch {
-      /* collision tolerated */
-    }
     await db.opLog.create({
       data: { op: "broadcast-dryrun", detail: `height=${seal.height} nets=${envelopes.length}` }
     });

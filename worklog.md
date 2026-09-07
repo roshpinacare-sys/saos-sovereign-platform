@@ -103,3 +103,26 @@ Stage Summary:
 - שרשרת חיה: 4 חותמים, 38 קבלות, 40 עלים, 880 gas, 3 תמונות-מצב.
 - הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ 7019ac3, גרסה 4.0.0.
 - החלטות ארכיטקט: 6 עמודים במקום 5 מגדלים (הפרדת בקרה/תפעול), zero-new-deps נשמר, ה-API לא שונה כלל (additive מ-v3 נשאר).
+
+---
+Task ID: 5
+Agent: Z.ai Code (ארכיטקט בעלים — ביצוע v5.1.0)
+Task: השלמת v5 שנקטעה (מבצעי עגינה) + חיזוק שלמות שרשרת-הקבלות + דחיפה לריפו (commit 3224154).
+
+Work Log:
+- אבחון המשך-קטע: GET / 500 (proofs.tsx ייבא useToast מ-../lib במקום ../ui) — תוקן; תיקיית /api/saos/ops הייתה ריקה (הקשר נגדע באמצע כתיבת ה-API) — המסלול נכתב: {ops, total, byOp} מ-OpLog עם groupBy + ?take=1..50; Prisma Client היה מיושן (vaultSlot חסר) — generate + ריסטרט שרת.
+- אבחון שורש שלמות השרשרת (chainOk:false): (1) מרוץ כתיבות — שתי קבלות energy-plan נכתבו-מקביל באותה אלפית-שנייה, שתיהן קראו אותו prev והתפצלו (#8); (2) ממצא מבני חמור יותר: המודל מעולם לא אחסן את Receipt.at — ה-digest מחויב על {kind, at, payload, prevDigest} אך ב-DB נשמר רק createdAt (זמן-כתיבה) → digest בלתי-ניתן לחישוב-מחדש לחלוטין.
+- תיקון מרוץ: src/lib/chained-receipt.ts — תור-סדרה (קטע-קריטי: קריאת-prev → forge → write) שאוחד בכל 8 המסלולים (seal, kernel, energy ×2, economy ×2, vault, broadcast, verify-pack, evidence-pack). הליבה (lib/saos) לא נגעה — הסדרה היא אחריות שכבת-המסלולים. אומת: 12 כתיבות מקביליות ×3 סבבים — אפס התפצלויות.
+- תיקון מודל-נתונים + שחזור קריפטוגרפי: עמודת at חדשה ב-EvidenceReceipt; scripts/recover-receipt-at.ts משחזר את ה-at המקורי ב-brute-force ±120ms סביב createdAt — ההתאמה ל-digest היא הוכחה מתמטית שהערך הוא המקורי (לא ייצור). תוצאה: 91/91 קבלות היסטוריות שוחזרו.
+- verify-pack מחזיר כעת receiptsChain {ok, brokenAt, breakCount, count, tailOk} (הליכה מלאה: חישוב-מחדש של כל digest + שרשור prev + בריאות זנב-12); proofs.tsx — ReceiptsChainPanel: 4 KPI, פס-יחסים חזותי (קידומת/פיצול/זנב) עם aria-label, וקל-אאוט כן: ההתפצלות ההיסטורית מדווחת במלואה — ההיסטוריה לא נמחקת, מנוע-האימות תופס אותה וזה תפקידו.
+- תיקונים נוספים: status API מחזיר עוגני weave בלבד (ה-envelopes של dry-run שייכים ל-ops) + מפתחות React מרוכבים ב-seals.tsx — תוקנה שגיאת duplicate-key בקונסולה; import מיותר הוסר מ-energy.
+- אימות דפדפן מלא: 7 עמודים; רישום כספת חי מה-UI (STEEM/foundry/active → saos-foundry, טביעת-אצבע 9f62…, 1/9 רשומות); הכנת מעטפות dry-run חיה לחותם #4 (4 רשתות, קבלה 2adc94…); פעימת איטום חיה #5 (seals=5, receipts=105, leaves=49, gas=1080); שורה-נפתחת; שרשרת: breakCount=1 (הפורק ההיסטורי בלבד), tailOk=true; אפס שגיאות קונסולה; מובייל 375px ללא גלילה אופקית; lint נקי.
+- VLM: הוכחות 8/10, מבצעים 7/10 (צפיפות מידע — מכוון מוסדי), מובייל 8/10.
+- Push: commit 3224154 "SAOS Sovereign Platform v5.1.0 — Anchor Operations + Chain Integrity" (22 files, +2041/-150) → origin/main ✓. README v5.1, package.json 5.1.0, scripts/recover-receipt-at.ts נכלל. אומתה זהות בייטית סנדבוקס→ריפו לכל קוד-המוצר (רק סקאפולד הסנדבוקס מחוץ לריפו).
+
+Stage Summary:
+- המוצר: קונסולה v5.1 חיה בפריוויו — 7 עמודים, מבצעי-עגינה מלאים (מוכנות שלב 2), שלמות שרשרת מאומתת קריפטוגרפית.
+- שרשרת: 5 חותמים, 105 קבלות (כל ה-digests מאומתים), התפצלות היסטורית אחת מדווחת בכנות, זנב חי רציף, כתיבה סדרתית לתמיד.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ 3224154, גרסה 5.1.0.
+- החלטות ארכיטקט מרכזיות: שחזור-קריפטוגרפי במקום כתיבה-מחדש של היסטוריה; הסדרה בשכבת-המסלולים בלבד (הליבה טהורה); dry-run envelopes כ-AnchorTx kind=envelope — אמת מבנית; productionAuthority נשאר NONE.
+- המשך (שלב 2 אמיתי — דורש נכסים חיצוניים): החזרת מפתחות מהכספת הלא-מקוונת → שידור custom_json אמיתי → HIVE נוחת.

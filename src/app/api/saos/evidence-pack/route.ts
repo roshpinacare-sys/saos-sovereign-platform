@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { buildMerkleTree, merkleProof, verifyMerkleProof } from "@/lib/saos/merkle";
 import { canonicalDigest, canonicalize } from "@/lib/saos/canonical-json";
-import { forgeReceipt, verifyChain } from "@/lib/saos/evidence";
+import { verifyChain } from "@/lib/saos/evidence";
+import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { HISTORIC_ANCHORS } from "@/lib/saos/historic";
 
 export const dynamic = "force-dynamic";
@@ -81,7 +82,8 @@ export async function GET(req: Request) {
       }
       return {
         kind: r.kind,
-        at: r.createdAt,
+        // the receipt's own `at` (committed inside the digest); legacy fallback = insert time
+        at: r.at ?? r.createdAt,
         payload,
         prevDigest: r.prevDigest,
         digest: r.digest
@@ -90,7 +92,7 @@ export async function GET(req: Request) {
     const chain = await verifyChain(
       receiptsLedger.map((r) => ({
         kind: r.kind,
-        at: (r.at as Date).toISOString(),
+        at: typeof r.at === "string" ? r.at : (r.at as Date).toISOString(),
         payload: r.payload as Record<string, unknown>,
         prevDigest: r.prevDigest,
         digest: r.digest
@@ -176,26 +178,12 @@ export async function GET(req: Request) {
     });
     const out = { ...pack, packDigest };
 
-    // the export itself is an auditable event — receipt + oplog
-    const prev = await db.evidenceReceipt.findFirst({ orderBy: { createdAt: "desc" } });
-    const receipt = await forgeReceipt(
+    // the export itself is an auditable event — serialized chained receipt + oplog
+    const receipt = await appendChainedReceipt(
       "evidence-pack",
       { height: seal.height, packDigest, leaves: leaves.length, rootMatches, allVerified },
-      prev?.digest ?? null
+      { sealId: seal.id }
     );
-    try {
-      await db.evidenceReceipt.create({
-        data: {
-          kind: receipt.kind,
-          digest: receipt.digest,
-          prevDigest: receipt.prevDigest,
-          payload: JSON.stringify(receipt.payload),
-          sealId: seal.id
-        }
-      });
-    } catch {
-      /* collision tolerated */
-    }
     await db.opLog.create({
       data: { op: "evidence-pack-export", detail: `height=${seal.height} digest=${packDigest.slice(0, 16)}…` }
     });
