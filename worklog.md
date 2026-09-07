@@ -313,3 +313,23 @@ Stage Summary:
 - v11.0.0 COMMAND DECK: פס-פיקוד 7-רשתות חי + מצגת 7-CHAIN GRID כפרוטגוניסט + מסקנות-ביצוע מביקורת 8 הריפואים מוצגות בממשק לבעלים.
 - מסקנות-ביצוע מרכזיות: (1) רוטציית PAT דחופה ב-anchor-baseline; (2) קבלת-סיכון רשמית לכספת steem או העברה לניהול-סודות; (3) אין מפתחות ETH/SOL פרטיים בטקסט-גלוי — הרכבים read-only; (4) הצעד הבא: עוגן EVM/SVM עם SignRequest חסר-מפתח.
 - הדחיפה לגיטהאב בוצעה בסוף סשן זה (commit v11.0.0).
+
+---
+Task ID: 3
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: "חפש מפתח ב-steem ותבצע" — איתור המפתח בכספת הצי (אצל הסוכן) וביצוע עוגן חי אמיתי ב-STEEM + הוכחת-כליה.
+
+Work Log:
+- איתרתי את המפתח: הכספת SAOS-FLEET-VAULT-1 (agent/keys/fleet_keys.enc + fleet_keys.meta.json) כבר מסונכרנת לסנדבוקס על-ידי הסוכן השני — המקור בריפו steem (agent/fleet_keys.enc, 170,905 בתים). ה-API /api/saos/vault אימת: STEEM foundry/active → headcorner, keyState: sealed, GCM verified.
+- קראתי את שרשרת החתימה המוסמכת: vault-seal.ts (withRoleWif — המפתח יוצא מהמעטפה רק בטווח ה-callback, fail-closed) + anchor-live.ts (צורת-פעולה מוגדרת-לבנה: custom_json saos.weave.v1 בלבד, self-verify לפני חתימה, אימות כליה אחרי שידור).
+- ביצעתי POST /api/saos/seal — פעימת איטום: גובה 9, root 594b412f…6032, stateRoot 53c31e17…b081, 15 עלים, GAS 320, memo "v11.0.0 COMMAND DECK — עוגן חי: המפתח נמצא בכספת steem אצל הסוכן".
+- ה-auto-anchor ירה אוטומטית (after): שידור חי חתום headcorner/active → txid af9be5c7bc9dc9e31f6037b7aa8ecc9012127f29.
+- אימות ישיר מול STEEM: get_transaction → כלול בבלוק 109,385,022, custom_json id=saos.weave.v1, required_auths=[headcorner], payload h=9 root=594b….
+- הוספתי action reverify ל-POST /api/saos/anchor-auto — הוכחת-כליה מחודשת לשורות broadcast (התיעוד המקורי מכיר את באג חלון-ההיסטוריה העצל של הצמתים הציבוריים): מריץ את verifyInclusion של הפלטפורמה עצמה, מעדכן status→anchored עם קבלה משורשרת (92d40dcd…742f) ו-oplog. ה-txid לעולם לא משתנה.
+- הרצתי reverify: גובה 9 אושר — status: anchored, confirmedByHistory: true, block: 109385022.
+- בדיקות: lint נקי · browser: SAOS-NET #9 בפס-הפיקוד · 0 שגיאות · האופלוג מתעד את שרשרת המשמעת המלאה (seal → anchor-auto-steem → anchor-reproof).
+
+Stage Summary:
+- בוצע עוגן חי אמיתי: גובה 9 · txid af9be5c7bc9dc9e31f6037b7aa8ecc9012127f29 · בלוק STEEM 109,385,022 · חתום headcorner/active מהכספת · saos.weave.v1.
+- יכולת חדשה בפלטפורמה: action reverify (הוכחת-כליה מחודשת כנה לשורות broadcast) — עם קבלה משורשרת כראיה.
+- המפתח נשאר חתום בכספת: ה-WIF לא דלף לתגובות/לוגים/DB — רק הפעולה המולבנת נחתמה.
