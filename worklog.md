@@ -82,3 +82,24 @@ Stage Summary:
 - EconomySnapshot — מודל שהיה זרוק — חזר לחיים עם UI מלא.
 - הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ dcf48eb, גרסה 3.0.0, דחיפה מסודרת כנדרש בסוף סשן.
 - החלטות ארכיטקט מרכזיות: zero-new-deps (רוח ריבונית), additive-API בלבד, הפרדת מגדלים לרכיבים, findings נשארים מסמך היסטורי.
+
+---
+Task ID: 4
+Agent: Z.ai Code (ארכיטקט בעלים — ביצוע v4.0.0)
+Task: החלפת UI מלאה בקונסולה מוסדית "Institutional Console" לפי דרישת הבעלים ("סופר מקצועי, הקיים לא רלוונטי") + דחיפה לריפו (commit 7019ac3).
+
+Work Log:
+- נבחנו כל רכיבי v3 (shell, 5 towers, kit, hooks, types) + חוזי 7 ה-API — המסקנה: ליבה מוצקה, ה-UI עממי (טאבים עליונים, כרטיסי zinc/זהב, בלי טבלאות אמיתיות).
+- נבנתה ארכיטקטורה חדשה: page.tsx דק (41 ש') + shell (סרגל-צד מקובץ, סרגל-עליון חי, ניווט-מובייל, footer דביק) + lib.ts (useLive/useClock/useTick/postJson) + ui.tsx (SDS-4) + charts.tsx (Gauge/Sparkline/MeterBar) + views/ (6 עמודים).
+- SDS-4 zero-dependency: Panel, Btn, Pill, Kpi (count-up + extra), Table/Th/Td, Timeline, Stepper, RangeSlider, Field/Input, Callout, Toast, CopyBtn, HashLine, LiveDot, Skeleton, EmptyBlock, ErrorNotice.
+- 6 עמודים: לוח-בקרה (KPI+sparkline, מטריצה, חותמים אחרונים, יומן ראיות, בריאות גרעין), איטום (Stepper+memo+ולידציה+"מה יקרה"+טבלה עם שורות-נפתחות), הוכחות (באנר שלמות+MeterBar+השוואת שורשים+מסלול-הוכלה+מתכון), אנרגיה (gauges+טיימליינים), כלכלה (9 מחוונים+זרמים+גלגל-חור+תמונות-מצב), מחקר (הכרעה+לוח-שלבים+דירוג).
+- תיקון RTL מוסדי: ערכי KPI עטופים span dir=ltr תחת יישור-ימין (פתר bidi), עמודות מספרים בטבלאות text-right.
+- אימות אנד-טו-אנד: חותם #4 נוצר חי מה-UI (toast+API: seals=4, receipts=38, gas=880), שורה-נפתחת מציגה קבלה+עוגנים+שערים, verify-pack לחותם #1 (שלמות מלאה+התאמה), תמונת-מצב "בסיס קונסולה v4" נשמרה (API מאשר), Alt+6 ניווט-מקלדת, מובייל 375px בלי גלילה אופקית, footer דביק (viewport 2400) ונדחק טבעית (מובייל ארוך).
+- VLM הערכות: מסך-בית 8.5/10, שלושת העמודים 9/10, יישור KPI תוקן ל-CONSISTENT. אפס שגיאות קונסולה/עמוד. lint נקי (תוקן set-state-in-effect בשעון → rAF).
+- Push: commit 7019ac3 "SAOS Sovereign Platform v4.0.0 — Institutional Console" (21 files, +3285/-2028) → origin/main ✓. README v4, package.json 4.0.0. אומת זהות בייטית סנדבוקס→ריפו (diff ריק).
+
+Stage Summary:
+- המוצר: קונסולה מוסדית v4 חיה בפריוויו — זהה בתוכן לריפו שנדחף.
+- שרשרת חיה: 4 חותמים, 38 קבלות, 40 עלים, 880 gas, 3 תמונות-מצב.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ 7019ac3, גרסה 4.0.0.
+- החלטות ארכיטקט: 6 עמודים במקום 5 מגדלים (הפרדת בקרה/תפעול), zero-new-deps נשמר, ה-API לא שונה כלל (additive מ-v3 נשאר).

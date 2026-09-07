@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SAOS Sovereign Foundry v3 — אנחנו מנצחים את הבלוקצ'יין",
+  title: "SAOS Sovereign Platform — קונסולת עגינה ריבונית",
   description:
-    "פלטפורמת עגינה חוצת-רשתות: שורשי-איטום ל-STEEM/BLURT/HIVE/TRON, ריבונות אנרגיה (TRX energize), כלכלת גלגל-חור והוכחות ציבוריות נושאות-ראיות."
+    "פלטפורמת עגינה מוסדית חוצת-רשתות: שורשי-איטום ל-STEEM/BLURT/HIVE/TRON, ריבונות אנרגיה, כלכלת גלגל-חור והוכחות ציבוריות נושאות-ראיות."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

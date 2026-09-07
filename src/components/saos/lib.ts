@@ -1,10 +1,9 @@
 "use client";
 
 /**
- * Sovereign hooks — ליבת ה"נוכחות החיה" (zero-dependency).
- * useLive: fetch מחזורי עם pause-on-hidden, שגיאות כנתונים, רענון שקט.
- * useTick: פעימת זמן ל-timeAgo. useCopy: לוח עם fallback.
- * postJson: POST עם אותה משמעת ({ok:false} הן נתונים, לא 500).
+ * SAOS v4 — ליבת נתונים-חיים ופורמט (zero-dependency).
+ * useLive: fetch מחזורי עם pause-on-hidden, שגיאות-כנתונים, רענון שקט.
+ * useClock: שעון מוסדי (Asia/Jerusalem). useTick: פעימת-זמן ל-timeAgo.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -67,8 +66,32 @@ export function useLive<T>(url: string | null, intervalMs = 12000): LiveResult<T
   return { data, error, loading, refresh, updatedAt };
 }
 
-/** periodic re-render tick (for relative times) */
-export function useTick(ms = 10000): number {
+/** שעון מוסדי — Asia/Jerusalem */
+export function useClock(): string {
+  const [now, setNow] = useState<string>("");
+  useEffect(() => {
+    const tick = () =>
+      setNow(
+        new Date().toLocaleTimeString("he-IL", {
+          timeZone: "Asia/Jerusalem",
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        })
+      );
+    const raf = requestAnimationFrame(tick); // עדכון ראשון אסינכרוני — מונע mismatch
+    const id = setInterval(tick, 1000);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(id);
+    };
+  }, []);
+  return now || "--:--:--";
+}
+
+/** פעימת זמן לריענון זמנים-יחסית */
+export function useTick(ms = 15000): number {
   const [tick, setTick] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setTick(Date.now()), ms);
@@ -77,21 +100,10 @@ export function useTick(ms = 10000): number {
   return tick;
 }
 
-export function useCopy(): [boolean, (text: string) => Promise<void>] {
-  const [copied, setCopied] = useState(false);
-  const copy = useCallback(async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      /* insecure context — degrade silently */
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  }, []);
-  return [copied, copy];
-}
-
-export async function postJson<T>(url: string, body: unknown): Promise<{ ok: boolean; data: T | null; error: string | null }> {
+export async function postJson<T>(
+  url: string,
+  body: unknown
+): Promise<{ ok: boolean; data: T | null; error: string | null }> {
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -112,9 +124,14 @@ export async function postJson<T>(url: string, body: unknown): Promise<{ ok: boo
   }
 }
 
-// ─── formatting helpers ──────────────────────────────────────────────────────
+// ─── פורמט ───────────────────────────────────────────────────────────────────
 
-export const fmt = (n: number): string => n.toLocaleString("he-IL", { maximumFractionDigits: 2 });
+export const fmt = (n: number): string =>
+  n.toLocaleString("he-IL", { maximumFractionDigits: 2 });
+
+export const fmtInt = (n: number): string =>
+  n.toLocaleString("he-IL", { maximumFractionDigits: 0 });
+
 export const short = (s: string | null | undefined): string =>
   s && s.length > 18 ? `${s.slice(0, 10)}…${s.slice(-6)}` : s ?? "—";
 
@@ -132,6 +149,18 @@ export function timeAgo(at: string | number | null | undefined): string {
   return `לפני ${Math.floor(h / 24)} ימים`;
 }
 
-export function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v));
+export function fullTime(at: string | number | null | undefined): string {
+  if (at === null || at === undefined) return "—";
+  const d = typeof at === "number" ? new Date(at) : new Date(at);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
+
+export const clamp = (v: number, lo: number, hi: number): number =>
+  Math.min(hi, Math.max(lo, v));
