@@ -309,3 +309,89 @@ export interface LastAuditData {
   last?: LastAuditInfo;
   error?: string;
 }
+
+// ─── v6: Stage 2 — הכספת האטומה חוזרה (SAOS-FLEET-VAULT-1) ──────────────────
+
+export interface SealAgentPublic {
+  account: string;
+  postingPub: string | null;
+  activePub: string | null;
+  memoPub: string | null;
+  ownerPub: string | null;
+}
+
+export interface SealFleetMember {
+  username: string;
+  tier: string;
+  mode: string;
+  chains: string[];
+  keyRoles: string[];
+  hasSteem: boolean;
+  hasHive: boolean;
+}
+
+export interface SealWallet {
+  idx: number;
+  agent: string;
+  evm: string | null;
+  evmNets: string[];
+  tron: string | null;
+  sol: string | null;
+}
+
+export interface SealInventory {
+  format: string;
+  sealedAt: string;
+  files: string[];
+  gcmVerified: true;
+  agent: SealAgentPublic;
+  fleet: SealFleetMember[];
+  wallets: SealWallet[];
+  envFacts: { agentAccount: string; dryRun: string; vaultMode: string; vaultSyncAt: string };
+}
+
+export interface Stage2Assignment {
+  network: string;
+  slot: string;
+  address: string;
+  source: string;
+}
+
+export interface SealConnectedSlot {
+  network: string;
+  slot: string;
+  address: string;
+  fingerprint: string;
+  updatedAt: string | null;
+}
+
+export interface SealStatusData {
+  ok: boolean;
+  stage2Ready: boolean;
+  seal: SealInventory | null;
+  assignments: Stage2Assignment[];
+  connected: SealConnectedSlot[];
+  stats: {
+    manifestSlots: number;
+    assignments: number;
+    fleetAccounts: number;
+    tronAddresses: number;
+  };
+  error?: string;
+}
+
+export interface SealConnectResult {
+  ok: boolean;
+  connected: boolean;
+  seal: {
+    format: string;
+    sealedAt: string;
+    files: string[];
+    agent: string;
+    fleet: number;
+    tron: number;
+  };
+  registered: { network: string; slot: string; address: string; fingerprint: string; changed: boolean }[];
+  receipt: string;
+  error?: string;
+}

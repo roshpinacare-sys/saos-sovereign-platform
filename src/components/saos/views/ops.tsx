@@ -1,14 +1,16 @@
 "use client";
 
 /**
- * SAOS v5 — מבצעי עגינה: מוכנות שלב 2 של מפת-הדרכים.
- * רישום כתובות-כספת (ציבוריות בלבד), הכנת מעטפות-שידור dry-run,
- * מטריצת מוכנות לרשת ויומן תפעול חי.
- * גבול-האמת מוצהר: productionAuthority: NONE — אין מפתחות חתימה בפלטפורמה.
+ * SAOS v6 — מבצעי עגינה: שלב 2 התחבר — הכספת האטומה חזרה.
+ * SAOS-FLEET-VAULT-1 (AES-256-GCM, scrypt) מתחברת למניפסט החריצים,
+ * אינוונטר ציבורי בלבד (חשבונות, מפתחות-ציבוריים, כתובות-צפייה),
+ * רישום-אדם + הכנת מעטפות dry-run ויומן תפעול חי.
+ * גבול-האמת: המפתחות הפרטיים לא עוזבים את המעטפה לעולם.
  */
 
 import { useMemo, useState } from "react";
 import {
+  BadgeCheck,
   CheckCircle2,
   Fingerprint,
   History,
@@ -17,7 +19,10 @@ import {
   RadioTower,
   ScrollText,
   Send,
-  Vault as VaultIcon
+  ShieldCheck,
+  Users,
+  Vault as VaultIcon,
+  Wallet
 } from "lucide-react";
 import {
   Btn,
@@ -47,6 +52,8 @@ import type {
   BroadcastResult,
   Envelope,
   OpsData,
+  SealConnectResult,
+  SealStatusData,
   StatusData,
   VaultData,
   VaultPostResult
@@ -91,8 +98,11 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
   const toast = useToast();
 
   const vault = useLive<VaultData>("/api/saos/vault", 25000);
+  const seal = useLive<SealStatusData>("/api/saos/vault/seal", 30000);
   const broadcasts = useLive<BroadcastListData>("/api/saos/broadcast?list=1", 25000);
   const ops = useLive<OpsData>("/api/saos/ops", 15000);
+
+  const stage2Connected = (seal.data?.connected ?? []).length > 0;
 
   const matrix = status.data?.matrix ?? [];
 
@@ -137,6 +147,34 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
     }
   };
 
+  // ─── חיבור שלב 2 — הכספת האטומה ────────────────────────────────────────
+  const [connecting, setConnecting] = useState(false);
+  const [connectResult, setConnectResult] = useState<SealConnectResult | null>(null);
+
+  const doConnectStage2 = async () => {
+    if (connecting) return;
+    setConnecting(true);
+    const res = await postJson<SealConnectResult>("/api/saos/vault/seal", {});
+    setConnecting(false);
+    if (res.ok && res.data?.ok) {
+      setConnectResult(res.data);
+      seal.refresh();
+      vault.refresh();
+      ops.refresh();
+      toast.push({
+        tone: "green",
+        title: "שלב 2 התחבר — הכספת נרשמה",
+        desc: `${res.data.registered.length} חריצים · חשבון-סוכן ${res.data.seal.agent} · קבלה ${short(res.data.receipt)}`
+      });
+    } else {
+      toast.push({
+        tone: "rose",
+        title: "חיבור שלב 2 נכשל",
+        desc: res.data?.error ?? res.error ?? "שגיאה לא ידועה"
+      });
+    }
+  };
+
   // ─── מעטפות שידור ─────────────────────────────────────────────────────────
   const seals = status.data?.seals ?? [];
   const [height, setHeight] = useState("latest");
@@ -169,10 +207,15 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
     <div className="space-y-5 animate-view">
       <PageHead
         title="מבצעי עגינה"
-        sub="מוכנות שלב 2: רישום כתובות-כספת ציבוריות, הכנת מעטפות-שידור dry-run לכל חותם ויומן תפעול מלא — הפלטפורמה מוכנה לעגינה אמיתית מרגש שמפתחות החתימה חוזרים מהכספת הלא-מקוונת."
+        sub={
+          stage2Connected
+            ? "שלב 2 מחובר: הכספת האטומה (SAOS-FLEET-VAULT-1) אומתה-GCM ונרשמה למניפסט החריצים — חשבון-סוכן, צי 11 חשבונות ו-12 ארנקות מולטי-צ'יין. המפתחות הפרטיים לא עוזבים את המעטפה."
+            : "מוכנות שלב 2: רישום כתובות-כספת ציבוריות, הכנת מעטפות-שידור dry-run לכל חותם ויומן תפעול מלא — הפלטפורמה מוכנה לעגינה אמיתית מרגש שמפתחות החתימה חוזרים מהכספת."
+        }
         actions={
-          <Pill tone="zinc" className="hidden sm:inline-flex">
-            <Lock size={10} /> productionAuthority: NONE
+          <Pill tone={stage2Connected ? "green" : "zinc"} className="hidden sm:inline-flex">
+            {stage2Connected ? <ShieldCheck size={10} /> : <Lock size={10} />}
+            {stage2Connected ? "stage 2: SEALED-CONNECTED" : "productionAuthority: NONE"}
           </Pill>
         }
       />
@@ -208,8 +251,12 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
                   />
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                  <KeyRound size={11} className="text-zinc-600 shrink-0" />
-                  <span>מפתח חתימה: כספת לא-מקוונת</span>
+                  <KeyRound size={11} className={stage2Connected ? "text-amber-300/70 shrink-0" : "text-zinc-600 shrink-0"} />
+                  <span>
+                    {stage2Connected
+                      ? "מפתח חתימה: הוחזר עם האיטום (sealed)"
+                      : "מפתח חתימה: כספת לא-מקוונת"}
+                  </span>
                 </div>
                 <div className="pt-2.5 border-t border-white/[0.05] space-y-1.5">
                   <p className="text-[11px] text-zinc-500 leading-relaxed line-clamp-2">
@@ -224,6 +271,159 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
           );
         })}
       </div>
+
+      {/* ─── שלב 2: הכספת האטומה ─────────────────────────────────────────── */}
+      <Panel accent={stage2Connected}>
+        <PanelHeader
+          icon={<ShieldCheck size={15} />}
+          title="שלב 2 — הכספת האטומה (SAOS-FLEET-VAULT-1)"
+          sub="מעטפת AES-256-GCM (scrypt) מהריפו הפרטי — מאומתת-GCM בפתיחה, אינוונטר ציבורי בלבד: חשבונות, מפתחות-ציבוריים, כתובות-צפייה. המפתחות הפרטיים לא עוזבים את המעטפה לעולם"
+          actions={
+            seal.data?.ok ? (
+              seal.data.stage2Ready ? (
+                <Pill tone="green">
+                  <BadgeCheck size={10} /> GCM ✓
+                </Pill>
+              ) : (
+                <Pill tone="zinc">אין איטום</Pill>
+              )
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-4">
+          {seal.loading && !seal.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : seal.data?.error ? (
+            <ErrorNotice message={seal.data.error} onRetry={seal.refresh} />
+          ) : !seal.data?.stage2Ready ? (
+            <EmptyBlock
+              icon={<ShieldCheck size={20} />}
+              title="איטום הכספת לא נמצא"
+              desc="agent/keys/fleet_keys.enc חסר — השג את מעטפת הצי מהריפו הפרטי והנח אותה ב-agent/keys/ לחיבור אוטומטי."
+            />
+          ) : (
+            <>
+              {/* מחווני אינוונטר */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat label="חשבון-סוכן" value={seal.data.seal?.agent.account ?? "—"} icon={<KeyRound size={13} />} ltr />
+                <SealStat label="חשבונות צי" value={String(seal.data.stats.fleetAccounts)} icon={<Users size={13} />} />
+                <SealStat label="ארנקות מולטי-צ'יין" value={String(seal.data.seal?.wallets.length ?? 0)} icon={<Wallet size={13} />} />
+                <SealStat label="חריצים מחוברים" value={`${(seal.data.connected ?? []).length}/${seal.data.stats.manifestSlots}`} icon={<VaultIcon size={13} />} />
+              </div>
+
+              {/* כפתור חיבור + מצב */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Btn
+                  variant={stage2Connected ? "secondary" : "primary"}
+                  size="md"
+                  loading={connecting}
+                  onClick={doConnectStage2}
+                >
+                  <ShieldCheck size={14} />
+                  {stage2Connected ? "סנכרן איטום מחדש" : "חבר שלב 2 — רשום את הכספת"}
+                </Btn>
+                <p className="text-[11px] text-zinc-500 leading-relaxed flex-1">
+                  החיבור פותח את האיטום בצד-השרת, מאמת את תג-GCM (fail-closed), ממפה את הזהויות הציבוריות ל-9 חריצי המניפסט ומשרשר קבלה. איטום: <span dir="ltr" className="font-mono text-zinc-400">{seal.data.seal?.format}</span> · נאטם {timeAgo(seal.data.seal?.sealedAt ?? "")} · {(seal.data.seal?.files ?? []).length} קבצים במעטפה.
+                </p>
+              </div>
+
+              {connectResult && (
+                <Callout tone="gold" icon={<BadgeCheck size={14} />}>
+                  <span className="font-semibold">נרשמו {connectResult.registered.length} חריצים</span> · חשבון {connectResult.seal.agent} · {connectResult.seal.fleet} חשבונות צי · {connectResult.seal.tron} כתובות TRON · קבלה <span dir="ltr" className="font-mono">{short(connectResult.receipt)}</span>
+                </Callout>
+              )}
+
+              {/* מיפוי חריצים */}
+              <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>רשת</Th>
+                      <Th>חריץ</Th>
+                      <Th>כתובת מהכספת</Th>
+                      <Th>מקור</Th>
+                      <Th>מחובר</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(seal.data.assignments ?? []).map((a) => {
+                      const done = (seal.data?.connected ?? []).find(
+                        (c) => c.network === a.network && c.slot === a.slot
+                      );
+                      return (
+                        <tr key={`${a.network}:${a.slot}`} className="hover:bg-white/[0.015] transition-colors">
+                          <Td className="font-semibold">{a.network}</Td>
+                          <Td className="font-mono text-[11px]" dir="ltr">{a.slot}</Td>
+                          <Td>
+                            <span dir="ltr" className="font-mono text-[11px] text-emerald-300/90">{a.address}</span>
+                          </Td>
+                          <Td className="text-zinc-500 text-[11px]">{a.source}</Td>
+                          <Td>
+                            {done ? (
+                              <Pill tone="green">sealed</Pill>
+                            ) : (
+                              <Pill tone="zinc">ממתין</Pill>
+                            )}
+                          </Td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              </div>
+
+              {/* צי + ארנקות (ציבורי בלבד) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3.5 space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Users size={13} className="text-amber-300/70" />
+                    <p className="text-xs font-bold text-zinc-200">צי מאומת — {seal.data.seal?.fleet.length ?? 0} חשבונות (STEEM+HIVE)</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5" dir="ltr">
+                    {(seal.data.seal?.fleet ?? []).map((m) => (
+                      <span
+                        key={m.username}
+                        className="inline-flex items-center gap-1 rounded-md border border-white/[0.07] bg-zinc-900/60 px-2 py-0.5 text-[11px] font-mono text-zinc-300"
+                        title={`${m.tier} · ${m.mode} · ${m.chains.join("+")}`}
+                      >
+                        {m.hasHive && <span className="text-amber-300/80" title="חומר-מפתח HIVE במעטפה">◆</span>}
+                        {m.username}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-zinc-600 leading-relaxed">◆ = חומר-מפתח HIVE במעטפה · שמות חשבונות בלבד — WIF-ים לעולם לא מוצגים</p>
+                </div>
+                <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3.5 space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Wallet size={13} className="text-amber-300/70" />
+                    <p className="text-xs font-bold text-zinc-200">ארנקות מולטי-צ'יין — {seal.data.seal?.wallets.length ?? 0} (EVM · TRON · SOL)</p>
+                  </div>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {(seal.data.seal?.wallets ?? []).map((w) => (
+                      <div key={w.idx} className="flex items-center justify-between gap-2 text-[11px]">
+                        <span dir="ltr" className="font-mono text-zinc-500 shrink-0">#{w.idx} {w.agent}</span>
+                        <span dir="ltr" className="font-mono text-zinc-400 truncate" title={w.tron ?? ""}>
+                          {w.tron ? `${w.tron.slice(0, 10)}…${w.tron.slice(-4)}` : "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-zinc-600 leading-relaxed">כתובות-צפייה ציבוריות בלבד · 6 הראשונות = vault-1…6</p>
+                </div>
+              </div>
+
+              {/* חוזה-אמת */}
+              <Callout tone="zinc" icon={<Lock size={14} />}>
+                <span className="font-semibold">חוזה-האמת של שלב 2:</span> החיבור מעביר זהויות-ציבוריות בלבד למניפסט. מפתחות החתימה נשארים חתומים במעטפת ה-AES בצד-השרת ומשמשים רק לחתימת-עגינה כשהשערים (RC/עמלה/אנרגיה) מאפשרים. כל חיבור משורשר לקבלות הראיות.
+              </Callout>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
 
       {/* ─── רישום כספת ─────────────────────────────────────────────────────── */}
       <Panel accent>
@@ -310,11 +510,21 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
 
                 {/* יושר-כנות */}
                 <div className="space-y-3">
-                  <Callout tone="zinc" icon={<Lock size={14} />}>
-                    <span className="font-semibold">גבול-האמת:</span> רישום כתובת ציבורית אינו
-                    מעניק סמכות חתימה. המעטפות נבנות עם הכתובת כמשתמשת-שידור, אך{" "}
-                    <span dir="ltr" className="font-mono">broadcastable: false</span> עד שלב 2 —
-                    החזרת המפתחות מהכספת. כל רישום משורשר לקבלות הראיות.
+                  <Callout tone={stage2Connected ? "green" : "zinc"} icon={stage2Connected ? <ShieldCheck size={14} /> : <Lock size={14} />}>
+                    {stage2Connected ? (
+                      <>
+                        <span className="font-semibold">שלב 2 מחובר:</span> המעטפות נבנות עם הזהות האמיתית
+                        מהכספת. החתימה עצמה נשארת בצד-השרת בתוך מעטפת ה-AES — משתחררת לחתימת-עגינה
+                        כשהשערים מאפשרים. כל רישום משורשר לקבלות הראיות.
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-semibold">גבול-האמת:</span> רישום כתובת ציבורית אינו
+                        מעניק סמכות חתימה. המעטפות נבנות עם הכתובת כמשתמשת-שידור, אך{" "}
+                        <span dir="ltr" className="font-mono">broadcastable: false</span> עד שלב 2 —
+                        החזרת המפתחות מהכספת. כל רישום משורשר לקבלות הראיות.
+                      </>
+                    )}
                   </Callout>
                   <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3.5 space-y-2">
                     {slotsForNet.slice(0, 3).map((s) => (
@@ -378,9 +588,19 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
                             )}
                           </Td>
                           <Td>
-                            <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
-                              <Lock size={10} /> {s.keyState === "missing" ? "חסר (כספת)" : s.keyState}
-                            </span>
+                            {s.keyState === "sealed" ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-amber-300/90">
+                                <ShieldCheck size={10} /> הוחזר עם האיטום
+                              </span>
+                            ) : s.keyState === "missing" ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
+                                <Lock size={10} /> חסר (כספת)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
+                                <Lock size={10} /> {s.keyState}
+                              </span>
+                            )}
                           </Td>
                           <Td className="text-zinc-500 text-[11px] whitespace-nowrap">
                             {s.updatedAt ? timeAgo(s.updatedAt) : "—"}
@@ -599,6 +819,36 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
 }
 
 // ─── EnvelopeCard — כרטיס מעטפה לרשת ────────────────────────────────────────
+
+function SealStat({
+  label,
+  value,
+  icon,
+  ltr = false
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  ltr?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3 space-y-1.5">
+      <div className="flex items-center gap-1.5 text-zinc-500">
+        {icon}
+        <p className="text-[10px] font-semibold tracking-wide">{label}</p>
+      </div>
+      <p
+        className={cn(
+          "text-sm font-bold text-zinc-100 tabular-nums",
+          ltr && "font-mono"
+        )}
+        dir={ltr ? "ltr" : undefined}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 function EnvelopeCard({ env }: { env: Envelope }) {
   const pretty = useMemo(() => {
