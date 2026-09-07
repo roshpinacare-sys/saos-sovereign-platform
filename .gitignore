@@ -9,3 +9,12 @@ db/*.db-journal
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# ── SAOS deployment hardening (strict secret blocking) ──
+upload/
+deploy/
+keys/
+agent/keys/
+**/vault.json
+**/*.pem
+research/
