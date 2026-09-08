@@ -4,10 +4,12 @@
  * Responsibilities:
  *   1. run anvil (the sovereign laboratory chain) on :8545, chainId 31337
  *   2. deploy the 8-contract CONTRACT MESH + wire the chain
- *   3. AUTO-RUNNER: every 120s — the HQ posts a REAL work order, a mesh
- *      run delivers it (rotating initiators, live 8-chain anchors, fleet
- *      identity sync), the payroll pays the soldier — continuous genuine
- *      work + value on-chain
+ *   3. AUTO-RUNNER v18: every 120s the HQ posts a REAL work order THROUGH
+ *      the platform's solution engine (POST /api/saos/mesh/work realWork:
+ *      LLM generates the actual deliverable, sha256 digest anchored on the
+ *      SAOS-WORK rail, hash-chained receipt) — soldiers deliver on-chain,
+ *      the payroll pays. Honest fallback: if the web tier is unreachable,
+ *      the order is posted dry (on-chain, no LLM content).
  *   4. WATCHDOG: respawn anvil + redeploy if the chain dies
  *   5. ARTIFACT WATCHER: redeploy when the canonical SAOSMesh.json changes
  *
@@ -92,14 +94,49 @@ const INTENTS = [
 
 // v2 — the HQ's rotating missions (פקודות עבודה): posted as open orders,
 // delivered by the next mesh run, paid from the payroll (zero fee).
+// v18 — REAL MISSIONS: operational tasks of the actual platform, posted
+// through the solution engine so every delivery carries an LLM-generated
+// REAL deliverable (summary/steps/risks/value) anchored on SAOS-WORK.
 const MISSIONS: Array<{ mission: string; difficulty: number; reward: bigint }> = [
-  { mission: "סריקת מסילות: חידוש עוגני 8 הרשתות", difficulty: 2, reward: ethers.parseEther("6") },
-  { mission: "ביקורת יעילות: ערך ליחידת גז בכל דילוג", difficulty: 3, reward: ethers.parseEther("8") },
-  { mission: "הצעת פתרון: חידוש בזרימת הערך", difficulty: 4, reward: ethers.parseEther("12") },
-  { mission: "שמירת איטום: replay שורשי מרקל", difficulty: 2, reward: ethers.parseEther("5") },
-  { mission: "גיוס סוכנים: סנכרון זהויות הצי", difficulty: 1, reward: ethers.parseEther("4") },
-  { mission: "בדיקת מסילה ללא-עמלה: העברת ערך", difficulty: 3, reward: ethers.parseEther("9") }
+  { mission: "תוכנית אנרגיה: ניצול אוצר TRON לרוחב-פס חיילים", difficulty: 3, reward: ethers.parseEther("8") },
+  { mission: "ביקורת גז: מציאת הדילוג היקר בשרשרת והצעת ייעול", difficulty: 3, reward: ethers.parseEther("7") },
+  { mission: "סיכוני משמורת: סקירת גישות לכספת והקשחתן", difficulty: 4, reward: ethers.parseEther("10") },
+  { mission: "מפת נזילות: מסלולי ניטור לאוצר המפקדה", difficulty: 2, reward: ethers.parseEther("6") },
+  { mission: "איכות קבלות: אימות שלמות שרשרת-האש בספר הראיות", difficulty: 2, reward: ethers.parseEther("5") },
+  { mission: "גיוס חיילים: מסלול הצטרפות מינימלי-סיכון", difficulty: 1, reward: ethers.parseEther("4") }
 ];
+
+// v18 — the web tier that carries the solution engine (LLM, server-side).
+// Server-to-server call (internal); the browser-only gateway rules don't
+// apply to this direction.
+const WORK_API = "http://127.0.0.1:3000/api/saos/mesh/work";
+
+/** post a work order WITH a real LLM deliverable through the web tier. */
+async function postRealWorkOrder(job: { mission: string; difficulty: number; reward: bigint }): Promise<boolean> {
+  try {
+    const res = await fetch(WORK_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mission: job.mission,
+        difficulty: job.difficulty,
+        reward: Number(ethers.formatEther(job.reward)),
+        realWork: true
+      }),
+      signal: AbortSignal.timeout(100_000)
+    });
+    if (!res.ok) return false;
+    const out = (await res.json()) as { ok?: boolean; error?: string };
+    if (out.ok) {
+      console.log(`[evm-mesh] REAL WORK delivered: "${job.mission}" (LLM solution + anchor)`);
+      return true;
+    }
+    console.log(`[evm-mesh] real work failed honestly: ${out.error ?? "unknown"}`);
+    return false;
+  } catch {
+    return false; // web tier down / timeout — honest dry fallback below
+  }
+}
 
 let runTick = 0;
 
@@ -155,13 +192,17 @@ async function autoCycle(): Promise<void> {
       }
     }
 
-    // 3. the HQ posts a REAL work order — the next run delivers it
+    // 3. the HQ posts a REAL work order through the solution engine —
+    //    LLM deliverable + SAOS-WORK anchor + receipt; dry fallback below
     const job = MISSIONS[runTick % MISSIONS.length] as { mission: string; difficulty: number; reward: bigint };
-    try {
-      await (await c.workboard.postOrder(job.mission, job.difficulty, job.reward)).wait();
-      console.log(`[evm-mesh] HQ posted work order: "${job.mission}" (+${ethers.formatEther(job.reward)} SAOS-M)`);
-    } catch {
-      /* board full/miss — the run still happens */
+    const delivered = await postRealWorkOrder(job);
+    if (!delivered) {
+      try {
+        await (await c.workboard.postOrder(job.mission, job.difficulty, job.reward)).wait();
+        console.log(`[evm-mesh] HQ posted DRY work order (web tier down): "${job.mission}"`);
+      } catch {
+        /* board full/miss — the run still happens */
+      }
     }
 
     // 4. a real mesh run — rotating initiators deliver the work + auto-enlist
@@ -265,7 +306,7 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH}`);
-  console.log("[evm-mesh] auto-runner: HQ posts work every 120s · mesh run delivers it · zero-fee transfer every 3rd cycle");
+  console.log("[evm-mesh] auto-runner v18: HQ posts REAL WORK every 120s (LLM deliverable + SAOS-WORK anchor) · zero-fee transfer every 3rd cycle");
 }
 
 void main().catch((e) => {

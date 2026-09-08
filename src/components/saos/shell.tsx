@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS v17 — מעטפת WORK ORDERS (COMMAND DECK + 8-CHAIN GRID + 8 חוזים משורשרים + פקודות עבודה).
+ * SAOS v18 — מעטפת REAL WORK (COMMAND DECK + 8-CHAIN GRID + 8 חוזים משורשרים + פקודות עבודה + מסירות אמיתיות).
  * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 8-רשתות חי**
  * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · BSC · SOLANA) + ניווט-גלילה (מובייל)
  * + כותרת-תחתונה דביקה.
@@ -78,7 +78,7 @@ export const VIEWS: ViewDef[] = [
     id: "workboard",
     label: "פקודות עבודה",
     short: "עבודה",
-    desc: "החוזה השמיני — המפקדה מפרסמת פקודות, חיילים מבצעים ומקבלים שכר ללא עמלה",
+    desc: "החוזה השמיני — המפקדה מפרסמת, חיילים מבצעים, ומנוע הפתרונות (LLM) מייצר מסירה אמיתית מעוגנת לכל משימה",
     icon: <HardHat size={16} />,
     group: "תפעול"
   },
@@ -172,7 +172,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Work Orders · v17.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Real Work · v18.0</p>
           </div>
         </div>
 
@@ -328,7 +328,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v17.0.0 — WORK ORDERS · החוזה השמיני: המפקדה מפרסמת פקודות, חיילים מבצעים דרך 8 החוזים, השכר זורם ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+              SAOS Sovereign Platform v18.0.0 — REAL WORK · מנוע הפתרונות (LLM) מייצר לכל פקודה מסירה אמיתית — תוכן קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK וקבלה משורשרת-האש) + WORK ORDERS (8 החוזים, המפקדה מפרסמת, חיילים מבצעים, שכר ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a

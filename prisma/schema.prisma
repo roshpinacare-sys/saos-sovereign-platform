@@ -217,6 +217,39 @@ model SovereignContract {
   @@index([status])
 }
 
+// ─── v18: Real work deliverables (מסירות עבודה אמיתיות) ─────────────────────
+// When a work order is delivered with REAL WORK, the platform's solution
+// engine (server-side LLM) generates an actual deliverable for the mission:
+// a concrete plan — summary, steps, risks, value note. The full content
+// lives here; its sha256 digest is anchored on-chain (SAOSBridge "SAOS-WORK"
+// rail → stamped into every subsequent mesh run) and notarized into the
+// hash-chained evidence receipts. Content is real generated text — never
+// fabricated; SAOS-M remains internal-lab value.
+
+model WorkDeliverable {
+  id            String   @id @default(cuid())
+  orderId       Int      @unique
+  runId         Int?
+  soldier       String? // the delivering soldier (public address)
+  mission       String
+  title         String
+  summary       String
+  steps         String // JSON string[] — concrete execution steps
+  risks         String // JSON string[] — honest risks
+  valueNote     String // one-line value statement
+  digest        String   @unique // sha256 of the canonical deliverable JSON
+  anchorTx      String? // on-chain anchorExternal txid (SAOS-WORK rail)
+  anchorBlock   Int?
+  receiptDigest String? // hash-chained evidence receipt digest
+  engine        String   @default("z-ai-llm") // the generation engine id
+  latencyMs     Int      @default(0)
+  chars         Int      @default(0)
+  tokensEst     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // ─── v13: Fleet arming ledger (יומן חימוש הצי) ─────────────────────────────
 // Every whitelisted disbursement to a soldier leaves an honest row:
 // rail (STEEM-RC | STEEM-TR | EVM | SOL), agent, amount, txid, status.

@@ -1113,6 +1113,8 @@ export interface MeshBoardData {
   payroll: { balance: string; perRun: string; symbol: string; fee: string; paidOut: string };
   stats: { posted: number; delivered: number; open: number; rewardPaid: string; soldiers: number; avgDifficulty: number };
   contract: { address: string; role: string } | null;
+  /** v18 — REAL WORK: LLM deliverables, live SAOS-WORK rail, consumption metrics */
+  real?: WorkBoardRealData;
   error?: string;
 }
 
@@ -1122,6 +1124,54 @@ export interface MeshWorkOutcome {
   run: MeshRunView | null;
   payrollBalance: string | null;
   error?: string;
+}
+
+// ─── v18 — REAL WORK (מסירות אמיתיות): LLM deliverables, anchored on-chain ──
+
+export interface MeshDeliverableView {
+  orderId: number;
+  runId: number | null;
+  soldier: string | null;
+  mission: string;
+  title: string;
+  summary: string;
+  steps: string[];
+  risks: string[];
+  valueNote: string;
+  digest: string; // sha256(canonical JSON) — anchored on the SAOS-WORK rail
+  anchorTx: string | null;
+  anchorBlock: number | null;
+  receiptDigest: string | null; // hash-chained evidence receipt
+  engine: string;
+  latencyMs: number;
+  chars: number;
+  tokensEst: number;
+  createdAt: number;
+}
+
+export interface MeshRealWorkOutcome {
+  ok: boolean;
+  order: MeshOrderView | null;
+  run: MeshRunView | null;
+  payrollBalance: string | null;
+  deliverable: MeshDeliverableView | null;
+  anchor?: { txid: string; block: number } | null;
+  error?: string;
+}
+
+export interface RealWorkStats {
+  deliverables: number;
+  anchored: number;
+  chars: number;
+  tokensEst: number;
+  avgLatencyMs: number;
+  lastDeliveredAt: number;
+}
+
+export interface WorkBoardRealData {
+  deliverables: MeshDeliverableView[];
+  rail: { chain: string; height: string; digest: string; at: number } | null;
+  stats: RealWorkStats;
 }
 
 export interface MeshTransferView {

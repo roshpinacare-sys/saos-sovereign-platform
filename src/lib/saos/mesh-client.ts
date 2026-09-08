@@ -873,3 +873,57 @@ export async function postWorkOrder(
     return { ok: false, order: null, run: null, payrollBalance: null, error: e instanceof Error ? e.message.slice(0, 160) : "work order failed" };
   }
 }
+
+// ─── v18 — REAL WORK anchor rail (מסירות אמיתיות): SAOS-WORK on the bridge ─
+
+const WORK_RAIL = "SAOS-WORK";
+
+/**
+ * Anchor a REAL work deliverable digest on the mesh chain: the bridge keeps
+ * a dedicated "SAOS-WORK" rail — registered once (owner-only, idempotent),
+ * then every deliverable's sha256 lands on-chain via anchorExternal and is
+ * stamped into EVERY subsequent mesh run (AnchorStamped) — the work becomes
+ * part of the organism's anchor set, forever. The rail's height carries the
+ * delivered orderId; the digest is sha256(canonical deliverable JSON).
+ */
+export async function anchorWorkDigest(
+  orderId: number,
+  digest: string
+): Promise<{ ok: boolean; txid?: string; block?: number; error?: string }> {
+  const state = readState();
+  if (!state?.ok) return { ok: false, error: "SAOS-EVM לא פרוס" };
+  const bridgeAddr = state.contracts["SAOSBridge"];
+  if (!bridgeAddr) return { ok: false, error: "ה-bridge אינו פרוס" };
+  try {
+    const provider = getProvider();
+    const hq = await provider.getSigner(0);
+    const bridge = contract("SAOSBridge", state, hq);
+    if (!bridge) throw new Error("artifact/state mismatch");
+    // register the rail once (idempotent — "already registered" is an honest pass)
+    try {
+      await (await bridge.registerChain(WORK_RAIL)).wait();
+    } catch {
+      /* rail already registered — pass */
+    }
+    const tx = await bridge.anchorExternal(WORK_RAIL, BigInt(orderId), digest);
+    const rc = await tx.wait();
+    if (!rc || rc.status !== 1) throw new Error("anchorExternal reverted (honest)");
+    return { ok: true, txid: rc.hash, block: rc.blockNumber ?? 0 };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message.slice(0, 160) : "work anchor failed" };
+  }
+}
+
+/** live state of the SAOS-WORK rail (height = last delivered orderId). */
+export async function workRail(): Promise<{ chain: string; height: string; digest: string; at: number } | null> {
+  const state = readState();
+  if (!state?.ok) return null;
+  try {
+    const bridge = contract("SAOSBridge", state);
+    if (!bridge) return null;
+    const a = (await bridge.latestAnchor(WORK_RAIL)) as unknown as [string, bigint, string, bigint];
+    return { chain: String(a[0]), height: String(a[1]), digest: String(a[2]), at: Number(a[3]) * 1000 };
+  } catch {
+    return null;
+  }
+}
