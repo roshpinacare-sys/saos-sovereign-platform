@@ -24,6 +24,7 @@ import { ethers } from "ethers";
 import { db } from "@/lib/db";
 import { probeEthereum, probeSolana } from "./eth-sol-live";
 import { probeBsc } from "./bsc-live";
+import { guardPermission } from "./permissions";
 import meshArtifact from "./generated/SAOSMesh.json";
 
 // ─── constants ─────────────────────────────────────────────────────────────
@@ -830,6 +831,13 @@ export async function postWorkOrder(
   if (mission.length < 2) return { ok: false, order: null, run: null, payrollBalance: null, error: "פקודה ריקה — כתוב משימה" };
   const difficultySafe = Math.min(5, Math.max(1, Math.round(difficulty) || 2));
   const rewardSafe = Math.min(50, Math.max(1, rewardUnits || 5));
+
+  // v25 RESHUT — publishing a work order is an HQ-authority act; the
+  // gate fires before the transaction is built.
+  const gate = await guardPermission("post-work", "hq");
+  if (!gate.allowed) {
+    return { ok: false, order: null, run: null, payrollBalance: null, error: `רשות נדחתה (רשות v25): ${gate.reason}` };
+  }
 
   try {
     const provider = getProvider();

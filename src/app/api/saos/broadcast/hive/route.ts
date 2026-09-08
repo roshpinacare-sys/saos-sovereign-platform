@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { hiveLiveReadiness, anchorSealLiveOnHive, hiveExplorerLink } from "@/lib/saos/hive-live";
 
@@ -143,12 +144,10 @@ export async function POST(req: Request) {
         },
         { sealId: seal.id }
       );
-      await db.opLog.create({
-        data: {
-          op: "anchor-live-hive",
-          detail: `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmedByHistory} rc=${outcome.rcPctAtBroadcast}%`
-        }
-      });
+      await logOp(
+  "anchor-live-hive",
+  `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmedByHistory} rc=${outcome.rcPctAtBroadcast}%`
+);
       return NextResponse.json({ ok: true, ...outcome, anchorId: row.id, receipt: receipt.digest });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "live hive broadcast failed";
@@ -174,9 +173,7 @@ export async function POST(req: Request) {
         { height: seal.height, root: seal.root, error: msg.slice(0, 200), anchorRowId: row.id },
         { sealId: seal.id }
       );
-      await db.opLog.create({
-        data: { op: "anchor-live-hive-failed", detail: `height=${seal.height} ${msg.slice(0, 120)}` }
-      });
+      await logOp("anchor-live-hive-failed", `height=${seal.height} ${msg.slice(0, 120)}`);
       return NextResponse.json({ ok: false, error: msg, anchorId: row.id, receipt: receipt.digest });
     }
   } catch (e) {

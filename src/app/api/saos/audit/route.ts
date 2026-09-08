@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { runFullAudit } from "@/lib/saos/audit";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 
@@ -70,12 +71,10 @@ export async function POST() {
       tailOk: result.receiptsChain.tailOk,
       auditDigest: result.auditDigest
     });
-    await db.opLog.create({
-      data: {
-        op: "audit",
-        detail: `verdict=${result.verdict} seals=${result.sealsOk}/${result.sealsAudited} leaves=${result.leavesOk}/${result.leavesChecked} digest=${result.auditDigest.slice(0, 16)}…`
-      }
-    });
+    await logOp(
+  "audit",
+  `verdict=${result.verdict} seals=${result.sealsOk}/${result.sealsAudited} leaves=${result.leavesOk}/${result.leavesChecked} digest=${result.auditDigest.slice(0, 16)}…`
+);
 
     return NextResponse.json({ ...result, receipt: receipt.digest });
   } catch (e) {

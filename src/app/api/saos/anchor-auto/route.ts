@@ -115,12 +115,10 @@ export async function POST(req: Request) {
             { height, root, txid: row.txid, block: inclusion.block, account, confirmed: true },
             { sealId: row.sealId }
           );
-          await db.opLog.create({
-            data: {
-              op: "anchor-reproof",
-              detail: `height=${height} txid=${row.txid} block=${inclusion.block ?? "history"} — הוכחת-כליה מחודשת אושרה`
-            }
-          });
+          await logOp(
+            "anchor-reproof",
+            `height=${height} txid=${row.txid} block=${inclusion.block ?? "history"} — הוכחת-כליה מחודשת אושרה`
+          );
           results.push({
             id: row.id,
             height,
@@ -150,12 +148,10 @@ export async function POST(req: Request) {
       );
     }
     const enabled = await setAutoAnchorEnabled(obj.enabled);
-    await db.opLog.create({
-      data: {
-        op: "auto-anchor-toggle",
-        detail: `autoAnchor=${enabled ? "on" : "off"} — ${enabled ? "כל חותם חדש יעוגן אוטומטית" : "העיגון ממתין ללחיצת אדם"}`
-      }
-    });
+    await logOp(
+      "auto-anchor-toggle",
+      `autoAnchor=${enabled ? "on" : "off"} — ${enabled ? "כל חותם חדש יעוגן אוטומטית" : "העיגון ממתין ללחיצת אדם"}`
+    );
     return NextResponse.json({
       ok: true,
       enabled,

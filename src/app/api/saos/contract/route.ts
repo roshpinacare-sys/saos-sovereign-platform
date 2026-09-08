@@ -269,12 +269,10 @@ export async function POST(req: Request) {
           confirmed: out.confirmed,
           rowId: row.id
         });
-        await db.opLog.create({
-          data: {
-            op: "relay-deploy",
-            detail: `chain=${chain} address=${out.address} txid=${out.txid ?? "—"} confirmed=${out.confirmed}`
-          }
-        });
+        await logOp(
+          "relay-deploy",
+          `chain=${chain} address=${out.address} txid=${out.txid ?? "—"} confirmed=${out.confirmed}`
+        );
         return NextResponse.json({
           ok: true,
           chain,
@@ -306,9 +304,7 @@ export async function POST(req: Request) {
           chain,
           error: errMsg.slice(0, 300)
         });
-        await db.opLog.create({
-          data: { op: "relay-deploy-failed", detail: `chain=${chain} error=${errMsg.slice(0, 200)}` }
-        });
+        await logOp("relay-deploy-failed", `chain=${chain} error=${errMsg.slice(0, 200)}`);
         return NextResponse.json({ ok: false, error: errMsg, receipt: receipt.digest });
       }
     }
@@ -382,12 +378,10 @@ export async function POST(req: Request) {
           { height: seal.height, root: seal.root, contract: contract.address, txid: out.txid, block: out.block, confirmed: out.confirmed, costNative: out.costNative, anchorRowId: row.id },
           { sealId: seal.id }
         );
-        await db.opLog.create({
-          data: {
-            op: "relay-anchor",
-            detail: `height=${seal.height} contract=${contract.address} txid=${out.txid ?? "—"} confirmed=${out.confirmed}`
-          }
-        });
+        await logOp(
+          "relay-anchor",
+          `height=${seal.height} contract=${contract.address} txid=${out.txid ?? "—"} confirmed=${out.confirmed}`
+        );
         return NextResponse.json({
           ok: true,
           height: seal.height,
@@ -508,9 +502,7 @@ export async function POST(req: Request) {
           confirmed: out.confirmed,
           anchorRowId: row.id
         });
-        await db.opLog.create({
-          data: { op: "relay-enlist", detail: `agent=${agentWanted} rail=${rail} txid=${out.txid ?? "—"} confirmed=${out.confirmed}` }
-        });
+        await logOp("relay-enlist", `agent=${agentWanted} rail=${rail} txid=${out.txid ?? "—"} confirmed=${out.confirmed}`);
         return NextResponse.json({
           ok: true,
           agent: agentWanted,

@@ -31,6 +31,7 @@
 
 import { db } from "@/lib/db";
 import { canonicalize, sha256Hex } from "./canonical-json";
+import { logOp } from "./oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { readSealInventory, readSovereignWallets, withRoleWif, withVaultMember, type SigningAuthority } from "@/lib/vault-seal";
 import { ANCHORED_EVM_ADDRESS } from "./anchor-evm";
@@ -274,12 +275,10 @@ async function recordArm(
 
 async function armReceipt(rail: string, armed: string[], failed: string[], skipped: string[], extras: Record<string, unknown>) {
   await appendChainedReceipt("fleet-arm", { rail, armed, failed, skipped, ...extras });
-  await db.opLog.create({
-    data: {
-      op: "fleet-arm",
-      detail: `rail=${rail} armed=${armed.length} failed=${failed.length} skipped=${skipped.length}${extras.txid ? ` txid=${String(extras.txid).slice(0, 16)}…` : ""}`
-    }
-  });
+  await logOp(
+    "fleet-arm",
+    `rail=${rail} armed=${armed.length} failed=${failed.length} skipped=${skipped.length}${extras.txid ? ` txid=${String(extras.txid).slice(0, 16)}…` : ""}`
+  );
 }
 
 // ─── STEEM arming: RC delegation + liquid transfer ─────────────────────────

@@ -42,6 +42,7 @@ import { ethers } from "ethers";
 import * as fs from "fs";
 import * as path from "path";
 import { withVaultMember } from "@/lib/vault-seal";
+import { db } from "@/lib/db";
 
 const REPO = process.cwd();
 
@@ -667,6 +668,7 @@ export interface SecurityStatus {
   };
   outbound: Awaited<ReturnType<typeof outboundAudit>>;
   vault: Awaited<ReturnType<typeof vaultAudit>>;
+  autoscan: { count: number; lastAt: string | null; note: string };
   policy: string[];
   highCount: number;
 }
@@ -717,6 +719,14 @@ export async function securityScan(force = false): Promise<SecurityStatus> {
   ]);
 
   const tokens = tokenRegistryStatus();
+  const autoscanRows = await db.opLog.findMany({
+    where: { op: "magen.autoscan" },
+    orderBy: { createdAt: "desc" },
+    take: 1
+  }).catch(() => []);
+  const autoscanCount = await db.opLog
+    .count({ where: { op: "magen.autoscan" } })
+    .catch(() => 0);
   const highCount =
     tree.findings.filter((f) => f.severity === "high").length +
     history.findings.filter((f) => f.severity === "high").length +
@@ -724,7 +734,7 @@ export async function securityScan(force = false): Promise<SecurityStatus> {
 
   const data: SecurityStatus = {
     ok: highCount === 0 && outbound.unknownHosts.length === 0,
-    version: "v24.0.0",
+    version: "v25.0.0",
     measuredAt: new Date().toISOString(),
     gates: {
       phishing: {
@@ -750,6 +760,11 @@ export async function securityScan(force = false): Promise<SecurityStatus> {
     },
     outbound,
     vault,
+    autoscan: {
+      count: autoscanCount,
+      lastAt: autoscanRows[0]?.createdAt?.toISOString() ?? null,
+      note: "v25: ה-runner מזרים סריקה-מלאה אחת לשעה (צעד 4.7) — כל תוצאה נרשמת ביומן האדום"
+    },
     policy: [
       "עובדים רק עם גדולים וידועים: רשמי (בינאנס, גיטהאב, TRON, Solana, BNB Chain, STEEM, HIVE, BLURT) או תשתית-ציבורית-גדולה (publicnode, DRPC, MEVBlocker, Arcange) — אין יוצא מן-הכלל.",
       "מארח חדש נכנס לרישום המהימן רק בהחלטת ארכיטקט מפורשת — השער חוסם הכל אחרת (fail-closed).",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import {
   isKnownNetwork,
@@ -102,9 +103,7 @@ export async function POST(req: Request) {
       "vault-register",
       { network, slot, address, fingerprint }
     );
-    await db.opLog.create({
-      data: { op: "vault-register", detail: `${network}/${slot}=${address}` }
-    });
+    await logOp("vault-register", `${network}/${slot}=${address}`);
 
     return NextResponse.json({
       ok: true,

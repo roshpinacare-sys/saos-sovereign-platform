@@ -34,6 +34,7 @@ import * as path from "path";
 import { ethers } from "ethers";
 import { db } from "@/lib/db";
 import { withVaultMember } from "@/lib/vault-seal";
+import { guardPermission } from "./permissions";
 import { cornerstoneStatus, invalidateCornerstoneCache, type CornerstoneStatus, type DerivedAgent } from "./cornerstone";
 import { liquidityRadar, type LiquidityRadar } from "./liquidity-radar";
 import { microgridStatus, type MicrogridStatus } from "./microgrid-live";
@@ -102,7 +103,7 @@ async function readSeedMember(): Promise<SeedMemberInternal | null> {
 
 export interface RoseBloomResult {
   ok: boolean;
-  phase: "seed" | "pick" | "derive" | "fund" | "register" | "dispatch" | "receipt" | "done";
+  phase: "seed" | "pick" | "gate" | "derive" | "fund" | "register" | "dispatch" | "receipt" | "done";
   agent: string | null;
   idx: number | null;
   address: string | null;
@@ -223,6 +224,15 @@ export async function rosesBloom(agentName?: string): Promise<RoseBloomResult> {
       : pickAgent(member.agents, history);
     base.agent = chosen.agent.agent;
     base.idx = chosen.agent.idx;
+
+    // v25 RESHUT — the permission gate fires BEFORE any key is derived.
+    // Every agent of the sealed table is authorized to bloom in rotation;
+    // anything else (rate breach, unknown name) is denied and journaled.
+    base.phase = "gate";
+    const gate = await guardPermission("bloom", chosen.agent.agent);
+    if (!gate.allowed) {
+      return { ...base, error: `רשות נדחתה (רשות v25): ${gate.reason}` };
+    }
     base.phase = "derive";
 
     // 3. the mesh must be live

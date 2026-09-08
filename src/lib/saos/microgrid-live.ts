@@ -25,6 +25,7 @@ import { ethers } from "ethers";
 import meshArtifact from "./generated/SAOSMesh.json";
 import { probeDexPairs } from "./dex-live";
 import { assertKnownPair, assertTrustedEndpoints } from "./security";
+import { guardPermission } from "./permissions";
 
 const MESH_RPC = "http://127.0.0.1:8545";
 const MESH_CHAIN_ID = 31337;
@@ -394,6 +395,17 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
   if (!state) return { ok: false, posted: [], fills: [], reanchored: [], realizedAfter: "0", swept: "0", txids: [], gasUsed: "0", error: "SAOSMicrogrid לא פרוס" };
 
   try {
+    // v25 RESHUT — oracle and sweep are HQ-authority actions. The gate
+    // fires before a single chain call is made; a denial is honest and
+    // journaled (perm.oracle.deny / perm.sweep.deny).
+    const oracleGate = await guardPermission("oracle", "hq");
+    if (!oracleGate.allowed) {
+      return { ok: false, posted: [], fills: [], reanchored: [], realizedAfter: "0", swept: "0", txids: [], gasUsed: "0", error: `רשות נדחתה (רשות v25): ${oracleGate.reason}` };
+    }
+    const sweepGate = await guardPermission("sweep", "hq");
+    if (!sweepGate.allowed) {
+      return { ok: false, posted: [], fills: [], reanchored: [], realizedAfter: "0", swept: "0", txids: [], gasUsed: "0", error: `רשות נדחתה (רשות v25): ${sweepGate.reason}` };
+    }
     const provider = getProvider();
     const hq = await provider.getSigner(0);
     const mg = microgridContract(state, hq);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { anchorSealLiveOnBsc, bscReadiness, explorerLinkBsc, type BscAnchorOutcome } from "@/lib/saos/anchor-bsc";
 
@@ -250,12 +251,10 @@ export async function POST(req: Request) {
         },
         { sealId: seal.id }
       );
-      await db.opLog.create({
-        data: {
-          op: "anchor-live-bsc",
-          detail: `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmed} block=${outcome.block ?? "—"}`
-        }
-      });
+      await logOp(
+  "anchor-live-bsc",
+  `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmed} block=${outcome.block ?? "—"}`
+);
       return NextResponse.json({
         ok: true,
         height: outcome.height,
@@ -286,9 +285,7 @@ export async function POST(req: Request) {
         { height: seal.height, error: errMsg.slice(0, 300), anchorRowId: row.id },
         { sealId: seal.id }
       );
-      await db.opLog.create({
-        data: { op: "anchor-live-bsc-failed", detail: `height=${seal.height} error=${errMsg.slice(0, 200)}` }
-      });
+      await logOp("anchor-live-bsc-failed", `height=${seal.height} error=${errMsg.slice(0, 200)}`);
       return NextResponse.json({ ok: false, error: errMsg, anchorId: row.id, receipt: receipt.digest });
     }
   } catch (e) {

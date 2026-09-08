@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import {
   isKnownNetwork,
@@ -150,12 +151,7 @@ export async function POST() {
         registered: registered.map((r) => `${r.network}/${r.slot}`)
       }
     );
-    await db.opLog.create({
-      data: {
-        op: "vault-stage2",
-        detail: `seal=${inv.format} agent=${inv.agent.account} slots=${registered.length}`
-      }
-    });
+    await logOp("vault-stage2", `seal=${inv.format} agent=${inv.agent.account} slots=${registered.length}`);
 
     return NextResponse.json({
       ok: true,

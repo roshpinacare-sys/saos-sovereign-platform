@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { simulateEconomy, DEFAULT_ECONOMY, type EconomyInput } from "@/lib/saos/economy";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 
 export const dynamic = "force-dynamic";
 
@@ -130,9 +131,7 @@ export async function POST(req: Request) {
       totalPerDayMicro: Math.round(result.totalPerDay * 100),
       flywheelPct: Math.round(input.flywheelPct)
     });
-    await db.opLog.create({
-      data: { op: "economy-snapshot", detail: `label=${label} total=${result.totalPerDay}` }
-    });
+    await logOp("economy-snapshot", `label=${label} total=${result.totalPerDay}`);
 
     return NextResponse.json({
       ok: true,

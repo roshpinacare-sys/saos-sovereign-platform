@@ -28,6 +28,7 @@
 
 import { db } from "@/lib/db";
 import { canonicalize, canonicalDigest, sha256Hex } from "./canonical-json";
+import { logOp } from "./oplog";
 import { applyTx, genesisState, stateRootOf, type KernelTx } from "./kernel";
 import { buildMerkleTree } from "./merkle";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
@@ -227,9 +228,10 @@ export async function executeSaosMint(): Promise<MintResult> {
     { mintId: mint.mintId, total, soldiers: soldiers.length, perSoldier: per, treasuryReserve: MINT_TREASURY_RESERVE, digest, sealHeight: height, root },
     { sealId: seal.id }
   );
-  await db.opLog.create({
-    data: { op: "saos-mint", detail: `height=${height} total=${total} soldiers=${soldiers.length}×${per} reserve=${MINT_TREASURY_RESERVE} root=${root.slice(0, 16)}…` }
-  });
+  await logOp(
+    "saos-mint",
+    `height=${height} total=${total} soldiers=${soldiers.length}×${per} reserve=${MINT_TREASURY_RESERVE} root=${root.slice(0, 16)}…`
+  );
 
   return {
     ok: true,

@@ -338,6 +338,40 @@ async function autoCycle(): Promise<void> {
       /* web tier down / timeout — honest skip, next cycle tries again */
     }
 
+    // 4.7 v25 — MAGEN AUTO-SCAN: the shield runs itself. Every cycle the
+    //      runner reads the live security status (a full scan happens on
+    //      each cache-miss anyway — the shield is ALWAYS fresh). What is
+    //      missing without this step is the JOURNALED verdict: once an
+    //      hour, if the last journaled magen.autoscan is older than 55
+    //      minutes (or none exists), the runner forces a POST scan — the
+    //      verdict lands redacted in the opLog and surfaces in the
+    //      מגן + רשות views. Honest skip on failure — next cycle retries.
+    try {
+      const st = await fetch("http://127.0.0.1:3000/api/saos/security", {
+        signal: AbortSignal.timeout(30_000)
+      });
+      if (st.ok) {
+        const s = (await st.json()) as { autoscan?: { lastAt: string | null } };
+        const lastJournaled = s?.autoscan?.lastAt ? Date.parse(s.autoscan.lastAt) : 0;
+        if (!lastJournaled || Date.now() - lastJournaled > 55 * 60_000) {
+          const pr = await fetch("http://127.0.0.1:3000/api/saos/security", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "scan" }),
+            signal: AbortSignal.timeout(110_000)
+          });
+          if (pr.ok) {
+            const o = (await pr.json()) as { ok?: boolean; highCount?: number };
+            console.log(
+              `[evm-mesh] MAGEN auto-scan: ${o.ok ? "clean" : `SEVERE (${o.highCount} high) — verdict journaled`} (hourly, step 4.7)`
+            );
+          }
+        }
+      }
+    } catch {
+      /* web tier down / timeout — honest skip, next cycle tries again */
+    }
+
     // 5. every 3rd cycle: a zero-fee value movement (ללא עמלה — forever 0)
     if (runTick % 3 === 2) {
       try {
@@ -493,7 +527,7 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v23: HQ posts REAL WORK every 120s (LLM + anchor) · microgrid oracle + tick + sweep each cycle · ROSE BLOOM each cycle (agent-signed via seed) · zero-fee transfer every 3rd cycle");
+  console.log("[evm-mesh] auto-runner v25: HQ posts REAL WORK every 120s (LLM + anchor) · microgrid oracle + tick + sweep each cycle · ROSE BLOOM each cycle (agent-signed via seed, RESHUT-gated) · MAGEN auto-scan hourly (step 4.7) · zero-fee transfer every 3rd cycle");
 }
 
 void main().catch((e) => {

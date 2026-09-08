@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Connection } from "@solana/web3.js";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import {
   ANCHORED_SOL_ADDRESS,
@@ -319,12 +320,10 @@ export async function POST(req: Request) {
         },
         { sealId: seal.id }
       );
-      await db.opLog.create({
-        data: {
-          op: "anchor-live-svm",
-          detail: `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmed} slot=${outcome.slot ?? "—"}`
-        }
-      });
+      await logOp(
+  "anchor-live-svm",
+  `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmed} slot=${outcome.slot ?? "—"}`
+);
       return NextResponse.json({
         ok: true,
         height: outcome.height,
@@ -356,9 +355,7 @@ export async function POST(req: Request) {
         { height: seal.height, error: errMsg.slice(0, 300), anchorRowId: row.id },
         { sealId: seal.id }
       );
-      await db.opLog.create({
-        data: { op: "anchor-live-svm-failed", detail: `height=${seal.height} error=${errMsg.slice(0, 200)}` }
-      });
+      await logOp("anchor-live-svm-failed", `height=${seal.height} error=${errMsg.slice(0, 200)}`);
       return NextResponse.json({ ok: false, error: errMsg, anchorId: row.id, receipt: receipt.digest });
     }
   } catch (e) {

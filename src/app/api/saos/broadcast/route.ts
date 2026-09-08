@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { buildEnvelopes, type SaosNetwork } from "@/lib/saos/broadcast";
 
@@ -154,9 +155,7 @@ export async function POST(req: Request) {
       },
       { sealId: seal.id }
     );
-    await db.opLog.create({
-      data: { op: "broadcast-dryrun", detail: `height=${seal.height} nets=${envelopes.length}` }
-    });
+    await logOp("broadcast-dryrun", `height=${seal.height} nets=${envelopes.length}`);
 
     return NextResponse.json({
       ok: true,

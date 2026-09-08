@@ -47,6 +47,7 @@ import { Keypair } from "@solana/web3.js";
 import { db } from "@/lib/db";
 import { appendVaultMember, withVaultMember, sealAvailability, type SealAvailability } from "@/lib/vault-seal";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
+import { guardPermission } from "./permissions";
 import { invalidateSovereignKeyCache } from "./sovereign-key";
 import meshArtifact from "./generated/SAOSMesh.json";
 
@@ -794,6 +795,15 @@ export async function cornerstoneEnlist(): Promise<CornerstoneEnlistResult> {
   const state = readMeshState();
   if (!state) {
     return { ...base, error: "רשת-המעבדה (SAOS-NET) לא חיה — הפעל את evm-mesh ונסה שוב" };
+  }
+
+  // v25 RESHUT — a cornerstone enlist signs with the seed root: the
+  // permission gate fires BEFORE any derivation. Idempotent re-reads of
+  // an existing enlist (phase "done" above) are not gated — only the
+  // signing act itself.
+  const gate = await guardPermission("enlist", "headcorner");
+  if (!gate.allowed) {
+    return { ...base, error: `רשות נדחתה (רשות v25): ${gate.reason}` };
   }
   const hubAbi = meshAbi("SAOSMeshHub");
   const idAbi = meshAbi("SAOSIdentity");

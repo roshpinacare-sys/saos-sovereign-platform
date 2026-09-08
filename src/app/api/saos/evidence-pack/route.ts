@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { buildMerkleTree, merkleProof, verifyMerkleProof } from "@/lib/saos/merkle";
 import { canonicalDigest, canonicalize } from "@/lib/saos/canonical-json";
 import { verifyChain } from "@/lib/saos/evidence";
@@ -184,9 +185,7 @@ export async function GET(req: Request) {
       { height: seal.height, packDigest, leaves: leaves.length, rootMatches, allVerified },
       { sealId: seal.id }
     );
-    await db.opLog.create({
-      data: { op: "evidence-pack-export", detail: `height=${seal.height} digest=${packDigest.slice(0, 16)}…` }
-    });
+    await logOp("evidence-pack-export", `height=${seal.height} digest=${packDigest.slice(0, 16)}…`);
 
     // summary fields first for quick consumption; full pack follows
     return NextResponse.json({

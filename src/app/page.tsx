@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v22 — CORNERSTONE (מכ"ם-נזילות חי: 8 מרחבים · USD ·
+ * SAOS Sovereign Platform v25 — RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות · שובל-ביקורת אדום מעודכ · מגן אוטומטי) (מכ"ם-נזילות חי: 8 מרחבים · USD ·
  * מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני — התמונה של
  * הבעלים נקראת בקצה-האחורי, מאומתת מול ראיות-השרשרת, נאטמת כספת
  * חדשה; מיקרו-גריד עם חוסן-ריאנקור אוטומטי) מעל לוח העבודה.
@@ -16,6 +16,7 @@ import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
 import { Network360View } from "@/components/saos/views/network360";
 import { SecurityView } from "@/components/saos/views/security";
+import { PermissionsView } from "@/components/saos/views/permissions";
 import { ViewNetworks } from "@/components/saos/views/networks";
 import { ViewAgents } from "@/components/saos/views/agents";
 import { ViewSeals } from "@/components/saos/views/seals";
@@ -36,6 +37,7 @@ const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
+  reshut: "רשות — מטריצת הסמכויות",
   networks: "רשתות חיות",
   agents: "מעקב סוכנים",
   seals: "איטום ועגינה",
@@ -82,6 +84,7 @@ export default function Home() {
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
         {view === "network360" && <Network360View />}
         {view === "security" && <SecurityView />}
+        {view === "reshut" && <PermissionsView />}
         {view === "networks" && <ViewNetworks status={status} />}
         {view === "agents" && <ViewAgents />}
         {view === "seals" && <ViewSeals status={status} />}

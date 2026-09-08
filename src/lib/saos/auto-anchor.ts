@@ -22,6 +22,7 @@
 
 import { db } from "@/lib/db";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
+import { logOp } from "./oplog";
 import { anchorSealLiveOnSteem, explorerLink, type LiveSeal } from "./anchor-live";
 
 const AUTO_ANCHOR_KEY = "autoAnchor";
@@ -142,12 +143,10 @@ export async function fireLiveAnchorOnSteem(
       },
       { sealId: seal.id }
     );
-    await db.opLog.create({
-      data: {
-        op: source === "auto" ? "anchor-auto-steem" : "anchor-live-steem",
-        detail: `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmedByHistory}`
-      }
-    });
+    await logOp(
+      source === "auto" ? "anchor-auto-steem" : "anchor-live-steem",
+      `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmedByHistory}`
+    );
     return {
       ok: true,
       height: outcome.height,
@@ -185,12 +184,10 @@ export async function fireLiveAnchorOnSteem(
       { height: seal.height, root: seal.root, source, error: msg.slice(0, 200), anchorRowId: row.id },
       { sealId: seal.id }
     );
-    await db.opLog.create({
-      data: {
-        op: source === "auto" ? "anchor-auto-failed" : "anchor-live-failed",
-        detail: `height=${seal.height} ${msg.slice(0, 120)}`
-      }
-    });
+    await logOp(
+      source === "auto" ? "anchor-auto-failed" : "anchor-live-failed",
+      `height=${seal.height} ${msg.slice(0, 120)}`
+    );
     return { ok: false, error: msg, anchorId: row.id, receipt: receipt.digest };
   }
 }

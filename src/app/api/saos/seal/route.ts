@@ -109,9 +109,7 @@ export async function POST(req: Request) {
       { sealId: seal.id, height: seal.height, root, leaves: leafPayloads.length, stateRoot },
       { sealId: seal.id }
     );
-    await db.opLog.create({
-      data: { op: "seal", detail: `height=${seal.height} root=${root.slice(0, 16)}…` }
-    });
+    await logOp("seal", `height=${seal.height} root=${root.slice(0, 16)}…`);
 
     // 6. AUTO-ANCHOR (v9) — fires AFTER the response is sent; the seal
     // creation UX never waits for the chain. Failures are recorded as

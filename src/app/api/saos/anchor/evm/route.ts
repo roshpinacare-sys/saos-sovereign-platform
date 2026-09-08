@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ethers } from "ethers";
 import { db } from "@/lib/db";
+import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import {
   ANCHORED_EVM_ADDRESS,
@@ -309,12 +310,10 @@ export async function POST(req: Request) {
         },
         { sealId: seal.id }
       );
-      await db.opLog.create({
-        data: {
-          op: "anchor-live-evm",
-          detail: `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmed} block=${outcome.block ?? "—"}`
-        }
-      });
+      await logOp(
+  "anchor-live-evm",
+  `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmed} block=${outcome.block ?? "—"}`
+);
       return NextResponse.json({
         ok: true,
         height: outcome.height,
@@ -346,9 +345,7 @@ export async function POST(req: Request) {
         { height: seal.height, error: errMsg.slice(0, 300), anchorRowId: row.id },
         { sealId: seal.id }
       );
-      await db.opLog.create({
-        data: { op: "anchor-live-evm-failed", detail: `height=${seal.height} error=${errMsg.slice(0, 200)}` }
-      });
+      await logOp("anchor-live-evm-failed", `height=${seal.height} error=${errMsg.slice(0, 200)}`);
       return NextResponse.json({ ok: false, error: errMsg, anchorId: row.id, receipt: receipt.digest });
     }
   } catch (e) {
