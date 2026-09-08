@@ -29,6 +29,7 @@ import { readFile } from "fs/promises";
 import { ethers } from "ethers";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { db } from "@/lib/db";
+import { trustedFetch, assertTrustedEndpoints } from "./security";
 
 const TOKEN_PATH = path.join(process.cwd(), "upload", "Roshcaregt.txt");
 const WALLET_REGISTRY_URL =
@@ -78,7 +79,9 @@ const G = globalThis as unknown as { __flowPriceCache?: PriceCache };
 
 async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 9000): Promise<T | null> {
   try {
-    const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    // v24 מגן: כל יציאת-מחירים/יתרות עוברת שער-פישינג (רישום מהימן +
+    // redirect-error + timeout) — מארח לא-רשום נחסם (fail-closed).
+    const res = await trustedFetch(url, { ...init, timeoutMs });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -217,6 +220,18 @@ const EVM_NETS = {
   ethereum: { url: "https://ethereum-rpc.publicnode.com", chainId: 1, symbol: "ETH", explorer: "https://etherscan.io/address/" },
   bsc: { url: "https://bsc-rpc.publicnode.com", chainId: 56, symbol: "BNB", explorer: "https://bscscan.com/address/" }
 } as const;
+
+// v24 מגן: אימות נקודות-קצה קבועות בטעינה — כל שיבוש/החלפה נעצר כאן.
+assertTrustedEndpoints(
+  [
+    "https://ethereum-rpc.publicnode.com",
+    "https://bsc-rpc.publicnode.com",
+    "https://api.mainnet-beta.solana.com",
+    "https://api.trongrid.io",
+    WALLET_REGISTRY_URL
+  ],
+  "liquidity-radar"
+);
 
 async function evmBalance(addr: string, net: keyof typeof EVM_NETS): Promise<number | null> {
   const cfg = EVM_NETS[net];

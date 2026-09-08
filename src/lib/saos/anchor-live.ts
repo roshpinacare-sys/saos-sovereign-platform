@@ -25,6 +25,7 @@
 import https from "https";
 import { withRoleWif, type SigningAuthority } from "@/lib/vault-seal";
 import { canonicalize } from "./canonical-json";
+import { assertTrustedEndpoints } from "./security";
 
 const WEAVE_ANCHOR_ID = "saos.weave.v1";
 const STEEM_RPC = process.env.STEEM_RPC || "https://api.steemit.com";
@@ -35,6 +36,9 @@ const STEEM_RPC = process.env.STEEM_RPC || "https://api.steemit.com";
 const STEEM_HIST_NODES = ["https://api.steemit.com", "https://api.justyy.com"];
 // direct-tx lookups (get_transaction): steemit yes · justyy no (plugin assert)
 const STEEM_TX_NODES = ["https://api.steemit.com"];
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([STEEM_RPC, ...STEEM_HIST_NODES, ...STEEM_TX_NODES], "anchor-live");
 
 /** Live-anchor contract for the routes/UI. */
 export interface LiveSeal {

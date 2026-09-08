@@ -43,11 +43,15 @@ import {
 } from "@solana/web3.js";
 import { withVaultMember } from "@/lib/vault-seal";
 import { canonicalize } from "./canonical-json";
+import { assertTrustedEndpoints } from "./security";
 
 // ─── endpoints ─────────────────────────────────────────────────────────────
 
 const SOL_ENDPOINT = "https://api.mainnet-beta.solana.com"; // official cluster
 const SOL_READ_FALLBACK = "https://solana-rpc.publicnode.com"; // read rotation
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([SOL_ENDPOINT, SOL_READ_FALLBACK], "anchor-svm");
 
 /** SPL Memo v2 — the canonical public on-chain memo program. */
 const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";

@@ -26,6 +26,7 @@ import { db } from "@/lib/db";
 import { canonicalize, sha256Hex } from "./canonical-json";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { anchorWorkDigest, meshBoard, postWorkOrder, workRail } from "./mesh-client";
+import { redactSecrets } from "./security";
 import type { MeshBoardData, MeshDeliverableView, MeshRealWorkOutcome, RealWorkStats } from "@/components/saos/types";
 
 // ─── the solution engine (LLM, server-side only) ───────────────────────────
@@ -127,7 +128,10 @@ export async function deliverRealWork(
   });
 
   // 1. the on-chain delivery (v17 flow — HQ posts, soldier delivers, payroll pays)
-  const outcome = await postWorkOrder(missionRaw, difficulty, rewardUnits);
+  // v24 מגן: שכבת-החלפה בגבול-הכתיבה — שום דפוס-סוד (PAT/מנמוניקה/WIF) לא
+  // חוצה את המשימה אל ה-DB/השרשרת/היומן (defense-in-depth, אפס-אמון).
+  const mission = redactSecrets(missionRaw).slice(0, 280);
+  const outcome = await postWorkOrder(mission, difficulty, rewardUnits);
   if (!outcome.ok || !outcome.order) return fail(outcome.error ?? "הפקודה נכשלה");
   const order = outcome.order;
 

@@ -28,6 +28,7 @@ import { realWorkStats } from "./realwork";
 import { sealAvailability } from "@/lib/vault-seal";
 import { saosLedger } from "./saos-mint";
 import { probeDexPairs } from "./dex-live";
+import { trustedFetch } from "./security";
 import { microgridStatus } from "./microgrid-live";
 
 const CACHE_TTL_MS = 90_000;
@@ -193,9 +194,10 @@ async function liveRepos(): Promise<Map<string, RepoLive>> {
   try {
     const token = (await readFile(TOKEN_PATH, "utf8")).trim();
     if (!token) return out;
-    const res = await fetch("https://api.github.com/user/repos?per_page=100&sort=pushed", {
+    // v24 מגן: GitHub API — דרך השער (רישום מהימן · redirect-error)
+    const res = await trustedFetch("https://api.github.com/user/repos?per_page=100&sort=pushed", {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-      signal: AbortSignal.timeout(12_000)
+      timeoutMs: 12_000
     });
     if (!res.ok) return out;
     const repos = (await res.json()) as GhRepo[];

@@ -30,10 +30,14 @@ import { withRoleWif } from "@/lib/vault-seal";
 import { buildLiveWeaveJson, type LiveSeal } from "./anchor-live";
 import { probeHiveRc, hiveAnchorAccount, hiveRpc, HIVE_NODES } from "./hive-rc-live";
 import { HIVE_RC_FLOOR_LIGHT } from "./anchor-gates";
+import { assertTrustedEndpoints } from "./security";
 
 const WEAVE_ANCHOR_ID = "saos.weave.v1";
 const HIVE_CHAIN_ID = "beeab0de00000000000000000000000000000000000000000000000000000000"; // mainnet, fixed
 const HIVE_TX_NODES = ["https://api.hive.blog"];
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints(HIVE_TX_NODES, "hive-live");
 
 export interface HiveLiveOutcome {
   ok: boolean;

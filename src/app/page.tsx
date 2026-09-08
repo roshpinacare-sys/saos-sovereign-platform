@@ -15,6 +15,7 @@ import { useLive } from "@/components/saos/lib";
 import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
 import { Network360View } from "@/components/saos/views/network360";
+import { SecurityView } from "@/components/saos/views/security";
 import { ViewNetworks } from "@/components/saos/views/networks";
 import { ViewAgents } from "@/components/saos/views/agents";
 import { ViewSeals } from "@/components/saos/views/seals";
@@ -34,6 +35,7 @@ import { ViewResearch } from "@/components/saos/views/research";
 const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
   network360: "רשת-360",
+  security: "מגן — ריבונות אבטחה",
   networks: "רשתות חיות",
   agents: "מעקב סוכנים",
   seals: "איטום ועגינה",
@@ -79,6 +81,7 @@ export default function Home() {
       <AppShell view={view} onNav={setView} status={status}>
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
         {view === "network360" && <Network360View />}
+        {view === "security" && <SecurityView />}
         {view === "networks" && <ViewNetworks status={status} />}
         {view === "agents" && <ViewAgents />}
         {view === "seals" && <ViewSeals status={status} />}

@@ -27,6 +27,7 @@
  */
 
 import { ethers } from "ethers";
+import { assertTrustedEndpoints, assertKnownToken } from "./security";
 
 // ─── endpoints (measured reachable — same pools as the rails) ──────────────
 
@@ -100,6 +101,18 @@ const BSC_TOKENS: Record<string, TokenCfg> = {
   BUSD: { sym: "BUSD", address: "0xe9e7cea3dedca5984780bafc599bd69add087d56", decimals: 18 },
   CAKE: { sym: "CAKE", address: "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82", decimals: 18 }
 };
+
+// v24 מגן — אימות בטעינה (fail-closed לכל שיבוש/החלפה):
+//   1. נקודות-הקצה מול הרישום המהימן (רק גדולים וידועים).
+//   2. כל טוקן מול הרישום הקנוני + checksum EIP-55 — "לא פותחים
+//      טוקנים מפישינג": כתובת שאינה ברישום הייתה נחסמת כאן, בטעינה.
+assertTrustedEndpoints([...ETH_ENDPOINTS, ...BSC_ENDPOINTS], "dex-live");
+for (const t of Object.values(ETH_TOKENS)) {
+  assertKnownToken(t.address, `ETH:${t.sym}`);
+}
+for (const t of Object.values(BSC_TOKENS)) {
+  assertKnownToken(t.address, `BSC:${t.sym}`);
+}
 
 // v20 — venues. SushiSwap V2 factories are verified by the on-chain
 // getPair read itself: a real pair address with real reserves = the

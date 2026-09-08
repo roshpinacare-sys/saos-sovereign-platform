@@ -16,8 +16,12 @@
  */
 
 import https from "https";
+import { assertTrustedEndpoints } from "./security";
 
 const TRON_NODE = "https://api.trongrid.io";
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([TRON_NODE], "tron-live");
 const CACHE_TTL_MS = 90_000;
 const CHECK_LIMIT = 6; // the 6 vault-slot addresses (vault-1..6)
 

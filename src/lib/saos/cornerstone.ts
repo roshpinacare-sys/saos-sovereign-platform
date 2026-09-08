@@ -46,6 +46,7 @@ import bs58 from "bs58";
 import { Keypair } from "@solana/web3.js";
 import { db } from "@/lib/db";
 import { appendVaultMember, withVaultMember, sealAvailability, type SealAvailability } from "@/lib/vault-seal";
+import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { invalidateSovereignKeyCache } from "./sovereign-key";
 import meshArtifact from "./generated/SAOSMesh.json";
 
@@ -59,6 +60,12 @@ const ENLIST_KIND = "cornerstone-enlist";
 
 const MESH_RPC = "http://127.0.0.1:8545";
 const MESH_CHAIN_ID = 31337;
+
+// v24 מגן: אימום נקודות-קצה קבועות בטעינה (מעבדה + publicnode).
+assertTrustedEndpoints(
+  [MESH_RPC, "https://ethereum-rpc.publicnode.com", "https://bsc-rpc.publicnode.com", "https://api.trongrid.io", "https://api.mainnet-beta.solana.com"],
+  "cornerstone"
+);
 const STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "deployment.json");
 
 const ARTIFACT = meshArtifact as unknown as {
@@ -242,11 +249,12 @@ async function evmBalance(addr: string, url: string, chainId: number): Promise<n
 
 async function tronBalance(addr: string): Promise<number | null> {
   try {
-    const res = await fetch("https://api.trongrid.io/wallet/getaccount", {
+    // v24 מגן: דרך השער (רישום מהימן · redirect-error · timeout)
+    const res = await trustedFetch("https://api.trongrid.io/wallet/getaccount", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ address: addr, visible: true }),
-      signal: AbortSignal.timeout(12_000)
+      timeoutMs: 12_000
     });
     if (!res.ok) return null;
     const j = (await res.json()) as { address?: string; balance?: number };
@@ -259,11 +267,12 @@ async function tronBalance(addr: string): Promise<number | null> {
 
 async function solBalance(addr: string): Promise<number | null> {
   try {
-    const res = await fetch("https://api.mainnet-beta.solana.com", {
+    // v24 מגן: אשכול Solana הרשמי — דרך השער
+    const res = await trustedFetch("https://api.mainnet-beta.solana.com", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [addr] }),
-      signal: AbortSignal.timeout(12_000)
+      timeoutMs: 12_000
     });
     if (!res.ok) return null;
     const j = (await res.json()) as { result?: { value?: number } };

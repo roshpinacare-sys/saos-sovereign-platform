@@ -28,6 +28,7 @@
 import { ethers } from "ethers";
 import { db } from "@/lib/db";
 import { sealAvailability, withVaultMember, readSovereignWallets, type SealAvailability } from "@/lib/vault-seal";
+import { trustedFetch, assertTrustedEndpoints } from "./security";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -77,11 +78,12 @@ interface TronAccount {
 
 async function tronBalance(base58: string): Promise<{ exists: boolean; trx: number }> {
   try {
-    const res = await fetch("https://api.trongrid.io/wallet/getaccount", {
+    // v24 מגן: יציאה דרך שער-הפישינג (רישום מהימן · redirect-error · timeout)
+    const res = await trustedFetch("https://api.trongrid.io/wallet/getaccount", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ address: base58, visible: true }),
-      signal: AbortSignal.timeout(12_000)
+      timeoutMs: 12_000
     });
     if (!res.ok) return { exists: false, trx: 0 };
     const j = (await res.json()) as TronAccount;
@@ -96,6 +98,12 @@ const EVM_ENDPOINTS = {
   ethereum: { url: "https://ethereum-rpc.publicnode.com", chainId: 1, symbol: "ETH", explorer: "https://etherscan.io" },
   bsc: { url: "https://bsc-rpc.publicnode.com", chainId: 56, symbol: "BNB", explorer: "https://bscscan.com" }
 } as const;
+
+// v24 מגן: אימות נקודות-קצה בטעינה — fail-closed לכל שיבוש.
+assertTrustedEndpoints(
+  ["https://ethereum-rpc.publicnode.com", "https://bsc-rpc.publicnode.com", "https://api.trongrid.io"],
+  "sovereign-key"
+);
 
 async function evmBalance(address: string, net: keyof typeof EVM_ENDPOINTS): Promise<string | null> {
   try {

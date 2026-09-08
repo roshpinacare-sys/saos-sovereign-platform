@@ -24,9 +24,13 @@ import * as path from "path";
 import { ethers } from "ethers";
 import meshArtifact from "./generated/SAOSMesh.json";
 import { probeDexPairs } from "./dex-live";
+import { assertKnownPair, assertTrustedEndpoints } from "./security";
 
 const MESH_RPC = "http://127.0.0.1:8545";
 const MESH_CHAIN_ID = 31337;
+
+// v24 מגן: השרשרת המקומית + האורקל מאומתים בטעינה.
+assertTrustedEndpoints([MESH_RPC], "microgrid-live");
 const STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "deployment.json");
 
 const ARTIFACT = meshArtifact as unknown as {
@@ -496,6 +500,9 @@ export async function microgridCreate(pair: string, levels: number): Promise<Mic
   const state = readState();
   if (!state) return { ok: false, action: "create", txid: null, detail: "SAOSMicrogrid לא פרוס" };
   try {
+    // v24 MAGEN: a new pair must be majors-only (assertKnownPair) —
+    // unknown tokens/pairs are blocked before any probe.
+    const safePair = assertKnownPair(pair);
     const provider = getProvider();
     const hq = await provider.getSigner(0);
     const mg = microgridContract(state, hq);
@@ -504,14 +511,14 @@ export async function microgridCreate(pair: string, levels: number): Promise<Mic
 
     // post the live price first (the anchor must be a real measured price)
     const dex = await probeDexPairs({ force: true });
-    const p = dex.pairs.find((x) => x.pair === pair && x.exists && x.price);
+    const p = dex.pairs.find((x) => x.pair === safePair && x.exists && x.price);
     const num = p?.price ? Number(p.price) : NaN;
     if (!Number.isFinite(num) || num <= 0) {
       return { ok: false, action: "create", txid: null, detail: `אין מחיר חי לזוג ${pair} (honest — העוגן חייב מחיר אמיתי שנמדד)` };
     }
-    const t1 = await mg.postPrice(pair, BigInt(Math.round(num * 1e6)));
+    const t1 = await mg.postPrice(safePair, BigInt(Math.round(num * 1e6)));
     await t1.wait();
-    const t2 = await mg.createGrid(pair, safeLevels);
+    const t2 = await mg.createGrid(safePair, safeLevels);
     await t2.wait();
     return {
       ok: true,

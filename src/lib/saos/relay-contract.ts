@@ -31,6 +31,7 @@ import { createHash } from "crypto";
 import { ethers } from "ethers";
 import { deriveSovereignEvm } from "./anchor-evm";
 import artifact from "./generated/SAOSRelay.json";
+import { assertTrustedEndpoints } from "./security";
 
 // ─── chains ─────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,13 @@ const CHAINS: Record<RelayChain, {
   }
 };
 
-export function chainCfg(chain: RelayChain) {
+export function chainCfg(chain: RelayChain) {// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints(
+  ["https://ethereum-rpc.publicnode.com", "https://eth.drpc.org", "https://rpc.mevblocker.io", "https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"],
+  "relay-contract"
+);
+
+
   return CHAINS[chain];
 }
 

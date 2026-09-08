@@ -36,6 +36,7 @@ import { readSealInventory, readSovereignWallets, withRoleWif, withVaultMember, 
 import { ANCHORED_EVM_ADDRESS } from "./anchor-evm";
 import { ANCHORED_SOL_ADDRESS } from "./anchor-svm";
 import { saosLedger } from "./saos-mint";
+import { assertTrustedEndpoints } from "./security";
 
 // ─── arming policy (spec-frozen constants — request can never touch) ───────
 
@@ -89,6 +90,13 @@ const ETH_ENDPOINTS = [
 ] as const;
 const SOL_ENDPOINT = "https://api.mainnet-beta.solana.com";
 const SOL_READ_FALLBACK = "https://solana-rpc.publicnode.com";
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints(
+  [STEEM_RPC, HIVE_RPC, ...ETH_ENDPOINTS, SOL_ENDPOINT, SOL_READ_FALLBACK],
+  "fleet-arm"
+);
+
 
 async function jsonRpc<T>(url: string, method: string, params: unknown[]): Promise<T | null> {
   try {

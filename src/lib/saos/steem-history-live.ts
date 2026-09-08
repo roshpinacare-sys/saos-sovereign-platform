@@ -15,8 +15,12 @@
  */
 
 import https from "https";
+import { assertTrustedEndpoints } from "./security";
 
 const STEEM_RPC = "https://api.steemit.com";
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([STEEM_RPC], "steem-history-live");
 const WEAVE_ID = "saos.weave.v1";
 const ACCOUNT = "headcorner";
 const PAGE_LIMIT = 100; // condenser_api.get_account_history hard upper limit

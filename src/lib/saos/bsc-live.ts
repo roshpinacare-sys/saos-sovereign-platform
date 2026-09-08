@@ -23,8 +23,12 @@
 
 import https from "https";
 import { ANCHORED_EVM_ADDRESS } from "./anchor-evm";
+import { assertTrustedEndpoints } from "./security";
 
 const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"] as const;
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([...BSC_ENDPOINTS], "bsc-live");
 
 const BSC_CHAIN_ID = 56; // mainnet — fail-closed
 const CACHE_TTL_MS = 60_000;

@@ -26,8 +26,12 @@
 
 import https from "https";
 import { HIVE_RC_FLOOR_LIGHT, HIVE_RC_FLOOR_HEAVY, hiveRcHoursToTarget } from "./anchor-gates";
+import { assertTrustedEndpoints } from "./security";
 
 export const HIVE_NODES = ["https://api.hive.blog", "https://api.deathwing.me", "https://anyx.io"];
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([...HIVE_NODES], "hive-rc-live");
 const CACHE_TTL_MS = 60_000;
 
 export interface HiveRcLive {

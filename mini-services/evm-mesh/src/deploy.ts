@@ -64,6 +64,14 @@ export interface DeploymentState {
 
 export async function fetchJson(url: string, timeoutMs = 4000): Promise<Record<string, unknown> | null> {
   try {
+    // v24 מגן (runner): the mesh service talks ONLY to the local platform
+    // (127.0.0.1) — any other host is blocked before connect (fail-closed,
+    // anti-phishing: unknown hosts are never probed from the runner).
+    const u = new URL(url);
+    if (u.hostname !== "127.0.0.1" && u.hostname !== "localhost") {
+      console.error(`[magen] blocked outbound fetch to ${u.hostname} (loopback only)`);
+      return null;
+    }
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeoutMs);
     const res = await fetch(url, { signal: ctl.signal });

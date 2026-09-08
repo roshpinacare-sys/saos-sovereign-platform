@@ -24,6 +24,7 @@
 
 import { access, readFile } from "fs/promises";
 import path from "path";
+import { trustedFetch } from "./security";
 
 /** Candidate locations for the operator token (cwd differs dev/next). */
 const TOKEN_PATHS = [
@@ -104,13 +105,14 @@ interface GhCommit {
 }
 
 async function gh<T>(path: string, token: string): Promise<T> {
-  const res = await fetch(`https://api.github.com${path}`, {
+  // v24 מגן: GitHub API — דרך השער (רישום מהימן · redirect-error · timeout)
+  const res = await trustedFetch(`https://api.github.com${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28"
     },
-    signal: AbortSignal.timeout(12_000)
+    timeoutMs: 12_000
   });
   if (!res.ok) throw new Error(`github ${res.status} on ${path}`);
   return (await res.json()) as T;

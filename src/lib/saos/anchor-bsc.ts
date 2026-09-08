@@ -24,8 +24,12 @@
 
 import { ethers } from "ethers";
 import { deriveSovereignEvm, buildEvmWeaveData, type EvmLiveSeal } from "./anchor-evm";
+import { assertTrustedEndpoints } from "./security";
 
 const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"] as const; // v20.1: llamarpc dead → official dataseed
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([...BSC_ENDPOINTS], "anchor-bsc");
 
 const CHAIN_ID = 56; // BSC mainnet — fail-closed
 const NETWORK = "BSC";

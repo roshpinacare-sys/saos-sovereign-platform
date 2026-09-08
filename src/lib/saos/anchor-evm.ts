@@ -34,6 +34,7 @@ import { createHash } from "crypto";
 import { ethers } from "ethers";
 import { withVaultMember } from "@/lib/vault-seal";
 import { canonicalize } from "./canonical-json";
+import { assertTrustedEndpoints } from "./security";
 
 // ─── endpoints (measured reachable in eth-sol-live, same pool) ─────────────
 
@@ -42,6 +43,9 @@ const ETH_ENDPOINTS = [
   "https://eth.drpc.org",
   "https://rpc.mevblocker.io"
 ] as const;
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([...ETH_ENDPOINTS], "anchor-evm");
 
 const CHAIN_ID = 1; // mainnet — fail-closed, no chainId confusion
 

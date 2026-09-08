@@ -25,6 +25,7 @@
  */
 
 import https from "https";
+import { assertTrustedEndpoints } from "./security";
 
 // ---------------------------------------------------------------------------
 // Ethereum
@@ -37,6 +38,9 @@ const ETH_ENDPOINTS = [
 ] as const;
 
 const SOL_ENDPOINT = "https://api.mainnet-beta.solana.com";
+
+// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+assertTrustedEndpoints([...ETH_ENDPOINTS, SOL_ENDPOINT], "eth-sol-live");
 
 const ETH_CACHE_TTL_MS = 60_000;
 const SOL_CACHE_TTL_MS = 60_000;
