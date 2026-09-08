@@ -274,6 +274,32 @@ async function autoCycle(): Promise<void> {
     const rc = await tx.wait();
     console.log(`[evm-mesh] auto run #${runTick} "${intent}" gas=${rc?.gasUsed ?? "?"}`);
 
+    // 4.2 v21 — ANTI-GRID-DEATH: re-anchor any grid pinned at its band edge
+    //      (cursor exhausted) or paused by the drift limit to the FRESH price
+    //      just posted — the grid never dies on a trending market.
+    try {
+      const gridCount = Number(await c.microgrid.gridCount());
+      for (let i = 0; i < gridCount; i++) {
+        try {
+          const g = (await c.microgrid.gridAt(i)) as unknown as {
+            pair: string; cursor: number; levels: number; live: boolean;
+          };
+          const exhausted = Number(g.cursor) <= -Number(g.levels) || Number(g.cursor) >= Number(g.levels);
+          const paused = !g.live;
+          if (!exhausted && !paused) continue;
+          const price = (await c.microgrid.priceOf(g.pair)) as bigint;
+          if (price <= 0n) continue; // no fresh posted price — honest skip
+          const rtx = await c.microgrid.reanchor(BigInt(i));
+          await rtx.wait();
+          console.log(`[evm-mesh] microgrid grid#${i} ${g.pair} re-anchored → ${Number(price) / 1e6}`);
+        } catch {
+          /* honest skip — the next cycle tries again */
+        }
+      }
+    } catch {
+      /* grid scan best-effort */
+    }
+
     // 4.5 v20 — MICROGRID FLYWHEEL: sweep accrued profit → work-board
     //      payroll (zero-fee rail). Honest: capped by the real balance.
     try {

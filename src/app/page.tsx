@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v18 — REAL WORK (מנוע הפתרונות: לכל פקודה מסירה
- * אמיתית — תוכן LLM קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK,
- * קבלה משורשרת-האש — מעל לוח העבודה: המפקדה מפרסמת, חיילים מבצעים
- * דרך 8 החוזים, השכר זורם ללא-עמלה).
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 13 עמודים. קיצורי-מקלדת Alt+1..9.
+ * SAOS Sovereign Platform v21 — FLOW (מכ"ם-נזילות חי: 8 מרחבים · USD ·
+ * מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני — התמונה של
+ * הבעלים נקראת בקצה-האחורי, מאומתת מול ראיות-השרשרת, נאטמת כספת
+ * חדשה; מיקרו-גריד עם חוסן-ריאנקור אוטומטי) מעל לוח העבודה.
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 16 עמודים. קיצורי-מקלדת Alt+1..9.
  */
 
 import { useEffect, useState } from "react";
@@ -26,6 +26,7 @@ import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
 import { MicrogridView } from "@/components/saos/views/microgrid";
+import { FlowView } from "@/components/saos/views/flow";
 import { ViewEconomy } from "@/components/saos/views/economy";
 import { ViewResearch } from "@/components/saos/views/research";
 
@@ -43,6 +44,7 @@ const TITLES: Record<ViewId, string> = {
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
   microgrid: "מיקרו-גריד",
+  flow: "נזילות וזרימה",
   economy: "כלכלה",
   research: "מחקר ומפת-דרך"
 };
@@ -86,6 +88,7 @@ export default function Home() {
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}
         {view === "microgrid" && <MicrogridView />}
+        {view === "flow" && <FlowView />}
         {view === "economy" && <ViewEconomy />}
         {view === "research" && <ViewResearch />}
       </AppShell>

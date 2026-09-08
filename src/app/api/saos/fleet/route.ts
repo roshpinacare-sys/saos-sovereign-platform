@@ -27,14 +27,14 @@ export async function GET() {
     // Degrade to EVIDENCE MODE: the mint ledger + arm journal live in the
     // DB and stay honest; the live roster needs new keys from the owner.
     const msg = e instanceof Error ? e.message : "fleet roster failed";
-    if (/fleet_keys\.enc|ENOENT/i.test(msg)) {
+    if (/fleet_keys\.enc|ENOENT|member .* absent|fail-closed/i.test(msg)) {
       try {
         const [ledger, arm] = await Promise.all([saosLedger(), armLedger()]);
         return NextResponse.json({
           ok: false,
           mode: "evidence",
           error:
-            "כספת הצי נשרפה מהדיסק (פקודת-השמדה 2026-09-08) — רישום-חי אינו אפשרי עד מפתחות חדשים מהבעלים. מוצג מצב-ראיות: ספירת-מטבעות ויומן-חימוש מה-DB.",
+            "מצב-ראיות (v21): הכספת אטומה מחדש עם המנמוניקה הריבונית בלבד — חברי-הצי (wallets-registry) אינם במעטפת החדשה. רישום-חי ייפתח כשיאטמו; עד אז: ספירת-מטבעות ויומן-חימוש מה-DB (כנה).",
           ledger,
           armLedger: arm
         });

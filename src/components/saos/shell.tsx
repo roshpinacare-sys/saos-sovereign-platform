@@ -7,14 +7,14 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, Boxes, Crosshair, ExternalLink, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
+import { Anchor, Boxes, Crosshair, Droplets, ExternalLink, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "network360" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "microgrid" | "economy" | "research";
+export type ViewId = "overview" | "network360" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "microgrid" | "flow" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -132,6 +132,14 @@ export const VIEWS: ViewDef[] = [
     group: "כלכלה ואנרגיה"
   },
   {
+    id: "flow",
+    label: "נזילות וזרימה",
+    short: "נזילות",
+    desc: "מכ\"ם-נזילות חי (8 מרחבים · USD) · מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני (תמונה→אימות→איטום)",
+    icon: <Droplets size={16} />,
+    group: "כלכלה ואנרגיה"
+  },
+  {
     id: "economy",
     label: "כלכלה",
     short: "כלכלה",
@@ -188,7 +196,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v19.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v21.0 FLOW</p>
           </div>
         </div>
 

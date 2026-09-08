@@ -164,6 +164,7 @@ export interface MicrogridCycleResult {
   ok: boolean;
   posted: Array<{ pair: string; priceE6: string }>;
   fills: MicrogridFill[];
+  reanchored: string[];
   realizedAfter: string;
   swept: string;
   txids: string[];
@@ -386,13 +387,14 @@ export async function microgridStatus(): Promise<MicrogridStatus> {
 
 export async function microgridCycle(): Promise<MicrogridCycleResult> {
   const state = readState();
-  if (!state) return { ok: false, posted: [], fills: [], realizedAfter: "0", swept: "0", txids: [], gasUsed: "0", error: "SAOSMicrogrid לא פרוס" };
+  if (!state) return { ok: false, posted: [], fills: [], reanchored: [], realizedAfter: "0", swept: "0", txids: [], gasUsed: "0", error: "SAOSMicrogrid לא פרוס" };
 
   try {
     const provider = getProvider();
     const hq = await provider.getSigner(0);
     const mg = microgridContract(state, hq);
     if (!mg) throw new Error("artifact mismatch");
+    const txidsExtra: string[] = [];
 
     // 1. fresh market data (force — a manual cycle deserves a fresh probe)
     const dex = await probeDexPairs({ force: true });
@@ -424,6 +426,29 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
       (rc.logs ?? []).map((l) => ({ address: l.address, topics: [...l.topics], data: l.data }))
     );
 
+    // 3.5 v21 anti-grid-death: re-anchor grids pinned at their band edge
+    //     (cursor exhausted) or paused by the drift limit to the FRESH price
+    //     that was just posted — the grid never dies on a trending market.
+    const reanchored: string[] = [];
+    for (let i = 0; i < gridCount; i++) {
+      try {
+        const g = (await mg.gridAt(i)) as unknown as {
+          pair: string; cursor: number; levels: number; live: boolean; ticks: bigint;
+        };
+        const exhausted = Number(g.cursor) <= -Number(g.levels) || Number(g.cursor) >= Number(g.levels);
+        const paused = !g.live;
+        if (!exhausted && !paused) continue;
+        const price = (await mg.priceOf(g.pair)) as bigint;
+        if (price <= 0n) continue; // no fresh posted price — honest skip
+        const tx = await mg.reanchor(BigInt(i));
+        await tx.wait();
+        reanchored.push(`grid#${i} ${g.pair} → ${e6ToNum(price).toFixed(2)}`);
+        txidsExtra.push(tx.hash);
+      } catch {
+        /* honest skip — the next cycle tries again */
+      }
+    }
+
     // 4. the flywheel: sweep accrued profit → the work-board payroll
     const sweepTx = await mg.sweepAllToPayroll();
     const sweepRc = await sweepTx.wait();
@@ -436,9 +461,10 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
       ok: true,
       posted,
       fills: fills.slice(0, 24),
+      reanchored,
       realizedAfter: ethers.formatEther(totalRealized),
       swept: ethers.formatEther(totalSwept),
-      txids: [tickTx.hash, sweepTx.hash],
+      txids: [tickTx.hash, sweepTx.hash, ...txidsExtra],
       gasUsed: String((rc.gasUsed ?? 0n) + (sweepRc.gasUsed ?? 0n)),
       error: oracleTx === 0 && trackedPairs.size > 0 ? "אורקל שקט — הגרידים תקתקו על המחיר האחרון שפורסם (כנה)" : undefined
     };
@@ -447,6 +473,7 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
       ok: false,
       posted: [],
       fills: [],
+      reanchored: [],
       realizedAfter: "0",
       swept: "0",
       txids: [],

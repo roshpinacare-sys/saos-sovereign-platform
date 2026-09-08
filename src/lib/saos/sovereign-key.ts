@@ -327,3 +327,9 @@ export async function sovereignKeyStatus(): Promise<SovereignKeyStatus> {
     });
   return inflight;
 }
+
+/** v21 — after a re-arm (new sealed vault) drop the cache so the next read is live. */
+export function invalidateSovereignKeyCache(): void {
+  cache = null;
+  inflight = null;
+}
