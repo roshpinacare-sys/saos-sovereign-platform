@@ -48,9 +48,21 @@ export async function POST() {
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "mint failed" },
-      { status: 200 }
-    );
+    const msg = e instanceof Error ? e.message : "mint failed";
+    // v19 — the mint derives its roster from the vault; with the keys
+    // burned (network kill-order) the honest answer is the gate, not a
+    // raw ENOENT stack-trace.
+    if (/fleet_keys\.enc|ENOENT/i.test(msg)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          gated: "vault",
+          error:
+            "ההטבעה נעולה: הכספת נשרפה (פקודת-השמדה 2026-09-08) וספירת-הצי נגזרת ממנה (fail-closed). ההטבעה תחזור עם מפתחות חדשים מהבעלים; ספר-המטבעות הקיים (GET) נשאר אמת."
+        },
+        { status: 200 }
+      );
+    }
+    return NextResponse.json({ ok: false, error: msg }, { status: 200 });
   }
 }

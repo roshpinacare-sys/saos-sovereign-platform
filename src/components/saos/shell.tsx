@@ -7,14 +7,14 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, Crosshair, ExternalLink, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints } from "lucide-react";
+import { Anchor, Boxes, Crosshair, ExternalLink, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "economy" | "research";
+export type ViewId = "overview" | "network360" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -32,6 +32,14 @@ export const VIEWS: ViewDef[] = [
     short: "בקרה",
     desc: "מצב הפלטפורמה בזמן אמת — שרשרת, מטריצה ובריאות הגרעין",
     icon: <Anchor size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "network360",
+    label: "רשת-360",
+    short: "רשת-360",
+    desc: "מפת האורגניזם החיה — 11 ריפואים במדידה מול GitHub · הישגים מאומתי-שרשרת · הצעדים הקריטיים",
+    icon: <Boxes size={16} />,
     group: "תפעול"
   },
   {
@@ -172,7 +180,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Real Work · v18.1</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v19.0</p>
           </div>
         </div>
 
@@ -328,7 +336,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v18.1.0 — REAL WORK · מנוע הפתרונות (LLM) מייצר לכל פקודה מסירה אמיתית — תוכן קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK וקבלה משורשרת-האש) + WORK ORDERS (8 החוזים, המפקדה מפרסמת, חיילים מבצעים, שכר ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+              SAOS Sovereign Platform v19.0.0 — NETWORK 360 (מפת-האורגניזם: 11 ריפואים חיים מול GitHub · מצב-ראיות כנה · הישגים מאומתי-שרשרת) + REAL WORK · מנוע הפתרונות (LLM) מייצר לכל פקודה מסירה אמיתית — תוכן קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK וקבלה משורשרת-האש) + WORK ORDERS (8 החוזים, המפקדה מפרסמת, חיילים מבצעים, שכר ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a

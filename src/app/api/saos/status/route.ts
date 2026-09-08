@@ -4,6 +4,7 @@ import { anchoringMatrix } from "@/lib/saos/anchor-gates";
 import { HISTORIC_ANCHORS } from "@/lib/saos/historic";
 import { probeHiveRc, hiveAnchorAccount } from "@/lib/saos/hive-rc-live";
 import { probeTronVault } from "@/lib/saos/tron-live";
+import { probeSteemWeaveHistory } from "@/lib/saos/steem-history-live";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,27 @@ export async function GET() {
         recovery: solAnchor ? null : "POST /api/saos/anchor/svm — עוגן חי בלחיצה"
       }
     );
+
+    // v19 — CHAIN-VERIFIED STEEM row: the 2026-09-08 sandbox restore lost
+    // the local "anchored" ledger rows, but the custom_json operations
+    // (id=saos.weave.v1 by headcorner) are immutable on-chain. The matrix
+    // row now reads THE CHAIN (bounded history scan) instead of a
+    // restorable DB table — sandbox resets can no longer un-anchor the
+    // truth.
+    const steemChain = await probeSteemWeaveHistory();
+    if (steemChain.ok) {
+      const steemRow = matrix.find((m) => m.network === "STEEM");
+      if (steemRow) {
+        if (steemChain.weaveCount > 0) {
+          steemRow.status = "anchored";
+          steemRow.gate = null;
+          steemRow.detail = `אומת מהשרשרת עצמה: ${steemChain.weaveCount} עוגני saos.weave.v1 בחלון ${steemChain.scanned} הכניסות האחרונות · האחרון בבלוק ${steemChain.latest?.block ?? "—"}${steemChain.latest?.root ? ` · root ${steemChain.latest.root}…` : ""}`;
+          steemRow.recovery = null;
+        } else {
+          steemRow.detail = "אין עוגני weave בחלון ההיסטוריה האחרון (מדידה חיה מהשרשרת)";
+        }
+      }
+    }
 
     const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = await Promise.all([
       db.sealRecord.findMany({

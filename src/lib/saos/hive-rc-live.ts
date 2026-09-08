@@ -43,6 +43,8 @@ export interface HiveRcLive {
   hoursToLightFloor: number | null;
   hoursToHeavyFloor: number | null;
   apiNode: string | null;
+  /** v19 — stale-read fix: true when a second node's sample was compared */
+  crossChecked?: boolean;
   measuredAt: string;
   error?: string;
 }
@@ -128,22 +130,53 @@ export async function probeHiveRc(account: string, opts: { force?: boolean } = {
       measuredAt: new Date().toISOString()
     };
 
+    // v19 — STALE-READ FIX (diagnosed by the network audit): HIVE public
+    // nodes are replicas at different heights; the first answering node
+    // may lag and report a LOWER mana, which then freezes for the 60s
+    // cache. RC mana regenerates monotonically (~20%/day) and this
+    // account is passive — so when two nodes disagree, the HIGHER rcPct
+    // is the fresher truth. We read node #1, then cross-check node #2 in
+    // parallel only when needed, and keep the max. The apiNode reports
+    // which sample won; a cross-check is recorded in the result.
+    const readRc = async (ep: string): Promise<{ rcPct: number; currentMana: number; maxRc: number } | null> => {
+      const rc = await hiveRpc<{ rc_accounts?: RcAccount[] }>(ep, "rc_api.find_rc_accounts", { accounts: [account] });
+      const rcAcc = rc?.rc_accounts?.[0];
+      const currentMana = num(rcAcc?.rc_manabar?.current_mana);
+      const maxRc = num(rcAcc?.max_rc);
+      if (currentMana === null || maxRc === null || maxRc <= 0) return null;
+      return { rcPct: Math.max(0, Math.min(100, (currentMana / maxRc) * 100)), currentMana, maxRc };
+    };
+
     for (const ep of HIVE_NODES) {
       try {
         // rc first — the resource that gates the weave
-        const rc = await hiveRpc<{ rc_accounts?: RcAccount[] }>(ep, "rc_api.find_rc_accounts", {
-          accounts: [account]
-        });
-        const rcAcc = rc?.rc_accounts?.[0];
-        const currentMana = num(rcAcc?.rc_manabar?.current_mana);
-        const maxRc = num(rcAcc?.max_rc);
-        if (currentMana === null || maxRc === null || maxRc <= 0) {
-          // an account row without rc means the account does not exist on HIVE
+        const first = await readRc(ep);
+        if (!first) {
           base.error = "account not found on HIVE (or empty rc record)";
           base.apiNode = ep;
           return { ...base, measuredAt: new Date().toISOString() };
         }
-        const rcPct = Math.max(0, Math.min(100, (currentMana / maxRc) * 100));
+        let rcPct = first.rcPct;
+        let currentMana = first.currentMana;
+        let maxRc = first.maxRc;
+        let winner = ep;
+        let crossChecked = false;
+        // cross-check a second node when one exists (fresh parallel read)
+        const secondEp = HIVE_NODES.find((n) => n !== ep);
+        if (secondEp) {
+          try {
+            const second = await readRc(secondEp);
+            crossChecked = true;
+            if (second && second.rcPct > rcPct) {
+              rcPct = second.rcPct;
+              currentMana = second.currentMana;
+              maxRc = second.maxRc;
+              winner = secondEp;
+            }
+          } catch {
+            /* cross-check unavailable — the first sample stands */
+          }
+        }
 
         // vesting picture — secondary, one more read
         let vesting: CondenserAccount | null = null;
@@ -172,7 +205,8 @@ export async function probeHiveRc(account: string, opts: { force?: boolean } = {
             rcPct < HIVE_RC_FLOOR_HEAVY
               ? Number(hiveRcHoursToTarget(rcPct, HIVE_RC_FLOOR_HEAVY).toFixed(1))
               : 0,
-          apiNode: ep,
+          apiNode: winner,
+          crossChecked,
           measuredAt: new Date().toISOString()
         };
         return value;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fleetRoster, armLedger, armSteemFleet, armEvmFleet, armSolFleet } from "@/lib/saos/fleet-arm";
+import { saosLedger } from "@/lib/saos/saos-mint";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // live rails can take minutes (11 receipts)
@@ -22,8 +23,31 @@ export async function GET() {
     const [roster, ledger] = await Promise.all([fleetRoster(), armLedger()]);
     return NextResponse.json({ ...roster, armLedger: ledger });
   } catch (e) {
+    // v19 — the vault keys were burned (network kill-order, 2026-09-08).
+    // Degrade to EVIDENCE MODE: the mint ledger + arm journal live in the
+    // DB and stay honest; the live roster needs new keys from the owner.
+    const msg = e instanceof Error ? e.message : "fleet roster failed";
+    if (/fleet_keys\.enc|ENOENT/i.test(msg)) {
+      try {
+        const [ledger, arm] = await Promise.all([saosLedger(), armLedger()]);
+        return NextResponse.json({
+          ok: false,
+          mode: "evidence",
+          error:
+            "כספת הצי נשרפה מהדיסק (פקודת-השמדה 2026-09-08) — רישום-חי אינו אפשרי עד מפתחות חדשים מהבעלים. מוצג מצב-ראיות: ספירת-מטבעות ויומן-חימוש מה-DB.",
+          ledger,
+          armLedger: arm
+        });
+      } catch {
+        return NextResponse.json({
+          ok: false,
+          mode: "evidence",
+          error: "כספת הצי נשרפה (פקודת-השמדה) וקריאת הראיות נכשלה — אין נתונים."
+        });
+      }
+    }
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "fleet roster failed" },
+      { ok: false, error: msg },
       { status: 200 }
     );
   }

@@ -151,6 +151,12 @@ export async function relayReadiness(chain: RelayChain): Promise<RelayReadiness>
     }
     throw new Error(lastErr);
   } catch (e) {
+    const raw = e instanceof Error ? e.message : "readiness failed";
+    // v19 — burned vault (network kill-order): a raw ENOENT tells the
+    // operator nothing; the honest cause is missing keys, not a bug.
+    const error = /fleet_keys\.enc|ENOENT/i.test(raw)
+      ? "מפתחות ריבוניים נעדרים — הכספת נשרפה (פקודת-השמדה 2026-09-08). היערכות-חתימה תחזור רק עם מפתחות חדשים מהבעלים."
+      : raw.slice(0, 200);
     return {
       ok: false,
       chain,
@@ -165,7 +171,7 @@ export async function relayReadiness(chain: RelayChain): Promise<RelayReadiness>
       callCostEstimate: null,
       funded: false,
       endpoint: null,
-      error: e instanceof Error ? e.message.slice(0, 200) : "readiness failed",
+      error,
       at
     };
   }

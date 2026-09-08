@@ -50,6 +50,35 @@ interface SealedBundle {
   files: Record<string, string>;
 }
 
+// ─── v19: availability probe (the honest no-crash answer) ──────────────────
+
+export interface SealAvailability {
+  present: boolean;
+  /** machine-readable cause for the UI: "burned" = kill-order 2026-09-08 */
+  state: "sealed" | "absent";
+  note: string;
+}
+
+/**
+ * v19 — the vault keys were BURNED from disk by the network kill-order
+ * (2026-09-08, keys await owner reissue). Vault-dependent modules must
+ * degrade to EVIDENCE MODE instead of crashing with raw ENOENT. This
+ * probe never throws and never opens the seal.
+ */
+export async function sealAvailability(): Promise<SealAvailability> {
+  const { enc } = await vaultPaths();
+  try {
+    await access(enc);
+    return { present: true, state: "sealed", note: "הכספת נוכחת" };
+  } catch {
+    return {
+      present: false,
+      state: "absent",
+      note: "הכספת נשרפה מהדיסק (פקודת-השמדה 2026-09-08) — המפתחות הישנים לא ישוחזרו; מפתחות חדשים מהבעלים בלבד. עד אז: מצב-ראיות (DB + שרשרת)."
+    };
+  }
+}
+
 /** Opens the seal and verifies the GCM tag. Throws on any failure. */
 async function openSeal(): Promise<SealedBundle> {
   const { enc, meta } = await vaultPaths();

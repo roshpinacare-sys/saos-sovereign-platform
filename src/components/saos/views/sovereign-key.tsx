@@ -26,7 +26,8 @@ import {
   Link2,
   Lock,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Flame
 } from "lucide-react";
 import {
   Callout,
@@ -116,9 +117,19 @@ export function ViewSovereignKey() {
     <>
       <PageHead
         title="המפתח הריבוני"
-        sub="חייל טוב — מעוגן לכספת, מזרים לנזילות, מגויס ב-mainnet"
+        sub={
+          d.mode === "evidence"
+            ? "מצב-ראיות — המפתח נחתם, הזרימה והגיוס אמת נצחית; הכספת נשרפה (מפתחות חדשים מהבעלים)"
+            : "חייל טוב — מעוגן לכספת, מזרים לנזילות, מגויס ב-mainnet"
+        }
         actions={
-          d.ok ? (
+          d.mode === "evidence" ? (
+            <Pill tone="amber">
+              <span className="inline-flex items-center gap-1.5">
+                <Flame size={12} /> מצב-ראיות
+              </span>
+            </Pill>
+          ) : d.ok ? (
             <Pill tone="green">
               <span className="inline-flex items-center gap-1.5">
                 <ShieldCheck size={12} /> חתום בכספת
@@ -135,7 +146,13 @@ export function ViewSovereignKey() {
         <Kpi
           label="מילים חתומות"
           value={d.anchored.present ? `${d.anchored.words ?? 12}` : "—"}
-          hint={d.anchored.present ? "AES-256-GCM · לעולם לא מוצג" : "המנמוניקה לא בכספת"}
+          hint={
+            d.mode === "evidence"
+              ? "נחתמו בכספת שנשרפה (פקודת-השמדה) — ההוכחות נשארו"
+              : d.anchored.present
+                ? "AES-256-GCM · לעולם לא מוצג"
+                : "המנמוניקה לא בכספת"
+          }
           icon={<Lock size={15} />}
         />
         <Kpi

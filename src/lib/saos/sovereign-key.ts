@@ -27,7 +27,7 @@
 
 import { ethers } from "ethers";
 import { db } from "@/lib/db";
-import { withVaultMember, readSovereignWallets } from "@/lib/vault-seal";
+import { sealAvailability, withVaultMember, readSovereignWallets, type SealAvailability } from "@/lib/vault-seal";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -186,6 +186,10 @@ export interface SovereignKeyStatus {
   ok: boolean;
   agent: string;
   anchored: SovereignSealMeta;
+  /** v19 — vault state: burned keys ⇒ evidence mode (DB + chain proofs) */
+  vault: SealAvailability;
+  /** evidence mode — identities rebuilt from DB proofs (enlist/flow) */
+  mode: "vault-live" | "evidence";
   /** the soldier's public identities — how the key is USED at an address */
   identities: Array<{
     chain: string;
@@ -218,21 +222,32 @@ let inflight: Promise<SovereignKeyStatus> | null = null;
 
 async function measure(): Promise<SovereignKeyStatus> {
   const measuredAt = new Date().toISOString();
+  const vault = await sealAvailability();
   const [sealMeta, wallets] = await Promise.all([
     readSealMeta(),
     readSovereignWallets().catch(() => [])
   ]);
-  const me = wallets.find((w) => w.agent.toLowerCase() === AGENT);
-  const treasuryWallet = wallets.find((w) => w.agent.toLowerCase() === TREASURY_AGENT);
-
-  const [tronMe, tronTreasury, ethBal, bnbBal, flow, enlist] = await Promise.all([
-    me?.tron ? tronBalance(me.tron) : Promise.resolve({ exists: false, trx: 0 }),
-    treasuryWallet?.tron ? tronBalance(treasuryWallet.tron) : Promise.resolve({ exists: false, trx: 0 }),
-    me?.evm ? evmBalance(me.evm, "ethereum") : Promise.resolve(null),
-    me?.evm ? evmBalance(me.evm, "bsc") : Promise.resolve(null),
-    readFlow(),
-    readEnlist()
+  // evidence mode: identities recovered from the DB proofs that the
+  // vault produced while it still lived (enlist tx identity, flow rows)
+  const [enlistRow, flowRows] = await Promise.all([
+    readEnlist(),
+    readFlow()
   ]);
+  let me = wallets.find((w) => w.agent.toLowerCase() === AGENT);
+  const treasuryWallet = wallets.find((w) => w.agent.toLowerCase() === TREASURY_AGENT);
+  if (!me && enlistRow?.identity) {
+    me = { agent: AGENT, idx: -1, evm: enlistRow.identity, evmNets: [], tron: flowRows.rows[0]?.from ?? null, sol: null };
+  }
+  const treasuryAddr = treasuryWallet?.tron ?? flowRows.rows[0]?.to ?? null;
+
+  const [tronMe, tronTreasury, ethBal, bnbBal] = await Promise.all([
+    me?.tron ? tronBalance(me.tron) : Promise.resolve({ exists: false, trx: 0 }),
+    treasuryAddr ? tronBalance(treasuryAddr) : Promise.resolve({ exists: false, trx: 0 }),
+    me?.evm ? evmBalance(me.evm, "ethereum") : Promise.resolve(null),
+    me?.evm ? evmBalance(me.evm, "bsc") : Promise.resolve(null)
+  ]);
+  const flow = flowRows;
+  const enlist = enlistRow;
 
   const identities: SovereignKeyStatus["identities"] = [];
   if (me?.tron) {
@@ -268,21 +283,32 @@ async function measure(): Promise<SovereignKeyStatus> {
   }
 
   return {
-    ok: sealMeta.present,
+    ok: sealMeta.present || Boolean(enlistRow),
     agent: AGENT,
-    anchored: sealMeta,
+    mode: vault.present ? "vault-live" : "evidence",
+    vault,
+    anchored: vault.present
+      ? sealMeta
+      : {
+          ...sealMeta,
+          source: sealMeta.source ?? "evidence-db (vault burned — see vault.note)"
+        },
     identities,
     treasury: {
       agent: TREASURY_AGENT,
-      address: treasuryWallet?.tron ?? null,
+      address: treasuryAddr,
       balanceTrx: tronTreasury.trx,
       activated: tronTreasury.exists
     },
     flow,
-    enlist,
+    enlist: enlistRow,
     custody: {
-      chain: ["מפתח STEEM ראשי (סיסמת הכספת)", "מעטפת הכספת AES-256-GCM", "כל המפתחות — כולל המנמוניקה הריבונית"],
-      note: "מפתח STEEM הראשי של הבעלים פותח את הכספת — והכספת מחזיקה את הכל: מנמוניקה, WIF, זרעים, רישומי כתובות"
+      chain: vault.present
+        ? ["מפתח STEEM ראשי (סיסמת הכספת)", "מעטפת הכספת AES-256-GCM", "כל המפתחות — כולל המנמוניקה הריבונית"]
+        : ["הכספת נשרפה (פקודת-השמדה 2026-09-08)", "מפתחות חדשים — מהבעלים בלבד", "עד אז: הראיות (זרימה + גיוס + עוגנים) נצחיות בשרשרת"],
+      note: vault.present
+        ? "מפתח STEEM הראשי של הבעלים פותח את הכספת — והכספת מחזיקה את הכל: מנמוניקה, WIF, זרעים, רישומי כתובות"
+        : "מצב-ראיות: המפתחות נשרפו; ההוכחות שנחתמו (18.7 TRX שזרמו, גיוס mainnet) נשארו אמת נצחית בשרשרת"
     },
     measuredAt
   };
