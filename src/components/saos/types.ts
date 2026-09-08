@@ -1159,3 +1159,56 @@ export interface MeshRunOutcome {
   anchorsStamped: number;
   error?: string;
 }
+
+// ─── v16: The Sovereign Key (המפתח הריבוני) — anchored, flowed, enlisted ─────
+
+export interface SovereignSealMetaView {
+  present: boolean;
+  label: string | null;
+  words: number | null;
+  source: string | null;
+  derivation: { evm: string; tron: string } | null;
+  anchoredAt: string | null;
+}
+
+export interface SovereignIdentityView {
+  chain: string;
+  rail: string;
+  address: string;
+  path: string | null;
+  balance: string | null;
+  explorer: string;
+  usage: string;
+}
+
+export interface SovereignFlowRowView {
+  txid: string;
+  from: string;
+  to: string;
+  amountTrx: number;
+  at: string | null;
+}
+
+export interface SovereignEnlistView {
+  txid: string;
+  block: number | null;
+  agent: string;
+  rail: string;
+  identity: string;
+  explorer: string;
+  confirmed: boolean;
+  at: string;
+}
+
+export interface SovereignKeyData {
+  ok: boolean;
+  agent: string;
+  anchored: SovereignSealMetaView;
+  identities: SovereignIdentityView[];
+  treasury: { agent: string; address: string | null; balanceTrx: number; activated: boolean };
+  flow: { rows: SovereignFlowRowView[]; totalTrx: number };
+  enlist: SovereignEnlistView | null;
+  custody: { chain: string[]; note: string };
+  measuredAt: string;
+  error?: string;
+}

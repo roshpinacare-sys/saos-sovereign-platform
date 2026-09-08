@@ -484,3 +484,27 @@ Stage Summary:
 - גבול אמת: הכל פנימי ל-SAOS-NET — אפס נגיעה ברשת ציבורית, אפס תנועת כספים. מפת-הגיוס ל-EVM מוכנה ב-UI לשעת הצורך.
 - הריפו בסוף הסשן: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v15.1.0 (מיזוג).
 - החלטות ארכיטקט מקומיות: אותה שרשרת לכל הכוונות (composability אמיתית), הנוטריון סוגר לולאה לספר-הראיות הקיים (חוזה↔ראיות), כתובות דטרמיניסטיות (sha256 שם-חוזה).
+
+---
+Task ID: 9
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: "זה המפתח תעגן אותו ותראה איך משתמשים בכתובת שיהיה חייל טוב ויהיה מעוגן לheadconer עם הכל. שהמפתח סטים הראשי שלי יוכל לפתוח ולגשת להכל. תמשיך כתוב לריפו" — v16.0.0 SOVEREIGN KEY (+ הפעלת ה-TRX התקוע לנזילות הפרטית מ-Task 8).
+
+Work Log:
+- קראתי את התמונה שהבעלים העלה (IMG-20260905-WA0024.jpg) עם VLM בשתי קריאות כפולות — חילוץ מנמוניקת BIP39 של 12 מילים; שתי הקריאות החזירו מילים זהות בדיוק (checksum תקין מאומת מאוחר יותר ב-ethers).
+- TronWeb 6 לא עובד ב-Bun ("proto is not defined") אך עובד ב-Node — כל הסקריפטים הקריפטו-חתומים רצים תחת node 24 (strip-types מקורי). הותקן tronweb@6.5.0 לחתימת TRX.
+- סקריפט anchor-sovereign-mnemonic (node): פתח את הכספת (SAOS-FLEET-VAULT-1, scrypt+AES-256-GCM), ניפק זהויות פומביות מהביטוי (EVM m/44'/60'/0'/0/0 · TRON m/44'/195'/0'/0/0), אטם את הביטוי כחבר חדש keys/sovereign-mnemonic.json + רישום ב-wallets-registry כסוכן "sovereign-user", אטם מחדש את המעטפת (pass זהה, מלח+iv טריים) ואימת round-triple כפול (ביטוי + רישום). הכספת: 8 חברים כעת. הביטוי מעולם לא מודפס/לא בריפו (agent/ = gitignored; תמונת המקור ב-upload/ = gitignored; אומת עם git check-ignore).
+- probe-sovereign-key (sweep עומק): מצא כספים אמיתיים במפתח הבעלים — TRON idx0 TAzZZ…=15.397448 · idx1 TRKSt…=3.735912 · idx2 TNd4a…=1.670863 (סה"כ ~20.8 TRX; הבדיקות שהראו "0" ברישום הצי היו זיהום rate-limit של trongrid — לא אמת). שרשרת משמורת: המפתח של הבעלים ≠ מנמוניקת הצי (השוואת hash בלבד, בלי טקסט).
+- flow-trx-liquidity (node, adaptive): יעד = כתובת אוצר headcorner TG6Srs… מרישום הכספת (fail-closed). ניסיון ראשון נדחה "balance is not sufficient" — אבחון: יעד לא-מופעל דורש עמלת הפעלת חשבון ~1 TRX מהמשלח. גרסה אדפטיבית עם רזרבות מדורגות (1.15/0.6/0.35): 3 שידורים מאושרים — txid 8f72fcb1… (14.247448) · cbb0021f… (3.135912) · 11465f80… (1.320863). ההעברה הראשונה הפעילה את האוצר. אימות שרשרתי כפול: כל עסקה SUCCESS + יעד + סכום, ואז נקודת-סוף מדודה: אוצר headcorner = 18.704223 TRX (מ-0). נרשם ב-DB: 3 שורות anchorTx kind=flow-liquidity + opLog.
+- שחזור אמת-שרשרת לאחר איפוס DB: רשומת SAOSRelay חסרה → שוחזרה מהבלוק 25,929,839 (הקבלה מהשרשרת: txid מלא 0x25c3f9f5…, gasUsed 226,962, deployer 0x2767…) + מדידה חיה eth_getCode: runtime 803B × sha256 701f10c6… — תואם בדיוק ל-v14. אפס פריסות כפולות.
+- גיוס פומבי: POST /api/saos/contract action=enlist agent=sovereign-user (whitelist מרישום הכספת) — Enlist("sovereign-user","ethereum",0x7b78…) נחתם ע"י headcorner דרך SAOSRelay ב-mainnet: txid 0x2765b861…, בלוק 25,932,934, 0.00000441 ETH, אירוע פורק מהלוגים + קבלה משורשרת 956c436e….
+- Backend: lib/saos/sovereign-key.ts (מצב חי: metadata כספת בלבד — הביטוי אינו חוצה את הגבול; זהויות פומביות; גששי יתרה חיים TRON/ETH/BSC; אוצר; זרימה+גיוס מיומן העגינה; מטמון 60ש') + מסלול /api/saos/sovereign-key (GET, read-only).
+- Frontend: views/sovereign-key.tsx — ויו "המפתח הריבוני" (KPI ×4 · שרשרת משמורת ויזואלית STEEM→כספת→הכל · כרטיסי כתובות החייל עם העתקה+אקספלורר+הוראת-שימוש · פאנל הנזילות עם 3 txids · פאנל גיוס mainnet · callout גבול-אמת). shell/page/types → v16.0.0 + ויו 12 בניווט (קבוצת תפעול, אחרי חימום הצי).
+- איכות: lint נקי · agent-browser: הוויו נטען, KPI 12 מילים/18.7 TRX/✓ Enlist בלוק 25,932,934 מוצגים מה-API החי, 0 שגיאות-קונסולה/עמוד · כפתור העתקה מגיב (check-icon) · קישורי אקספלורר · מובייל 375px: scrollWidth=375 מדויק, 0 גלישה, פוטר flush (2447=2447) · VLM-QA דסקטופ+מובייל Pass · רגרסיה: לוח-בקרה/כלכלה/רשת-החוזים תקינים · mesh-service חי (7 חוזים, 41 ריצות, anvil :8545) · dev.log הכל 200.
+
+Stage Summary:
+- המוצר: v16.0.0 SOVEREIGN KEY חיה — המפתח של הבעלים מעוגן בכספת (מפתח STEEM ראשי פותח הכל, אחד-להכל), כתובותיו מוצגות עם הוראות שימוש חיות, ה-TRX התקוע הופעל וזרם (18.704223 TRX, 3 עסקאות מאומתות), והמפתח גויס כחייל דרך חוזה SAOSRelay ב-Ethereum mainnet על-ידי headcorner — עגינה נצחית פומבית.
+- הוכחות-שרשרת: זרימה 8f72fcb1… · cbb0021f… · 11465f80… (אוצר TG6Srs… = 18.704223 TRX, מדידה חיה) · גיוס 0x2765b861… (בלוק 25,932,934, Enlist event) · שחזור פריסה 0x25c3f9f5… (runtime 803B sha256 701f10c6…).
+- גבול-האמת נשמר: המנמוניקה חתומה בתוך המעטפת בלבד — לא בממשק, לא בלוג, לא בריפו (agent/ + upload/ gitignored, אומת). יעד הזרימה מרישום הכספת בלבד. עמלת ההפעלה (~1 TRX) תועדה בכנות. רישום הפריסה שוחזר מהשרשרת — בלי פריסה כפולה.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v16.0.0.
+- המשך: אנרגזייז TRON מהאוצר (18.7 TRX מספיקים להימור-פס לחיילי TRON) · העברת ה-mesh ל-BSC/ETH עם מימון · העבודה הבאה לחיילים.
