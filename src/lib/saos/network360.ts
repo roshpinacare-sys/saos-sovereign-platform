@@ -28,6 +28,7 @@ import { realWorkStats } from "./realwork";
 import { sealAvailability } from "@/lib/vault-seal";
 import { saosLedger } from "./saos-mint";
 import { probeDexPairs } from "./dex-live";
+import { microgridStatus } from "./microgrid-live";
 
 const CACHE_TTL_MS = 90_000;
 const TOKEN_PATH = path.join(process.cwd(), "upload", "Roshcaregt.txt");
@@ -59,10 +60,10 @@ const ESTATE: EstateRepo[] = [
   },
   {
     name: "saos-sovereign-platform",
-    role: "הריפו הזה — פלטפורמת העגינה: 8 חוזים משורשרים · REAL WORK (LLM) · SAOSRelay ב-mainnet · מפת-8-רשתות",
+    role: "הריפו הזה — פלטפורמת העגינה: 9 חוזים משורשרים (כולל מיקרו-גריד) · REAL WORK (LLM) · SAOSRelay ב-mainnet · מפת-8-רשתות",
     status: "חי",
-    note: "v18.1 · 6 מסירות אמיתיות מעוגנות · SAOS-WORK rail חי · היגיינה: הטוקן/ה-env/ה-db הוסרו ממעקב (5bb5ef1)",
-    connections: ["STEEM (עוגנים)", "ETHEREUM (SAOSRelay 0xa52D…8E6)", "TRON (אוצר headcorner)"]
+    note: "v20 · GRID-98 על השרשרת (חוזה תשיעי) · DEX עומק (UniV2+V3+Pancake+Sushi) · SAOS-WORK rail חי · היגיינה: הטוקן/ה-env/ה-db הוסרו ממעקב (5bb5ef1)",
+    connections: ["STEEM (עוגנים)", "ETHEREUM (SAOSRelay 0xa52D…8E6)", "TRON (אוצר headcorner)", "saos-dex (מחירי DEX חיים)"]
   },
   {
     name: "saos-dex",
@@ -156,17 +157,17 @@ const CRITICAL_STEPS: CriticalStep[] = [
   },
   {
     rank: 4,
-    title: "מיקרו-גריד אנרגיה — delegating TRON",
+    title: "מיקרו-גריד — GRID-98 חי על השרשרת (v20)",
     owner: "סוכן",
-    blocker: "דורש מפתחות (הקפאת TRX ל-3 ימים מהאוצר) + החלטת סף",
-    impact: "18.7 TRX באוצר מספיקים להאצלת-אנרגיה לחיילי TRON — עמלות-0 לפעולות הצי על TRON לצמיתות"
+    blocker: "המנוע פועל (חוזה תשיעי, מחירי DEX אמיתיים, רווח→קופת-עבודה); מסחר אמיתי דורש מפתחות + החלטת סיכון",
+    impact: "הוכחת-מנוע מלאה: סולם 1.2% · שוליים 40bps · רווח מונוטוני · גלגל-תמרים ל-TRON-energize כשהמפתחות יחזרו (ראה energize-TRON בעקבות עצה #1)"
   },
   {
     rank: 5,
-    title: "מיצוב DEX — מקור-מחירים חי (קיים) → מסחר (גייט)",
+    title: "DEX — מעומק למסחר (v20 עומק חי)",
     owner: "סוכן",
-    blocker: "מחירי Uniswap/PancakeSwap חיים כבר עכשיו (read-only); מסחר דורש מפתחות + החלטת סיכון",
-    impact: "זרוע ההכנסה: מטריצת-זוגות חיה (WETH/USDC, WBNB/USDT…) — השלב הבא: arbitrage-path עם ה-mesh כמבצע"
+    blocker: "עומק חי בפועל: UniV2+V3 (ETH) · Pancake+Sushi (BSC) · ספרדים · החלקה; הביצוע (broadcast) דורש מפתחות + החלטת סיכון",
+    impact: "הזרוע הכספית: ספרד-ונצוּאות נמדד (0.173% WBNB נמדד) מזין את המיקרו-גריד — כשיהיו מפתחות, ה-mesh מבצע ארביטראז' אמיתי"
   },
   {
     rank: 6,
@@ -221,6 +222,7 @@ export interface Network360 {
   };
   vault: Awaited<ReturnType<typeof sealAvailability>>;
   dex: { ok: boolean; pairs: Array<{ pair: string; net: string; price: string | null }>; measuredAt: string | null };
+  microgrid: { ok: boolean; grids: number; realized: string; swept: string; fills: number };
   criticalSteps: CriticalStep[];
   githubLive: boolean;
 }
@@ -238,14 +240,18 @@ function ago(iso: string | null): string | null {
 
 async function measure(): Promise<Network360> {
   const measuredAt = new Date().toISOString();
-  const [repos, steemChain, workStats, ledger, vault, dex, meshState, enlistRow] = await Promise.all([
+  // v20 fix — the destructure was off-by-one since v19: the enlist row landed
+  // in `meshState` (unused) and `enlistRow` was always undefined, so the
+  // mainnet enlist achievement silently never displayed. Names now aligned.
+  const [repos, steemChain, workStats, ledger, vault, dex, enlistRow, micro] = await Promise.all([
     liveRepos(),
     probeSteemWeaveHistory(),
     realWorkStats(),
     saosLedger().catch(() => null),
     sealAvailability(),
     probeDexPairs().catch(() => null),
-    db.anchorTx.findFirst({ where: { kind: "enlist", network: "ETHEREUM", status: "anchored" }, orderBy: { createdAt: "desc" } }).catch(() => null)
+    db.anchorTx.findFirst({ where: { kind: "enlist", network: "ETHEREUM", status: "anchored" }, orderBy: { createdAt: "desc" } }).catch(() => null),
+    microgridStatus().catch(() => null)
   ]);
 
   // flow total from row meta (amountTrx) — aggregate can't sum JSON meta
@@ -290,12 +296,19 @@ async function measure(): Promise<Network360> {
         supply: ledger ? String(ledger.supply ?? "—") : "—",
         agents: ledger ? (ledger.balances?.length ?? 0) : 0
       },
-      mesh: { contracts: 8, runs: meshRuns },
+      mesh: { contracts: 9, runs: meshRuns },
       enlist: enlistRow?.txid ? { txid: enlistRow.txid, confirmed: true } : null,
       flowTrx: Number(flowTrx.toFixed(6))
     },
     vault,
     dex: dexValue,
+    microgrid: {
+      ok: micro?.ok ?? false,
+      grids: micro?.totals.grids ?? 0,
+      realized: micro?.totals.realizedPnl ?? "0",
+      swept: micro?.totals.sweptPnl ?? "0",
+      fills: micro?.totals.fillSeq ?? 0
+    },
     criticalSteps: CRITICAL_STEPS,
     githubLive: repos.size > 0
   };

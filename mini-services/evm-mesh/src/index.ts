@@ -3,13 +3,17 @@
  *
  * Responsibilities:
  *   1. run anvil (the sovereign laboratory chain) on :8545, chainId 31337
- *   2. deploy the 8-contract CONTRACT MESH + wire the chain
- *   3. AUTO-RUNNER v18: every 120s the HQ posts a REAL work order THROUGH
+ *   2. deploy the 9-contract CONTRACT MESH + wire the chain
+ *   3. AUTO-RUNNER v20: every 120s the HQ posts a REAL work order THROUGH
  *      the platform's solution engine (POST /api/saos/mesh/work realWork:
  *      LLM generates the actual deliverable, sha256 digest anchored on the
  *      SAOS-WORK rail, hash-chained receipt) — soldiers deliver on-chain,
  *      the payroll pays. Honest fallback: if the web tier is unreachable,
  *      the order is posted dry (on-chain, no LLM content).
+ *      v20 MICROGRID: before the dispatch the HQ posts fresh REAL DEX
+ *      prices to the SAOSMicrogrid oracle (WETH/USDC, WBNB/USDT); the
+ *      run itself ticks the grids (mesh link #6 — one transaction); after
+ *      the run the accrued profit is swept to the work-board payroll.
  *   4. WATCHDOG: respawn anvil + redeploy if the chain dies
  *   5. ARTIFACT WATCHER: redeploy when the canonical SAOSMesh.json changes
  *
@@ -26,6 +30,7 @@ import {
   readState,
   fetchLiveAnchors,
   fetchFleetAgents,
+  fetchJson,
   MESH_RPC,
   MESH_CHAIN_ID,
   STATE_PATH
@@ -181,6 +186,7 @@ async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
   ledger: ethers.Contract;
   bridge: ethers.Contract;
   workboard: ethers.Contract;
+  microgrid: ethers.Contract;
 } | null> {
   const state = readState();
   if (!state?.ok) return null;
@@ -198,8 +204,9 @@ async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
   const ledger = mk("SAOSLedger", true);
   const bridge = mk("SAOSBridge", true);
   const workboard = mk("SAOSWorkBoard", true);
-  if (!hub || !identity || !ledger || !bridge || !workboard) return null;
-  return { hub, identity, ledger, bridge, workboard };
+  const microgrid = mk("SAOSMicrogrid", true);
+  if (!hub || !identity || !ledger || !bridge || !workboard || !microgrid) return null;
+  return { hub, identity, ledger, bridge, workboard, microgrid };
 }
 
 async function autoCycle(): Promise<void> {
@@ -240,12 +247,46 @@ async function autoCycle(): Promise<void> {
       }
     }
 
-    // 4. a real mesh run — rotating initiators deliver the work + auto-enlist
+    // 3.5 v20 — MICROGRID ORACLE: fresh REAL DEX prices (the web tier's
+    //      60s-cached read-only probe) posted BEFORE the dispatch, so the
+    //      run itself ticks the grids with live market data (link #6).
+    try {
+      const dex = await fetchJson("http://127.0.0.1:3000/api/saos/dex");
+      const pairs = (dex?.pairs ?? []) as Array<{ pair?: string; price?: string | null; exists?: boolean }>;
+      for (const pair of ["WETH/USDC", "WBNB/USDT"]) {
+        const p = pairs.find((x) => x.pair === pair && x.exists && x.price);
+        const num = p?.price ? Number(p.price) : NaN;
+        if (Number.isFinite(num) && num > 0) {
+          const tx = await c.microgrid.postPrice(pair, BigInt(Math.round(num * 1e6)));
+          await tx.wait();
+        }
+      }
+    } catch {
+      /* oracle best-effort — grids tick on the last posted price (honest) */
+    }
+
+    // 4. a real mesh run — rotating initiators deliver the work + auto-enlist.
+    //    v20: the run passes through SAOSMicrogrid (link #6) — every dispatch
+    //    ticks the grids on-chain with the prices just posted.
     const initiator = await provider.getSigner(1 + (runTick % 5));
     const intent = INTENTS[runTick % INTENTS.length] as string;
     const tx = await c.hub.connect(initiator).dispatch(intent);
     const rc = await tx.wait();
     console.log(`[evm-mesh] auto run #${runTick} "${intent}" gas=${rc?.gasUsed ?? "?"}`);
+
+    // 4.5 v20 — MICROGRID FLYWHEEL: sweep accrued profit → work-board
+    //      payroll (zero-fee rail). Honest: capped by the real balance.
+    try {
+      const realizedBefore = await c.microgrid.totalRealized();
+      const sweptTx = await c.microgrid.sweepAllToPayroll();
+      await sweptTx.wait();
+      const realized = Number(ethers.formatEther(realizedBefore));
+      if (realized > 0) {
+        console.log(`[evm-mesh] microgrid realized so far: ${realized.toFixed(4)} SAOS-M (swept → payroll)`);
+      }
+    } catch {
+      /* sweep best-effort — no grids / no balance yet (honest) */
+    }
 
     // 5. every 3rd cycle: a zero-fee value movement (ללא עמלה — forever 0)
     if (runTick % 3 === 2) {
@@ -365,7 +406,7 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v18: HQ posts REAL WORK every 120s (LLM deliverable + SAOS-WORK anchor) · zero-fee transfer every 3rd cycle");
+  console.log("[evm-mesh] auto-runner v20: HQ posts REAL WORK every 120s (LLM + anchor) · microgrid oracle + tick + sweep each cycle · zero-fee transfer every 3rd cycle");
 }
 
 void main().catch((e) => {

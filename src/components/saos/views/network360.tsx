@@ -49,6 +49,7 @@ interface N360 {
   };
   vault: { present: boolean; state: string; note: string };
   dex: { ok: boolean; pairs: Array<{ pair: string; net: string; price: string | null }>; measuredAt: string | null };
+  microgrid: { ok: boolean; grids: number; realized: string; swept: string; fills: number };
   criticalSteps: Array<{ rank: number; title: string; owner: string; blocker: string; impact: string }>;
   githubLive: boolean;
   error?: string;
@@ -223,8 +224,8 @@ export function Network360View() {
         <Panel>
           <PanelHeader
             icon={<TrendingUp size={16} />}
-            title="DEX חי + מיקרו-גריד אנרגיה"
-            desc="שתי זרועות-ההכנסה של הרשת — מחירים אמיתיים עכשיו, ביצוע עם מפתחות חדשים"
+            title="DEX חי + מיקרו-גריד (GRID-98 על השרשרת)"
+            desc="זרועות-ההכנסה של הרשת — מחירים אמיתיים נמדדים + מנוע הגריד החי (החוזה התשיעי)"
           />
           <PanelBody className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
@@ -243,13 +244,19 @@ export function Network360View() {
                 <p className="text-[11px] text-zinc-500 col-span-2">מדידת ה-DEX נכשלה כרגע (RPC) — כישלון = נתון.</p>
               )}
             </div>
+            <Callout tone={live?.microgrid.ok ? "green" : "zinc"} icon={<CircleDot size={14} />}>
+              <strong>מיקרו-גריד חי (v20):</strong> {live?.microgrid.grids ?? 0} גרידים על השרשרת · מחירי-DEX אמיתיים כאורקל ·
+              {" "}<span dir="ltr" className="font-mono">{Number(live?.microgrid.realized ?? 0).toFixed(4)}</span> SAOS-M רווח מצטבר ·
+              {" "}<span dir="ltr" className="font-mono">{Number(live?.microgrid.swept ?? 0).toFixed(4)}</span> נשטף לקופת-העבודה · מסירות-מילוי {live?.microgrid.fills ?? 0}.
+              {" "}אותו בייטקוד נפרס על BSC עם מימון בעלים → מסחר אמיתי.
+            </Callout>
             <Callout tone="gold" icon={<AlertTriangle size={14} />}>
               <strong>מיקרו-גריד האנרגיה (TRON):</strong> 18.7 TRX באוצר מספיקים להאצלת-אנרגיה (freeze→delegate) לחיילי
-              TRON — עמלות-אפס קבועות לפעולות הצי. נעול על מפתחות חדשים מהבעלים (צעד קריטי #4).
+              TRON — עמלות-אפס קבועות לפעולות הצי. נעול על מפתחות חדשים מהבעלים (צעד קריטי #1).
             </Callout>
             <Callout tone="zinc" icon={<ShieldAlert size={14} />}>
-              <strong>גבול-האמת:</strong> ה-DEX כרגע מקור-מחירים בלבד (read-only) — אפס מסחר אמיתי עד מפתחות + החלטת
-              סיכון מתועדת. המרווחים המוצגים אינם הבטחת רווח.
+              <strong>גבול-האמת:</strong> מחירי-השוק אמיתיים (read-only); הכסף SAOS-M מעבדה בלבד — אפס מסחר אמיתי עד
+              מפתחות + החלטת סיכון מתועדת. המרווחים המוצגים אינם הבטחת רווח.
             </Callout>
           </PanelBody>
         </Panel>

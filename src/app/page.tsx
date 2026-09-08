@@ -25,6 +25,7 @@ import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
+import { MicrogridView } from "@/components/saos/views/microgrid";
 import { ViewEconomy } from "@/components/saos/views/economy";
 import { ViewResearch } from "@/components/saos/views/research";
 
@@ -41,6 +42,7 @@ const TITLES: Record<ViewId, string> = {
   "sovereign-key": "המפתח הריבוני",
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
+  microgrid: "מיקרו-גריד",
   economy: "כלכלה",
   research: "מחקר ומפת-דרך"
 };
@@ -83,6 +85,7 @@ export default function Home() {
         {view === "sovereign-key" && <ViewSovereignKey />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}
+        {view === "microgrid" && <MicrogridView />}
         {view === "economy" && <ViewEconomy />}
         {view === "research" && <ViewResearch />}
       </AppShell>

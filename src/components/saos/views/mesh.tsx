@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * SAOS v17 — רשת החוזים (CONTRACT MESH): שמונה חוזים משורשרים על SAOS-EVM,
+ * SAOS v20 — רשת החוזים (CONTRACT MESH): תשעה חוזים משורשרים על SAOS-EVM,
  * שרשרת המעבדה הריבונית (anvil, chainId 31337).
  * "פרוס את כל החוזים… חוזה שמדבר לחוזה שמדבר לחוזה.. פתרונות. ערך יעילות"
  *
- * הזרימה (עסקה אחת, שמונה חוזים, כל חץ קריאה אמיתית בין חוזים):
+ * הזרימה (עסקה אחת, תשעה חוזים, כל חץ קריאה אמיתית בין חוזים):
  *   Hub.dispatch → Relay.start → Identity → Ledger (mint, fee=0) →
  *   Solutions → Bridge (8 rails) → WorkBoard (פקודות עבודה + שכר) →
  *   Relay → Hub.complete → ValueEngine
@@ -32,6 +32,7 @@ const CHAIN_FLOW: Array<{ name: string; label: string; icon: ReactNode }> = [
   { name: "SAOSSolutions", label: "SOLUTIONS", icon: <Lightbulb size={14} /> },
   { name: "SAOSBridge", label: "BRIDGE", icon: <Globe2 size={14} /> },
   { name: "SAOSWorkBoard", label: "WORK", icon: <HardHat size={14} /> },
+  { name: "SAOSMicrogrid", label: "GRID", icon: <Zap size={14} /> },
   { name: "SAOSValueEngine", label: "VALUE", icon: <Gauge size={14} /> }
 ];
 
@@ -59,6 +60,8 @@ function nodeMetric(name: string, s: MeshStatusData["stats"]): string {
       return `${s.rails} מסילות`;
     case "SAOSWorkBoard":
       return `${s.ordersDelivered}/${s.orders} פקודות`;
+    case "SAOSMicrogrid":
+      return s.microGrids > 0 ? `${s.microGrids} גרידים · ${Number(s.microRealized).toFixed(3)}` : "GRID-98";
     case "SAOSValueEngine":
       return `ניקוד ${s.avgScore}`;
     default:
@@ -112,7 +115,7 @@ export function ViewMesh() {
       const out = res.ok ? res.data : null; // postJson wraps: { ok, data, error }
       if (out && out.ok && out.run) {
         toast.push({
-          title: `ריצת רשת #${out.run.id} הושלמה בשמונה חוזים`,
+          title: `ריצת רשת #${out.run.id} הושלמה בתשעה חוזים`,
           desc: `${fmtInt(out.run.gasUsed ?? 0)} גז · ניקוד ${out.run.score} · +${out.run.rewardAmount} SAOS-M ללא עמלה · ${out.anchorsStamped} עוגנים חיים`,
           tone: "green"
         });
@@ -140,7 +143,7 @@ export function ViewMesh() {
     <div className="space-y-5 animate-view">
       <PageHead
         title="רשת החוזים — CONTRACT MESH"
-        sub="שמונה חוזים משורשרים על SAOS-EVM, שרשרת המעבדה הריבונית: עסקה אחת עוברת Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → ValueEngine — כל חץ הוא קריאה אמיתית בין חוזה לחוזה. ערך פנימי ללא עמלה, mint קטן לכל ריצה, פקודות עבודה שנמסרות בשרשרת ושכר שזורם לחיילים."
+        sub="תשעה חוזים משורשרים על SAOS-EVM, שרשרת המעבדה הריבונית: עסקה אחת עוברת Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Microgrid → ValueEngine — כל חץ הוא קריאה אמיתית בין חוזה לחוזה. ערך פנימי ללא עמלה, mint קטן לכל ריצה, פקודות עבודה שנמסרות בשרשרת ושכר שזורם לחיילים."
         actions={
           <>
             <Pill tone={live ? "green" : "rose"} pulse={live}>
@@ -205,7 +208,7 @@ export function ViewMesh() {
         <PanelHeader
           title="מפת השרשרת — חוזה מדבר לחוזה"
           icon={<Waypoints size={15} />}
-          actions={<Tag tone="gold">עסקה אחת · 8 חוזים · עיגול סגור</Tag>}
+          actions={<Tag tone="gold">עסקה אחת · 9 חוזים · עיגול סגור</Tag>}
         />
         <PanelBody className="space-y-4">
           <div dir="ltr" className="flex items-stretch gap-2 overflow-x-auto scroll-slim pb-2">

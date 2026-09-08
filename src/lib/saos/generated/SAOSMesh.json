@@ -1,6 +1,6 @@
 {
   "name": "SAOSMesh",
-  "version": "saos-mesh/v2",
+  "version": "saos-mesh/v3",
   "compiler": "solc ^0.8.24 (optimizer 200, cancun)",
   "chain": "SAOS-EVM (sovereign laboratory chain, chainId 31337) — same EVM bytecode deploys on ETHEREUM + BSC",
   "linkOrder": [
@@ -8,7 +8,8 @@
     "SAOSLedger",
     "SAOSSolutions",
     "SAOSBridge",
-    "SAOSWorkBoard"
+    "SAOSWorkBoard",
+    "SAOSMicrogrid"
   ],
   "contracts": [
     {
@@ -1869,6 +1870,764 @@
       ],
       "bytecode": "0x6080604052348015600e575f5ffd5b505f80546001600160a01b031916331790556111fd8061002d5f395ff3fe608060405234801561000f575f5ffd5b50600436106100b1575f3560e01c80637cbf66d71161006e5780637cbf66d71461013b5780638da5cb5b1461015b57806390e3677f1461016d578063b59589d114610182578063cf57dddb14610195578063f9322ebe1461019e575f5ffd5b80632453ffa8146100b55780633ffc7f4e146100cc57806356397c35146100df5780635a632c281461010a578063761cdca9146101135780637bfeb7731461011b575b5f5ffd5b6003545b6040519081526020015b60405180910390f35b6100b96100da366004610bf5565b6101dc565b6002546100f2906001600160a01b031681565b6040516001600160a01b0390911681526020016100c3565b6100b960075481565b6005546100b9565b61012e610129366004610c41565b6103dd565b6040516100c39190610cba565b61014e610149366004610d67565b610563565b6040516100c39190610dae565b5f546100f2906001600160a01b031681565b61018061017b366004610dde565b6108a1565b005b6001546100f2906001600160a01b031681565b6100b960065481565b6101b16101ac366004610c41565b6108f9565b6040805182516001600160a01b031681526020808401519082015291810151908201526060016100c3565b5f80546001600160a01b03163314610207576040516330cd747160e01b815260040160405180910390fd5b604080516101406020601f88018190040282018101909252610120810186815260039282919089908990819085018382808284375f920182905250938552505050602080830188905260408301879052606083018290526080830182905260a08301829052426001600160401b031660c084015260e0830182905261010090920181905283546001810185559381522081519192600602019081906102ac9082610eb7565b5060208201518160010155604082015181600201556060820151816003015f6101000a81548160ff021916908360018111156102ea576102ea610c86565b02179055506080820151600380830180546001600160a01b03909316610100908102610100600160a81b031990941693909317905560a0840151600484015560c08401516005909301805460e086015193909501511515600160801b0260ff60801b196001600160401b03948516600160401b026fffffffffffffffffffffffffffffffff1990971694909516939093179490941792909216179091555461039490600190610f89565b9050807f994eb1e953ea4f5c68f922bc77b6872e71524c3d564458d51a7ad722b3170add868686866040516103cc9493929190610fca565b60405180910390a25b949350505050565b6103e5610b58565b600354821061040757604051637ac6e5e760e11b815260040160405180910390fd5b6003828154811061041a5761041a610ff0565b905f5260205f209060060201604051806101200160405290815f8201805461044190610e29565b80601f016020809104026020016040519081016040528092919081815260200182805461046d90610e29565b80156104b85780601f1061048f576101008083540402835291602001916104b8565b820191905f5260205f20905b81548152906001019060200180831161049b57829003601f168201915b5050509183525050600182810154602083015260028301546040830152600383015460609092019160ff16908111156104f3576104f3610c86565b600181111561050457610504610c86565b8152600382015461010090046001600160a01b03166020820152600482015460408201526005909101546001600160401b038082166060840152600160401b8204166080830152600160801b900460ff16151560a09091015292915050565b6001546060906001600160a01b031633146105915760405163361d224d60e21b815260040160405180910390fd5b5f61059e83850185611004565b5090505f6105aa6109a0565b90505f198114610800575f600382815481106105c8576105c8610ff0565b5f9182526020822060069182020160038101805460016001600160a81b03199091166101006001600160a01b038a1602178117909155600482018b90556005820180546fffffffffffffffff00000000000000001916600160401b426001600160401b031602179055825491945092906106439084906110c7565b90915550506002545f906001600160a01b0316158015906106d1575060028281015490546040516370a0823160e01b81523060048201526001600160a01b03909116906370a0823190602401602060405180830381865afa1580156106aa573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906106ce91906110da565b10155b80156106e057505f8260020154115b1561077e57600280549083015460405163a9059cbb60e01b81526001600160a01b038781166004830152602482019290925291169063a9059cbb906044016020604051808303815f875af115801561073a573d5f5f3e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061075e91906110f1565b5060019050816002015460075f82825461077891906110c7565b90915550505b60058201805460ff60801b1916600160801b831515021790556107b084826107a6575f610a02565b8360020154610a02565b836001600160a01b031688847f526306940e680c4e65b6f4df83277c231ae6470165b082a04513c19767a954b5855f018660020154866040516107f593929190611110565b60405180910390a450505b6001546040516338be807560e11b81526001600160a01b039091169063717d00ea90610834908990899089906004016111a5565b5f604051808303815f87803b15801561084b575f5ffd5b505af115801561085d573d5f5f3e3d5ffd5b5050505084848080601f0160208091040260200160405190810160405280939291908181526020018383808284375f92019190915250929998505050505050505050565b5f546001600160a01b031633146108cb576040516330cd747160e01b815260040160405180910390fd5b600180546001600160a01b039384166001600160a01b03199182161790915560028054929093169116179055565b61092360405180606001604052805f6001600160a01b031681526020015f81526020015f81525090565b600554821061094557604051637ac6e5e760e11b815260040160405180910390fd5b6005828154811061095857610958610ff0565b5f91825260209182902060408051606081018252600390930290910180546001600160a01b031683526001810154938301939093526002909201549181019190915292915050565b5f805b6003548110156109fa575f600382815481106109c1576109c1610ff0565b5f91825260209091206003600690920201015460ff1660018111156109e8576109e8610c86565b036109f257919050565b6001016109a3565b505f19905090565b6001600160a01b0382165f9081526004602052604081205490819003610af25750604080516060810182526001600160a01b03938416808252600160208084018281528486019687526005805493840181555f81815295517f036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0600390950294850180546001600160a01b03191691909a1617909855517f036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db183015594517f036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db29091015593549381526004909252902055565b5f6005610b00600184610f89565b81548110610b1057610b10610ff0565b905f5260205f20906003020190506001816001015f828254610b3291906110c7565b9250508190555082816002015f828254610b4c91906110c7565b9091555050505b505050565b604051806101200160405280606081526020015f81526020015f81526020015f6001811115610b8957610b89610c86565b81525f6020820181905260408201819052606082018190526080820181905260a09091015290565b5f5f83601f840112610bc1575f5ffd5b5081356001600160401b03811115610bd7575f5ffd5b602083019150836020828501011115610bee575f5ffd5b9250929050565b5f5f5f5f60608587031215610c08575f5ffd5b84356001600160401b03811115610c1d575f5ffd5b610c2987828801610bb1565b90989097506020870135966040013595509350505050565b5f60208284031215610c51575f5ffd5b5035919050565b5f81518084528060208401602086015e5f602082860101526020601f19601f83011685010191505092915050565b634e487b7160e01b5f52602160045260245ffd5b60028110610cb657634e487b7160e01b5f52602160045260245ffd5b9052565b602081525f82516101206020840152610cd7610140840182610c58565b905060208401516040840152604084015160608401526060840151610cff6080850182610c9a565b5060808401516001600160a01b03811660a08501525060a084015160c084015260c0840151610d3960e08501826001600160401b03169052565b5060e08401516001600160401b03811661010085015250610100840151801515610120850152509392505050565b5f5f5f60408486031215610d79575f5ffd5b8335925060208401356001600160401b03811115610d95575f5ffd5b610da186828701610bb1565b9497909650939450505050565b602081525f610dc06020830184610c58565b9392505050565b6001600160a01b0381168114610ddb575f5ffd5b50565b5f5f60408385031215610def575f5ffd5b8235610dfa81610dc7565b91506020830135610e0a81610dc7565b809150509250929050565b634e487b7160e01b5f52604160045260245ffd5b600181811c90821680610e3d57607f821691505b602082108103610e5b57634e487b7160e01b5f52602260045260245ffd5b50919050565b601f821115610b535782821115610b5357805f5260205f20601f840160051c6020851015610e8c57505f5b90810190601f840160051c035f5b81811015610eaf575f83820155600101610e9a565b505050505050565b81516001600160401b03811115610ed057610ed0610e15565b610ee481610ede8454610e29565b84610e61565b6020601f821160018114610f16575f8315610eff5750848201515b5f19600385901b1c1916600184901b178455610f6e565b5f84815260208120601f198516915b82811015610f455787850151825560209485019460019092019101610f25565b5084821015610f6257868401515f19600387901b60f8161c191681555b505060018360011b0184555b5050505050565b634e487b7160e01b5f52601160045260245ffd5b81810381811115610f9c57610f9c610f75565b92915050565b81835281816020850137505f828201602090810191909152601f909101601f19169091010190565b606081525f610fdd606083018688610fa2565b6020830194909452506040015292915050565b634e487b7160e01b5f52603260045260245ffd5b5f5f60408385031215611015575f5ffd5b823561102081610dc7565b915060208301356001600160401b0381111561103a575f5ffd5b8301601f8101851361104a575f5ffd5b80356001600160401b0381111561106357611063610e15565b604051601f8201601f19908116603f011681016001600160401b038111828210171561109157611091610e15565b6040528181528282016020018710156110a8575f5ffd5b816020840160208301375f602083830101528093505050509250929050565b80820180821115610f9c57610f9c610f75565b5f602082840312156110ea575f5ffd5b5051919050565b5f60208284031215611101575f5ffd5b81518015158114610dc0575f5ffd5b606081525f5f855461112181610e29565b806060860152600182165f811461113f576001811461115b5761118c565b60ff1983166080870152608082151560051b870101935061118c565b885f5260205f205f5b8381101561118357815488820160800152600190910190602001611164565b87016080019450505b50505060208301859052831515604084015290506103d5565b838152604060208201525f6111be604083018486610fa2565b9594505050505056fea264697066735822122031a0acc70824b2072ebaada27404f014f7d8e0980f824a513c9ab97b2f511e6f64736f6c63430008240033",
       "bytecodeBytes": 4650
+    },
+    {
+      "name": "SAOSMicrogrid",
+      "source": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport \"./MeshTypes.sol\";\n\n/// @title SAOS Microgrid — GRID-98 על השרשרת (mesh link #6, החוזה התשיעי).\n/// @notice הפורט האמיתי של מנוע-המיקרו-גריד ההיסטורי (grid98.cjs, SAOS-NET):\n///         סולם-סחר 1.2% לרמה · שער-שוליים 40bps · גודל-רמה 0.25 · רווח-אוצר\n///         מצטבר-מונוטונית · יומן-פר-מילוי. כאן הסולם עצמו חוזה: כל מילוי\n///         הוא אירוע-שרשרת בלתי-ניתן-לשינוי, וכל ריצת-mesh מתקתקת את כל\n///         הגרידים בתוך אותה עסקה אחת (חוזה ⇄ חוזה ⇄ חוזה).\n///\n///         האורקל: ה-HQ מפרסם מחירי DEX אמיתיים שנמדדו (Uniswap/Pancake,\n///         eth_call קריאה-בלבד — המקור ב-dex-live.ts). הגריד הולך במעלה\n///         המחיר → מוכר רמה (inventory-- , רווח) ; במורד → קונה בחזרה רמה\n///         (inventory++). סבב שלם = קנה-נמוך מכר-גבוה = LADDER_AMT × STEP.\n///\n///         גלגל-התמרים (flywheel): sweepToPayroll מעביר את הרווח שנצבר\n///         לקופת העבודה (SAOSWorkBoard) דרך מסילת-הערך ללא-העמלה —\n///         רווח המיקרו-גריד מממן REAL WORK לחיילים.\n///\n///         גבול-האמת: מחירי השוק אמיתיים (נמדדו) · הכסף SAOS-M פנימי\n///         (מטבע-מעבדה) · הרווח נשטף רק ככל שיכוסה ע\"י יתרת החוזה —\n///         אף ספרות לא מומצאות.\ncontract SAOSMicrogrid {\n    address public owner;\n    address public relay;\n    address public workboard; // payroll destination — the flywheel target\n    ILedgerRail public ledger;\n\n    // ── GRID-98 (historic parameters, grid98.cjs): 1.2% · 40bps · 0.25 ──\n    uint16 public constant STEP_BPS = 120;        // 1.2% ladder step (LADDER_STEP)\n    uint16 public constant EDGE_BPS = 40;         // 40bps minimum edge (TAKER_EDGE)\n    uint256 public constant LADDER_AMT = 0.25 ether; // per-level size in SAOS-M\n    uint16 public constant MAX_LEVELS = 64;\n    int16 public constant DRIFT_LIMIT = 48;       // ±48 levels → pause (re-anchor)\n    uint8 public constant MAX_CROSS_PER_TICK = 8; // gas guard — the rest carries over\n\n    struct Grid {\n        string pair;        // \"WETH/USDC\" — the REAL market being tracked\n        uint64 anchorE6;    // level-0 price (price × 1e6)\n        int16 cursor;       // current level index\n        uint16 inventory;   // levels currently held (seeded full)\n        uint16 levels;      // ladder depth\n        uint256 crossings;  // total fills (buy + sell)\n        uint256 realizedPnl;  // wei SAOS-M — monotonic, accrues on SELL fills\n        uint256 sweptPnl;     // realized already swept to the payroll\n        uint256 ticks;\n        uint64 lastTickAt;\n        bool live;\n    }\n    Grid[] private _grids;\n\n    // ── oracle: REAL measured DEX prices, posted by the HQ (read-only source) ──\n    mapping(string => uint64) public priceOf;       // pair → price × 1e6\n    mapping(string => uint64) public pricePostedAt; // pair → unix ts\n\n    uint256 public fillSeq;       // the on-chain journal sequence (immutable)\n    uint256 public totalRealized; // across all grids\n    uint256 public totalSwept;    // money actually moved to the payroll\n\n    event PricePosted(string pair, uint64 priceE6, uint64 at);\n    event GridCreated(uint256 indexed gridId, string pair, uint64 anchorE6, uint16 levels, uint16 inventory);\n    event GridFill(uint256 indexed gridId, int16 level, bool isSell, uint256 amount, uint256 profit, uint64 priceE6, uint256 seq);\n    event GridTicked(uint256 indexed gridId, uint64 priceE6, int16 cursor, uint256 crossings, uint256 realizedPnl);\n    event GridSwept(uint256 indexed gridId, uint256 amount, address to);\n    event GridPaused(uint256 indexed gridId, string reason);\n    event GridReanchored(uint256 indexed gridId, uint64 newAnchorE6, int16 cursor);\n\n    error NotOwner();\n    error NotRelay();\n    error PriceNotPosted();\n    error BadLevels();\n    error StepBelowEdge();\n    error GridNotLive();\n\n    constructor() { owner = msg.sender; }\n\n    function wire(address relayAddr, address ledgerAddr, address workboardAddr) external {\n        if (msg.sender != owner) revert NotOwner();\n        relay = relayAddr;\n        ledger = ILedgerRail(ledgerAddr);\n        workboard = workboardAddr;\n    }\n\n    // ── oracle (HQ only): post the REAL measured price of a live DEX pair ──\n    function postPrice(string calldata pair, uint64 priceE6) external {\n        if (msg.sender != owner) revert NotOwner();\n        if (priceE6 == 0) revert PriceNotPosted();\n        priceOf[pair] = priceE6;\n        pricePostedAt[pair] = uint64(block.timestamp);\n        emit PricePosted(pair, priceE6, uint64(block.timestamp));\n    }\n\n    function oracle(string calldata pair) external view returns (uint64 priceE6, uint64 at) {\n        return (priceOf[pair], pricePostedAt[pair]);\n    }\n\n    // ── grid lifecycle (HQ only) ─────────────────────────────────────────────\n\n    function createGrid(string calldata pair, uint16 levels) external returns (uint256 gridId) {\n        if (msg.sender != owner) revert NotOwner();\n        if (STEP_BPS < EDGE_BPS) revert StepBelowEdge(); // edge gate — by construction\n        if (levels == 0 || levels > MAX_LEVELS) revert BadLevels();\n        uint64 anchor = priceOf[pair];\n        if (anchor == 0) revert PriceNotPosted();\n        // seeded FULL: the whole ladder is inventory from the start — up-moves\n        // sell into profit immediately, down-moves restock (classic grid boot).\n        _grids.push(Grid(pair, anchor, 0, levels, levels, 0, 0, 0, 0, 0, true));\n        gridId = _grids.length - 1;\n        emit GridCreated(gridId, pair, anchor, levels, levels);\n        return gridId;\n    }\n\n    function reanchor(uint256 gridId) external {\n        if (msg.sender != owner) revert NotOwner();\n        Grid storage g = _grids[gridId];\n        uint64 price = priceOf[g.pair];\n        if (price == 0) revert PriceNotPosted();\n        g.anchorE6 = price;\n        g.cursor = 0;\n        g.live = true;\n        emit GridReanchored(gridId, price, 0);\n    }\n\n    // ── the engine ───────────────────────────────────────────────────────────\n\n    /// @dev level-k boundary price = anchor × (1 + step)^k (6-decimal fixed point).\n    function levelPriceE6(uint256 gridId, int16 k) external view returns (uint64) {\n        return _levelPriceE6(_grids[gridId].anchorE6, k);\n    }\n\n    function _levelPriceE6(uint64 anchorE6, int16 k) internal pure returns (uint64) {\n        uint256 p = anchorE6;\n        if (k >= 0) {\n            for (int16 i = 0; i < k; i++) p = p * (10000 + STEP_BPS) / 10000;\n        } else {\n            for (int16 i = k; i < 0; i++) p = p * 10000 / (10000 + STEP_BPS);\n        }\n        return uint64(p);\n    }\n\n    function _tickOne(uint256 gridId, Grid storage g) internal {\n        if (!g.live) return;\n        uint64 price = priceOf[g.pair];\n        if (price == 0) return; // honest skip — the oracle is silent for this pair\n        g.ticks += 1;\n        g.lastTickAt = uint64(block.timestamp);\n        uint8 moved = 0;\n\n        // up-crossing: price entered the band above → SELL one level there\n        while (moved < MAX_CROSS_PER_TICK && price >= _levelPriceE6(g.anchorE6, g.cursor + 1)) {\n            g.cursor += 1;\n            moved += 1;\n            g.crossings += 1;\n            uint256 profit = 0;\n            if (g.inventory > 0) {\n                g.inventory -= 1;\n                // round-trip captured: LADDER_AMT × step — edge-gated by\n                // construction (STEP_BPS ≥ EDGE_BPS, enforced at creation)\n                profit = LADDER_AMT * STEP_BPS / 10000;\n                g.realizedPnl += profit;\n                totalRealized += profit;\n            }\n            fillSeq += 1;\n            emit GridFill(gridId, g.cursor, true, LADDER_AMT, profit, price, fillSeq);\n        }\n\n        // down-crossing: the resting BUY at L(cursor-1) fills ONLY when the\n        // price REACHES that line (strict line-touch — classic grid; a hair\n        // below the band floor must NOT trigger a fill one level down)\n        while (moved < MAX_CROSS_PER_TICK && price <= _levelPriceE6(g.anchorE6, g.cursor - 1)) {\n            g.cursor -= 1; // the line that just filled\n            moved += 1;\n            g.crossings += 1;\n            if (g.inventory < g.levels) g.inventory += 1;\n            fillSeq += 1;\n            emit GridFill(gridId, g.cursor, false, LADDER_AMT, 0, price, fillSeq);\n        }\n\n        if (g.cursor > DRIFT_LIMIT || g.cursor < -DRIFT_LIMIT) {\n            g.live = false;\n            emit GridPaused(gridId, \"drift-limit: re-anchor required (honest)\");\n        }\n        emit GridTicked(gridId, price, g.cursor, g.crossings, g.realizedPnl);\n    }\n\n    /// @dev open to the chain: uses only posted prices — ticking is honest work.\n    function tick(uint256 gridId) external {\n        _tickOne(gridId, _grids[gridId]);\n    }\n\n    function tickAll() external {\n        for (uint256 i = 0; i < _grids.length; i++) _tickOne(i, _grids[i]);\n    }\n\n    // ── mesh link #6: every mesh run ticks the grids, then the chain goes on ──\n    function process(uint256 runId, bytes calldata context) external returns (bytes memory) {\n        if (msg.sender != relay) revert NotRelay();\n        for (uint256 i = 0; i < _grids.length; i++) _tickOne(i, _grids[i]);\n        IRelayPass(relay).pass(runId, context);\n        return context;\n    }\n\n    // ── the flywheel: sweep accrued profit → the work board payroll ──────────\n    function _sweep(uint256 gridId) internal returns (uint256) {\n        Grid storage g = _grids[gridId];\n        uint256 unswept = g.realizedPnl - g.sweptPnl;\n        uint256 bal = ledger.balanceOf(address(this));\n        uint256 amount = unswept > bal ? bal : unswept; // honest: capped by the real balance\n        if (amount > 0 && workboard != address(0)) {\n            ledger.transfer(workboard, amount);\n            g.sweptPnl += amount;\n            totalSwept += amount;\n            emit GridSwept(gridId, amount, workboard);\n            return amount;\n        }\n        return 0;\n    }\n\n    function sweepToPayroll(uint256 gridId) external returns (uint256) {\n        if (msg.sender != owner) revert NotOwner();\n        return _sweep(gridId);\n    }\n\n    function sweepAllToPayroll() external returns (uint256 total) {\n        if (msg.sender != owner) revert NotOwner();\n        for (uint256 i = 0; i < _grids.length; i++) {\n            total += _sweep(i);\n        }\n        return total;\n    }\n\n    // ── views ────────────────────────────────────────────────────────────────\n    function gridCount() external view returns (uint256) { return _grids.length; }\n\n    function gridAt(uint256 i) external view returns (Grid memory) { return _grids[i]; }\n}\n\n/// @dev the zero-fee value rail the microgrid sweeps through (SAOSLedger).\ninterface ILedgerRail {\n    function balanceOf(address who) external view returns (uint256);\n    function transfer(address to, uint256 amount) external returns (bool);\n}\n",
+      "abi": [
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "inputs": [],
+          "name": "BadLevels",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "GridNotLive",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotOwner",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotRelay",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "PriceNotPosted",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "StepBelowEdge",
+          "type": "error"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "pair",
+              "type": "string"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "anchorE6",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint16",
+              "name": "levels",
+              "type": "uint16"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint16",
+              "name": "inventory",
+              "type": "uint16"
+            }
+          ],
+          "name": "GridCreated",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "int16",
+              "name": "level",
+              "type": "int16"
+            },
+            {
+              "indexed": false,
+              "internalType": "bool",
+              "name": "isSell",
+              "type": "bool"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "profit",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "priceE6",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "seq",
+              "type": "uint256"
+            }
+          ],
+          "name": "GridFill",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "reason",
+              "type": "string"
+            }
+          ],
+          "name": "GridPaused",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "newAnchorE6",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "int16",
+              "name": "cursor",
+              "type": "int16"
+            }
+          ],
+          "name": "GridReanchored",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "to",
+              "type": "address"
+            }
+          ],
+          "name": "GridSwept",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "priceE6",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "int16",
+              "name": "cursor",
+              "type": "int16"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "crossings",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "realizedPnl",
+              "type": "uint256"
+            }
+          ],
+          "name": "GridTicked",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "pair",
+              "type": "string"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "priceE6",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "at",
+              "type": "uint64"
+            }
+          ],
+          "name": "PricePosted",
+          "type": "event"
+        },
+        {
+          "inputs": [],
+          "name": "DRIFT_LIMIT",
+          "outputs": [
+            {
+              "internalType": "int16",
+              "name": "",
+              "type": "int16"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "EDGE_BPS",
+          "outputs": [
+            {
+              "internalType": "uint16",
+              "name": "",
+              "type": "uint16"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "LADDER_AMT",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_CROSS_PER_TICK",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_LEVELS",
+          "outputs": [
+            {
+              "internalType": "uint16",
+              "name": "",
+              "type": "uint16"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "STEP_BPS",
+          "outputs": [
+            {
+              "internalType": "uint16",
+              "name": "",
+              "type": "uint16"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "string",
+              "name": "pair",
+              "type": "string"
+            },
+            {
+              "internalType": "uint16",
+              "name": "levels",
+              "type": "uint16"
+            }
+          ],
+          "name": "createGrid",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "fillSeq",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "i",
+              "type": "uint256"
+            }
+          ],
+          "name": "gridAt",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "pair",
+                  "type": "string"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "anchorE6",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "int16",
+                  "name": "cursor",
+                  "type": "int16"
+                },
+                {
+                  "internalType": "uint16",
+                  "name": "inventory",
+                  "type": "uint16"
+                },
+                {
+                  "internalType": "uint16",
+                  "name": "levels",
+                  "type": "uint16"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "crossings",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "realizedPnl",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "sweptPnl",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "ticks",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "lastTickAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "live",
+                  "type": "bool"
+                }
+              ],
+              "internalType": "struct SAOSMicrogrid.Grid",
+              "name": "",
+              "type": "tuple"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "gridCount",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ledger",
+          "outputs": [
+            {
+              "internalType": "contract ILedgerRail",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "int16",
+              "name": "k",
+              "type": "int16"
+            }
+          ],
+          "name": "levelPriceE6",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "string",
+              "name": "pair",
+              "type": "string"
+            }
+          ],
+          "name": "oracle",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "priceE6",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "at",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "owner",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "string",
+              "name": "pair",
+              "type": "string"
+            },
+            {
+              "internalType": "uint64",
+              "name": "priceE6",
+              "type": "uint64"
+            }
+          ],
+          "name": "postPrice",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "string",
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "name": "priceOf",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "string",
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "name": "pricePostedAt",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "runId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "context",
+              "type": "bytes"
+            }
+          ],
+          "name": "process",
+          "outputs": [
+            {
+              "internalType": "bytes",
+              "name": "",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            }
+          ],
+          "name": "reanchor",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "relay",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "sweepAllToPayroll",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "total",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            }
+          ],
+          "name": "sweepToPayroll",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "gridId",
+              "type": "uint256"
+            }
+          ],
+          "name": "tick",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "tickAll",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "totalRealized",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "totalSwept",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "relayAddr",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "ledgerAddr",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "workboardAddr",
+              "type": "address"
+            }
+          ],
+          "name": "wire",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "workboard",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ],
+      "bytecode": "0x6080604052348015600e575f5ffd5b505f80546001600160a01b03191633179055611d988061002d5f395ff3fe608060405234801561000f575f5ffd5b50600436106101bb575f3560e01c80639abcc5db116100f3578063c46f226e11610093578063f193abc11161006e578063f193abc1146103d7578063f5c063bf146103ea578063f88e707b1461040a578063fc7b6aee1461043e575f5ffd5b8063c46f226e146103b3578063c6ae90a4146103bb578063caf9f085146103ce575f5ffd5b8063a325d621116100ce578063a325d6211461032e578063aa3952d814610341578063ab9a78df14610354578063b59589d1146103a0575f5ffd5b80639abcc5db146102eb5780639d5f7df9146102f3578063a24a4d3214610326575f5ffd5b80635c67d4581161015e5780636702c7bf116101395780636702c7bf146102a95780637b5207b0146102b15780637cbf66d7146102b95780638da5cb5b146102d9575f5ffd5b80635c67d4581461026157806362357cb31461027c57806364076cc11461028f575f5ffd5b8063243389bc11610199578063243389bc146102115780632dd199a91461021a578063347058af1461024557806356397c351461024e575f5ffd5b80630431ea10146101bf57806310229e1d146101e15780631a4b6b48146101fc575b5f5ffd5b6101ce6703782dace9d9000081565b6040519081526020015b60405180910390f35b6101e9602881565b60405161ffff90911681526020016101d8565b61020f61020a3660046115a7565b610451565b005b6101ce60095481565b60025461022d906001600160a01b031681565b6040516001600160a01b0390911681526020016101d8565b6101ce60085481565b60035461022d906001600160a01b031681565b610269603081565b60405160019190910b81526020016101d8565b6101ce61028a3660046115e7565b6104ba565b610297600881565b60405160ff90911681526020016101d8565b6101e9604081565b6004546101ce565b6102cc6102c736600461163b565b6104f4565b6040516101d891906116b0565b5f5461022d906001600160a01b031681565b61020f6105fe565b6103066103013660046116c2565b61062c565b604080516001600160401b039384168152929091166020830152016101d8565b6101ce610690565b61020f61033c3660046115e7565b6106e8565b6101ce61034f366004611700565b6107fa565b61038861036236600461176c565b80516020818301810180516005825292820191909301209152546001600160401b031681565b6040516001600160401b0390911681526020016101d8565b60015461022d906001600160a01b031681565b6101e9607881565b61020f6103c936600461181c565b610a97565b6101ce60075481565b6103886103e536600461186e565b610bb2565b6103fd6103f83660046115e7565b610bf2565b6040516101d891906118a2565b61038861041836600461176c565b80516020818301810180516006825292820191909301209152546001600160401b031681565b61020f61044c3660046115e7565b610d98565b5f546001600160a01b0316331461047b576040516330cd747160e01b815260040160405180910390fd5b600180546001600160a01b039485166001600160a01b031991821617909155600380549385169382169390931790925560028054919093169116179055565b5f80546001600160a01b031633146104e5576040516330cd747160e01b815260040160405180910390fd5b6104ee82610daf565b92915050565b6001546060906001600160a01b031633146105225760405163361d224d60e21b815260040160405180910390fd5b5f5b60045481101561055e5761055681600483815481106105455761054561196d565b905f5260205f209060070201610f8a565b600101610524565b506001546040516338be807560e11b81526001600160a01b039091169063717d00ea90610593908790879087906004016119a9565b5f604051808303815f87803b1580156105aa575f5ffd5b505af11580156105bc573d5f5f3e3d5ffd5b5050505082828080601f0160208091040260200160405190810160405280939291908181526020018383808284375f9201919091525092979650505050505050565b5f5b6004548110156106295761062181600483815481106105455761054561196d565b600101610600565b50565b5f5f600584846040516106409291906119cb565b908152604051908190036020018120546001600160401b03169060069061066a90879087906119cb565b908152604051908190036020019020549092506001600160401b031690505b9250929050565b5f80546001600160a01b031633146106bb576040516330cd747160e01b815260040160405180910390fd5b5f5b6004548110156106e4576106d081610daf565b6106da90836119ee565b91506001016106bd565b5090565b5f546001600160a01b03163314610712576040516330cd747160e01b815260040160405180910390fd5b5f600482815481106107265761072661196d565b905f5260205f20906007020190505f6005825f016040516107479190611a39565b908152604051908190036020019020546001600160401b031690505f819003610783576040516335f9f3dd60e01b815260040160405180910390fd5b60018201805469ffffffffffffffffffff19166001600160401b03831690811790915560068301805460ff60401b1916600160401b179055604080519182525f602083015284917f507b4ca672525aaaf266c2d91f98931a6cafd865455aa6aca44e05895415834b910160405180910390a2505050565b5f80546001600160a01b03163314610825576040516330cd747160e01b815260040160405180910390fd5b61ffff8216158061083a5750604061ffff8316115b1561085857604051633f01b22960e11b815260040160405180910390fd5b5f6005858560405161086b9291906119cb565b908152604051908190036020019020546001600160401b031690505f8190036108a7576040516335f9f3dd60e01b815260040160405180910390fd5b604080516101806020601f88018190040282018101909252610160810186815260049282919089908990819085018382808284375f9201829052509385525050506001600160401b0385166020808401919091526040830182905261ffff881660608401819052608084015260a0830182905260c0830182905260e08301829052610100830182905261012083018290526001610140909301839052845492830185559381529290922081519192600702019081906109669082611b01565b5060208201516001808301805460408601516060870151608088015161ffff908116600160601b0261ffff60601b19928216600160501b029290921663ffffffff60501b1991909316600160401b90810269ffffffffffffffffffff199095166001600160401b03988916179490941716919091171790915560a0850151600285015560c0850151600385015560e085015160048086019190915561010086015160058601556101208601516006909501805461014090970151151590920268ffffffffffffffffff1990961694909316939093179390931790915554610a4d9190611bbf565b9150817f1fbd703fcfb08ce37b3ed699bc3cc23331562e4b88a9a15d7279cfdf556203578686848788604051610a87959493929190611bd2565b60405180910390a2509392505050565b5f546001600160a01b03163314610ac1576040516330cd747160e01b815260040160405180910390fd5b806001600160401b03165f03610aea576040516335f9f3dd60e01b815260040160405180910390fd5b8060058484604051610afd9291906119cb565b90815260200160405180910390205f6101000a8154816001600160401b0302191690836001600160401b031602179055504260068484604051610b419291906119cb565b90815260405190819003602001812080546001600160401b039390931667ffffffffffffffff19909316929092179091557fc5ea157b8d80fb623c2a7dcf92f1a5538a998eb620c9d246aadd1772865f8e6390610ba5908590859085904290611c10565b60405180910390a1505050565b5f610beb60048481548110610bc957610bc961196d565b5f9182526020909120600160079092020101546001600160401b0316836114ea565b9392505050565b604080516101608101825260608082525f6020830181905292820183905281018290526080810182905260a0810182905260c0810182905260e081018290526101008101829052610120810182905261014081019190915260048281548110610c5d57610c5d61196d565b905f5260205f209060070201604051806101600160405290815f82018054610c8490611a01565b80601f0160208091040260200160405190810160405280929190818152602001828054610cb090611a01565b8015610cfb5780601f10610cd257610100808354040283529160200191610cfb565b820191905f5260205f20905b815481529060010190602001808311610cde57829003601f168201915b50505091835250506001828101546001600160401b038082166020850152600160401b80830490930b6040850152600160501b820461ffff9081166060860152600160601b9092049091166080840152600284015460a0840152600384015460c0840152600484015460e0840152600584015461010084015260069093015492831661012083015290910460ff1615156101409091015292915050565b61062981600483815481106105455761054561196d565b5f5f60048381548110610dc457610dc461196d565b905f5260205f20906007020190505f81600401548260030154610de79190611bbf565b6003546040516370a0823160e01b81523060048201529192505f916001600160a01b03909116906370a0823190602401602060405180830381865afa158015610e32573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610e569190611c44565b90505f818311610e665782610e68565b815b90505f81118015610e8357506002546001600160a01b031615155b15610f7f5760035460025460405163a9059cbb60e01b81526001600160a01b0391821660048201526024810184905291169063a9059cbb906044016020604051808303815f875af1158015610eda573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610efe9190611c5b565b5080846004015f828254610f1291906119ee565b925050819055508060095f828254610f2a91906119ee565b9091555050600254604080518381526001600160a01b03909216602083015287917f8770d8a142cee04945e92cfd27ae76ca7e6e23332d2677c0da0f1323cd9e9d12910160405180910390a295945050505050565b505f95945050505050565b6006810154600160401b900460ff16610fa1575050565b5f6005825f01604051610fb49190611a39565b908152604051908190036020019020546001600160401b031690505f819003610fdc57505050565b6001826005015f828254610ff091906119ee565b909155505060068201805467ffffffffffffffff1916426001600160401b03161790555f5b600860ff82161080156110675750600180840154611051916001600160401b0382169161104c91600160401b909104810b90611c7a565b6114ea565b6001600160401b0316826001600160401b031610155b1561120e576001838101805460089061108a908490600160401b9004810b611c7a565b92506101000a81548161ffff021916908360010b61ffff1602179055506001816110b49190611c9d565b90506001836002015f8282546110ca91906119ee565b909155505060018301545f90600160501b900461ffff16156111795760018481018054600a90611106908490600160501b900461ffff16611cb6565b92506101000a81548161ffff021916908361ffff160217905550612710607861ffff166703782dace9d9000061113c9190611cd0565b6111469190611ce7565b905080846003015f82825461115b91906119ee565b925050819055508060085f82825461117391906119ee565b90915550505b600160075f82825461118b91906119ee565b909155505060018481015460075460408051600160401b909304840b835260208301939093526703782dace9d9000082840152606082018490526001600160401b038616608083015260a0820152905186917ff3db3c9f4e676529f6c51e5554eb682c5de56929c6992c8f784ac6bd50e99ab2919081900360c00190a250611015565b600860ff821610801561125a5750600180840154611244916001600160401b0382169161104c9190600160401b9004810b611d06565b6001600160401b0316826001600160401b031611155b156113b0576001838101805460089061127d908490600160401b9004810b611d06565b92506101000a81548161ffff021916908360010b61ffff1602179055506001816112a79190611c9d565b90506001836002015f8282546112bd91906119ee565b9091555050600183015461ffff600160601b82048116600160501b90920416101561131d5760018381018054600a90611302908490600160501b900461ffff16611d29565b92506101000a81548161ffff021916908361ffff1602179055505b600160075f82825461132f91906119ee565b909155505060018381015460075460408051600160401b90930490930b82525f602083018190526703782dace9d900008385015260608301526001600160401b038516608083015260a0820152905185917ff3db3c9f4e676529f6c51e5554eb682c5de56929c6992c8f784ac6bd50e99ab2919081900360c00190a261120e565b6001838101546030600160401b90910490910b13806113e957506113d46030611d43565b60018481015491810b600160401b909204900b125b156114795760068301805460ff60401b1916905560405184907fbc26271583d4f5a49ae691fada186b53ee7e064724d975f7af3863c211ff9613906114709060208082526028908201527f64726966742d6c696d69743a2072652d616e63686f722072657175697265642060408201526728686f6e6573742960c01b606082015260800190565b60405180910390a25b60018381015460028501546003860154604080516001600160401b0388168152600160401b90940490940b602084015292820152606081019190915284907ff9cf0c7bfa59f0439ec908422bd3156f1879a5b32b3d182937acac905a1b086d9060800160405180910390a250505050565b5f6001600160401b038316600183900b8213611546575f5b8360010b8160010b12156115405761271061151e607882611d29565b61152c9061ffff1684611cd0565b6115369190611ce7565b9150600101611502565b50610beb565b825b5f8160010b1215611584576115606078612710611d29565b61ffff1661157083612710611cd0565b61157a9190611ce7565b9150600101611548565b509392505050565b80356001600160a01b03811681146115a2575f5ffd5b919050565b5f5f5f606084860312156115b9575f5ffd5b6115c28461158c565b92506115d06020850161158c565b91506115de6040850161158c565b90509250925092565b5f602082840312156115f7575f5ffd5b5035919050565b5f5f83601f84011261160e575f5ffd5b5081356001600160401b03811115611624575f5ffd5b602083019150836020828501011115610689575f5ffd5b5f5f5f6040848603121561164d575f5ffd5b8335925060208401356001600160401b03811115611669575f5ffd5b611675868287016115fe565b9497909650939450505050565b5f81518084528060208401602086015e5f602082860101526020601f19601f83011685010191505092915050565b602081525f610beb6020830184611682565b5f5f602083850312156116d3575f5ffd5b82356001600160401b038111156116e8575f5ffd5b6116f4858286016115fe565b90969095509350505050565b5f5f5f60408486031215611712575f5ffd5b83356001600160401b03811115611727575f5ffd5b611733868287016115fe565b909450925050602084013561ffff8116811461174d575f5ffd5b809150509250925092565b634e487b7160e01b5f52604160045260245ffd5b5f6020828403121561177c575f5ffd5b81356001600160401b03811115611791575f5ffd5b8201601f810184136117a1575f5ffd5b80356001600160401b038111156117ba576117ba611758565b604051601f8201601f19908116603f011681016001600160401b03811182821017156117e8576117e8611758565b6040528181528282016020018610156117ff575f5ffd5b816020840160208301375f91810160200191909152949350505050565b5f5f5f6040848603121561182e575f5ffd5b83356001600160401b03811115611843575f5ffd5b61184f868287016115fe565b90945092505060208401356001600160401b038116811461174d575f5ffd5b5f5f6040838503121561187f575f5ffd5b823591506020830135600181900b8114611897575f5ffd5b809150509250929050565b602081525f825161016060208401526118bf610180840182611682565b905060208401516118db60408501826001600160401b03169052565b5060408401516118f0606085018260010b9052565b50606084015161ffff8116608085015250608084015161ffff811660a08501525060a084015160c084015260c084015160e084015260e08401516101008401526101008401516101208401526101208401516119586101408501826001600160401b03169052565b50610140840151801515610160850152611584565b634e487b7160e01b5f52603260045260245ffd5b81835281816020850137505f828201602090810191909152601f909101601f19169091010190565b838152604060208201525f6119c2604083018486611981565b95945050505050565b818382375f9101908152919050565b634e487b7160e01b5f52601160045260245ffd5b808201808211156104ee576104ee6119da565b600181811c90821680611a1557607f821691505b602082108103611a3357634e487b7160e01b5f52602260045260245ffd5b50919050565b5f5f8354611a4681611a01565b600182168015611a5d5760018114611a7257611a9f565b60ff1983168652811515820286019350611a9f565b865f5260205f205f5b83811015611a9757815488820152600190910190602001611a7b565b505081860193505b509195945050505050565b601f821115611afc5782821115611afc57805f5260205f20601f840160051c6020851015611ad557505f5b90810190601f840160051c035f5b81811015611af8575f83820155600101611ae3565b5050505b505050565b81516001600160401b03811115611b1a57611b1a611758565b611b2e81611b288454611a01565b84611aaa565b6020601f821160018114611b60575f8315611b495750848201515b5f19600385901b1c1916600184901b178455611bb8565b5f84815260208120601f198516915b82811015611b8f5787850151825560209485019460019092019101611b6f565b5084821015611bac57868401515f19600387901b60f8161c191681555b505060018360011b0184555b5050505050565b818103818111156104ee576104ee6119da565b608081525f611be5608083018789611981565b6001600160401b039590951660208301525061ffff9283166040820152911660609091015292915050565b606081525f611c23606083018688611981565b6001600160401b039485166020840152929093166040909101529392505050565b5f60208284031215611c54575f5ffd5b5051919050565b5f60208284031215611c6b575f5ffd5b81518015158114610beb575f5ffd5b600181810b9083900b01617fff8113617fff19821217156104ee576104ee6119da565b60ff81811683821601908111156104ee576104ee6119da565b61ffff82811682821603908111156104ee576104ee6119da565b80820281158282048414176104ee576104ee6119da565b5f82611d0157634e487b7160e01b5f52601260045260245ffd5b500490565b600182810b9082900b03617fff198112617fff821317156104ee576104ee6119da565b61ffff81811683821601908111156104ee576104ee6119da565b5f8160010b617fff198103611d5a57611d5a6119da565b5f039291505056fea2646970667358221220360924157e33280769ed180434d715ffa2414882ee9a8a65dfb7cf399e8361f064736f6c63430008240033",
+      "bytecodeBytes": 7621
     },
     {
       "name": "SAOSValueEngine",

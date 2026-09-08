@@ -1,6 +1,6 @@
 /**
  * scripts/compile-mesh.ts — compiles contracts/mesh/*.sol ONCE and emits the
- * canonical mesh artifact (8 contracts: abi + bytecode + sources) to
+ * canonical mesh artifact (9 contracts: abi + bytecode + sources) to
  * src/lib/saos/generated/SAOSMesh.json. The artifact is committed so the
  * runtime never needs the compiler — deterministic, sovereign, zero runtime
  * deps. Same discipline as compile-relay.ts. Re-run on source change.
@@ -9,11 +9,14 @@
  *
  * The mesh chain (contract talks to contract talks to contract):
  *   SAOSMeshHub → SAOSMeshRelay → SAOSIdentity → SAOSLedger →
- *   SAOSSolutions → SAOSBridge → SAOSWorkBoard → (relay exhausts) →
- *   SAOSMeshHub → SAOSValueEngine
+ *   SAOSSolutions → SAOSBridge → SAOSWorkBoard → SAOSMicrogrid →
+ *   (relay exhausts) → SAOSMeshHub → SAOSValueEngine
  *
  * v2 adds SAOSWorkBoard (פקודות עבודה): HQ posts orders, mesh runs deliver
  * them, the ledger payroll pays the soldiers — work inside the chain.
+ * v3 adds SAOSMicrogrid (GRID-98 on-chain): the historic micro-grid engine
+ * — ladder 1.2%/level, 40bps edge gate, 0.25 SAOS-M level size, monotonic
+ * treasury PnL, on-chain per-fill journal, profit swept to the payroll.
  */
 
 import * as fs from "fs";
@@ -33,6 +36,7 @@ const DEPLOYABLE = [
   "SAOSSolutions",
   "SAOSBridge",
   "SAOSWorkBoard",
+  "SAOSMicrogrid",
   "SAOSValueEngine"
 ];
 
@@ -84,10 +88,10 @@ for (const name of DEPLOYABLE) {
 
 const artifact = {
   name: "SAOSMesh",
-  version: "saos-mesh/v2",
+  version: "saos-mesh/v3",
   compiler: "solc ^0.8.24 (optimizer 200, cancun)",
   chain: "SAOS-EVM (sovereign laboratory chain, chainId 31337) — same EVM bytecode deploys on ETHEREUM + BSC",
-  linkOrder: ["SAOSIdentity", "SAOSLedger", "SAOSSolutions", "SAOSBridge", "SAOSWorkBoard"],
+  linkOrder: ["SAOSIdentity", "SAOSLedger", "SAOSSolutions", "SAOSBridge", "SAOSWorkBoard", "SAOSMicrogrid"],
   contracts
 };
 

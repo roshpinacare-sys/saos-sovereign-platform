@@ -11,7 +11,7 @@
  * ה-digest (sha256) של התוכן מעוגן על השרשרת במסילת SAOS-WORK
  * (SAOSBridge) ונחתם כקבלה משורשרת-האש בספר הראיות.
  *
- * Hub → Relay → Identity → Ledger → Solutions → Bridge → WORK → Value
+ * Hub → Relay → Identity → Ledger → Solutions → Bridge → WORK → GRID → Value
  *
  * כל מספר בתצוגה נקרא מהשרשרת/מה-DB — לעולם לא מומצא. ה-auto-runner
  * מפרסם עבודה חיה כל 120 שניות, וכל מסירה אמיתית זורמת לתוך כל
@@ -20,7 +20,7 @@
 
 import {
   BadgeCheck, Briefcase, BrainCircuit, CheckCircle2, ClipboardList, Coins, FileText,
-  Gauge, HardHat, Lightbulb, Play, RefreshCcw, Send, Users, Waypoints
+  Gauge, HardHat, Lightbulb, Play, RefreshCcw, Send, Users, Waypoints, Zap
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Btn, Callout, CopyBtn, ErrorNotice, HashLine, Kpi, Panel, PanelBody, PanelHeader, Pill, Skeleton, Table, Tag, Td, Th, useToast } from "../ui";
@@ -39,6 +39,7 @@ const CHAIN: Array<{ label: string; icon: ReactNode; hot?: boolean }> = [
   { label: "SOLUTIONS", icon: <CheckCircle2 size={12} /> },
   { label: "BRIDGE", icon: <Gauge size={12} /> },
   { label: "WORK", icon: <HardHat size={12} />, hot: true },
+  { label: "GRID", icon: <Zap size={12} />, hot: true },
   { label: "VALUE", icon: <Briefcase size={12} /> }
 ];
 

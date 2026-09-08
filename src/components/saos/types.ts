@@ -1233,6 +1233,10 @@ export interface MeshStatusData {
     rewardPaid: string;
     payrollBalance: string;
     soldiers: number;
+    microGrids: number;
+    microRealized: string;
+    microSwept: string;
+    microFills: number;
   };
   ledger: { symbol: string; fee: string; runReward: string };
   error?: string;

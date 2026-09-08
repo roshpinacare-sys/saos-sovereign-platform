@@ -1,14 +1,19 @@
 /**
  * mini-services/evm-mesh/src/deploy.ts — deploys the SAOS CONTRACT MESH
- * (8 chained contracts: Hub → Relay → Identity → Ledger → Solutions →
- * Bridge → WorkBoard → ValueEngine) on SAOS-EVM, the sovereign laboratory
- * chain (anvil, chainId 31337, port 8545), then writes state/deployment.json
- * for the platform backend.
+ * (9 chained contracts: Hub → Relay → Identity → Ledger → Solutions →
+ * Bridge → WorkBoard → Microgrid → ValueEngine) on SAOS-EVM, the sovereign
+ * laboratory chain (anvil, chainId 31337, port 8545), then writes
+ * state/deployment.json for the platform backend.
  *
  * v2 — SAOSWorkBoard (פקודות עבודה): the HQ posts work orders; every mesh
  * run that reaches the board delivers the oldest open order and pays the
  * soldier through the zero-fee ledger rail. The ledger funds the board's
  * payroll with a small mint on every run (setPayroll).
+ *
+ * v3 — SAOSMicrogrid (GRID-98 on-chain, mesh link #6): the historic
+ * micro-grid engine. The HQ posts REAL measured DEX prices (oracle), grids
+ * trade their ladder on every mesh run (inside the same transaction), and
+ * the accrued profit is swept to the work-board payroll — the flywheel.
  *
  * The deployment uses anvil's unlocked dev accounts through
  * eth_sendTransaction — no private keys exist in this service at all.
@@ -27,7 +32,7 @@ export const STATE_PATH = path.join(import.meta.dir, "..", "state", "deployment.
 export const MESH_RPC = "http://127.0.0.1:8545";
 export const MESH_CHAIN_ID = 31337;
 
-export const LINK_ORDER = ["SAOSIdentity", "SAOSLedger", "SAOSSolutions", "SAOSBridge", "SAOSWorkBoard"];
+export const LINK_ORDER = ["SAOSIdentity", "SAOSLedger", "SAOSSolutions", "SAOSBridge", "SAOSWorkBoard", "SAOSMicrogrid"];
 export const MESH_CHAINS = ["SAOS-NET", "STEEM", "BLURT", "HIVE", "TRON", "ETHEREUM", "BSC", "SOLANA"];
 
 export interface MeshArtifactContract {
@@ -57,7 +62,7 @@ export interface DeploymentState {
 
 // ─── best-effort platform integration (public addresses only) ──────────────
 
-async function fetchJson(url: string, timeoutMs = 4000): Promise<Record<string, unknown> | null> {
+export async function fetchJson(url: string, timeoutMs = 4000): Promise<Record<string, unknown> | null> {
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeoutMs);
@@ -171,6 +176,7 @@ export async function deployMesh(): Promise<DeploymentState> {
   const solutions = C("SAOSSolutions");
   const bridge = C("SAOSBridge");
   const workboard = C("SAOSWorkBoard");
+  const microgrid = C("SAOSMicrogrid");
   const value = C("SAOSValueEngine");
 
   // 2. wire the chain — every arrow below is a real contract-to-contract link
@@ -185,6 +191,7 @@ export async function deployMesh(): Promise<DeploymentState> {
   await sendTx("bridge → relay", () => bridge.wire(addr.SAOSMeshRelay as string));
   await sendTx("workboard → relay + ledger", () => workboard.wire(addr.SAOSMeshRelay as string, addr.SAOSLedger as string));
   await sendTx("ledger payroll → workboard", () => ledger.setPayroll(addr.SAOSWorkBoard as string));
+  await sendTx("microgrid → relay + ledger + workboard", () => microgrid.wire(addr.SAOSMeshRelay as string, addr.SAOSLedger as string, addr.SAOSWorkBoard as string));
   await sendTx("valueEngine → hub + relay", () => value.wire(addr.SAOSMeshHub, addr.SAOSMeshRelay));
 
   // 3. register the 8-chain rails on the bridge
@@ -212,13 +219,51 @@ export async function deployMesh(): Promise<DeploymentState> {
   await sendTx("work order #2: efficiency mission", () => workboard.postOrder("efficiency: audit value-per-gas across all mesh hops", 4, ethers.parseEther("12")));
 
   // 7. seed runs — the chain in action immediately (each delivers an order)
-  const rc1 = await sendTx("genesis run: 8 contracts chained", () =>
-    hub.dispatch("mesh genesis: 8 contracts chained, fee-free value rail, work board live")
+  const rc1 = await sendTx("genesis run: 9 contracts chained", () =>
+    hub.dispatch("mesh genesis: 9 contracts chained, fee-free value rail, work board + microgrid live")
   );
   const soldier = await provider.getSigner(1);
   await sendTx("onboarding run: auto-enlist + deliver order", () =>
     hub.connect(soldier).dispatch("fleet onboarding: auto-enlist + work delivery + sovereign payout")
   );
+
+  // 8. v3 — MICROGRID SEEDING: the HQ posts REAL measured DEX prices
+  //    (oracle), creates the grids, and funds the profit pool from its
+  //    minted balance. Honest: prices are read-only market data; money is
+  //    lab SAOS-M; sweeps are capped by the real contract balance.
+  try {
+    const dex = await fetchJson("http://127.0.0.1:3000/api/saos/dex");
+    const pairs = (dex?.pairs ?? []) as Array<{ pair?: string; price?: string | null; exists?: boolean }>;
+    const priceOf = (pair: string): bigint | null => {
+      const p = pairs.find((x) => x.pair === pair && x.exists && x.price);
+      if (!p?.price) return null;
+      const num = Number(p.price);
+      if (!Number.isFinite(num) || num <= 0) return null;
+      return BigInt(Math.round(num * 1e6));
+    };
+    const wethUsdc = priceOf("WETH/USDC");
+    const wbnbUsdt = priceOf("WBNB/USDT");
+    if (wethUsdc) {
+      await sendTx("microgrid oracle: WETH/USDC live", () => microgrid.postPrice("WETH/USDC", wethUsdc));
+      await sendTx("microgrid grid: WETH/USDC ×24 levels", () => microgrid.createGrid("WETH/USDC", 24));
+    } else {
+      console.log("[mesh] microgrid WETH/USDC price unavailable — honest skip");
+    }
+    if (wbnbUsdt) {
+      await sendTx("microgrid oracle: WBNB/USDT live", () => microgrid.postPrice("WBNB/USDT", wbnbUsdt));
+      await sendTx("microgrid grid: WBNB/USDT ×24 levels", () => microgrid.createGrid("WBNB/USDT", 24));
+    } else {
+      console.log("[mesh] microgrid WBNB/USDT price unavailable — honest skip");
+    }
+    // fund the profit pool — the operator's genesis mint (10 SAOS-M reward)
+    try {
+      await sendTx("microgrid profit fund ← operator mint", () => ledger.transfer(addr.SAOSMicrogrid as string, ethers.parseEther("10")));
+    } catch {
+      console.log("[mesh] microgrid funding skipped (operator balance low — honest)");
+    }
+  } catch (e) {
+    console.log(`[mesh] microgrid seeding best-effort: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`);
+  }
 
   const state: DeploymentState = {
     ok: true,
@@ -236,6 +281,6 @@ export async function deployMesh(): Promise<DeploymentState> {
   };
   fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + "\n");
   console.log(`[mesh] STATE → ${STATE_PATH}`);
-  console.log(`[mesh] MESH LIVE — 8 contracts chained on SAOS-EVM (chainId ${MESH_CHAIN_ID}), work board armed with 3 orders`);
+  console.log(`[mesh] MESH LIVE — 9 contracts chained on SAOS-EVM (chainId ${MESH_CHAIN_ID}), work board armed + microgrid seeded`);
   return state;
 }

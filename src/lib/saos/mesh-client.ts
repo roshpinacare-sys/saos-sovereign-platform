@@ -68,6 +68,7 @@ export const MESH_ROLES: Record<string, string> = {
   SAOSSolutions: "פתרונות — כל ריצה מתחייבת כפתרון על-גבי השרשרת",
   SAOSBridge: "גשר — מטביע את מצב 8 הרשתות בתוך כל ריצה",
   SAOSWorkBoard: "לוח עבודה — המפקדה מפרסמת פקודות, חיילים מבצעים ומקבלים שכר",
+  SAOSMicrogrid: "מיקרו-גריד — GRID-98: אורקל מחירי-DEX אמיתיים · סולם 1.2% · רווח לקופת העבודה",
   SAOSValueEngine: "מנוע ערך — ניקוד יעילות: ערך ליחידת גז"
 };
 
@@ -313,7 +314,8 @@ export async function meshStatus(): Promise<MeshStatusData> {
         runs: 0, completed: 0, agents: 0, solutions: 0, transfers: 0,
         totalSupply: "0", runMinted: "0", valueMoved: "0", totalGas: "0",
         avgScore: "0", bestScore: "0", scoredRuns: 0, links: 0, rails: 0,
-        orders: 0, ordersDelivered: 0, ordersOpen: 0, rewardPaid: "0", payrollBalance: "0", soldiers: 0
+        orders: 0, ordersDelivered: 0, ordersOpen: 0, rewardPaid: "0", payrollBalance: "0", soldiers: 0,
+        microGrids: 0, microRealized: "0", microSwept: "0", microFills: 0
       },
       ledger: { symbol: "SAOS-M", fee: "0", runReward: "10" },
       error: "SAOS-EVM לא פרוס — ה-mini-service evm-mesh אינו רץ (הפעל: bun run dev ב-mini-services/evm-mesh)"
@@ -335,6 +337,7 @@ export async function meshStatus(): Promise<MeshStatusData> {
     const value = contract("SAOSValueEngine", state);
     const relay = contract("SAOSMeshRelay", state);
     const workboard = contract("SAOSWorkBoard", state);
+    const microgrid = contract("SAOSMicrogrid", state);
     if (!hub || !ledger || !identity || !solutions || !bridge || !value || !relay) throw new Error("artifact/state mismatch");
 
     // v17 — work board reads (best-effort: survives a mid-redeploy state)
@@ -345,6 +348,14 @@ export async function meshStatus(): Promise<MeshStatusData> {
       workboard ? (workboard.totalRewardPaid() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
       workboard ? (workboard.soldierCount() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
       boardAddr ? (ledger.balanceOf(boardAddr) as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n)
+    ]);
+
+    // v20 — microgrid reads (best-effort, same discipline)
+    const [mgGrids, mgRealized, mgSwept, mgFillSeq] = await Promise.all([
+      microgrid ? (microgrid.gridCount() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
+      microgrid ? (microgrid.totalRealized() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
+      microgrid ? (microgrid.totalSwept() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
+      microgrid ? (microgrid.fillSeq() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n)
     ]);
 
     const [runs, completed, totalGas, totalSupply, runMinted, transfersCount, valueMoved, agents, solutionsCount, avgScore, bestScore, scoredRuns, linkCount, chainCount] =
@@ -408,7 +419,11 @@ export async function meshStatus(): Promise<MeshStatusData> {
         ordersOpen: Math.max(0, Number(boardOrders) - Number(boardDelivered)),
         rewardPaid: ethers.formatEther(BigInt(boardRewardPaid)),
         payrollBalance: ethers.formatEther(BigInt(boardPayroll)),
-        soldiers: Number(boardSoldiers)
+        soldiers: Number(boardSoldiers),
+        microGrids: Number(mgGrids),
+        microRealized: ethers.formatEther(BigInt(mgRealized)),
+        microSwept: ethers.formatEther(BigInt(mgSwept)),
+        microFills: Number(mgFillSeq)
       },
       ledger: { symbol: "SAOS-M", fee: "0", runReward: "10" }
     };
@@ -429,7 +444,8 @@ export async function meshStatus(): Promise<MeshStatusData> {
         runs: 0, completed: 0, agents: 0, solutions: 0, transfers: 0,
         totalSupply: "0", runMinted: "0", valueMoved: "0", totalGas: "0",
         avgScore: "0", bestScore: "0", scoredRuns: 0, links: 0, rails: 0,
-        orders: 0, ordersDelivered: 0, ordersOpen: 0, rewardPaid: "0", payrollBalance: "0", soldiers: 0
+        orders: 0, ordersDelivered: 0, ordersOpen: 0, rewardPaid: "0", payrollBalance: "0", soldiers: 0,
+        microGrids: 0, microRealized: "0", microSwept: "0", microFills: 0
       },
       ledger: { symbol: "SAOS-M", fee: "0", runReward: "10" },
       error: e instanceof Error ? e.message.slice(0, 160) : "mesh status failed"

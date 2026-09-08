@@ -7,14 +7,14 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, Boxes, Crosshair, ExternalLink, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints } from "lucide-react";
+import { Anchor, Boxes, Crosshair, ExternalLink, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "network360" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "economy" | "research";
+export type ViewId = "overview" | "network360" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "microgrid" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -121,6 +121,14 @@ export const VIEWS: ViewDef[] = [
     short: "אנרגיה",
     desc: "TRX energize ליישובים והתאוששות Hive RC — הכיסוי האנרגטי של הרשת",
     icon: <Anchor size={16} />,
+    group: "כלכלה ואנרגיה"
+  },
+  {
+    id: "microgrid",
+    label: "מיקרו-גריד",
+    short: "מיקרו-גריד",
+    desc: "GRID-98 על השרשרת — החוזה התשיעי: אורקל מחירי-DEX אמיתיים · סולם 1.2% · רווח שנשטף לקופת העבודה · עומק DEX",
+    icon: <Zap size={16} />,
     group: "כלכלה ואנרגיה"
   },
   {
@@ -336,7 +344,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v19.0.0 — NETWORK 360 (מפת-האורגניזם: 11 ריפואים חיים מול GitHub · מצב-ראיות כנה · הישגים מאומתי-שרשרת) + REAL WORK · מנוע הפתרונות (LLM) מייצר לכל פקודה מסירה אמיתית — תוכן קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK וקבלה משורשרת-האש) + WORK ORDERS (8 החוזים, המפקדה מפרסמת, חיילים מבצעים, שכר ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+              SAOS Sovereign Platform v20.0.0 — MICROGRID (GRID-98 על השרשרת: החוזה התשיעי — אורקל מחירי-DEX אמיתיים, סולם 1.2%, שוליים 40bps, רווח שנשטף לקופת העבודה; עומק DEX: UniV2+V3+Pancake+Sushi, ספרדים והחלקה) + NETWORK 360 (מפת-האורגניזם: 11 ריפואים חיים מול GitHub · מצב-ראיות כנה · הישגים מאומתי-שרשרת) + REAL WORK · מנוע הפתרונות (LLM) מייצר לכל פקודה מסירה אמיתית — תוכן קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK וקבלה משורשרת-האש) + WORK ORDERS (9 החוזים, המפקדה מפרסמת, חיילים מבצעים, שכר ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a
