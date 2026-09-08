@@ -1,20 +1,17 @@
 "use client";
 
 /**
- * SAOS v16 — המפתח הריבוני (THE SOVEREIGN KEY).
+ * SAOS v22 — המפתח הריבוני (THE SOVEREIGN KEY) + אבן הפינה (THE CORNERSTONE).
  * "זה המפתח תעגן אותו ותראה איך משתמשים בכתובת שיהיה חייל טוב ויהיה
  * מעוגן ל-headcorner עם הכל. שהמפתח סטים הראשי שלי יוכל לפתוח ולגשת להכל"
  *
- * ארבעת הפרקים של האמת:
- *   1. מעוגן — 12 המילים חתומות בכספת AES-256-GCM; מפתח STEEM הראשי
- *      (סיסמת הכספת) פותח את הכל — שרשרת משמורת אחת.
- *   2. חייל טוב — כתובות פומביות נגזרו (TRON + EVM), ואיך משתמשים בכל אחת.
- *   3. הנזילות זורמת — ה-TRX שעמד ולא זז הופעל וזרם לאוצר headcorner
- *      (נזילות פרטית) — 3 עסקאות אמיתיות, מאומתות בשרשרת.
- *   4. גיוס פומבי — Enlist("sovereign-user") נחתם דרך חוזה SAOSRelay
- *      ב-Ethereum mainnet על-ידי headcorner — לנצח.
+ * v22 — אבן הפינה: הזרע התפעולי של 24 המילים (Coinomi) שהבעלים מסר:
+ * "צרף אותו ועגן אותו ל-headcorner… שכל הסוכנים גם יוכלו לפי הצורך
+ * לבצע דרך הזרע" — שני שורשים בכספת אחת: זהות (12) + תפעול (24);
+ * מפעל-מפתחות לסוכנים: כל סוכן נגזר דטרמיניסטית, אף מפתח לא נשמר.
  */
 
+import { useState } from "react";
 import {
   BadgeCheck,
   ChevronLeft,
@@ -28,9 +25,13 @@ import {
   ShieldCheck,
   UserCheck,
   Zap,
-  Flame
+  Flame,
+  Gem,
+  Cpu,
+  Users
 } from "lucide-react";
 import {
+  Btn,
   Callout,
   CopyBtn,
   ErrorNotice,
@@ -42,8 +43,8 @@ import {
   Pill,
   Skeleton
 } from "../ui";
-import { fmt, timeAgo, useLive } from "../lib";
-import type { SovereignKeyData, SovereignIdentityView } from "../types";
+import { fmt, postJson, timeAgo, useLive } from "../lib";
+import type { CornerstoneData, SovereignKeyData, SovereignIdentityView } from "../types";
 import { PageHead } from "../shell";
 
 const RAIL_TONE: Record<string, "gold" | "green" | "zinc"> = {
@@ -88,7 +89,6 @@ function IdentityCard({ id }: { id: SovereignIdentityView }) {
 export function ViewSovereignKey() {
   const live = useLive<SovereignKeyData>("/api/saos/sovereign-key", 30000);
   const d = live.data;
-
   if (live.error && !d) {
     return (
       <>
@@ -143,7 +143,7 @@ export function ViewSovereignKey() {
       />
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
         <Kpi
           label="מילים חתומות"
           value={d.anchored.present ? `${d.anchored.words ?? 12}` : "—"}
@@ -155,6 +155,16 @@ export function ViewSovereignKey() {
                 : "המנמוניקה לא בכספת"
           }
           icon={<Lock size={15} />}
+        />
+        <Kpi
+          label="אבן הפינה"
+          value="24"
+          hint={
+            d.mode === "evidence"
+              ? "הזרע התפעולי — ממתין לאיטום"
+              : "הזרע התפעולי חתום · 12 סוכנים נגזרים"
+          }
+          icon={<Gem size={15} />}
         />
         <Kpi
           label="כתובות החייל"
@@ -175,6 +185,9 @@ export function ViewSovereignKey() {
           icon={<UserCheck size={15} />}
         />
       </div>
+
+      {/* v22 — THE CORNERSTONE (אבן הפינה) */}
+      <CornerstonePanel />
 
       {/* custody chain */}
       <Panel className="mb-4">
@@ -309,5 +322,221 @@ export function ViewSovereignKey() {
         הגיוס נחתם על-ידי headcorner, המפתח הריבוני של הרשת — עגינה נצחית לאורגניזם אחד.
       </Callout>
     </>
+  );
+}
+
+// ─── v22 — THE CORNERSTONE PANEL (אבן הפינה) ──────────────────────────────
+
+interface CornerstoneActionState {
+  ok: boolean;
+  error?: string;
+  [k: string]: unknown;
+}
+
+function CornerstonePanel() {
+  const { data: c, refresh, loading } = useLive<CornerstoneData>("/api/saos/cornerstone", 45000);
+  const [busy, setBusy] = useState<"" | "seal" | "enlist">("");
+  const [result, setResult] = useState<CornerstoneActionState | null>(null);
+
+  const run = async (action: "seal" | "enlist") => {
+    setBusy(action);
+    setResult(null);
+    try {
+      const r = await postJson<CornerstoneActionState>("/api/saos/cornerstone", { action });
+      setResult(r);
+      refresh();
+    } catch (e) {
+      setResult({ ok: false, error: e instanceof Error ? e.message : "שגיאה" });
+    } finally {
+      setBusy("");
+    }
+  };
+
+  if (loading && !c) {
+    return (
+      <Panel className="mb-4">
+        <PanelHeader icon={<Gem size={15} />} title="אבן הפינה — הזרע התפעולי של הרשת" />
+        <PanelBody>
+          <Skeleton className="h-32" />
+        </PanelBody>
+      </Panel>
+    );
+  }
+  if (!c) return null;
+
+  const sealed = c.sealed.present;
+  const signed = c.enlist != null;
+
+  return (
+    <Panel className="mb-4" tone="gilded">
+      <PanelHeader
+        icon={<Gem size={15} />}
+        title="אבן הפינה — הזרע התפעולי של הרשת"
+        hint="24 מילים · Coinomi · הבעלים: 'כל הסוכנים יוכלו לבצע דרך הזרע'"
+        tag={
+          signed ? (
+            <Pill tone="green">מעוגן ומבצע</Pill>
+          ) : sealed ? (
+            <Pill tone="amber">חתום · ממתין לגיוס</Pill>
+          ) : (
+            <Pill tone="rose">ממתין לאיטום</Pill>
+          )
+        }
+      />
+      <PanelBody>
+        {/* sealed state + proof */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+          <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 min-w-0">
+            <div className="text-[11px] text-zinc-500 mb-1">הזרע</div>
+            <div className="text-sm font-semibold text-zinc-100">{c.sealed.words ?? "—"} מילים · {c.sealed.wallet ?? "—"}</div>
+            <div className="text-[11px] text-zinc-500 mt-0.5">{c.sealed.sealedAt ? `נחתם ${timeAgo(c.sealed.sealedAt)}` : "בדיסק · ממתין"}</div>
+          </div>
+          <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3 min-w-0">
+            <div className="text-[11px] text-zinc-500 mb-1">הוכחת-חתימה עצמית</div>
+            <div className="text-sm font-semibold text-zinc-100 flex items-center gap-1.5">
+              {c.sealed.signatureProof?.verified ? (
+                <>
+                  <ShieldCheck size={14} className="text-emerald-400" /> המפתח חותם · הכתובת מאומתת
+                </>
+              ) : (
+                "—"
+              )}
+            </div>
+            <div className="text-[11px] text-zinc-500 mt-0.5 font-mono" dir="ltr">
+              digest {c.sealed.signatureProof?.messageDigest ?? "—"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-zinc-700 bg-zinc-900/40 p-3 min-w-0">
+            <div className="text-[11px] text-zinc-500 mb-1">מפעל-הסוכנים (דטרמיניסטי)</div>
+            <div className="text-sm font-semibold text-zinc-100 flex items-center gap-1.5">
+              <Users size={14} className="text-amber-300" /> {c.agents.length} סוכנים · 3 שרשראות
+            </div>
+            <div className="text-[11px] text-zinc-500 mt-0.5 font-mono" dir="ltr">{c.agentScheme.evm ?? "—"}</div>
+          </div>
+        </div>
+
+        {/* identities with live balances */}
+        {c.identities.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 mb-3">
+            {c.identities.map((id) => (
+              <div key={`${id.chain}-${id.address}`} className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-2.5 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+                  <Pill tone={id.chain === "TRON" ? "green" : id.chain === "SOLANA" ? "zinc" : "gold"}>{id.chain}</Pill>
+                  <span className="text-xs font-bold text-zinc-200 tabular-nums shrink-0" dir="ltr">
+                    {id.balance ?? "—"} {id.chain === "TRON" ? "TRX" : id.chain === "SOLANA" ? "SOL" : id.chain === "BSC" ? "BNB" : "ETH"}
+                  </span>
+                </div>
+                <code className="text-[11px] text-zinc-400 font-mono break-all leading-4 block min-w-0" dir="ltr">{id.address}</code>
+                <div className="text-[10px] text-zinc-600 font-mono mt-1" dir="ltr">{id.path}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* SAOS-NET live execution line */}
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 mb-3 min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <Cpu size={14} className="text-amber-300" />
+            <span className="text-xs font-semibold text-zinc-200">ביצוע-חי ב-SAOS-NET — השרשרת שילמה לזרע על עבודתו</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="min-w-0">
+              <div className="text-[10px] text-zinc-500">יתרת הזרע (SAOS-M)</div>
+              <div className="text-sm font-bold text-emerald-300 tabular-nums" dir="ltr">{c.mesh.saosM ?? "—"}</div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] text-zinc-500">גז (ETH-מעבדה)</div>
+              <div className="text-sm font-bold text-zinc-200 tabular-nums" dir="ltr">{c.mesh.gasEth ?? "—"}</div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] text-zinc-500">סוכנים על השרשרת</div>
+              <div className="text-sm font-bold text-zinc-200 tabular-nums" dir="ltr">{c.mesh.registeredAgents ?? "—"}</div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] text-zinc-500">מצב הרשת</div>
+              <div className="text-sm font-bold text-zinc-200">{c.mesh.live ? "חיה" : "מושהית"}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* the enlist proof — the seed-signed transaction */}
+        {c.enlist && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 mb-3 min-w-0">
+            <div className="flex items-center gap-2 mb-2 min-w-0">
+              <BadgeCheck size={14} className="text-emerald-400 shrink-0" />
+              <span className="text-xs font-semibold text-zinc-100 flex-1 min-w-0">
+                העגינה: הזרע חתם בעצמו עסקה על SAOS-NET (בלוק {c.enlist.block ?? "—"} · גז {c.enlist.gasUsed ?? "—"})
+              </span>
+            </div>
+            <div className="space-y-1.5 min-w-0">
+              <HashLine label="tx חתום-מהזרע" value={c.enlist.txid} tone="green" />
+              {c.enlist.registerTx && <HashLine label="רישום (HQ)" value={c.enlist.registerTx} tone="zinc" />}
+              <div className="text-[11px] text-zinc-500">{timeAgo(c.enlist.at)} · הזהות: <span className="font-mono" dir="ltr">{c.enlist.address}</span></div>
+            </div>
+          </div>
+        )}
+
+        {/* the agent derivation table */}
+        {c.agents.length > 0 && (
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <Users size={13} className="text-zinc-500" />
+              <span className="text-[11px] font-semibold text-zinc-400">הצי הנגזר מהזרע — 12 סוכנים, כל אחד עם שלוש כתובות (מעולם לא נשמרות כקבצים)</span>
+            </div>
+            <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-800 min-w-0">
+              <table className="w-full text-[11px] min-w-0">
+                <thead className="sticky top-0 bg-zinc-900/95 backdrop-blur">
+                  <tr className="text-zinc-500 text-right">
+                    <th className="px-2 py-1.5 font-medium">סוכן</th>
+                    <th className="px-2 py-1.5 font-medium">EVM · m/44'/60'/0'/{"{i}"}/0</th>
+                    <th className="px-2 py-1.5 font-medium hidden sm:table-cell">TRON · m/44'/195'</th>
+                    <th className="px-2 py-1.5 font-medium hidden md:table-cell">SOL · m/44'/501'</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {c.agents.map((a) => (
+                    <tr key={a.agent} className="border-t border-zinc-800/60 hover:bg-zinc-900/40 transition-colors">
+                      <td className="px-2 py-1.5 text-zinc-200 font-semibold whitespace-nowrap">
+                        {a.agent}
+                        {a.agent === "headcorner" && <Gem size={10} className="inline ml-1 text-amber-300" />}
+                      </td>
+                      <td className="px-2 py-1.5 font-mono text-zinc-400 break-all" dir="ltr">{a.evm}</td>
+                      <td className="px-2 py-1.5 font-mono text-zinc-400 break-all hidden sm:table-cell" dir="ltr">{a.tron}</td>
+                      <td className="px-2 py-1.5 font-mono text-zinc-400 break-all hidden md:table-cell" dir="ltr">{a.sol}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* resilience console */}
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-800/60">
+          {!sealed && (
+            <Btn tone="primary" onClick={() => run("seal")} disabled={busy !== ""}>
+              <Gem className="ml-2 h-4 w-4" />
+              {busy === "seal" ? "מאטם…" : "אטום את הזרע"}
+            </Btn>
+          )}
+          {sealed && !signed && (
+            <Btn tone="primary" onClick={() => run("enlist")} disabled={busy !== ""}>
+              <BadgeCheck className="ml-2 h-4 w-4" />
+              {busy === "enlist" ? "מגייס…" : "גייס את הזרע (חתימה חיה)"}
+            </Btn>
+          )}
+          <span className="text-[11px] text-zinc-500 flex-1 min-w-0">{c.note}</span>
+        </div>
+
+        {result && (
+          <div
+            className={`mt-2 rounded-lg border p-2.5 text-xs ${result.ok ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-rose-500/40 bg-rose-500/10 text-rose-300"}`}
+            dir="rtl"
+          >
+            {result.ok ? "הפעולה הושלמה — הרשת מאומתת בקריאה-חוזרת." : (result.error ?? "הפעולה נכשלה (כנה)")}
+          </div>
+        )}
+      </PanelBody>
+    </Panel>
   );
 }

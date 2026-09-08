@@ -196,7 +196,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v21.0 FLOW</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v22.0 CORNERSTONE</p>
           </div>
         </div>
 

@@ -238,7 +238,11 @@ async function measure(): Promise<SovereignKeyStatus> {
   if (!me && enlistRow?.identity) {
     me = { agent: AGENT, idx: -1, evm: enlistRow.identity, evmNets: [], tron: flowRows.rows[0]?.from ?? null, sol: null };
   }
-  const treasuryAddr = treasuryWallet?.tron ?? flowRows.rows[0]?.to ?? null;
+  // v22 — the flow-row treasury (the FUNDED private-liquidity wallet, verified
+  // on-chain) outranks the registry's headcorner entry: the cornerstone root
+  // gives headcorner a fresh TRON identity, but the real treasury asset is
+  // the one the flow actually reached.
+  const treasuryAddr = flowRows.rows[0]?.to ?? treasuryWallet?.tron ?? null;
 
   const [tronMe, tronTreasury, ethBal, bnbBal] = await Promise.all([
     me?.tron ? tronBalance(me.tron) : Promise.resolve({ exists: false, trx: 0 }),
@@ -304,10 +308,15 @@ async function measure(): Promise<SovereignKeyStatus> {
     enlist: enlistRow,
     custody: {
       chain: vault.present
-        ? ["מפתח STEEM ראשי (סיסמת הכספת)", "מעטפת הכספת AES-256-GCM", "כל המפתחות — כולל המנמוניקה הריבונית"]
-        : ["הכספת נשרפה (פקודת-השמדה 2026-09-08)", "מפתחות חדשים — מהבעלים בלבד", "עד אז: הראיות (זרימה + גיוס + עוגנים) נצחיות בשרשרת"],
+        ? [
+            "מעטפת הכספת AES-256-GCM (סיסמה אקראית · 0600 · gitignored)",
+            "שורש-הזהות: המנמוניקה של 12 המילים (sovereign-mnemonic)",
+            "אבן הפינה: הזרע של 24 המילים (headcorner-seed) + רישום-הצי הנגזר",
+            "WIF-STEEM: נשרף בפקודת-ההשמדה — חתימת STEEM מהבעלים בלבד"
+          ]
+        : ["הכספת נשרפה (פקודת-ההשמדה 2026-09-08)", "מפתחות חדשים — מהבעלים בלבד", "עד אז: הראיות (זרימה + גיוס + עוגנים) נצחיות בשרשרת"],
       note: vault.present
-        ? "מפתח STEEM הראשי של הבעלים פותח את הכספת — והכספת מחזיקה את הכל: מנמוניקה, WIF, זרעים, רישומי כתובות"
+        ? "שני שורשים ריבוניים בכספת אחת: זהות (12 מילים — אומת מול הראיות) + תפעול (24 מילים — אבן הפינה). הסוכנים נגזרים מהזרע דטרמיניסטית — לעולם לא נשמרים כקבצים."
         : "מצב-ראיות: המפתחות נשרפו; ההוכחות שנחתמו (18.7 TRX שזרמו, גיוס mainnet) נשארו אמת נצחית בשרשרת"
     },
     measuredAt

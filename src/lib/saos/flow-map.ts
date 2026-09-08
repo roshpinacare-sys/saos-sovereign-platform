@@ -54,7 +54,7 @@ export interface Limitation {
   what: string; // המגביל
   impact: string; // מה זה חוסם
   remedy: string; // הפתרון הריבוני
-  state: "solved-v21" | "ready" | "waiting-owner" | "structural";
+  state: "solved-v21" | "solved-v22" | "ready" | "waiting-owner" | "structural";
   status: string; // live status line
 }
 
@@ -287,7 +287,30 @@ async function build(): Promise<FlowMap> {
 
   // ─── limitations × sovereign remedies ───
   const tronTreasury = radar.assets.find((a) => a.id === "tron-treasury");
+  // v22 — the cornerstone live proof (the seed-signed SAOS-NET tx)
+  const cornerRow = await db.anchorTx
+    .findFirst({ where: { kind: "cornerstone-enlist", status: "anchored" }, orderBy: { createdAt: "desc" } })
+    .catch(() => null);
+  const cornerBlock = (() => {
+    try {
+      const m = JSON.parse(cornerRow?.meta ?? "{}") as { block?: number };
+      return m.block ?? null;
+    } catch {
+      return null;
+    }
+  })();
   const limitations: Limitation[] = [
+    {
+      id: "fleet-keys",
+      what: "מפתחות הסוכנים — רישום הצי נעדר מהכספת; כל סוכן המתין לכתובת ולמפתח משלו",
+      impact: "חסם ביצוע דה-צנטרלי: ניהול-סודות פר-סוכן — כל חייל היה נקודת-דליפה פוטנציאלית",
+      remedy:
+        "אבן הפינה (v22): הזרע של 24 המילים חתום בכספת; כל סוכן נגזר דטרמיניסטית (EVM/TRON/SOL) — אף מפתח לעולם לא נשמר כקובץ",
+      state: "solved-v22",
+      status: cornerRow
+        ? `בוצע בפועל: 12 סוכנים נגזרו מהזרע · הזרע חתם עסקה חיה ב-SAOS-NET (בלוק ${cornerBlock ?? "—"}) · הרשת שילמה לו על עבודתו`
+        : "הזרע חתום · הגיוס החי ממתין (ויו המפתח הריבוני)"
+    },
     {
       id: "vault-burned",
       what: "הכספת נשרפה (פקודת-ההשמדה) — כל זרועות-החתימה מושתקות",
@@ -308,11 +331,11 @@ async function build(): Promise<FlowMap> {
     },
     {
       id: "tron-arms",
-      what: "אוצר 17.6 TRX — מפתח headcorner (wallets-seed) נשרף",
-      impact: "הנזילות היחידה שזרמה אי-פעם ($5.9) נעולה עד חימוש",
-      remedy: "חלקי: החימוש הריבוני משחרר את הזרוע m/44' (TAzZZ — 0.05 TRX) אך לא את wallets-seed; הצעד האמיתי — מפתחות headcorner חדשים מהבעלים",
+      what: "אוצר 17.6 TRX — מפתח headcorner הישן (wallets-seed) נשרף; הזרע החדש אינו מכסה את הכתובת הישנה",
+      impact: "הנזילות שזרמה ($5.9) נעולה בכתובת האוצר הישנה; זרועות אבן-הפינה החדשות ריקות עד מימון",
+      remedy: "אבן הפינה נותנה ל-headcorner שלוש זרועות חתימה חדשות (EVM/TRON/SOL — נגזרות מהזרע); מימון-זרע בכל אחת מהן מפעיל מיידי",
       state: "waiting-owner",
-      status: tronTreasury ? `${tronTreasury.balance} TRX · ${tronTreasury.usd !== null ? `$${tronTreasury.usd.toFixed(2)}` : "אין מחיר"}` : "—"
+      status: tronTreasury ? tronTreasury.balance + " TRX באוצר הישן · זרועות חדשות מוכנות לקליטה" : "—"
     },
     {
       id: "hive-rc",

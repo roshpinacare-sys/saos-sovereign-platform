@@ -69,7 +69,7 @@ interface Limitation {
   what: string;
   impact: string;
   remedy: string;
-  state: "solved-v21" | "ready" | "waiting-owner" | "structural";
+  state: "solved-v21" | "solved-v22" | "ready" | "waiting-owner" | "structural";
   status: string;
 }
 
@@ -403,7 +403,9 @@ export function FlowView() {
             {limitations.map((l) => (
               <div key={l.id} className="min-w-0 rounded-lg border border-zinc-800/60 p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {l.state === "solved-v21" ? (
+                  {l.state === "solved-v22" ? (
+                    <Pill tone="emerald">נפתר ב-v22</Pill>
+                  ) : l.state === "solved-v21" ? (
                     <Pill tone="emerald">נפתר ב-v21</Pill>
                   ) : l.state === "ready" ? (
                     <Pill tone="amber">מוכן לביצוע</Pill>

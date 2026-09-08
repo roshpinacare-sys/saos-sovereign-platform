@@ -16,8 +16,8 @@
  * the platform never "trusts by default".
  */
 
-import { createDecipheriv, scryptSync } from "crypto";
-import { access, readFile } from "fs/promises";
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import { access, readFile, writeFile } from "fs/promises";
 import path from "path";
 
 const MAGIC = "SAOS-FLEET-VAULT-1";
@@ -235,6 +235,37 @@ function buildInventory(bundle: SealedBundle): SealInventory {
 export async function readSealInventory(): Promise<SealInventory> {
   const bundle = await openSeal();
   return buildInventory(bundle);
+}
+
+// ─── v22 — member append (CORNERSTONE) ─────────────────────────────────────
+//
+// Adds (or replaces) ONE member inside the envelope while preserving every
+// other member byte-for-byte. The seal is re-encrypted with a FRESH random
+// password (the old meta pass dies with the old envelope) and re-written
+// 0600 in the gitignored keys dir. The caller must NEVER pass secret
+// content it does not already own — the standard flow derives it in-process.
+
+export async function appendVaultMember(memberPath: string, content: string): Promise<void> {
+  const bundle = await openSeal(); // GCM-verified — fail-closed on tamper
+  bundle.files[memberPath] = content;
+  bundle.count = Object.keys(bundle.files).length;
+
+  const { enc, meta } = await vaultPaths();
+  const pass = randomBytes(24).toString("hex");
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const key = scryptSync(pass, salt, 32);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ct = Buffer.concat([cipher.update(JSON.stringify(bundle), "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const sealed = MAGIC + Buffer.concat([salt, iv, tag, ct]).toString("hex");
+
+  const fs = await import("fs");
+  fs.writeFileSync(enc, sealed, { mode: 0o600 });
+  fs.writeFileSync(meta, JSON.stringify({ pass }, null, 2), { mode: 0o600 });
+  fs.chmodSync(enc, 0o600);
+  fs.chmodSync(meta, 0o600);
+  cachedDir = null; // re-resolve on next open (path unchanged, but honest)
 }
 
 /** Probes seal existence without opening it. */

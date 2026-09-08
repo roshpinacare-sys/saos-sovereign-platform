@@ -351,14 +351,34 @@ async function socialAccount(
 
 const MESH_STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "deployment.json");
 
-async function labFunds(): Promise<{ ok: boolean; payroll: string; microgridFund: string; realized: string; swept: string }> {
+async function labFunds(): Promise<{
+  ok: boolean;
+  payroll: string;
+  microgridFund: string;
+  realized: string;
+  swept: string;
+  cornerAddress: string | null;
+  cornerBalance: string | null;
+}> {
   try {
     const state = JSON.parse(fs.readFileSync(MESH_STATE_PATH, "utf8")) as {
       ok: boolean;
       contracts: Record<string, string>;
     };
     if (!state.ok || !state.contracts?.SAOSLedger) {
-      return { ok: false, payroll: "0", microgridFund: "0", realized: "0", swept: "0" };
+      return { ok: false, payroll: "0", microgridFund: "0", realized: "0", swept: "0", cornerAddress: null, cornerBalance: null };
+    }
+    // v22 — the cornerstone root: address from the enlist receipt (DB truth)
+    let cornerAddress: string | null = null;
+    try {
+      const row = await db.anchorTx.findFirst({
+        where: { kind: "cornerstone-enlist", status: "anchored" },
+        orderBy: { createdAt: "desc" }
+      });
+      const m = JSON.parse(row?.meta ?? "{}") as { address?: string };
+      cornerAddress = m.address ?? null;
+    } catch {
+      cornerAddress = null;
     }
     const artifact = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), "src", "lib", "saos", "generated", "SAOSMesh.json"), "utf8")
@@ -368,11 +388,12 @@ async function labFunds(): Promise<{ ok: boolean; payroll: string; microgridFund
     const p = new ethers.JsonRpcProvider("http://127.0.0.1:8545", 31337, { batchMaxCount: 1 });
     const ledger = new ethers.Contract(state.contracts.SAOSLedger, ledgerAbi, p);
     const mg = new ethers.Contract(state.contracts.SAOSMicrogrid, mgAbi, p);
-    const [payroll, fund, realized, swept] = await Promise.all([
+    const [payroll, fund, realized, swept, corner] = await Promise.all([
       ledger.balanceOf(state.contracts.SAOSWorkBoard) as Promise<bigint>,
       ledger.balanceOf(state.contracts.SAOSMicrogrid) as Promise<bigint>,
       mg.totalRealized() as Promise<bigint>,
-      mg.totalSwept() as Promise<bigint>
+      mg.totalSwept() as Promise<bigint>,
+      cornerAddress ? (ledger.balanceOf(cornerAddress) as Promise<bigint>) : Promise.resolve(0n)
     ]);
     p.destroy();
     return {
@@ -380,10 +401,12 @@ async function labFunds(): Promise<{ ok: boolean; payroll: string; microgridFund
       payroll: ethers.formatEther(payroll),
       microgridFund: ethers.formatEther(fund),
       realized: ethers.formatEther(realized),
-      swept: ethers.formatEther(swept)
+      swept: ethers.formatEther(swept),
+      cornerAddress,
+      cornerBalance: cornerAddress ? ethers.formatEther(corner) : null
     };
   } catch {
-    return { ok: false, payroll: "0", microgridFund: "0", realized: "0", swept: "0" };
+    return { ok: false, payroll: "0", microgridFund: "0", realized: "0", swept: "0", cornerAddress: null, cornerBalance: null };
   }
 }
 
@@ -581,6 +604,27 @@ async function measure(): Promise<LiquidityRadar> {
       : "SAOS-EVM למעלה — מדידה כנה כשתחזור",
     explorer: null
   });
+  // v22 — אבן הפינה: הרווח שהזרע הרוויח בעצמו מריצתו על השרשרת
+  if (lab.cornerAddress) {
+    assets.push({
+      id: "lab-cornerstone",
+      domain: "SAOS-EVM (מעבדה)",
+      symbol: "SAOS-M",
+      holder: "headcorner",
+      label: "אבן הפינה — הרווח מעבודת הזרע",
+      address: lab.cornerAddress,
+      balance: lab.cornerBalance ?? "0",
+      balanceNum: Number(lab.cornerBalance ?? "0") || 0,
+      usd: null,
+      priceUsd: null,
+      priceSource: prices["SAOS-M"]?.source ?? "—",
+      status: lab.ok ? "live" : "degraded",
+      note: lab.ok
+        ? "RUN_REWARD שהשרשרת שילמה לזרע על ריצתו החתומה — הכלכלה משלמת למי שעובד"
+        : "SAOS-EVM למעלה — מדידה כנה כשתחזור",
+      explorer: null
+    });
+  }
 
   const usdKnown = assets.reduce((t, a) => t + (a.usd ?? 0), 0);
   const usdUnknownSymbols = Array.from(

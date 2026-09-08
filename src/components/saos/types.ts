@@ -1319,3 +1319,67 @@ export interface SovereignKeyData {
   measuredAt: string;
   error?: string;
 }
+
+// ─── v22 — CORNERSTONE (אבן הפינה) ──────────────────────────────────────────
+
+export interface CornerstoneIdentityView {
+  chain: string;
+  address: string;
+  path: string | null;
+  balance: string | null;
+  explorer: string;
+  usage: string;
+}
+
+export interface CornerstoneAgentView {
+  agent: string;
+  idx: number;
+  evm: string;
+  evmPath: string;
+  tron: string;
+  tronPath: string;
+  sol: string;
+  solPath: string;
+}
+
+export interface CornerstoneEnlistView {
+  txid: string;
+  block: number | null;
+  address: string;
+  handle: string | null;
+  registerTx: string | null;
+  fundTx: string | null;
+  ledgerTx: string | null;
+  gasUsed: string | null;
+  at: string;
+}
+
+export interface CornerstoneData {
+  ok: boolean;
+  agent: string;
+  sealed: {
+    present: boolean;
+    label: string | null;
+    words: number | null;
+    wallet: string | null;
+    source: string | null;
+    sealedAt: string | null;
+    signatureProof: { messageDigest: string | null; verified: boolean | null } | null;
+  };
+  vault: { present: boolean; state: string; note: string };
+  identities: CornerstoneIdentityView[];
+  agentScheme: { evm: string | null; tron: string | null; sol: string | null; accounts: number | null };
+  agents: CornerstoneAgentView[];
+  mesh: {
+    live: boolean;
+    chain: string;
+    hub: string | null;
+    saosM: string | null;
+    gasEth: string | null;
+    registeredAgents: number | null;
+  };
+  enlist: CornerstoneEnlistView | null;
+  note: string;
+  measuredAt: string;
+  error?: string;
+}
