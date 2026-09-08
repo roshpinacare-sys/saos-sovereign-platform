@@ -27,6 +27,7 @@ import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
 import { MicrogridView } from "@/components/saos/views/microgrid";
 import { FlowView } from "@/components/saos/views/flow";
+import { RosesView } from "@/components/saos/views/roses";
 import { ViewEconomy } from "@/components/saos/views/economy";
 import { ViewResearch } from "@/components/saos/views/research";
 
@@ -45,6 +46,7 @@ const TITLES: Record<ViewId, string> = {
   energy: "ריבונות אנרגיה",
   microgrid: "מיקרו-גריד",
   flow: "נזילות וזרימה",
+  roses: "שושנים",
   economy: "כלכלה",
   research: "מחקר ומפת-דרך"
 };
@@ -89,6 +91,7 @@ export default function Home() {
         {view === "energy" && <ViewEnergy />}
         {view === "microgrid" && <MicrogridView />}
         {view === "flow" && <FlowView />}
+        {view === "roses" && <RosesView />}
         {view === "economy" && <ViewEconomy />}
         {view === "research" && <ViewResearch />}
       </AppShell>

@@ -314,6 +314,30 @@ async function autoCycle(): Promise<void> {
       /* sweep best-effort — no grids / no balance yet (honest) */
     }
 
+    // 4.6 v23 — ROSE BLOOM: every cycle the NEXT agent in the round-robin
+    //      is derived from the sealed seed (through the web tier's vault)
+    //      and signs its own dispatch — the chain pays it RUN_REWARD (10
+    //      SAOS-M). The fleet blooms in rotation, forever: "כל הסוכנים גם
+    //      יוכלו לפי הצורך לבצע דרך הזרע". Honest skip on failure.
+    try {
+      const res = await fetch("http://127.0.0.1:3000/api/saos/roses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "bloom" }),
+        signal: AbortSignal.timeout(90_000)
+      });
+      if (res.ok) {
+        const out = (await res.json()) as { ok?: boolean; agent?: string; block?: number; runId?: number; error?: string };
+        if (out.ok) {
+          console.log(`[evm-mesh] ROSE bloomed: ${out.agent} signed run #${out.runId} via the seed (block ${out.block})`);
+        } else {
+          console.log(`[evm-mesh] rose bloom skipped honestly: ${out.error ?? "unknown"}`);
+        }
+      }
+    } catch {
+      /* web tier down / timeout — honest skip, next cycle tries again */
+    }
+
     // 5. every 3rd cycle: a zero-fee value movement (ללא עמלה — forever 0)
     if (runTick % 3 === 2) {
       try {
@@ -469,7 +493,7 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v20: HQ posts REAL WORK every 120s (LLM + anchor) · microgrid oracle + tick + sweep each cycle · zero-fee transfer every 3rd cycle");
+  console.log("[evm-mesh] auto-runner v23: HQ posts REAL WORK every 120s (LLM + anchor) · microgrid oracle + tick + sweep each cycle · ROSE BLOOM each cycle (agent-signed via seed) · zero-fee transfer every 3rd cycle");
 }
 
 void main().catch((e) => {

@@ -7,14 +7,14 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, Boxes, Crosshair, Droplets, ExternalLink, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
+import { Anchor, Boxes, Crosshair, Droplets, ExternalLink, Flower2, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "network360" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "microgrid" | "flow" | "economy" | "research";
+export type ViewId = "overview" | "network360" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "microgrid" | "flow" | "roses" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -140,6 +140,14 @@ export const VIEWS: ViewDef[] = [
     group: "כלכלה ואנרגיה"
   },
   {
+    id: "roses",
+    label: "שושנים",
+    short: "שושנים",
+    desc: "גבול היכולות (10 זרועות × מדידה/חתימה/שידור/לכידה) · מה שהזרע מספק (36 זרועות חתימה) · מה שהרשת צריכה · סבב-הפריחה: כל סוכן בתורו נגזר מהזרע וחותם בעצמו — השרשרת משלמת",
+    icon: <Flower2 size={16} />,
+    group: "כלכלה ואנרגיה"
+  },
+  {
     id: "economy",
     label: "כלכלה",
     short: "כלכלה",
@@ -196,7 +204,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v22.0 CORNERSTONE</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v23.0 ROSES</p>
           </div>
         </div>
 
@@ -352,7 +360,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v20.1.0 — MICROGRID (GRID-98 על השרשרת: החוזה התשיעי — אורקל מחירי-DEX אמיתיים, סולם 1.2%, שוליים 40bps, רווח שנשטף לקופת העבודה; עומק DEX: UniV2+V3+Pancake+Sushi, ספרדים והחלקה) + NETWORK 360 (מפת-האורגניזם: 11 ריפואים חיים מול GitHub · מצב-ראיות כנה · הישגים מאומתי-שרשרת) + REAL WORK · מנוע הפתרונות (LLM) מייצר לכל פקודה מסירה אמיתית — תוכן קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK וקבלה משורשרת-האש) + WORK ORDERS (9 החוזים, המפקדה מפרסמת, חיילים מבצעים, שכר ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+              SAOS Sovereign Platform v23.0.0 — ROSES (שושנים: גבול היכולות — מטריצת 10 זרועות מדידה/חתימה/שידור/לכידה · מה שהזרע מספק — 12 סוכנים × 3 שרשראות = 36 זרועות חתימה נגזרות-ולעולם-לא-נשמרות · מה שהרשת צריכה — הרשימה הכנה · סבב-הפריחה: כל מחזור סוכן אחר נגזר מהזרע החתום וחותם בעצמו ריצה על SAOS-NET, השרשרת משלמת 10 SAOS-M לפועל) + CORNERSTONE (אבן הפינה: דו-שורש — זהות 12 מילים + תפעול 24 מילים, מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · מפת-זרימה · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · סולם 1.2% · שטיפה לקופה) + REAL WORK (מנוע LLM — מסירה אמיתית מעוגנת לכל פקודה) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a
