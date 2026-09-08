@@ -15,6 +15,7 @@ import {
   FileText,
   Fingerprint,
   Flame,
+  HardHat,
   Hexagon,
   KeyRound,
   Layers,
@@ -266,7 +267,7 @@ export function ViewOverview({
         <PanelHeader
           icon={<KeyRound size={15} />}
           title="הממסר הריבוני — v15 בפועל"
-          sub="חוזה חכם ב-ETHEREUM mainnet בלי עמלה · 7 חוזים משורשרים על SAOS-EVM (CONTRACT MESH) · צמדי-DEX במחירי שוק · מעקב-סוכנים חי"
+          sub="חוזה חכם ב-ETHEREUM mainnet בלי עמלה · 8 חוזים משורשרים על SAOS-EVM (CONTRACT MESH + WORK BOARD) · צמדי-DEX במחירי שוק · מעקב-סוכנים חי"
           actions={
             <Btn variant="ghost" size="xs" onClick={() => onNav("ops")}>
               למבצעי העגינה <ArrowLeft size={11} />
@@ -400,10 +401,16 @@ export function ViewOverview({
             ממשיכים להיות מעוגנים ישירות מהזרע.
           </Callout>
           <Callout tone="green" icon={<ShieldCheck size={14} className="text-emerald-300" />}>
-            <span className="font-bold">רשת החוזים — בוצע (v15):</span> שבעה חוזים משורשרים על SAOS-EVM (שרשרת-מעבדה
-            ריבונית): Hub → Relay → Identity → Ledger → Solutions → Bridge → ValueEngine — חוזה מדבר לחוזה
+            <span className="font-bold">רשת החוזים — בוצע (v15):</span> שמונה חוזים משורשרים על SAOS-EVM (שרשרת-מעבדה
+            ריבונית): Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → ValueEngine — חוזה מדבר לחוזה
             בכל קפיצה, ערך פנימי ללא עמלה (fee=0 לנצח), mint קטן לכל ריצה ומנוע ניקוד יעילות. 14 סוכני הצי
             האמיתיים רשומים על השרשרת; הרשת מריצה ריצות אמיתיות כל 2 דקות. לחץ "חוזים" בתפריט.
+          </Callout>
+          <Callout tone="gold" icon={<HardHat size={14} className="text-amber-300" />}>
+            <span className="font-bold">פקודות עבודה — בוצע (v17):</span> החוזה השמיני, SAOSWorkBoard (קישור
+            #5): המפקדה מפרסמת פקודות עם משימה, קושי ושכר; ריצת רשת של חייל מבצעת אותן בעסקה אחת דרך
+            שמונת החוזים; קופת העבודה (שנטבעת 10 SAOS-M בכל ריצה) משלמת במסילה ללא-עמלה. החיילים
+            עובדים — לוח חי, דירוג ביצוע ושכר שזורם. לחץ "עבודה" בתפריט.
           </Callout>
           <Callout tone="amber" icon={<Network size={14} className="text-amber-300" />}>
             <span className="font-bold">BSC נפתח — ממתין להקצאה:</span> המסילה השמינית חיה (בלוק · גז ·

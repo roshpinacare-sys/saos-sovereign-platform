@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v16 — SOVEREIGN KEY (מפתח הבעלים: מעוגן · זורם · מגויס).
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 12 עמודים. קיצורי-מקלדת Alt+1..9.
+ * SAOS Sovereign Platform v17 — WORK ORDERS (החוזה השמיני: המפקדה מפרסמת,
+ * חיילים מבצעים, השכר זורם ללא-עמלה).
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 13 עמודים. קיצורי-מקלדת Alt+1..9.
  */
 
 import { useEffect, useState } from "react";
@@ -16,6 +17,7 @@ import { ViewAgents } from "@/components/saos/views/agents";
 import { ViewSeals } from "@/components/saos/views/seals";
 import { ViewOps } from "@/components/saos/views/ops";
 import { ViewMesh } from "@/components/saos/views/mesh";
+import { ViewWorkboard } from "@/components/saos/views/workboard";
 import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
 import { ViewProofs } from "@/components/saos/views/proofs";
@@ -30,6 +32,7 @@ const TITLES: Record<ViewId, string> = {
   seals: "איטום ועגינה",
   ops: "מבצעי עגינה",
   mesh: "רשת החוזים",
+  workboard: "פקודות עבודה",
   fleet: "חימוש הצי",
   "sovereign-key": "המפתח הריבוני",
   proofs: "הוכחות",
@@ -42,7 +45,7 @@ export default function Home() {
   const [view, setView] = useState<ViewId>("overview");
   const status = useLive<StatusData>("/api/saos/status", 12000);
 
-  // קיצורי-מקלדת: Alt+1..0 לניווט מהיר
+  // קיצורי-מקלדת: Alt+1..9 לניווט מהיר
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey) return;
@@ -70,6 +73,7 @@ export default function Home() {
         {view === "seals" && <ViewSeals status={status} />}
         {view === "ops" && <ViewOps status={status} />}
         {view === "mesh" && <ViewMesh />}
+        {view === "workboard" && <ViewWorkboard />}
         {view === "fleet" && <ViewFleet />}
         {view === "sovereign-key" && <ViewSovereignKey />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}

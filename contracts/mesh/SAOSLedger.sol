@@ -6,9 +6,14 @@ import "./MeshTypes.sol";
 /// @notice ללא עמלה — the fee is a compile-time zero, forever. Every mesh
 ///         run mints a small sovereign reward (mint קטן) to the initiating
 ///         agent, and internal transfers never pay anything.
+///         v2 — payroll: every run also mints the same reward to the work
+///         board (set by the owner), so the HQ can always pay its soldiers
+///         through the zero-fee rail. עבודה ממומנת: mint קטן לחייל + mint
+///         קטן לקופת העבודה — בכל ריצה.
 contract SAOSLedger {
     address public owner;
     address public relay;
+    address public payroll; // the SAOSWorkBoard — funded by every run
 
     string public constant SYMBOL = "SAOS-M";
     uint256 public constant RUN_REWARD = 10 ether; // 10 SAOS-M per run (small mint)
@@ -21,6 +26,7 @@ contract SAOSLedger {
     uint256 public valueMoved;
 
     event RewardPaid(uint256 indexed runId, address indexed to, uint256 amount);
+    event PayrollFunded(uint256 indexed runId, address indexed payroll, uint256 amount);
     event ZeroFeeTransfer(uint256 indexed seq, address indexed from, address indexed to, uint256 amount, uint256 fee);
 
     error NotOwner();
@@ -34,6 +40,12 @@ contract SAOSLedger {
         relay = relayAddr;
     }
 
+    /// @dev v2 — the work board's payroll address (owner-only, one-time).
+    function setPayroll(address payrollAddr) external {
+        if (msg.sender != owner) revert NotOwner();
+        payroll = payrollAddr;
+    }
+
     function process(uint256 runId, bytes calldata context) external returns (bytes memory) {
         if (msg.sender != relay) revert NotRelay();
         (address initiator, ) = abi.decode(context, (address, string));
@@ -41,6 +53,12 @@ contract SAOSLedger {
         totalSupply += RUN_REWARD;
         runMinted += RUN_REWARD;
         emit RewardPaid(runId, initiator, RUN_REWARD);
+        if (payroll != address(0)) {
+            balanceOf[payroll] += RUN_REWARD;
+            totalSupply += RUN_REWARD;
+            runMinted += RUN_REWARD;
+            emit PayrollFunded(runId, payroll, RUN_REWARD);
+        }
         IRelayPass(relay).pass(runId, context);
         return context;
     }

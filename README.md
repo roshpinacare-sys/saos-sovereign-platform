@@ -1,6 +1,6 @@
 # SAOS Sovereign Platform
 
-**v16.0.0 — SOVEREIGN KEY** · המפתח של הבעלים מעוגן: 12 המילים חתומות בכספת AES-256-GCM (מפתח STEEM ראשי פותח הכל) · ה-TRX שעמד ולא זז הופעל וזרם לנזילות הפרטית של headcorner · המפתח מגויס כחיל דרך חוזה SAOSRelay ב-mainnet · CONTRACT MESH + 8-CHAIN LIVE GRID · מעקב-סוכנים בזמן אמת.
+**v17.0.0 — WORK ORDERS** · החוזה השמיני: SAOSWorkBoard (קישור #5 בשרשרת) — המפקדה מפרסמת פקודות עבודה עם משימה, דרגת קושי ושכר; ריצת רשת של חייל מבצעת אותן בעסקה אחת דרך שמונת החוזים; קופת העבודה (10 SAOS-M נטבעים בכל ריצה) משלמת במסילה ללא-עמלה · סהכ שמונה חוזים משורשרים · SOVEREIGN KEY (v16) · CONTRACT MESH (v15) · 8-CHAIN LIVE GRID · מעקב-סוכנים בזמן אמת.
 
 > "אנחנו מנצחים את הבלוקצ'יין" — המוטו של הגרעין. כל טענה בממשק מגובה במדידה חיה
 > או ב-txid אמיתי מהשרשרת. כישלון הוא נתון, לא בושה — הוא מתועד בקבלה משורשרת.
@@ -87,6 +87,8 @@ seed (כספת) ─ sha256 ─→ EVM   m/44'/60'/0'/0/2   → headcorner 0x2767
 ## ממשק
 
 - **לוח בקרה** — 8-CHAIN GRID חי + פס הממסר הריבוני (חוזה + צמדים + סוכנים) + מסקנות-ביצוע
+- **פקודות עבודה (v17)** — קונסולת המפקדה: פרסום פקודה (משימה · קושי 1-5 · שכר) → חייל
+  מבצע דרך 8 החוזים → שכר במסילה ללא-עמלה; לוח פקודות FIFO חי + דירוג ביצוע חיילים
 - **מעקב סוכנים (v14)** — 8 הריפואים במדידה חיה מול GitHub: טריות, קומיט אחרון, תפקיד באורגניזם
 - **רשתות חיות (v14)** — 8 מסילות + פאנל BSC + צמדי-DEX חיים (Uniswap + PancakeSwap)
 - **חימוש הצי (v13)** — פאנל ה-mint (מדיניות + ספר ריבוני + תוצאת הטבעה),
@@ -113,6 +115,12 @@ POST /api/saos/anchor/svm          פעימת SOLANA mainnet חיה (dedupe + ש
 GET  /api/saos/live-probes         מדידות חיות (HIVE RC · TRON · ETH · BSC · SOL)
 GET  /api/saos/dex                  צמדי-DEX חיים (Uniswap V2 + PancakeSwap V2)
 GET  /api/saos/agents-net           מעקב-סוכנים חי מול GitHub (8 הריפואים)
+GET  /api/saos/mesh                סטטוס רשת החוזים (8 חוזים, ריצות, פקודות, קופה)
+GET  /api/saos/mesh/feed           פיד חי: ריצות + העברות + פקודות שנמסרו
+POST /api/saos/mesh/run            שיגור ריצה חיה דרך כל החוזים (עסקה אחת)
+GET  /api/saos/mesh/work           לוח העבודה: פקודות + חיילים + קופת עבודה
+POST /api/saos/mesh/work           {mission, difficulty, reward} — המפקדה מפרסמת
+                                   פקודה חיה וחייל מבצע אותה מיד (FIFO)
 GET  /api/saos/contract             סטטוס החוזה + אימות eth_getCode חי + מקור
 POST /api/saos/contract             {action: deploy|relay|enlist, chain?, height?, agent?}
 POST /api/saos/anchor/bsc           פעימת BSC חיה (מגודרת בכנות עד הקצאת BNB)
@@ -144,6 +152,31 @@ BSC       chainId 56 · בלוק 120,610,754 · גז 0.05 Gwei · ריבון 0 B
 ```
 
 — הפלטפורמה הזו היא בית-העגינה הקנוני של אורגניזם SAOS.
+
+## v17 — WORK ORDERS: החוזה השמיני (פקודות עבודה)
+
+"תמשיך ודחוף לריפו" — המשך ישיר של שרשרת החוזים: החיילים לא רק רשומים — **הם עובדים**.
+`SAOSWorkBoard.sol` (4,650 בייטקוד, קישור #5 בשרשרת):
+
+```
+SAOSMeshHub.dispatch
+  → SAOSMeshRelay → SAOSIdentity → SAOSLedger (mint לחייל + mint לקופת העבודה)
+  → SAOSSolutions → SAOSBridge
+  → SAOSWorkBoard.process   (הפקודה הפתוחה הוותיקה נמסרת ליוזם הריצה — FIFO)
+      · מסירה: OrderDelivered(orderId, runId, soldier, reward, paid)
+      · תשלום: ledger.transfer(soldier, reward) — עמלה 0, מקופת העבודה
+      · אם הקופה לא מכסה — המסירה נרשמת והשכר מסומן "לא שולם" (כנות; השרשרת לא נשברת על כסף)
+  → SAOSMeshRelay → SAOSMeshHub.complete → SAOSValueEngine
+```
+
+- **מימון עבודה עצמאי**: `SAOSLedger.setPayroll(workBoard)` — בכל ריצה נטבעים 10 SAOS-M
+  ליוזם **ועוד 10 לקופת העבודה** (PayrollFunded event) — המפקדה תמיד יכולה לשלם.
+- **Auto-runner**: כל 120 שניות המפקדה מפרסמת פקודה חיה (משימות רוטציה, קושי 1-5, שכר
+  4-12 SAOS-M) וריצת חייל מבצעת אותה מיד.
+- **קונסולת HQ ב-UI**: פרסום פקודה (משימה + קושי + שכר) → חייל מסתובב מבצע, התור
+  מתרוקן FIFO עד שהפקודה שלך נמסרת ושולמה — הכל בעסקאות אמיתיות.
+- **מבנה פקודה**: `Order{mission, difficulty, reward, status, soldier, runId, paid}` +
+  דירוג `SoldierStat{orders, earned}` לכל חייל — קריאה חיה ב-`/api/saos/mesh/work`.
 
 ## v16 — SOVEREIGN KEY: המפתח של הבעלים מעוגן
 

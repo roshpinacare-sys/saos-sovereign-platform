@@ -1074,10 +1074,54 @@ export interface MeshRunView {
   rewardAmount: string | null;
   solutionTitle: string | null;
   solutionDigest: string | null;
+  /** v17 — the work order this run delivered (WorkBoard link #5) */
+  order: { id: number; mission: string; soldier: string; reward: string; paid: boolean } | null;
   anchors: Array<{ chain: string; height: string; digest: string }>;
   hopTrace: MeshRunHop[];
   txid: string;
   block: number;
+}
+
+// ─── v17 — WORK ORDERS (פקודות עבודה): HQ posts, soldiers deliver ──────────
+
+export interface MeshOrderView {
+  id: number;
+  mission: string;
+  difficulty: number;
+  reward: string;
+  status: "open" | "delivered";
+  soldier: string | null;
+  runId: number | null;
+  postedAt: number;
+  deliveredAt: number | null;
+  paid: boolean;
+  txid: string;
+  block: number;
+}
+
+export interface MeshSoldierStatView {
+  soldier: string;
+  orders: number;
+  earned: string;
+}
+
+export interface MeshBoardData {
+  ok: boolean;
+  chain: string;
+  orders: MeshOrderView[];
+  soldiers: MeshSoldierStatView[];
+  payroll: { balance: string; perRun: string; symbol: string; fee: string; paidOut: string };
+  stats: { posted: number; delivered: number; open: number; rewardPaid: string; soldiers: number; avgDifficulty: number };
+  contract: { address: string; role: string } | null;
+  error?: string;
+}
+
+export interface MeshWorkOutcome {
+  ok: boolean;
+  order: MeshOrderView | null;
+  run: MeshRunView | null;
+  payrollBalance: string | null;
+  error?: string;
 }
 
 export interface MeshTransferView {
@@ -1132,6 +1176,13 @@ export interface MeshStatusData {
     scoredRuns: number;
     links: number;
     rails: number;
+    /** v17 — work board stats */
+    orders: number;
+    ordersDelivered: number;
+    ordersOpen: number;
+    rewardPaid: string;
+    payrollBalance: string;
+    soldiers: number;
   };
   ledger: { symbol: string; fee: string; runReward: string };
   error?: string;
@@ -1143,6 +1194,8 @@ export interface MeshFeedData {
   transfers: MeshTransferView[];
   agents: MeshAgentView[];
   rails: MeshRailView[];
+  /** v17 — latest delivered work orders */
+  orders: MeshOrderView[];
   error?: string;
 }
 

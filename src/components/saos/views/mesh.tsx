@@ -1,19 +1,20 @@
 "use client";
 
 /**
- * SAOS v15 — רשת החוזים (CONTRACT MESH): שבעה חוזים משורשרים על SAOS-EVM,
+ * SAOS v17 — רשת החוזים (CONTRACT MESH): שמונה חוזים משורשרים על SAOS-EVM,
  * שרשרת המעבדה הריבונית (anvil, chainId 31337).
  * "פרוס את כל החוזים… חוזה שמדבר לחוזה שמדבר לחוזה.. פתרונות. ערך יעילות"
  *
- * הזרימה (עסקה אחת, שבעה חוזים, כל חץ קריאה אמיתית בין חוזים):
+ * הזרימה (עסקה אחת, שמונה חוזים, כל חץ קריאה אמיתית בין חוזים):
  *   Hub.dispatch → Relay.start → Identity → Ledger (mint, fee=0) →
- *   Solutions → Bridge (8 rails) → Relay → Hub.complete → ValueEngine
+ *   Solutions → Bridge (8 rails) → WorkBoard (פקודות עבודה + שכר) →
+ *   Relay → Hub.complete → ValueEngine
  *
  * כל מספר בתצוגה זו נקרא מהשרשרת או מפוענח מהלוגים שלה — לעולם לא
  * מומצא. כש-SAOS-EVM למטה — נאמר זאת בכנות.
  */
 
-import { Coins, ExternalLink, Fingerprint, Gauge, Globe2, Lightbulb, Play, Radio, RefreshCcw, Waypoints, Zap } from "lucide-react";
+import { Coins, ExternalLink, Fingerprint, Gauge, Globe2, HardHat, Lightbulb, Play, Radio, RefreshCcw, Waypoints, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Btn, Callout, CopyBtn, ErrorNotice, HashLine, Kpi, Panel, PanelBody, PanelHeader, Pill, Skeleton, Table, Tag, Td, Th, useToast } from "../ui";
 import { fmtInt, postJson, short, timeAgo, useLive, useTick } from "../lib";
@@ -30,6 +31,7 @@ const CHAIN_FLOW: Array<{ name: string; label: string; icon: ReactNode }> = [
   { name: "SAOSLedger", label: "LEDGER", icon: <Coins size={14} /> },
   { name: "SAOSSolutions", label: "SOLUTIONS", icon: <Lightbulb size={14} /> },
   { name: "SAOSBridge", label: "BRIDGE", icon: <Globe2 size={14} /> },
+  { name: "SAOSWorkBoard", label: "WORK", icon: <HardHat size={14} /> },
   { name: "SAOSValueEngine", label: "VALUE", icon: <Gauge size={14} /> }
 ];
 
@@ -55,6 +57,8 @@ function nodeMetric(name: string, s: MeshStatusData["stats"]): string {
       return `${s.solutions} פתרונות`;
     case "SAOSBridge":
       return `${s.rails} מסילות`;
+    case "SAOSWorkBoard":
+      return `${s.ordersDelivered}/${s.orders} פקודות`;
     case "SAOSValueEngine":
       return `ניקוד ${s.avgScore}`;
     default:
@@ -105,10 +109,11 @@ export function ViewMesh() {
     }, 300);
     try {
       const res = await postJson<MeshRunOutcome>("/api/saos/mesh/run", { intent: intent.trim() });
-      if (res.ok && res.run) {
+      const out = res.ok ? res.data : null; // postJson wraps: { ok, data, error }
+      if (out && out.ok && out.run) {
         toast.push({
-          title: `ריצת רשת #${res.run.id} הושלמה בשבעה חוזים`,
-          desc: `${fmtInt(res.run.gasUsed ?? 0)} גז · ניקוד ${res.run.score} · +${res.run.rewardAmount} SAOS-M ללא עמלה · ${res.anchorsStamped} עוגנים חיים`,
+          title: `ריצת רשת #${out.run.id} הושלמה בשמונה חוזים`,
+          desc: `${fmtInt(out.run.gasUsed ?? 0)} גז · ניקוד ${out.run.score} · +${out.run.rewardAmount} SAOS-M ללא עמלה · ${out.anchorsStamped} עוגנים חיים`,
           tone: "green"
         });
       } else {
@@ -135,7 +140,7 @@ export function ViewMesh() {
     <div className="space-y-5 animate-view">
       <PageHead
         title="רשת החוזים — CONTRACT MESH"
-        sub="שבעה חוזים משורשרים על SAOS-EVM, שרשרת המעבדה הריבונית: עסקה אחת עוברת Hub → Relay → Identity → Ledger → Solutions → Bridge → ValueEngine — כל חץ הוא קריאה אמיתית בין חוזה לחוזה. ערך פנימי ללא עמלה, mint קטן לכל ריצה, ופתרון שמתחייב על השרשרת."
+        sub="שמונה חוזים משורשרים על SAOS-EVM, שרשרת המעבדה הריבונית: עסקה אחת עוברת Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → ValueEngine — כל חץ הוא קריאה אמיתית בין חוזה לחוזה. ערך פנימי ללא עמלה, mint קטן לכל ריצה, פקודות עבודה שנמסרות בשרשרת ושכר שזורם לחיילים."
         actions={
           <>
             <Pill tone={live ? "green" : "rose"} pulse={live}>
@@ -200,7 +205,7 @@ export function ViewMesh() {
         <PanelHeader
           title="מפת השרשרת — חוזה מדבר לחוזה"
           icon={<Waypoints size={15} />}
-          actions={<Tag tone="gold">עסקה אחת · 7 חוזים · עיגול סגור</Tag>}
+          actions={<Tag tone="gold">עסקה אחת · 8 חוזים · עיגול סגור</Tag>}
         />
         <PanelBody className="space-y-4">
           <div dir="ltr" className="flex items-stretch gap-2 overflow-x-auto scroll-slim pb-2">
@@ -447,7 +452,7 @@ export function ViewMesh() {
       {/* הפריסה — כל החוזים */}
       <Panel>
         <PanelHeader
-          title="הפריסה — כל שבעת החוזים"
+          title="הפריסה — כל שמונת החוזים"
           icon={<Waypoints size={15} />}
           actions={
             live ? (
@@ -543,6 +548,11 @@ function RunCard({ run }: { run: MeshRunView }) {
             </Tag>
           )}
           {run.solutionTitle && <Tag tone="green">פתרון התחייב</Tag>}
+          {run.order && (
+            <Tag tone="gold">
+              <HardHat size={9} /> פקודה #{run.order.id}{run.order.paid ? ` · +${run.order.reward} שכר` : ""}
+            </Tag>
+          )}
         </div>
       )}
 

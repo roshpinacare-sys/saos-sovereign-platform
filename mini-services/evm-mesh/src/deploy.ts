@@ -1,14 +1,19 @@
 /**
  * mini-services/evm-mesh/src/deploy.ts — deploys the SAOS CONTRACT MESH
- * (7 chained contracts: Hub → Relay → Identity → Ledger → Solutions →
- * Bridge → ValueEngine) on SAOS-EVM, the sovereign laboratory chain
- * (anvil, chainId 31337, port 8545), then writes state/deployment.json
+ * (8 chained contracts: Hub → Relay → Identity → Ledger → Solutions →
+ * Bridge → WorkBoard → ValueEngine) on SAOS-EVM, the sovereign laboratory
+ * chain (anvil, chainId 31337, port 8545), then writes state/deployment.json
  * for the platform backend.
+ *
+ * v2 — SAOSWorkBoard (פקודות עבודה): the HQ posts work orders; every mesh
+ * run that reaches the board delivers the oldest open order and pays the
+ * soldier through the zero-fee ledger rail. The ledger funds the board's
+ * payroll with a small mint on every run (setPayroll).
  *
  * The deployment uses anvil's unlocked dev accounts through
  * eth_sendTransaction — no private keys exist in this service at all.
- * The operator (account #0) is the mesh owner; the fleet's REAL public
- * EVM identities are registered as mesh agents (addresses only).
+ * The operator (account #0) is the mesh owner + the HQ; the fleet's REAL
+ * public EVM identities are registered as mesh agents (addresses only).
  */
 
 import * as fs from "fs";
@@ -22,7 +27,7 @@ export const STATE_PATH = path.join(import.meta.dir, "..", "state", "deployment.
 export const MESH_RPC = "http://127.0.0.1:8545";
 export const MESH_CHAIN_ID = 31337;
 
-export const LINK_ORDER = ["SAOSIdentity", "SAOSLedger", "SAOSSolutions", "SAOSBridge"];
+export const LINK_ORDER = ["SAOSIdentity", "SAOSLedger", "SAOSSolutions", "SAOSBridge", "SAOSWorkBoard"];
 export const MESH_CHAINS = ["SAOS-NET", "STEEM", "BLURT", "HIVE", "TRON", "ETHEREUM", "BSC", "SOLANA"];
 
 export interface MeshArtifactContract {
@@ -165,6 +170,7 @@ export async function deployMesh(): Promise<DeploymentState> {
   const ledger = C("SAOSLedger");
   const solutions = C("SAOSSolutions");
   const bridge = C("SAOSBridge");
+  const workboard = C("SAOSWorkBoard");
   const value = C("SAOSValueEngine");
 
   // 2. wire the chain — every arrow below is a real contract-to-contract link
@@ -177,6 +183,8 @@ export async function deployMesh(): Promise<DeploymentState> {
   await sendTx("ledger → relay", () => ledger.wire(addr.SAOSMeshRelay as string));
   await sendTx("solutions → relay", () => solutions.wire(addr.SAOSMeshRelay as string));
   await sendTx("bridge → relay", () => bridge.wire(addr.SAOSMeshRelay as string));
+  await sendTx("workboard → relay + ledger", () => workboard.wire(addr.SAOSMeshRelay as string, addr.SAOSLedger as string));
+  await sendTx("ledger payroll → workboard", () => ledger.setPayroll(addr.SAOSWorkBoard as string));
   await sendTx("valueEngine → hub + relay", () => value.wire(addr.SAOSMeshHub, addr.SAOSMeshRelay));
 
   // 3. register the 8-chain rails on the bridge
@@ -198,13 +206,18 @@ export async function deployMesh(): Promise<DeploymentState> {
     );
   }
 
-  // 6. seed runs — the chain in action, immediately
-  const rc1 = await sendTx("genesis run: 7 contracts chained", () =>
-    hub.dispatch("mesh genesis: 7 contracts chained, fee-free value rail")
+  // 6. the HQ posts the first work orders — then the seed runs deliver them
+  await sendTx("work order #0: genesis mission", () => workboard.postOrder("genesis: map the 8-chain grid and stamp live anchors", 2, ethers.parseEther("6")));
+  await sendTx("work order #1: onboarding mission", () => workboard.postOrder("onboarding: auto-enlist every fleet agent and mint its first reward", 3, ethers.parseEther("8")));
+  await sendTx("work order #2: efficiency mission", () => workboard.postOrder("efficiency: audit value-per-gas across all mesh hops", 4, ethers.parseEther("12")));
+
+  // 7. seed runs — the chain in action immediately (each delivers an order)
+  const rc1 = await sendTx("genesis run: 8 contracts chained", () =>
+    hub.dispatch("mesh genesis: 8 contracts chained, fee-free value rail, work board live")
   );
   const soldier = await provider.getSigner(1);
-  await sendTx("onboarding run: auto-enlist", () =>
-    hub.connect(soldier).dispatch("fleet onboarding: auto-enlist + sovereign payout")
+  await sendTx("onboarding run: auto-enlist + deliver order", () =>
+    hub.connect(soldier).dispatch("fleet onboarding: auto-enlist + work delivery + sovereign payout")
   );
 
   const state: DeploymentState = {
@@ -223,6 +236,6 @@ export async function deployMesh(): Promise<DeploymentState> {
   };
   fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + "\n");
   console.log(`[mesh] STATE → ${STATE_PATH}`);
-  console.log(`[mesh] MESH LIVE — 7 contracts chained on SAOS-EVM (chainId ${MESH_CHAIN_ID})`);
+  console.log(`[mesh] MESH LIVE — 8 contracts chained on SAOS-EVM (chainId ${MESH_CHAIN_ID}), work board armed with 3 orders`);
   return state;
 }

@@ -1,13 +1,14 @@
 {
   "name": "SAOSMesh",
-  "version": "saos-mesh/v1",
+  "version": "saos-mesh/v2",
   "compiler": "solc ^0.8.24 (optimizer 200, cancun)",
   "chain": "SAOS-EVM (sovereign laboratory chain, chainId 31337) — same EVM bytecode deploys on ETHEREUM + BSC",
   "linkOrder": [
     "SAOSIdentity",
     "SAOSLedger",
     "SAOSSolutions",
-    "SAOSBridge"
+    "SAOSBridge",
+    "SAOSWorkBoard"
   ],
   "contracts": [
     {
@@ -699,7 +700,7 @@
     },
     {
       "name": "SAOSLedger",
-      "source": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport \"./MeshTypes.sol\";\n\n/// @title SAOS Ledger — the zero-fee internal value rail (mesh link #2).\n/// @notice ללא עמלה — the fee is a compile-time zero, forever. Every mesh\n///         run mints a small sovereign reward (mint קטן) to the initiating\n///         agent, and internal transfers never pay anything.\ncontract SAOSLedger {\n    address public owner;\n    address public relay;\n\n    string public constant SYMBOL = \"SAOS-M\";\n    uint256 public constant RUN_REWARD = 10 ether; // 10 SAOS-M per run (small mint)\n    uint256 public constant FEE = 0;               // forever zero — by construction\n\n    mapping(address => uint256) public balanceOf;\n    uint256 public totalSupply;\n    uint256 public runMinted;\n    uint256 public transfersCount;\n    uint256 public valueMoved;\n\n    event RewardPaid(uint256 indexed runId, address indexed to, uint256 amount);\n    event ZeroFeeTransfer(uint256 indexed seq, address indexed from, address indexed to, uint256 amount, uint256 fee);\n\n    error NotOwner();\n    error NotRelay();\n    error InsufficientBalance();\n\n    constructor() { owner = msg.sender; }\n\n    function wire(address relayAddr) external {\n        if (msg.sender != owner) revert NotOwner();\n        relay = relayAddr;\n    }\n\n    function process(uint256 runId, bytes calldata context) external returns (bytes memory) {\n        if (msg.sender != relay) revert NotRelay();\n        (address initiator, ) = abi.decode(context, (address, string));\n        balanceOf[initiator] += RUN_REWARD;\n        totalSupply += RUN_REWARD;\n        runMinted += RUN_REWARD;\n        emit RewardPaid(runId, initiator, RUN_REWARD);\n        IRelayPass(relay).pass(runId, context);\n        return context;\n    }\n\n    /// @dev Sovereign internal transfer — zero fee, forever.\n    function transfer(address to, uint256 amount) external returns (bool) {\n        if (balanceOf[msg.sender] < amount) revert InsufficientBalance();\n        balanceOf[msg.sender] -= amount;\n        balanceOf[to] += amount;\n        transfersCount += 1;\n        valueMoved += amount;\n        emit ZeroFeeTransfer(transfersCount, msg.sender, to, amount, FEE);\n        return true;\n    }\n}\n",
+      "source": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport \"./MeshTypes.sol\";\n\n/// @title SAOS Ledger — the zero-fee internal value rail (mesh link #2).\n/// @notice ללא עמלה — the fee is a compile-time zero, forever. Every mesh\n///         run mints a small sovereign reward (mint קטן) to the initiating\n///         agent, and internal transfers never pay anything.\n///         v2 — payroll: every run also mints the same reward to the work\n///         board (set by the owner), so the HQ can always pay its soldiers\n///         through the zero-fee rail. עבודה ממומנת: mint קטן לחייל + mint\n///         קטן לקופת העבודה — בכל ריצה.\ncontract SAOSLedger {\n    address public owner;\n    address public relay;\n    address public payroll; // the SAOSWorkBoard — funded by every run\n\n    string public constant SYMBOL = \"SAOS-M\";\n    uint256 public constant RUN_REWARD = 10 ether; // 10 SAOS-M per run (small mint)\n    uint256 public constant FEE = 0;               // forever zero — by construction\n\n    mapping(address => uint256) public balanceOf;\n    uint256 public totalSupply;\n    uint256 public runMinted;\n    uint256 public transfersCount;\n    uint256 public valueMoved;\n\n    event RewardPaid(uint256 indexed runId, address indexed to, uint256 amount);\n    event PayrollFunded(uint256 indexed runId, address indexed payroll, uint256 amount);\n    event ZeroFeeTransfer(uint256 indexed seq, address indexed from, address indexed to, uint256 amount, uint256 fee);\n\n    error NotOwner();\n    error NotRelay();\n    error InsufficientBalance();\n\n    constructor() { owner = msg.sender; }\n\n    function wire(address relayAddr) external {\n        if (msg.sender != owner) revert NotOwner();\n        relay = relayAddr;\n    }\n\n    /// @dev v2 — the work board's payroll address (owner-only, one-time).\n    function setPayroll(address payrollAddr) external {\n        if (msg.sender != owner) revert NotOwner();\n        payroll = payrollAddr;\n    }\n\n    function process(uint256 runId, bytes calldata context) external returns (bytes memory) {\n        if (msg.sender != relay) revert NotRelay();\n        (address initiator, ) = abi.decode(context, (address, string));\n        balanceOf[initiator] += RUN_REWARD;\n        totalSupply += RUN_REWARD;\n        runMinted += RUN_REWARD;\n        emit RewardPaid(runId, initiator, RUN_REWARD);\n        if (payroll != address(0)) {\n            balanceOf[payroll] += RUN_REWARD;\n            totalSupply += RUN_REWARD;\n            runMinted += RUN_REWARD;\n            emit PayrollFunded(runId, payroll, RUN_REWARD);\n        }\n        IRelayPass(relay).pass(runId, context);\n        return context;\n    }\n\n    /// @dev Sovereign internal transfer — zero fee, forever.\n    function transfer(address to, uint256 amount) external returns (bool) {\n        if (balanceOf[msg.sender] < amount) revert InsufficientBalance();\n        balanceOf[msg.sender] -= amount;\n        balanceOf[to] += amount;\n        transfersCount += 1;\n        valueMoved += amount;\n        emit ZeroFeeTransfer(transfersCount, msg.sender, to, amount, FEE);\n        return true;\n    }\n}\n",
       "abi": [
         {
           "inputs": [],
@@ -720,6 +721,31 @@
           "inputs": [],
           "name": "NotRelay",
           "type": "error"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "runId",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "payroll",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            }
+          ],
+          "name": "PayrollFunded",
+          "type": "event"
         },
         {
           "anonymous": false,
@@ -855,6 +881,19 @@
           "type": "function"
         },
         {
+          "inputs": [],
+          "name": "payroll",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
           "inputs": [
             {
               "internalType": "uint256",
@@ -902,6 +941,19 @@
             }
           ],
           "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "payrollAddr",
+              "type": "address"
+            }
+          ],
+          "name": "setPayroll",
+          "outputs": [],
+          "stateMutability": "nonpayable",
           "type": "function"
         },
         {
@@ -981,8 +1033,8 @@
           "type": "function"
         }
       ],
-      "bytecode": "0x6080604052348015600e575f5ffd5b505f80546001600160a01b0319163317905561077a8061002d5f395ff3fe608060405234801561000f575f5ffd5b50600436106100cb575f3560e01c80637f4afb7a11610088578063b59589d111610063578063b59589d1146101a1578063c57981b5146101b4578063f6487d8c146101bb578063f76f8d78146101d0575f5ffd5b80637f4afb7a1461014b5780638da5cb5b14610154578063a9059cbb1461017e575f5ffd5b8063166cfd0b146100cf57806318160ddd146100eb5780632432b815146100f45780635353b3771461010357806370a082311461010c5780637cbf66d71461012b575b5f5ffd5b6100d860055481565b6040519081526020015b60405180910390f35b6100d860035481565b6100d8678ac7230489e8000081565b6100d860065481565b6100d861011a3660046104f8565b60026020525f908152604090205481565b61013e61013936600461051a565b6101f5565b6040516100e291906105bf565b6100d860045481565b5f54610166906001600160a01b031681565b6040516001600160a01b0390911681526020016100e2565b61019161018c3660046105d1565b610392565b60405190151581526020016100e2565b600154610166906001600160a01b031681565b6100d85f81565b6101ce6101c93660046104f8565b610495565b005b61013e6040518060400160405280600681526020016553414f532d4d60d01b81525081565b6001546060906001600160a01b031633146102235760405163361d224d60e21b815260040160405180910390fd5b5f6102308385018561060f565b506001600160a01b0381165f9081526002602052604081208054929350678ac7230489e80000929091906102659084906106e9565b92505081905550678ac7230489e8000060035f82825461028591906106e9565b92505081905550678ac7230489e8000060045f8282546102a591906106e9565b9091555050604051678ac7230489e8000081526001600160a01b0382169086907f04492fab062412e7e4e5f46c9e919f1640652946a5e163ad6e6c1c03d87954d29060200160405180910390a36001546040516338be807560e11b81526001600160a01b039091169063717d00ea90610326908890889088906004016106fc565b5f604051808303815f87803b15801561033d575f5ffd5b505af115801561034f573d5f5f3e3d5ffd5b5050505083838080601f0160208091040260200160405190810160405280939291908181526020018383808284375f920191909152509298975050505050505050565b335f908152600260205260408120548211156103c157604051631e9acf1760e31b815260040160405180910390fd5b335f90815260026020526040812080548492906103df908490610731565b90915550506001600160a01b0383165f908152600260205260408120805484929061040b9084906106e9565b92505081905550600160055f82825461042491906106e9565b925050819055508160065f82825461043c91906106e9565b9091555050600554604080518481525f60208201526001600160a01b03861692339290917f45cce185d5f3c3e51785b01d7ba6956353f0b5926fc22de08ef60af03bd37570910160405180910390a45060015b92915050565b5f546001600160a01b031633146104bf576040516330cd747160e01b815260040160405180910390fd5b600180546001600160a01b0319166001600160a01b0392909216919091179055565b6001600160a01b03811681146104f5575f5ffd5b50565b5f60208284031215610508575f5ffd5b8135610513816104e1565b9392505050565b5f5f5f6040848603121561052c575f5ffd5b83359250602084013567ffffffffffffffff811115610549575f5ffd5b8401601f81018613610559575f5ffd5b803567ffffffffffffffff81111561056f575f5ffd5b866020828401011115610580575f5ffd5b939660209190910195509293505050565b5f81518084528060208401602086015e5f602082860101526020601f19601f83011685010191505092915050565b602081525f6105136020830184610591565b5f5f604083850312156105e2575f5ffd5b82356105ed816104e1565b946020939093013593505050565b634e487b7160e01b5f52604160045260245ffd5b5f5f60408385031215610620575f5ffd5b823561062b816104e1565b9150602083013567ffffffffffffffff811115610646575f5ffd5b8301601f81018513610656575f5ffd5b803567ffffffffffffffff811115610670576106706105fb565b604051601f8201601f19908116603f0116810167ffffffffffffffff8111828210171561069f5761069f6105fb565b6040528181528282016020018710156106b6575f5ffd5b816020840160208301375f602083830101528093505050509250929050565b634e487b7160e01b5f52601160045260245ffd5b8082018082111561048f5761048f6106d5565b83815260406020820152816040820152818360608301375f818301606090810191909152601f909201601f1916010192915050565b8181038181111561048f5761048f6106d556fea2646970667358221220a8a80833ab04cb344b329df8540ba2fd5087a9986950225b819a70dc2364ce6e64736f6c63430008240033",
-      "bytecodeBytes": 1959
+      "bytecode": "0x6080604052348015600e575f5ffd5b505f80546001600160a01b031916331790556108e58061002d5f395ff3fe608060405234801561000f575f5ffd5b50600436106100f0575f3560e01c80637f4afb7a11610093578063b59589d111610063578063b59589d1146101ee578063c57981b514610201578063f6487d8c14610208578063f76f8d781461021b575f5ffd5b80637f4afb7a1461019b5780638139d2ca146101a45780638da5cb5b146101b9578063a9059cbb146101cb575f5ffd5b80635353b377116100ce5780635353b37714610128578063562a5d061461013157806370a082311461015c5780637cbf66d71461017b575f5ffd5b8063166cfd0b146100f457806318160ddd146101105780632432b81514610119575b5f5ffd5b6100fd60065481565b6040519081526020015b60405180910390f35b6100fd60045481565b6100fd678ac7230489e8000081565b6100fd60075481565b600254610144906001600160a01b031681565b6040516001600160a01b039091168152602001610107565b6100fd61016a366004610663565b60036020525f908152604090205481565b61018e610189366004610685565b610240565b604051610107919061072a565b6100fd60055481565b6101b76101b2366004610663565b6104b1565b005b5f54610144906001600160a01b031681565b6101de6101d936600461073c565b6104fd565b6040519015158152602001610107565b600154610144906001600160a01b031681565b6100fd5f81565b6101b7610216366004610663565b610600565b61018e6040518060400160405280600681526020016553414f532d4d60d01b81525081565b6001546060906001600160a01b0316331461026e5760405163361d224d60e21b815260040160405180910390fd5b5f61027b8385018561077a565b506001600160a01b0381165f9081526003602052604081208054929350678ac7230489e80000929091906102b0908490610854565b92505081905550678ac7230489e8000060045f8282546102d09190610854565b92505081905550678ac7230489e8000060055f8282546102f09190610854565b9091555050604051678ac7230489e8000081526001600160a01b0382169086907f04492fab062412e7e4e5f46c9e919f1640652946a5e163ad6e6c1c03d87954d29060200160405180910390a36002546001600160a01b031615610411576002546001600160a01b03165f9081526003602052604081208054678ac7230489e80000929061037f908490610854565b92505081905550678ac7230489e8000060045f82825461039f9190610854565b92505081905550678ac7230489e8000060055f8282546103bf9190610854565b9091555050600254604051678ac7230489e8000081526001600160a01b039091169086907f1c98ed71d7429cd5d6958e734e7dc9e07747b430f6aebc6d6e8f0f3cea24fc069060200160405180910390a35b6001546040516338be807560e11b81526001600160a01b039091169063717d00ea9061044590889088908890600401610867565b5f604051808303815f87803b15801561045c575f5ffd5b505af115801561046e573d5f5f3e3d5ffd5b5050505083838080601f0160208091040260200160405190810160405280939291908181526020018383808284375f920191909152509298975050505050505050565b5f546001600160a01b031633146104db576040516330cd747160e01b815260040160405180910390fd5b600280546001600160a01b0319166001600160a01b0392909216919091179055565b335f9081526003602052604081205482111561052c57604051631e9acf1760e31b815260040160405180910390fd5b335f908152600360205260408120805484929061054a90849061089c565b90915550506001600160a01b0383165f9081526003602052604081208054849290610576908490610854565b92505081905550600160065f82825461058f9190610854565b925050819055508160075f8282546105a79190610854565b9091555050600654604080518481525f60208201526001600160a01b03861692339290917f45cce185d5f3c3e51785b01d7ba6956353f0b5926fc22de08ef60af03bd37570910160405180910390a45060015b92915050565b5f546001600160a01b0316331461062a576040516330cd747160e01b815260040160405180910390fd5b600180546001600160a01b0319166001600160a01b0392909216919091179055565b6001600160a01b0381168114610660575f5ffd5b50565b5f60208284031215610673575f5ffd5b813561067e8161064c565b9392505050565b5f5f5f60408486031215610697575f5ffd5b83359250602084013567ffffffffffffffff8111156106b4575f5ffd5b8401601f810186136106c4575f5ffd5b803567ffffffffffffffff8111156106da575f5ffd5b8660208284010111156106eb575f5ffd5b939660209190910195509293505050565b5f81518084528060208401602086015e5f602082860101526020601f19601f83011685010191505092915050565b602081525f61067e60208301846106fc565b5f5f6040838503121561074d575f5ffd5b82356107588161064c565b946020939093013593505050565b634e487b7160e01b5f52604160045260245ffd5b5f5f6040838503121561078b575f5ffd5b82356107968161064c565b9150602083013567ffffffffffffffff8111156107b1575f5ffd5b8301601f810185136107c1575f5ffd5b803567ffffffffffffffff8111156107db576107db610766565b604051601f8201601f19908116603f0116810167ffffffffffffffff8111828210171561080a5761080a610766565b604052818152828201602001871015610821575f5ffd5b816020840160208301375f602083830101528093505050509250929050565b634e487b7160e01b5f52601160045260245ffd5b808201808211156105fa576105fa610840565b83815260406020820152816040820152818360608301375f818301606090810191909152601f909201601f1916010192915050565b818103818111156105fa576105fa61084056fea26469706673582212206a8be8e14456f9ef2a4a76f99cb99b30a24be7324faff05242be061ee4bcba6864736f6c63430008240033",
+      "bytecodeBytes": 2322
     },
     {
       "name": "SAOSSolutions",
@@ -1451,6 +1503,372 @@
       ],
       "bytecode": "0x6080604052348015600e575f5ffd5b505f80546001600160a01b031916331790556111798061002d5f395ff3fe608060405234801561000f575f5ffd5b506004361061009b575f3560e01c80638da5cb5b116100635780638da5cb5b14610125578063b59589d11461014f578063d46665e314610162578063e02e1bfd14610175578063f6487d8c14610186575f5ffd5b80632d471a831461009f57806332f83940146100b457806358a8b85f146100dd578063777cb9c7146100f25780637cbf66d714610105575b5f5ffd5b6100b26100ad366004610adc565b610199565b005b6100c76100c2366004610b28565b610286565b6040516100d49190610b94565b60405180910390f35b6100e56103a0565b6040516100d49190610be2565b6100b2610100366004610b28565b610474565b610118610113366004610c45565b610620565b6040516100d49190610c8c565b5f54610137906001600160a01b031681565b6040516001600160a01b0390911681526020016100d4565b600154610137906001600160a01b031681565b6100b2610170366004610ce5565b610861565b6002546040519081526020016100d4565b6100b2610194366004610d81565b610a4c565b5f546001600160a01b031633146101c3576040516330cd747160e01b815260040160405180910390fd5b5f600385856040516101d6929190610da7565b90815260405190819003602001902060038101549091506001600160401b03165f03610215576040516305a1a5df60e01b815260040160405180910390fd5b600181018390556002810182905560038101805467ffffffffffffffff1916426001600160401b03161790556040517f707dead137005024bab054863fb7d728b0e95b4bd9e87ce0f8e24a0b67bd9e9b90610277908790879087908790610dde565b60405180910390a15050505050565b6102b76040518060800160405280606081526020015f81526020015f81526020015f6001600160401b031681525090565b600383836040516102c9929190610da7565b90815260200160405180910390206040518060800160405290815f820180546102f190610e04565b80601f016020809104026020016040519081016040528092919081815260200182805461031d90610e04565b80156103685780601f1061033f57610100808354040283529160200191610368565b820191905f5260205f20905b81548152906001019060200180831161034b57829003601f168201915b505050918352505060018201546020820152600282015460408201526003909101546001600160401b03166060909101529392505050565b60606002805480602002602001604051908101604052809291908181526020015f905b8282101561046b578382905f5260205f200180546103e090610e04565b80601f016020809104026020016040519081016040528092919081815260200182805461040c90610e04565b80156104575780601f1061042e57610100808354040283529160200191610457565b820191905f5260205f20905b81548152906001019060200180831161043a57829003601f168201915b5050505050815260200190600101906103c3565b50505050905090565b5f546001600160a01b0316331461049e576040516330cd747160e01b815260040160405180910390fd5b600382826040516104b0929190610da7565b908152604051908190036020019020600301546001600160401b0316156104d5575050565b600280546001810182555f919091527f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace01610511828483610ea7565b50604051806080016040528083838080601f0160208091040260200160405190810160405280939291908181526020018383808284375f920182905250938552505050602082018190526040808301919091526001600160401b034216606090920191909152516003906105889085908590610da7565b908152604051908190036020019020815181906105a59082610f61565b506020820151600182015560408083015160028301556060909201516003909101805467ffffffffffffffff19166001600160401b03909216919091179055517fd9943f8488a98888a1ba4ee4ad6cecc17c066d513f5a071626d30dc7997697f090610614908490849061101b565b60405180910390a15050565b6001546060906001600160a01b0316331461064e5760405163361d224d60e21b815260040160405180910390fd5b5f5b6002548110156107c1575f60036002838154811061067057610670611036565b905f5260205f2001604051610685919061104a565b90815260200160405180910390206040518060800160405290815f820180546106ad90610e04565b80601f01602080910402602001604051908101604052809291908181526020018280546106d990610e04565b80156107245780601f106106fb57610100808354040283529160200191610724565b820191905f5260205f20905b81548152906001019060200180831161070757829003601f168201915b505050505081526020016001820154815260200160028201548152602001600382015f9054906101000a90046001600160401b03166001600160401b03166001600160401b0316815250509050857f77861e7bae9611fcae8ab62a90af23030e1bda418e5cd5e8662e2a916b398993825f0151836020015184604001516040516107b0939291906110bb565b60405180910390a250600101610650565b506001546040516338be807560e11b81526001600160a01b039091169063717d00ea906107f6908790879087906004016110df565b5f604051808303815f87803b15801561080d575f5ffd5b505af115801561081f573d5f5f3e3d5ffd5b5050505082828080601f0160208091040260200160405190810160405280939291908181526020018383808284375f9201919091525092979650505050505050565b5f546001600160a01b0316331461088b576040516330cd747160e01b815260040160405180910390fd5b848314801561089957508481145b6108e15760405162461bcd60e51b81526020600482015260156024820152740a6829ea67440d8cadccee8d040dad2e6dac2e8c6d605b1b604482015260640160405180910390fd5b5f5b85811015610a43575f600388888481811061090057610900611036565b90506020028101906109129190611101565b604051610920929190610da7565b90815260405190819003602001902060038101549091506001600160401b03165f0361094c5750610a3b565b85858381811061095e5761095e611036565b602002919091013560018301555083838381811061097e5761097e611036565b602002919091013560028301555060038101805467ffffffffffffffff1916426001600160401b03161790557f707dead137005024bab054863fb7d728b0e95b4bd9e87ce0f8e24a0b67bd9e9b8888848181106109dd576109dd611036565b90506020028101906109ef9190611101565b888886818110610a0157610a01611036565b90506020020135878787818110610a1a57610a1a611036565b90506020020135604051610a319493929190610dde565b60405180910390a1505b6001016108e3565b50505050505050565b5f546001600160a01b03163314610a76576040516330cd747160e01b815260040160405180910390fd5b600180546001600160a01b0319166001600160a01b0392909216919091179055565b5f5f83601f840112610aa8575f5ffd5b5081356001600160401b03811115610abe575f5ffd5b602083019150836020828501011115610ad5575f5ffd5b9250929050565b5f5f5f5f60608587031215610aef575f5ffd5b84356001600160401b03811115610b04575f5ffd5b610b1087828801610a98565b90989097506020870135966040013595509350505050565b5f5f60208385031215610b39575f5ffd5b82356001600160401b03811115610b4e575f5ffd5b610b5a85828601610a98565b90969095509350505050565b5f81518084528060208401602086015e5f602082860101526020601f19601f83011685010191505092915050565b602081525f825160806020840152610baf60a0840182610b66565b905060208401516040840152604084015160608401526001600160401b0360608501511660808401528091505092915050565b5f602082016020835280845180835260408501915060408160051b8601019250602086015f5b82811015610c3957603f19878603018452610c24858351610b66565b94506020938401939190910190600101610c08565b50929695505050505050565b5f5f5f60408486031215610c57575f5ffd5b8335925060208401356001600160401b03811115610c73575f5ffd5b610c7f86828701610a98565b9497909650939450505050565b602081525f610c9e6020830184610b66565b9392505050565b5f5f83601f840112610cb5575f5ffd5b5081356001600160401b03811115610ccb575f5ffd5b6020830191508360208260051b8501011115610ad5575f5ffd5b5f5f5f5f5f5f60608789031215610cfa575f5ffd5b86356001600160401b03811115610d0f575f5ffd5b610d1b89828a01610ca5565b90975095505060208701356001600160401b03811115610d39575f5ffd5b610d4589828a01610ca5565b90955093505060408701356001600160401b03811115610d63575f5ffd5b610d6f89828a01610ca5565b979a9699509497509295939492505050565b5f60208284031215610d91575f5ffd5b81356001600160a01b0381168114610c9e575f5ffd5b818382375f9101908152919050565b81835281816020850137505f828201602090810191909152601f909101601f19169091010190565b606081525f610df1606083018688610db6565b6020830194909452506040015292915050565b600181811c90821680610e1857607f821691505b602082108103610e3657634e487b7160e01b5f52602260045260245ffd5b50919050565b634e487b7160e01b5f52604160045260245ffd5b601f821115610ea25782821115610ea257805f5260205f20601f840160051c6020851015610e7b57505f5b90810190601f840160051c035f5b81811015610e9e575f83820155600101610e89565b5050505b505050565b6001600160401b03831115610ebe57610ebe610e3c565b610ed283610ecc8354610e04565b83610e50565b5f601f841160018114610f03575f8515610eec5750838201355b5f19600387901b1c1916600186901b178355610f5a565b5f83815260208120601f198716915b82811015610f325786850135825560209485019460019092019101610f12565b5086821015610f4e575f1960f88860031b161c19848701351681555b505060018560011b0183555b5050505050565b81516001600160401b03811115610f7a57610f7a610e3c565b610f8e81610f888454610e04565b84610e50565b6020601f821160018114610fc0575f8315610fa95750848201515b5f19600385901b1c1916600184901b178455610f5a565b5f84815260208120601f198516915b82811015610fef5787850151825560209485019460019092019101610fcf565b508482101561100c57868401515f19600387901b60f8161c191681555b50505050600190811b01905550565b602081525f61102e602083018486610db6565b949350505050565b634e487b7160e01b5f52603260045260245ffd5b5f5f835461105781610e04565b60018216801561106e5760018114611083576110b0565b60ff19831686528115158202860193506110b0565b865f5260205f205f5b838110156110a85781548882015260019091019060200161108c565b505081860193505b509195945050505050565b606081525f6110cd6060830186610b66565b60208301949094525060400152919050565b838152604060208201525f6110f8604083018486610db6565b95945050505050565b5f5f8335601e19843603018112611116575f5ffd5b8301803591506001600160401b0382111561112f575f5ffd5b602001915036819003821315610ad5575f5ffdfea2646970667358221220e4b7512857d34dcc6824474b13c8e12061b4a8444c633804b4a0b499a97a949664736f6c63430008240033",
       "bytecodeBytes": 4518
+    },
+    {
+      "name": "SAOSWorkBoard",
+      "source": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport \"./MeshTypes.sol\";\n\n/// @title SAOS Work Board — פקודות עבודה (mesh link #5): HQ posts work,\n///        soldiers deliver it, the ledger pays — all inside the mesh run.\n/// @notice עבודה לחיילים: every mesh run is now WORK. The HQ (owner)\n///         posts open orders with a mission, difficulty and reward. The\n///         board is a mesh link — when a run reaches it, the run's\n///         initiator (a soldier) delivers the oldest open order, and the\n///         reward moves through the zero-fee ledger rail (payroll balance\n///         is minted to the board on every run by SAOSLedger).\n///         פתרונות · ערך · יעילות — solutions, pay and efficiency in\n///         ONE chained transaction: Hub → Relay → Identity → Ledger →\n///         Solutions → Bridge → **WorkBoard** → Hub → ValueEngine.\ncontract SAOSWorkBoard {\n    address public owner;\n    address public relay;\n    ILedgerRail public ledger;\n\n    enum Status { Open, Delivered }\n\n    struct Order {\n        string mission;       // the work: what the soldier must do\n        uint256 difficulty;   // 1..5 — complexity level\n        uint256 reward;       // SAOS-M, zero-fee, paid from the payroll\n        Status status;\n        address soldier;      // assigned on delivery\n        uint256 runId;        // the mesh run that delivered this order\n        uint64 postedAt;\n        uint64 deliveredAt;\n        bool paid;            // honest: reward actually moved\n    }\n    Order[] private _orders;\n\n    struct SoldierStat { address soldier; uint256 orders; uint256 earned; }\n    mapping(address => uint256) private _soldierIndexPlusOne; // 0 = not yet\n    SoldierStat[] private _soldiers;\n\n    uint256 public ordersDelivered;\n    uint256 public totalRewardPaid;\n\n    event OrderPosted(uint256 indexed orderId, string mission, uint256 difficulty, uint256 reward);\n    event OrderDelivered(uint256 indexed orderId, uint256 indexed runId, address indexed soldier, string mission, uint256 reward, bool paid);\n\n    error NotOwner();\n    error NotRelay();\n    error OrderOutOfBounds();\n\n    constructor() { owner = msg.sender; }\n\n    function wire(address relayAddr, address ledgerAddr) external {\n        if (msg.sender != owner) revert NotOwner();\n        relay = relayAddr;\n        ledger = ILedgerRail(ledgerAddr);\n    }\n\n    /// @dev HQ posts a new work order. Payroll must be able to cover it\n    ///      (escrow discipline) — checked at delivery, never blocks the run.\n    function postOrder(string calldata mission, uint256 difficulty, uint256 reward) external returns (uint256 orderId) {\n        if (msg.sender != owner) revert NotOwner();\n        _orders.push(Order(mission, difficulty, reward, Status.Open, address(0), 0, uint64(block.timestamp), 0, false));\n        orderId = _orders.length - 1;\n        emit OrderPosted(orderId, mission, difficulty, reward);\n        return orderId;\n    }\n\n    function orderCount() external view returns (uint256) { return _orders.length; }\n\n    function orderAt(uint256 i) external view returns (Order memory) {\n        if (i >= _orders.length) revert OrderOutOfBounds();\n        return _orders[i];\n    }\n\n    function soldierCount() external view returns (uint256) { return _soldiers.length; }\n\n    function soldierAt(uint256 i) external view returns (SoldierStat memory) {\n        if (i >= _soldiers.length) revert OrderOutOfBounds();\n        return _soldiers[i];\n    }\n\n    /// @dev mesh link #5 — the run's initiator delivers the oldest open order\n    ///      and gets paid through the zero-fee rail. If the payroll cannot\n    ///      cover the reward the delivery is recorded but unpaid (honest\n    ///      flag) — the chain NEVER breaks over money.\n    function process(uint256 runId, bytes calldata context) external returns (bytes memory) {\n        if (msg.sender != relay) revert NotRelay();\n        (address initiator, ) = abi.decode(context, (address, string));\n        uint256 orderId = _oldestOpen();\n        if (orderId != type(uint256).max) {\n            Order storage o = _orders[orderId];\n            o.status = Status.Delivered;\n            o.soldier = initiator;\n            o.runId = runId;\n            o.deliveredAt = uint64(block.timestamp);\n            ordersDelivered += 1;\n            // pay through the zero-fee ledger rail — only if funded\n            bool paid = false;\n            if (address(ledger) != address(0) && ledger.balanceOf(address(this)) >= o.reward && o.reward > 0) {\n                ledger.transfer(initiator, o.reward);\n                paid = true;\n                totalRewardPaid += o.reward;\n            }\n            o.paid = paid;\n            _bump(initiator, paid ? o.reward : 0);\n            emit OrderDelivered(orderId, runId, initiator, o.mission, o.reward, paid);\n        }\n        IRelayPass(relay).pass(runId, context);\n        return context;\n    }\n\n    function _oldestOpen() internal view returns (uint256) {\n        for (uint256 i = 0; i < _orders.length; i++) {\n            if (_orders[i].status == Status.Open) return i;\n        }\n        return type(uint256).max;\n    }\n\n    function _bump(address soldier, uint256 paid) internal {\n        uint256 ipo = _soldierIndexPlusOne[soldier];\n        if (ipo == 0) {\n            _soldiers.push(SoldierStat(soldier, 1, paid));\n            _soldierIndexPlusOne[soldier] = _soldiers.length;\n        } else {\n            SoldierStat storage s = _soldiers[ipo - 1];\n            s.orders += 1;\n            s.earned += paid;\n        }\n    }\n}\n\n/// @dev the zero-fee value rail the board pays through (SAOSLedger).\ninterface ILedgerRail {\n    function balanceOf(address who) external view returns (uint256);\n    function transfer(address to, uint256 amount) external returns (bool);\n}\n",
+      "abi": [
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "inputs": [],
+          "name": "NotOwner",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotRelay",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "OrderOutOfBounds",
+          "type": "error"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "orderId",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "runId",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "soldier",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "mission",
+              "type": "string"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "reward",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "bool",
+              "name": "paid",
+              "type": "bool"
+            }
+          ],
+          "name": "OrderDelivered",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "orderId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "mission",
+              "type": "string"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "difficulty",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "reward",
+              "type": "uint256"
+            }
+          ],
+          "name": "OrderPosted",
+          "type": "event"
+        },
+        {
+          "inputs": [],
+          "name": "ledger",
+          "outputs": [
+            {
+              "internalType": "contract ILedgerRail",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "i",
+              "type": "uint256"
+            }
+          ],
+          "name": "orderAt",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "mission",
+                  "type": "string"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "difficulty",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "reward",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "enum SAOSWorkBoard.Status",
+                  "name": "status",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "address",
+                  "name": "soldier",
+                  "type": "address"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "runId",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "postedAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "deliveredAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "paid",
+                  "type": "bool"
+                }
+              ],
+              "internalType": "struct SAOSWorkBoard.Order",
+              "name": "",
+              "type": "tuple"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "orderCount",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ordersDelivered",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "owner",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "string",
+              "name": "mission",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "difficulty",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reward",
+              "type": "uint256"
+            }
+          ],
+          "name": "postOrder",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "orderId",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "runId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "context",
+              "type": "bytes"
+            }
+          ],
+          "name": "process",
+          "outputs": [
+            {
+              "internalType": "bytes",
+              "name": "",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "relay",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "i",
+              "type": "uint256"
+            }
+          ],
+          "name": "soldierAt",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "soldier",
+                  "type": "address"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "orders",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "earned",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct SAOSWorkBoard.SoldierStat",
+              "name": "",
+              "type": "tuple"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "soldierCount",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "totalRewardPaid",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "relayAddr",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "ledgerAddr",
+              "type": "address"
+            }
+          ],
+          "name": "wire",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        }
+      ],
+      "bytecode": "0x6080604052348015600e575f5ffd5b505f80546001600160a01b031916331790556111fd8061002d5f395ff3fe608060405234801561000f575f5ffd5b50600436106100b1575f3560e01c80637cbf66d71161006e5780637cbf66d71461013b5780638da5cb5b1461015b57806390e3677f1461016d578063b59589d114610182578063cf57dddb14610195578063f9322ebe1461019e575f5ffd5b80632453ffa8146100b55780633ffc7f4e146100cc57806356397c35146100df5780635a632c281461010a578063761cdca9146101135780637bfeb7731461011b575b5f5ffd5b6003545b6040519081526020015b60405180910390f35b6100b96100da366004610bf5565b6101dc565b6002546100f2906001600160a01b031681565b6040516001600160a01b0390911681526020016100c3565b6100b960075481565b6005546100b9565b61012e610129366004610c41565b6103dd565b6040516100c39190610cba565b61014e610149366004610d67565b610563565b6040516100c39190610dae565b5f546100f2906001600160a01b031681565b61018061017b366004610dde565b6108a1565b005b6001546100f2906001600160a01b031681565b6100b960065481565b6101b16101ac366004610c41565b6108f9565b6040805182516001600160a01b031681526020808401519082015291810151908201526060016100c3565b5f80546001600160a01b03163314610207576040516330cd747160e01b815260040160405180910390fd5b604080516101406020601f88018190040282018101909252610120810186815260039282919089908990819085018382808284375f920182905250938552505050602080830188905260408301879052606083018290526080830182905260a08301829052426001600160401b031660c084015260e0830182905261010090920181905283546001810185559381522081519192600602019081906102ac9082610eb7565b5060208201518160010155604082015181600201556060820151816003015f6101000a81548160ff021916908360018111156102ea576102ea610c86565b02179055506080820151600380830180546001600160a01b03909316610100908102610100600160a81b031990941693909317905560a0840151600484015560c08401516005909301805460e086015193909501511515600160801b0260ff60801b196001600160401b03948516600160401b026fffffffffffffffffffffffffffffffff1990971694909516939093179490941792909216179091555461039490600190610f89565b9050807f994eb1e953ea4f5c68f922bc77b6872e71524c3d564458d51a7ad722b3170add868686866040516103cc9493929190610fca565b60405180910390a25b949350505050565b6103e5610b58565b600354821061040757604051637ac6e5e760e11b815260040160405180910390fd5b6003828154811061041a5761041a610ff0565b905f5260205f209060060201604051806101200160405290815f8201805461044190610e29565b80601f016020809104026020016040519081016040528092919081815260200182805461046d90610e29565b80156104b85780601f1061048f576101008083540402835291602001916104b8565b820191905f5260205f20905b81548152906001019060200180831161049b57829003601f168201915b5050509183525050600182810154602083015260028301546040830152600383015460609092019160ff16908111156104f3576104f3610c86565b600181111561050457610504610c86565b8152600382015461010090046001600160a01b03166020820152600482015460408201526005909101546001600160401b038082166060840152600160401b8204166080830152600160801b900460ff16151560a09091015292915050565b6001546060906001600160a01b031633146105915760405163361d224d60e21b815260040160405180910390fd5b5f61059e83850185611004565b5090505f6105aa6109a0565b90505f198114610800575f600382815481106105c8576105c8610ff0565b5f9182526020822060069182020160038101805460016001600160a81b03199091166101006001600160a01b038a1602178117909155600482018b90556005820180546fffffffffffffffff00000000000000001916600160401b426001600160401b031602179055825491945092906106439084906110c7565b90915550506002545f906001600160a01b0316158015906106d1575060028281015490546040516370a0823160e01b81523060048201526001600160a01b03909116906370a0823190602401602060405180830381865afa1580156106aa573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906106ce91906110da565b10155b80156106e057505f8260020154115b1561077e57600280549083015460405163a9059cbb60e01b81526001600160a01b038781166004830152602482019290925291169063a9059cbb906044016020604051808303815f875af115801561073a573d5f5f3e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061075e91906110f1565b5060019050816002015460075f82825461077891906110c7565b90915550505b60058201805460ff60801b1916600160801b831515021790556107b084826107a6575f610a02565b8360020154610a02565b836001600160a01b031688847f526306940e680c4e65b6f4df83277c231ae6470165b082a04513c19767a954b5855f018660020154866040516107f593929190611110565b60405180910390a450505b6001546040516338be807560e11b81526001600160a01b039091169063717d00ea90610834908990899089906004016111a5565b5f604051808303815f87803b15801561084b575f5ffd5b505af115801561085d573d5f5f3e3d5ffd5b5050505084848080601f0160208091040260200160405190810160405280939291908181526020018383808284375f92019190915250929998505050505050505050565b5f546001600160a01b031633146108cb576040516330cd747160e01b815260040160405180910390fd5b600180546001600160a01b039384166001600160a01b03199182161790915560028054929093169116179055565b61092360405180606001604052805f6001600160a01b031681526020015f81526020015f81525090565b600554821061094557604051637ac6e5e760e11b815260040160405180910390fd5b6005828154811061095857610958610ff0565b5f91825260209182902060408051606081018252600390930290910180546001600160a01b031683526001810154938301939093526002909201549181019190915292915050565b5f805b6003548110156109fa575f600382815481106109c1576109c1610ff0565b5f91825260209091206003600690920201015460ff1660018111156109e8576109e8610c86565b036109f257919050565b6001016109a3565b505f19905090565b6001600160a01b0382165f9081526004602052604081205490819003610af25750604080516060810182526001600160a01b03938416808252600160208084018281528486019687526005805493840181555f81815295517f036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0600390950294850180546001600160a01b03191691909a1617909855517f036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db183015594517f036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db29091015593549381526004909252902055565b5f6005610b00600184610f89565b81548110610b1057610b10610ff0565b905f5260205f20906003020190506001816001015f828254610b3291906110c7565b9250508190555082816002015f828254610b4c91906110c7565b9091555050505b505050565b604051806101200160405280606081526020015f81526020015f81526020015f6001811115610b8957610b89610c86565b81525f6020820181905260408201819052606082018190526080820181905260a09091015290565b5f5f83601f840112610bc1575f5ffd5b5081356001600160401b03811115610bd7575f5ffd5b602083019150836020828501011115610bee575f5ffd5b9250929050565b5f5f5f5f60608587031215610c08575f5ffd5b84356001600160401b03811115610c1d575f5ffd5b610c2987828801610bb1565b90989097506020870135966040013595509350505050565b5f60208284031215610c51575f5ffd5b5035919050565b5f81518084528060208401602086015e5f602082860101526020601f19601f83011685010191505092915050565b634e487b7160e01b5f52602160045260245ffd5b60028110610cb657634e487b7160e01b5f52602160045260245ffd5b9052565b602081525f82516101206020840152610cd7610140840182610c58565b905060208401516040840152604084015160608401526060840151610cff6080850182610c9a565b5060808401516001600160a01b03811660a08501525060a084015160c084015260c0840151610d3960e08501826001600160401b03169052565b5060e08401516001600160401b03811661010085015250610100840151801515610120850152509392505050565b5f5f5f60408486031215610d79575f5ffd5b8335925060208401356001600160401b03811115610d95575f5ffd5b610da186828701610bb1565b9497909650939450505050565b602081525f610dc06020830184610c58565b9392505050565b6001600160a01b0381168114610ddb575f5ffd5b50565b5f5f60408385031215610def575f5ffd5b8235610dfa81610dc7565b91506020830135610e0a81610dc7565b809150509250929050565b634e487b7160e01b5f52604160045260245ffd5b600181811c90821680610e3d57607f821691505b602082108103610e5b57634e487b7160e01b5f52602260045260245ffd5b50919050565b601f821115610b535782821115610b5357805f5260205f20601f840160051c6020851015610e8c57505f5b90810190601f840160051c035f5b81811015610eaf575f83820155600101610e9a565b505050505050565b81516001600160401b03811115610ed057610ed0610e15565b610ee481610ede8454610e29565b84610e61565b6020601f821160018114610f16575f8315610eff5750848201515b5f19600385901b1c1916600184901b178455610f6e565b5f84815260208120601f198516915b82811015610f455787850151825560209485019460019092019101610f25565b5084821015610f6257868401515f19600387901b60f8161c191681555b505060018360011b0184555b5050505050565b634e487b7160e01b5f52601160045260245ffd5b81810381811115610f9c57610f9c610f75565b92915050565b81835281816020850137505f828201602090810191909152601f909101601f19169091010190565b606081525f610fdd606083018688610fa2565b6020830194909452506040015292915050565b634e487b7160e01b5f52603260045260245ffd5b5f5f60408385031215611015575f5ffd5b823561102081610dc7565b915060208301356001600160401b0381111561103a575f5ffd5b8301601f8101851361104a575f5ffd5b80356001600160401b0381111561106357611063610e15565b604051601f8201601f19908116603f011681016001600160401b038111828210171561109157611091610e15565b6040528181528282016020018710156110a8575f5ffd5b816020840160208301375f602083830101528093505050509250929050565b80820180821115610f9c57610f9c610f75565b5f602082840312156110ea575f5ffd5b5051919050565b5f60208284031215611101575f5ffd5b81518015158114610dc0575f5ffd5b606081525f5f855461112181610e29565b806060860152600182165f811461113f576001811461115b5761118c565b60ff1983166080870152608082151560051b870101935061118c565b885f5260205f205f5b8381101561118357815488820160800152600190910190602001611164565b87016080019450505b50505060208301859052831515604084015290506103d5565b838152604060208201525f6111be604083018486610fa2565b9594505050505056fea264697066735822122031a0acc70824b2072ebaada27404f014f7d8e0980f824a513c9ab97b2f511e6f64736f6c63430008240033",
+      "bytecodeBytes": 4650
     },
     {
       "name": "SAOSValueEngine",

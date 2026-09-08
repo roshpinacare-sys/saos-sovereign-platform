@@ -64,9 +64,10 @@ export const MESH_ROLES: Record<string, string> = {
   SAOSMeshHub: "מפקדת — פותחת כל ריצה וחותמת את השלמתה",
   SAOSMeshRelay: "ממסר — מקפיץ את ההודעה מחוזה לחוזה, דבר מוביל לדבר",
   SAOSIdentity: "זהות — רישום סוכנים ריבוני + גיוס אוטומטי בריצה ראשונה",
-  SAOSLedger: "מזכיר — ערך פנימי ללא עמלה + mint קטן לכל ריצה",
+  SAOSLedger: "מזכיר — ערך פנימי ללא עמלה + mint קטן לכל ריצה + מימון קופת העבודה",
   SAOSSolutions: "פתרונות — כל ריצה מתחייבת כפתרון על-גבי השרשרת",
   SAOSBridge: "גשר — מטביע את מצב 8 הרשתות בתוך כל ריצה",
+  SAOSWorkBoard: "לוח עבודה — המפקדה מפרסמת פקודות, חיילים מבצעים ומקבלים שכר",
   SAOSValueEngine: "מנוע ערך — ניקוד יעילות: ערך ליחידת גז"
 };
 
@@ -123,28 +124,36 @@ const argStr = (v: unknown): string => {
 
 import type {
   MeshAgentView,
+  MeshBoardData,
   MeshContractInfo,
   MeshFeedData,
   MeshLedgerData,
+  MeshOrderView,
   MeshRailView,
   MeshRunHop,
   MeshRunOutcome,
   MeshRunView,
+  MeshSoldierStatView,
   MeshStatusData,
-  MeshTransferView
+  MeshTransferView,
+  MeshWorkOutcome
 } from "@/components/saos/types";
 
 export type {
   MeshAgentView,
+  MeshBoardData,
   MeshContractInfo,
   MeshFeedData,
   MeshLedgerData,
+  MeshOrderView,
   MeshRailView,
   MeshRunHop,
   MeshRunOutcome,
   MeshRunView,
+  MeshSoldierStatView,
   MeshStatusData,
-  MeshTransferView
+  MeshTransferView,
+  MeshWorkOutcome
 };
 
 // ─── event decoding ───────────────────────────────────────────────────────
@@ -235,6 +244,7 @@ function buildRun(
   });
 
   const anchorEvents = mine.filter((e) => e.name === "AnchorStamped");
+  const orderDelivered = mine.find((e) => e.name === "OrderDelivered");
 
   return {
     id,
@@ -254,6 +264,15 @@ function buildRun(
     rewardAmount: reward ? ethers.formatEther(BigInt(reward.values["amount"] ?? "0")) : null,
     solutionTitle: solution?.values["title"] ?? null,
     solutionDigest: solution?.values["digest"] ?? null,
+    order: orderDelivered
+      ? {
+          id: Number(orderDelivered.values["orderId"] ?? 0),
+          mission: orderDelivered.values["mission"] ?? "",
+          soldier: orderDelivered.values["soldier"] ?? "",
+          reward: ethers.formatEther(BigInt(orderDelivered.values["reward"] ?? "0")),
+          paid: (orderDelivered.values["paid"] ?? "false") === "true"
+        }
+      : null,
     anchors: anchorEvents.map((a) => ({
       chain: a.values["chain"] ?? "",
       height: a.values["height"] ?? "0",
@@ -293,7 +312,8 @@ export async function meshStatus(): Promise<MeshStatusData> {
       stats: {
         runs: 0, completed: 0, agents: 0, solutions: 0, transfers: 0,
         totalSupply: "0", runMinted: "0", valueMoved: "0", totalGas: "0",
-        avgScore: "0", bestScore: "0", scoredRuns: 0, links: 0, rails: 0
+        avgScore: "0", bestScore: "0", scoredRuns: 0, links: 0, rails: 0,
+        orders: 0, ordersDelivered: 0, ordersOpen: 0, rewardPaid: "0", payrollBalance: "0", soldiers: 0
       },
       ledger: { symbol: "SAOS-M", fee: "0", runReward: "10" },
       error: "SAOS-EVM לא פרוס — ה-mini-service evm-mesh אינו רץ (הפעל: bun run dev ב-mini-services/evm-mesh)"
@@ -314,7 +334,18 @@ export async function meshStatus(): Promise<MeshStatusData> {
     const bridge = contract("SAOSBridge", state);
     const value = contract("SAOSValueEngine", state);
     const relay = contract("SAOSMeshRelay", state);
+    const workboard = contract("SAOSWorkBoard", state);
     if (!hub || !ledger || !identity || !solutions || !bridge || !value || !relay) throw new Error("artifact/state mismatch");
+
+    // v17 — work board reads (best-effort: survives a mid-redeploy state)
+    const boardAddr = state.contracts["SAOSWorkBoard"] ?? null;
+    const [boardOrders, boardDelivered, boardRewardPaid, boardSoldiers, boardPayroll] = await Promise.all([
+      workboard ? (workboard.orderCount() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
+      workboard ? (workboard.ordersDelivered() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
+      workboard ? (workboard.totalRewardPaid() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
+      workboard ? (workboard.soldierCount() as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n),
+      boardAddr ? (ledger.balanceOf(boardAddr) as Promise<bigint>).catch(() => 0n) : Promise.resolve(0n)
+    ]);
 
     const [runs, completed, totalGas, totalSupply, runMinted, transfersCount, valueMoved, agents, solutionsCount, avgScore, bestScore, scoredRuns, linkCount, chainCount] =
       await Promise.all([
@@ -371,7 +402,13 @@ export async function meshStatus(): Promise<MeshStatusData> {
         bestScore: BigInt(bestScore).toString(),
         scoredRuns: Number(scoredRuns),
         links: Number(linkCount),
-        rails: Number(chainCount)
+        rails: Number(chainCount),
+        orders: Number(boardOrders),
+        ordersDelivered: Number(boardDelivered),
+        ordersOpen: Math.max(0, Number(boardOrders) - Number(boardDelivered)),
+        rewardPaid: ethers.formatEther(BigInt(boardRewardPaid)),
+        payrollBalance: ethers.formatEther(BigInt(boardPayroll)),
+        soldiers: Number(boardSoldiers)
       },
       ledger: { symbol: "SAOS-M", fee: "0", runReward: "10" }
     };
@@ -391,7 +428,8 @@ export async function meshStatus(): Promise<MeshStatusData> {
       stats: {
         runs: 0, completed: 0, agents: 0, solutions: 0, transfers: 0,
         totalSupply: "0", runMinted: "0", valueMoved: "0", totalGas: "0",
-        avgScore: "0", bestScore: "0", scoredRuns: 0, links: 0, rails: 0
+        avgScore: "0", bestScore: "0", scoredRuns: 0, links: 0, rails: 0,
+        orders: 0, ordersDelivered: 0, ordersOpen: 0, rewardPaid: "0", payrollBalance: "0", soldiers: 0
       },
       ledger: { symbol: "SAOS-M", fee: "0", runReward: "10" },
       error: e instanceof Error ? e.message.slice(0, 160) : "mesh status failed"
@@ -401,7 +439,7 @@ export async function meshStatus(): Promise<MeshStatusData> {
 
 export async function meshFeed(limit = 8): Promise<MeshFeedData> {
   const state = readState();
-  if (!state?.ok) return { ok: false, runs: [], transfers: [], agents: [], rails: [], error: "SAOS-EVM לא פרוס" };
+  if (!state?.ok) return { ok: false, runs: [], transfers: [], agents: [], rails: [], orders: [], error: "SAOS-EVM לא פרוס" };
   try {
     const provider = getProvider();
     const hub = contract("SAOSMeshHub", state);
@@ -472,6 +510,26 @@ export async function meshFeed(limit = 8): Promise<MeshFeedData> {
         balance: "0"
       }));
 
+    // ── v17: latest delivered work orders (the soldiers' work trail)
+    const orders: MeshOrderView[] = events
+      .filter((e) => e.name === "OrderDelivered")
+      .sort((a, b) => Number(b.values["orderId"] ?? 0) - Number(a.values["orderId"] ?? 0))
+      .slice(0, 12)
+      .map((o) => ({
+        id: Number(o.values["orderId"] ?? 0),
+        mission: o.values["mission"] ?? "",
+        difficulty: 0,
+        reward: ethers.formatEther(BigInt(o.values["reward"] ?? "0")),
+        status: "delivered",
+        soldier: o.values["soldier"] ?? null,
+        runId: Number(o.values["runId"] ?? 0) || null,
+        postedAt: 0,
+        deliveredAt: 0,
+        paid: (o.values["paid"] ?? "false") === "true",
+        txid: o.txid,
+        block: o.block
+      }));
+
     // ── current rails (live anchor per chain)
     const chainNames = (await bridge.chains()) as unknown as string[];
     const rails: MeshRailView[] = [];
@@ -486,9 +544,9 @@ export async function meshFeed(limit = 8): Promise<MeshFeedData> {
       });
     }
 
-    return { ok: true, runs, transfers, agents, rails };
+    return { ok: true, runs, transfers, agents, rails, orders };
   } catch (e) {
-    return { ok: false, runs: [], transfers: [], agents: [], rails: [], error: e instanceof Error ? e.message.slice(0, 160) : "mesh feed failed" };
+    return { ok: false, runs: [], transfers: [], agents: [], rails: [], orders: [], error: e instanceof Error ? e.message.slice(0, 160) : "mesh feed failed" };
   }
 }
 
@@ -542,14 +600,23 @@ export async function meshLedger(): Promise<MeshLedgerData> {
 
 // ─── the live run (manual dispatch through the whole chain) ───────────────
 
-export async function runMesh(intentRaw: string): Promise<MeshRunOutcome> {
+export async function runMesh(intentRaw: string, opts?: { soldier?: boolean }): Promise<MeshRunOutcome> {
   const state = readState();
   if (!state?.ok) return { ok: false, run: null, anchorsStamped: 0, error: "SAOS-EVM לא פרוס" };
   const intent = (intentRaw ?? "").trim().slice(0, 120) || "mesh run: manual dispatch";
 
   try {
     const provider = getProvider();
-    const runner = await provider.getSigner(0);
+    // v17 — work dispatches rotate REAL soldier signers (1..5); plain
+    // mesh runs keep the operator (signer 0). All anvil unlocked accounts.
+    let runner: ethers.Signer;
+    if (opts?.soldier) {
+      const hub0 = contract("SAOSMeshHub", state);
+      const n = hub0 ? Number(await hub0.runCount()) : 0;
+      runner = await provider.getSigner(1 + (n % 5));
+    } else {
+      runner = await provider.getSigner(0);
+    }
     const hub = contract("SAOSMeshHub", state, runner);
     const bridge = contract("SAOSBridge", state, runner);
     if (!hub || !bridge) throw new Error("artifact/state mismatch");
@@ -620,4 +687,189 @@ export function meshDeploymentSummary(): { deployed: boolean; deployedAt: string
     deployedAt: state?.deployedAt ?? null,
     contracts: state ? Object.keys(state.contracts).length : 0
   };
+}
+
+// ─── v17 — WORK ORDERS (פקודות עבודה): HQ posts, soldiers deliver ──────────
+
+const EMPTY_BOARD: MeshBoardData = {
+  ok: false,
+  chain: "SAOS-EVM",
+  orders: [],
+  soldiers: [],
+  payroll: { balance: "0", perRun: "10", symbol: "SAOS-M", fee: "0", paidOut: "0" },
+  stats: { posted: 0, delivered: 0, open: 0, rewardPaid: "0", soldiers: 0, avgDifficulty: 0 },
+  contract: null,
+  error: "SAOS-EVM לא פרוס — ה-mini-service evm-mesh אינו רץ"
+};
+
+/** read the work board from the chain: orders, soldier stats, payroll. */
+export async function meshBoard(): Promise<MeshBoardData> {
+  const state = readState();
+  if (!state?.ok) return { ...EMPTY_BOARD };
+  const boardAddr = state.contracts["SAOSWorkBoard"];
+  if (!boardAddr) {
+    return { ...EMPTY_BOARD, error: "לוח העבודה אינו פרוס (מפתח ישן — הפעל מחדש את evm-mesh)" };
+  }
+  try {
+    const provider = getProvider();
+    const board = contract("SAOSWorkBoard", state);
+    const ledger = contract("SAOSLedger", state);
+    if (!board || !ledger) throw new Error("artifact/state mismatch");
+
+    const [orderCount, delivered, rewardPaid, soldierCount, payrollBal] = await Promise.all([
+      board.orderCount() as Promise<bigint>,
+      board.ordersDelivered() as Promise<bigint>,
+      board.totalRewardPaid() as Promise<bigint>,
+      board.soldierCount() as Promise<bigint>,
+      ledger.balanceOf(boardAddr) as Promise<bigint>
+    ]);
+
+    // latest orders (newest first, capped — the board is append-only)
+    const total = Number(orderCount);
+    const from = Math.max(0, total - 40);
+    const orderRows = await Promise.all(
+      Array.from({ length: total - from }, (_, k) => board.orderAt(from + k) as Promise<[string, bigint, bigint, number, string, bigint, bigint, bigint, boolean]>)
+    );
+    // Order struct order: mission, difficulty, reward, status, soldier, runId, postedAt, deliveredAt, paid
+    const orders: MeshOrderView[] = orderRows
+      .map((r, k) => {
+        const [mission, difficulty, reward, status, soldier, runId, postedAt, deliveredAt, paid] = r;
+        return {
+          id: from + k,
+          mission: String(mission),
+          difficulty: Number(difficulty),
+          reward: ethers.formatEther(BigInt(reward)),
+          status: Number(status) === 1 ? "delivered" : "open",
+          soldier: String(soldier) !== ethers.ZeroAddress ? String(soldier) : null,
+          runId: BigInt(runId) > 0n ? Number(runId) : null,
+          postedAt: Number(postedAt) * 1000,
+          deliveredAt: BigInt(deliveredAt) > 0n ? Number(deliveredAt) * 1000 : null,
+          paid: Boolean(paid),
+          txid: "",
+          block: 0
+        };
+      })
+      .reverse();
+
+    // per-soldier work stats (who did the work, who got paid)
+    const sTotal = Number(soldierCount);
+    const soldierRows = await Promise.all(
+      Array.from({ length: sTotal }, (_, k) => board.soldierAt(k) as Promise<[string, bigint, bigint]>)
+    );
+    const soldiers: MeshSoldierStatView[] = soldierRows
+      .map((r) => ({
+        soldier: String(r[0]),
+        orders: Number(r[1]),
+        earned: ethers.formatEther(BigInt(r[2]))
+      }))
+      .sort((a, b) => b.orders - a.orders);
+
+    const deliveredN = Number(delivered);
+    const avgDifficulty = orders.length > 0 ? orders.reduce((s, o) => s + o.difficulty, 0) / orders.length : 0;
+
+    return {
+      ok: true,
+      chain: state.chain,
+      orders,
+      soldiers,
+      payroll: {
+        balance: ethers.formatEther(BigInt(payrollBal)),
+        perRun: "10",
+        symbol: "SAOS-M",
+        fee: "0",
+        paidOut: ethers.formatEther(BigInt(rewardPaid))
+      },
+      stats: {
+        posted: total,
+        delivered: deliveredN,
+        open: Math.max(0, total - deliveredN),
+        rewardPaid: ethers.formatEther(BigInt(rewardPaid)),
+        soldiers: sTotal,
+        avgDifficulty: Number(avgDifficulty.toFixed(1))
+      },
+      contract: { address: boardAddr, role: MESH_ROLES["SAOSWorkBoard"] ?? "" }
+    };
+  } catch (e) {
+    return { ...EMPTY_BOARD, error: e instanceof Error ? e.message.slice(0, 160) : "board read failed" };
+  }
+}
+
+/**
+ * The HQ posts a REAL work order on the chain (owner-only postOrder via
+ * signer 0 = the operator/HQ), then immediately dispatches a soldier mesh
+ * run that delivers it and gets paid through the payroll.
+ * Returns the fresh order view + the delivering run's full trace.
+ */
+export async function postWorkOrder(
+  missionRaw: string,
+  difficulty: number,
+  rewardUnits: number
+): Promise<MeshWorkOutcome> {
+  const state = readState();
+  if (!state?.ok) return { ok: false, order: null, run: null, payrollBalance: null, error: "SAOS-EVM לא פרוס" };
+  const boardAddr = state.contracts["SAOSWorkBoard"];
+  if (!boardAddr) return { ok: false, order: null, run: null, payrollBalance: null, error: "לוח העבודה אינו פרוס" };
+
+  const mission = (missionRaw ?? "").trim().slice(0, 120);
+  if (mission.length < 2) return { ok: false, order: null, run: null, payrollBalance: null, error: "פקודה ריקה — כתוב משימה" };
+  const difficultySafe = Math.min(5, Math.max(1, Math.round(difficulty) || 2));
+  const rewardSafe = Math.min(50, Math.max(1, rewardUnits || 5));
+
+  try {
+    const provider = getProvider();
+    const hq = await provider.getSigner(0);
+    const board = contract("SAOSWorkBoard", state, hq);
+    const ledger = contract("SAOSLedger", state);
+    if (!board || !ledger) throw new Error("artifact/state mismatch");
+
+    // 1. HQ posts the order (real transaction, OrderPosted event)
+    const tx = await board.postOrder(mission, difficultySafe, ethers.parseEther(String(rewardSafe)));
+    const rc = await tx.wait();
+    if (!rc || rc.status !== 1) throw new Error("postOrder reverted (honest)");
+    const events = decodeLogs(
+      rc.logs.map((l) => ({
+        address: l.address,
+        topics: [...l.topics],
+        data: l.data,
+        blockNumber: l.blockNumber,
+        transactionHash: l.transactionHash
+      })),
+      state
+    );
+    const posted = events.find((e) => e.name === "OrderPosted");
+    const orderId = Number(posted?.values["orderId"] ?? 0);
+
+    // 2. REAL soldier runs deliver open orders FIFO until this one lands
+    //    (each run = the full 8-contract chain; payroll pays every delivery)
+    const runs: MeshRunView[] = [];
+    let row = (await board.orderAt(orderId)) as unknown as [string, bigint, bigint, number, string, bigint, bigint, bigint, boolean];
+    for (let attempt = 0; attempt < 4 && Number(row[3]) !== 1; attempt++) {
+      const outcome = await runMesh(`work order #${orderId}: ${mission}`, { soldier: true });
+      if (outcome.run) runs.push(outcome.run);
+      row = (await board.orderAt(orderId)) as unknown as [string, bigint, bigint, number, string, bigint, bigint, bigint, boolean];
+    }
+    // the run whose OrderDelivered matches this order — else the last run
+    const deliveringRun = runs.find((r) => r.order?.id === orderId) ?? runs[runs.length - 1] ?? null;
+
+    // 3. the fresh order view from storage (post-delivery truth)
+    const order: MeshOrderView = {
+      id: orderId,
+      mission: String(row[0]),
+      difficulty: Number(row[1]),
+      reward: ethers.formatEther(BigInt(row[2])),
+      status: Number(row[3]) === 1 ? "delivered" : "open",
+      soldier: String(row[4]) !== ethers.ZeroAddress ? String(row[4]) : null,
+      runId: BigInt(row[5]) > 0n ? Number(row[5]) : null,
+      postedAt: Number(row[6]) * 1000,
+      deliveredAt: BigInt(row[7]) > 0n ? Number(row[7]) * 1000 : null,
+      paid: Boolean(row[8]),
+      txid: rc.hash,
+      block: rc.blockNumber ?? 0
+    };
+    const payrollBalance = ethers.formatEther(BigInt(await (ledger.balanceOf(boardAddr) as Promise<bigint>)));
+
+    return { ok: true, order, run: deliveringRun, payrollBalance };
+  } catch (e) {
+    return { ok: false, order: null, run: null, payrollBalance: null, error: e instanceof Error ? e.message.slice(0, 160) : "work order failed" };
+  }
 }

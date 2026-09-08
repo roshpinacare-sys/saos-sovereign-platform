@@ -508,3 +508,28 @@ Stage Summary:
 - גבול-האמת נשמר: המנמוניקה חתומה בתוך המעטפת בלבד — לא בממשק, לא בלוג, לא בריפו (agent/ + upload/ gitignored, אומת). יעד הזרימה מרישום הכספת בלבד. עמלת ההפעלה (~1 TRX) תועדה בכנות. רישום הפריסה שוחזר מהשרשרת — בלי פריסה כפולה.
 - הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v16.0.0.
 - המשך: אנרגזייז TRON מהאוצר (18.7 TRX מספיקים להימור-פס לחיילי TRON) · העברת ה-mesh ל-BSC/ETH עם מימון · העבודה הבאה לחיילים.
+
+---
+Task ID: 10
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: "תמשיך ודחוף לריפו" — v17.0.0 WORK ORDERS (פקודות עבודה): המשך ההוראה הצטברה — החיילים לא רק רשומים, הם עובדים ומקבלים שכר.
+
+Work Log:
+- קראתי את שולי ה-worklog (v16 SOVEREIGN KEY נדחף; ההמשך המתועד: "מתן עבודה לסוכנים על גבי הרשת (פתרונות מהחיילים)") ואת כל קוד ה-mesh (deploy.ts, index.ts, 7 החוזים, mesh-client, הוויו).
+- חוזה חדש contracts/mesh/SAOSWorkBoard.sol (4,650 בייטקוד) — החוזה השמיני, קישור #5 בשרשרת: ה-HQ (owner) מפרסם postOrder(mission, difficulty, reward); process() מקבל את יוזם הריצה כחייל, מוסר לו את הפקודה הפתוחה הוותיקה (FIFO), משלם דרך SAOSLedger.transfer (עמלה 0) מהקופה — ורק אם הקופה מכסה (paid flag כנה; השרשרת לעולם לא נשברת על כסף). אירועים: OrderPosted · OrderDelivered(orderId, runId, soldier, reward, paid). סטטיסטיקות פר-חייל: SoldierStat{orders, earned}.
+- SAOSLedger.sol v2 — payroll: setPayroll(workBoard) — בכל ריצה נטבעים 10 SAOS-M ליוזם ועוד 10 לקופת העבודה (PayrollFunded) — מימון עבודה עצמאי לנצח.
+- compile-mesh.ts → saos-mesh/v2: 8 חוזים, linkOrder כולל SAOSWorkBoard; הודר (solc cancun, optimizer 200).
+- mini-services/evm-mesh: deploy.ts פורס 8 חוזים + wiring (workboard → relay+ledger; ledger.setPayroll; relay link #5) + 3 פקודות זרע לפני ריצות הזרע; index.ts auto-runner v2 — כל 120ש' ה-HQ מפרסם פקודה חיה (6 משימות רוטציה, קושי 1-5, שכר 4-12 SAOS-M) וריצת חייל מבצעת אותה מיד. הפעלה מחדש של השירות: anvil regenesis + פריסה מלאה + 13 סוכנים + 4 עוגנים חיים + MESH LIVE.
+- backend mesh-client.ts: MESH_ROLES+WorkBoard; buildRun מפענח OrderDelivered → run.order{mission, soldier, reward, paid}; meshStatus.stats מורחב (orders/ordersDelivered/ordersOpen/rewardPaid/payrollBalance/soldiers — קריאות best-effort); meshFeed מחזיר orders; meshBoard() — לוח מלא (40 פקודות אחרונות, דירוג חיילים, קופה); postWorkOrder() — ה-HQ מפרסם עסקה אמיתית ואז שיגורי-חייל מסתובבים עד שהפקודה שפורסמה נמסרת (FIFO flush, עד 4 ריצות); runMesh(intent, {soldier}) — רוטציית חיילים 1..5. מסלולים: /api/saos/mesh/work GET+POST.
+- frontend: views/workboard.tsx — "פקודות עבודה" (KPI×4 · קונסולת מפקדה: משימה+קושי 1-5+שכר+שיגור · פס-שרשרת 8 צמתים עם WORK מוזהב · תוצאת פקודה עם txid+גז+ניקוד+קופה · לוח פקודות FIFO max-h-96 · דירוג חיילים עם נתח-עבודה · callout גבול-אמת); mesh.tsx → 8 חוזים (WORK במפה, מדד "15/15 פקודות" על הצומת, tag "עסקה אחת · 8 חוזים", chip פקודה בפיד ריצות); overview callout v17; shell/page/types → v17.0.0 + ויו 13 בניווט; package.json v17.0.0; README v17 מלא.
+- באג אמיתי שנתפס ותוקן: postJson עוטף את התגובה ב-{ok, data, error} — views שניגשו ל-res.run/res.order ישירות קיבלו undefined תמיד (mesh runNow הראה "נחסרה" גם בהצלחה!). תוקן ב-workboard וב-mesh (out = res.data). אימות חי אחרי התיקון: שני שבילי-הזהב מציגים נתונים אמיתיים.
+- אימות אנד-טו-אנד (agent-browser): ניווט לוויו · פרסום פקודה "בדיקת זהב v17" מה-UI → פקודה #14 נמסרה +שולמה 6.0 SAOS-M · ריצה #15 (710,127 גז, ניקוד 7120) · חייל 0x9965… · קופה 38.0 · txid 0xf06ceddb… · המשימה התרוקנה ולוח 15/15 · ריצת mesh #16 "בדיקת דפדפן v17" הושלמה בשמונה חוזים (539,576 גז · 9375 · +10.0 SAOS-M) · מובייל 375px: scrollWidth=375 מדויק, 0 גלישה · דסקטופ 1440px תקין · 0 שגיאות-קונסולה/עמוד · lint נקי · dev.log הכל 200 · auto-runner ממשיך לפרסם עבודה כל 120ש'. צילומים: upload/v17-workboard-desktop.png · v17-workboard-golden.png · v17-workboard-mobile.png · v17-mesh-8contracts.png.
+- קומיט בסיס f2b1472 (db) נכלל בדחיפה זו.
+
+Stage Summary:
+- המוצר: v17.0.0 WORK ORDERS חיה — שמונה חוזים משורשרים (saos-mesh/v2): Hub → Relay → Identity → Ledger (mint לחייל + לקופה) → Solutions → Bridge → WorkBoard (פקודה נמסרת + שכר זורם) → Value. החיילים עובדים: ה-HQ מפרסמת, ריצת חייל מבצעת בעסקה אחת, השכר משולם במסילה ללא-עמלה מקופה שנטבעת 10 SAOS-M בכל ריצה.
+- מצב-סיום (מדידה חיה בזמן האימות): 15 פקודות · 15 נמסרו · 100+ SAOS-M שולמו לחיילים · 6 חיילים בדירוג · 16 ריצות · auto-runner מפרסם עבודה כל 120ש'.
+- גבול-האמת נשמר: SAOS-M ערך פנימי של שרשרת-המעבדה בלבד — אפס כסף אמיתי; חוסר-כיסוי קופה = דגל "לא שולם" כנה ולא שבירת שרשרת; הפריסה על ETH/BSC תיעשה רק עם מימון בעלים (מתועד ב-callout).
+- באג אמיתי שנחשף ותוקן בדרך: postJson-wrapper (השפיע גם על mesh runNow קיים) — שני שבילי-הזהב אומתו חי אחרי התיקון.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v17.0.0.
+- המשך: הרחבת המשימות ל"עבודה אמיתית" (פתרונות מהחיילים עם תוכן מיוצר) · מדדי צריכה · העברת ה-mesh ל-BSC/ETH עם מימון בעלים.

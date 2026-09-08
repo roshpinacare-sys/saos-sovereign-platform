@@ -3,10 +3,11 @@
  *
  * Responsibilities:
  *   1. run anvil (the sovereign laboratory chain) on :8545, chainId 31337
- *   2. deploy the 7-contract CONTRACT MESH + wire the chain
- *   3. AUTO-RUNNER: every 120s a real mesh run (rotating initiators,
- *      live 8-chain anchors, fleet identity sync) + periodic zero-fee
- *      transfers — continuous genuine on-chain activity
+ *   2. deploy the 8-contract CONTRACT MESH + wire the chain
+ *   3. AUTO-RUNNER: every 120s — the HQ posts a REAL work order, a mesh
+ *      run delivers it (rotating initiators, live 8-chain anchors, fleet
+ *      identity sync), the payroll pays the soldier — continuous genuine
+ *      work + value on-chain
  *   4. WATCHDOG: respawn anvil + redeploy if the chain dies
  *   5. ARTIFACT WATCHER: redeploy when the canonical SAOSMesh.json changes
  *
@@ -89,6 +90,17 @@ const INTENTS = [
   "חוזה ⇄ חוזה: דגימת שרשרת מלאה"
 ];
 
+// v2 — the HQ's rotating missions (פקודות עבודה): posted as open orders,
+// delivered by the next mesh run, paid from the payroll (zero fee).
+const MISSIONS: Array<{ mission: string; difficulty: number; reward: bigint }> = [
+  { mission: "סריקת מסילות: חידוש עוגני 8 הרשתות", difficulty: 2, reward: ethers.parseEther("6") },
+  { mission: "ביקורת יעילות: ערך ליחידת גז בכל דילוג", difficulty: 3, reward: ethers.parseEther("8") },
+  { mission: "הצעת פתרון: חידוש בזרימת הערך", difficulty: 4, reward: ethers.parseEther("12") },
+  { mission: "שמירת איטום: replay שורשי מרקל", difficulty: 2, reward: ethers.parseEther("5") },
+  { mission: "גיוס סוכנים: סנכרון זהויות הצי", difficulty: 1, reward: ethers.parseEther("4") },
+  { mission: "בדיקת מסילה ללא-עמלה: העברת ערך", difficulty: 3, reward: ethers.parseEther("9") }
+];
+
 let runTick = 0;
 
 async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
@@ -96,6 +108,7 @@ async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
   identity: ethers.Contract;
   ledger: ethers.Contract;
   bridge: ethers.Contract;
+  workboard: ethers.Contract;
 } | null> {
   const state = readState();
   if (!state?.ok) return null;
@@ -112,8 +125,9 @@ async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
   const identity = mk("SAOSIdentity", true);
   const ledger = mk("SAOSLedger", true);
   const bridge = mk("SAOSBridge", true);
-  if (!hub || !identity || !ledger || !bridge) return null;
-  return { hub, identity, ledger, bridge };
+  const workboard = mk("SAOSWorkBoard", true);
+  if (!hub || !identity || !ledger || !bridge || !workboard) return null;
+  return { hub, identity, ledger, bridge, workboard };
 }
 
 async function autoCycle(): Promise<void> {
@@ -141,14 +155,23 @@ async function autoCycle(): Promise<void> {
       }
     }
 
-    // 3. a real mesh run — rotating initiators auto-enlist via SAOSIdentity
+    // 3. the HQ posts a REAL work order — the next run delivers it
+    const job = MISSIONS[runTick % MISSIONS.length] as { mission: string; difficulty: number; reward: bigint };
+    try {
+      await (await c.workboard.postOrder(job.mission, job.difficulty, job.reward)).wait();
+      console.log(`[evm-mesh] HQ posted work order: "${job.mission}" (+${ethers.formatEther(job.reward)} SAOS-M)`);
+    } catch {
+      /* board full/miss — the run still happens */
+    }
+
+    // 4. a real mesh run — rotating initiators deliver the work + auto-enlist
     const initiator = await provider.getSigner(1 + (runTick % 5));
     const intent = INTENTS[runTick % INTENTS.length] as string;
     const tx = await c.hub.connect(initiator).dispatch(intent);
     const rc = await tx.wait();
     console.log(`[evm-mesh] auto run #${runTick} "${intent}" gas=${rc?.gasUsed ?? "?"}`);
 
-    // 4. every 3rd cycle: a zero-fee value movement (ללא עמלה — forever 0)
+    // 5. every 3rd cycle: a zero-fee value movement (ללא עמלה — forever 0)
     if (runTick % 3 === 2) {
       try {
         const count = Number(await c.identity.agentCount());
@@ -242,7 +265,7 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH}`);
-  console.log("[evm-mesh] auto-runner: mesh run every 120s · zero-fee transfer every 3rd cycle");
+  console.log("[evm-mesh] auto-runner: HQ posts work every 120s · mesh run delivers it · zero-fee transfer every 3rd cycle");
 }
 
 void main().catch((e) => {
