@@ -173,27 +173,29 @@ export async function deliverRealWork(
       tokensEst: Math.ceil(gen.chars / 4)
     });
 
-    // 7. persist the deliverable
-    const row = await db.workDeliverable.create({
-      data: {
-        orderId: order.id,
-        runId: order.runId,
-        soldier: order.soldier,
-        mission: order.mission,
-        title: solution.title,
-        summary: solution.summary,
-        steps: JSON.stringify(solution.steps),
-        risks: JSON.stringify(solution.risks),
-        valueNote: solution.valueNote,
-        digest,
-        anchorTx: anchor.txid ?? null,
-        anchorBlock: anchor.block ?? null,
-        receiptDigest: receipt.digest,
-        engine: ENGINE_ID,
-        latencyMs: gen.latencyMs,
-        chars: gen.chars,
-        tokensEst: Math.ceil(gen.chars / 4)
-      }
+    // 7. persist the deliverable — the lab chain may regenesis (in-memory
+    //    anvil restarts), which recycles on-chain order ids; a delivery from
+    //    the CURRENT instance replaces the stale row of a dead one. The
+    //    immutable evidence (hash-chained receipts + SAOS-WORK anchors) is
+    //    untouched — only the UI cache row is refreshed.
+    const row = await persistDeliverable({
+      orderId: order.id,
+      runId: order.runId,
+      soldier: order.soldier,
+      mission: order.mission,
+      title: solution.title,
+      summary: solution.summary,
+      steps: JSON.stringify(solution.steps),
+      risks: JSON.stringify(solution.risks),
+      valueNote: solution.valueNote,
+      digest,
+      anchorTx: anchor.txid ?? null,
+      anchorBlock: anchor.block ?? null,
+      receiptDigest: receipt.digest,
+      engine: ENGINE_ID,
+      latencyMs: gen.latencyMs,
+      chars: gen.chars,
+      tokensEst: Math.ceil(gen.chars / 4)
     });
 
     const deliverable: MeshDeliverableView = rowToView(row);
@@ -220,6 +222,43 @@ async function meshBoardSafe(): Promise<MeshBoardData | null> {
     return await meshBoard();
   } catch {
     return null;
+  }
+}
+
+// ─── collision-tolerant persist (lab-chain regenesis) ───────────────────────
+
+type DeliverableRow = {
+  orderId: number; runId: number | null; soldier: string | null; mission: string;
+  title: string; summary: string; steps: string; risks: string; valueNote: string;
+  digest: string; anchorTx: string | null; anchorBlock: number | null;
+  receiptDigest: string | null; engine: string; latencyMs: number; chars: number;
+  tokensEst: number;
+};
+
+/**
+ * Persist a WorkDeliverable. When the unique(orderId) constraint fires it
+ * means a PREVIOUS lab-chain instance already used this id (anvil resets
+ * recycle order numbering) — the stale row is replaced by the CURRENT
+ * instance's delivery. A unique(digest) collision means the exact same
+ * content was already persisted — the existing row is returned as-is.
+ */
+async function persistDeliverable(data: DeliverableRow) {
+  try {
+    return await db.workDeliverable.create({ data });
+  } catch (e) {
+    const err = e as { code?: string; meta?: { target?: string[] } };
+    if (err.code === "P2002") {
+      const target = err.meta?.target ?? [];
+      if (target.includes("digest")) {
+        const existing = await db.workDeliverable.findUnique({ where: { digest: data.digest } });
+        if (existing) return existing;
+      }
+      if (target.includes("orderId")) {
+        await db.workDeliverable.deleteMany({ where: { orderId: data.orderId } });
+        return await db.workDeliverable.create({ data });
+      }
+    }
+    throw e;
   }
 }
 

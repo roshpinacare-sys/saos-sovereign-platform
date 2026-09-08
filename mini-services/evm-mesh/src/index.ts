@@ -34,6 +34,22 @@ import {
 const ARTIFACT_PATH = path.resolve(import.meta.dir, "..", "..", "..", "src", "lib", "saos", "generated", "SAOSMesh.json");
 const ANVIL_BIN = process.env.MESH_ANVIL_BIN ?? `${process.env.HOME ?? "/home/z"}/.foundry/bin/anvil`;
 const PORT = 8545;
+// v18.1 — PERSISTENT LAB CHAIN: anvil dumps its state (every 30s + on exit)
+// and reloads it on boot, so on-chain ids (orders, runs, agents) NEVER
+// regress across service restarts / hot reloads / watchdog respawns.
+// Root cause fixed: a recycled WorkBoard id used to collide with the
+// persistent WorkDeliverable rows (unique orderId) and break deliveries.
+const ANVIL_STATE = path.resolve(import.meta.dir, "..", "state", "anvil-state.json");
+const STATE_DUMP_SECONDS = 30;
+
+function stateFileExists(): boolean {
+  try {
+    fs.statSync(ANVIL_STATE);
+    return fs.statSync(ANVIL_STATE).size > 0;
+  } catch {
+    return false;
+  }
+}
 
 // ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
 
@@ -56,13 +72,32 @@ const RT: MeshRuntime = { anvil: null, timers: [], artifactMtime: 0, busy: false
 G.__meshRuntime = RT;
 
 function spawnAnvil(): ReturnType<typeof Bun.spawn> {
-  console.log(`[evm-mesh] starting anvil on :${PORT} (chainId ${MESH_CHAIN_ID})`);
-  const proc = Bun.spawn([ANVIL_BIN, "--port", String(PORT), "--chain-id", String(MESH_CHAIN_ID)], {
+  const args = ["--port", String(PORT), "--chain-id", String(MESH_CHAIN_ID), "--dump-state", ANVIL_STATE, "--state-interval", String(STATE_DUMP_SECONDS)];
+  const resume = stateFileExists();
+  if (resume) args.unshift("--load-state", ANVIL_STATE);
+  console.log(`[evm-mesh] starting anvil on :${PORT} (chainId ${MESH_CHAIN_ID})${resume ? " — RESUMING persisted state" : " — fresh genesis"}`);
+  fs.mkdirSync(path.dirname(ANVIL_STATE), { recursive: true });
+  const proc = Bun.spawn([ANVIL_BIN, ...args], {
     stdout: "inherit",
     stderr: "inherit"
   });
   RT.anvil = proc;
   return proc;
+}
+
+/** is the mesh (per deployment.json) live on the current chain? */
+async function meshAlive(): Promise<boolean> {
+  const state = readState();
+  const hub = state?.ok ? state.contracts?.SAOSMeshHub : null;
+  if (!hub) return false;
+  try {
+    const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    const code = await provider.getCode(hub);
+    provider.destroy();
+    return typeof code === "string" && code.length > 2;
+  } catch {
+    return false;
+  }
 }
 
 async function waitRpc(timeoutMs = 20000): Promise<ethers.JsonRpcProvider> {
@@ -255,7 +290,7 @@ async function watchdog(): Promise<void> {
         provider.destroy();
       }
     }
-    console.log("[evm-mesh] watchdog: chain down — regenesis");
+    console.log("[evm-mesh] watchdog: chain down — respawn");
     try {
       RT.anvil?.kill();
     } catch {
@@ -263,8 +298,18 @@ async function watchdog(): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 500));
     spawnAnvil();
-    await waitRpc();
-    await deployMesh();
+    try {
+      await waitRpc();
+    } catch {
+      // corrupted snapshot — burn it and boot fresh (honest regenesis)
+      console.log("[evm-mesh] state snapshot unbootable — fresh genesis");
+      try { fs.rmSync(ANVIL_STATE, { force: true }); } catch { /* ignore */ }
+      try { RT.anvil?.kill(); } catch { /* dead */ }
+      await new Promise((r) => setTimeout(r, 500));
+      spawnAnvil();
+      await waitRpc();
+    }
+    if (!(await meshAlive())) await deployMesh();
     runTick = 0;
   } catch (e) {
     console.log(`[evm-mesh] watchdog failed: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`);
@@ -299,13 +344,27 @@ async function artifactWatcher(): Promise<void> {
 async function main(): Promise<void> {
   RT.artifactMtime = 0;
   spawnAnvil();
-  await waitRpc();
-  await deployMesh();
+  try {
+    await waitRpc();
+  } catch {
+    // snapshot unbootable (corrupt/old format) — burn and boot fresh
+    console.log("[evm-mesh] state snapshot unbootable — fresh genesis");
+    try { fs.rmSync(ANVIL_STATE, { force: true }); } catch { /* ignore */ }
+    try { RT.anvil?.kill(); } catch { /* dead */ }
+    await new Promise((r) => setTimeout(r, 500));
+    spawnAnvil();
+    await waitRpc();
+  }
+  if (await meshAlive()) {
+    console.log("[evm-mesh] MESH RESUMED — persisted chain, order/run ids continue (no regenesis)");
+  } else {
+    await deployMesh();
+  }
   RT.artifactMtime = fs.statSync(ARTIFACT_PATH).mtimeMs;
   RT.timers.push(setInterval(() => void autoCycle(), 120_000));
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
-  console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH}`);
+  console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
   console.log("[evm-mesh] auto-runner v18: HQ posts REAL WORK every 120s (LLM deliverable + SAOS-WORK anchor) · zero-fee transfer every 3rd cycle");
 }
 
