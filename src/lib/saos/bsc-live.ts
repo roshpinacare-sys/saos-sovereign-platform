@@ -12,7 +12,7 @@
  *         eth_blockNumber, eth_gasPrice, eth_getBalance(sovereign)
  *         endpoints (verified reachable):
  *           1. bsc-rpc.publicnode.com   (primary)
- *           2. binance.llamarpc.com
+ *           2. bsc-dataseed.bnbchain.org (official — v20.1, llamarpc measured dead)
  *
  * Discipline: read-only · 60s cache · inflight dedupe · failure is data
  * ({ok:false, error}) — the grid renders an honest "offline" card, never
@@ -24,7 +24,7 @@
 import https from "https";
 import { ANCHORED_EVM_ADDRESS } from "./anchor-evm";
 
-const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://binance.llamarpc.com"] as const;
+const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"] as const;
 
 const BSC_CHAIN_ID = 56; // mainnet — fail-closed
 const CACHE_TTL_MS = 60_000;

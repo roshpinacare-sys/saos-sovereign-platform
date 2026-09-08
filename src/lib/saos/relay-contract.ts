@@ -51,7 +51,7 @@ const CHAINS: Record<RelayChain, {
     explorerAddr: (a) => `https://etherscan.io/address/${a}`
   },
   bsc: {
-    endpoints: ["https://bsc-rpc.publicnode.com", "https://binance.llamarpc.com"],
+    endpoints: ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"], // v20.1: llamarpc dead → official dataseed
     chainId: 56,
     network: "BSC",
     explorerTx: (t) => `https://bscscan.com/tx/${t}`,
@@ -219,29 +219,33 @@ export async function deploySovereignRelay(chain: RelayChain): Promise<RelayDepl
 
   const sent = await deriveSovereignEvm().then(async (derived) => {
     const provider = new ethers.JsonRpcProvider(cfg.endpoints[0], cfg.chainId, { batchMaxCount: 1 });
-    const [balanceWei, gasWei] = await Promise.all([
-      provider.getBalance(derived.address, "latest"),
-      provider.send("eth_gasPrice", [])
-    ]);
-    const pg = pricedGas(BigInt(gasWei as string));
-    const cost = EXPECTED_DEPLOY_GAS * pg; // expected-gas gate — the limit is safety headroom only
-    if (balanceWei < cost * BALANCE_MARGIN) {
-      provider.destroy();
-      throw new Error(
-        `balance gate: ${ethers.formatEther(balanceWei)} ${NATIVE[chain]} < deploy-cost×2 ${ethers.formatEther(cost * BALANCE_MARGIN)} ${NATIVE[chain]} — did not deploy (honest)`
-      );
-    }
+    try {
+      const [balanceWei, gasWei] = await Promise.all([
+        provider.getBalance(derived.address, "latest"),
+        provider.send("eth_gasPrice", [])
+      ]);
+      const pg = pricedGas(BigInt(gasWei as string));
+      const cost = EXPECTED_DEPLOY_GAS * pg; // expected-gas gate — the limit is safety headroom only
+      if (balanceWei < cost * BALANCE_MARGIN) {
+        throw new Error(
+          `balance gate: ${ethers.formatEther(balanceWei)} ${NATIVE[chain]} < deploy-cost×2 ${ethers.formatEther(cost * BALANCE_MARGIN)} ${NATIVE[chain]} — did not deploy (honest)`
+        );
+      }
 
-    const signer = new ethers.Wallet(derived.privateKey, provider);
-    const factory = new ethers.ContractFactory(ABI, RELAY_BYTECODE, signer);
-    const contract = await factory.deploy({
-      gasLimit: DEPLOY_GAS_LIMIT,
-      gasPrice: pg,
-      type: 0, // legacy — deterministic, single fee dimension
-      chainId: cfg.chainId
-    });
-    const tx = contract.deploymentTransaction();
-    return { hash: (tx?.hash ?? "") as string, address: await contract.getAddress(), deployer: derived.address, provider };
+      const signer = new ethers.Wallet(derived.privateKey, provider);
+      const factory = new ethers.ContractFactory(ABI, RELAY_BYTECODE, signer);
+      const contract = await factory.deploy({
+        gasLimit: DEPLOY_GAS_LIMIT,
+        gasPrice: pg,
+        type: 0, // legacy — deterministic, single fee dimension
+        chainId: cfg.chainId
+      });
+      const tx = contract.deploymentTransaction();
+      return { hash: (tx?.hash ?? "") as string, address: await contract.getAddress(), deployer: derived.address, provider };
+    } catch (e) {
+      provider.destroy(); // v20.1 — every throw on this path leaked a zombie provider
+      throw e;
+    }
   });
 
   const receipt = await waitReceipt(sent.provider, sent.hash);
@@ -338,38 +342,41 @@ async function relayCall(
 
   const sent = await deriveSovereignEvm().then(async (derived) => {
     const provider = new ethers.JsonRpcProvider(cfg.endpoints[0], cfg.chainId, { batchMaxCount: 1 });
-    const [balanceWei, gasWei] = await Promise.all([
-      provider.getBalance(derived.address, "latest"),
-      provider.send("eth_gasPrice", [])
-    ]);
-    const pg = pricedGas(BigInt(gasWei as string));
-    const cost = EXPECTED_CALL_GAS * pg; // expected-gas gate — the limit is safety headroom only
-    if (balanceWei < cost * BALANCE_MARGIN) {
-      provider.destroy();
-      throw new Error(
-        `balance gate: ${ethers.formatEther(balanceWei)} ${NATIVE[chain]} < call-cost×2 ${ethers.formatEther(cost * BALANCE_MARGIN)} ${NATIVE[chain]} — did not fire (honest)`
-      );
-    }
-    // the ONLY reachable target: OUR deployed relay — whitelisted by argument
-    const code = await provider.getCode(contractAddress);
-    if (!code || code === "0x") {
-      provider.destroy();
-      throw new Error(`no code at ${contractAddress} on ${cfg.network} — refusing to call (fail-closed)`);
-    }
-
-    const signer = new ethers.Wallet(derived.privateKey, provider);
-    const relay = new ethers.Contract(contractAddress, ABI, signer);
-    // spread the positional args + overrides — ethers matches the fragment
-    const tx = await (relay[fn] as (...a: unknown[]) => Promise<ethers.TransactionResponse>)(
-      ...(args as unknown[]),
-      {
-        gasLimit: CALL_GAS_LIMIT,
-        gasPrice: pg,
-        type: 0,
-        chainId: cfg.chainId
+    try {
+      const [balanceWei, gasWei] = await Promise.all([
+        provider.getBalance(derived.address, "latest"),
+        provider.send("eth_gasPrice", [])
+      ]);
+      const pg = pricedGas(BigInt(gasWei as string));
+      const cost = EXPECTED_CALL_GAS * pg; // expected-gas gate — the limit is safety headroom only
+      if (balanceWei < cost * BALANCE_MARGIN) {
+        throw new Error(
+          `balance gate: ${ethers.formatEther(balanceWei)} ${NATIVE[chain]} < call-cost×2 ${ethers.formatEther(cost * BALANCE_MARGIN)} ${NATIVE[chain]} — did not fire (honest)`
+        );
       }
-    );
-    return { hash: tx.hash, provider, deployer: derived.address };
+      // the ONLY reachable target: OUR deployed relay — whitelisted by argument
+      const code = await provider.getCode(contractAddress);
+      if (!code || code === "0x") {
+        throw new Error(`no code at ${contractAddress} on ${cfg.network} — refusing to call (fail-closed)`);
+      }
+
+      const signer = new ethers.Wallet(derived.privateKey, provider);
+      const relay = new ethers.Contract(contractAddress, ABI, signer);
+      // spread the positional args + overrides — ethers matches the fragment
+      const tx = await (relay[fn] as (...a: unknown[]) => Promise<ethers.TransactionResponse>)(
+        ...(args as unknown[]),
+        {
+          gasLimit: CALL_GAS_LIMIT,
+          gasPrice: pg,
+          type: 0,
+          chainId: cfg.chainId
+        }
+      );
+      return { hash: tx.hash, provider, deployer: derived.address };
+    } catch (e) {
+      provider.destroy(); // v20.1 — every throw on this path leaked a zombie provider
+      throw e;
+    }
   });
 
   const receipt = await waitReceipt(sent.provider, sent.hash);

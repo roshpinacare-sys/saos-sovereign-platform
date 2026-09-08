@@ -25,7 +25,7 @@
 import { ethers } from "ethers";
 import { deriveSovereignEvm, buildEvmWeaveData, type EvmLiveSeal } from "./anchor-evm";
 
-const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://binance.llamarpc.com"] as const;
+const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"] as const; // v20.1: llamarpc dead → official dataseed
 
 const CHAIN_ID = 56; // BSC mainnet — fail-closed
 const NETWORK = "BSC";
@@ -92,8 +92,11 @@ export async function bscReadiness(): Promise<BscReadiness> {
     const derived = await deriveSovereignEvm();
     let lastErr = "no endpoint answered";
     for (const endpoint of BSC_ENDPOINTS) {
+      // v20.1: hoisted — a provider that fails BEFORE its first destroy()
+      // leaks an ethers 1s "failed to detect network" retry loop forever.
+      let provider: ethers.JsonRpcProvider | null = null;
       try {
-        const provider = new ethers.JsonRpcProvider(endpoint, CHAIN_ID, { batchMaxCount: 1 });
+        provider = new ethers.JsonRpcProvider(endpoint, CHAIN_ID, { batchMaxCount: 1 });
         const [balanceWei, gasWei, blockHex, cidHex] = await Promise.all([
           provider.getBalance(derived.address, "latest"),
           provider.send("eth_gasPrice", []),
@@ -121,6 +124,7 @@ export async function bscReadiness(): Promise<BscReadiness> {
           at
         };
       } catch (e) {
+        provider?.destroy(); // v20.1 — no zombie retry loops
         lastErr = e instanceof Error ? e.message : "rpc error";
       }
     }
@@ -174,31 +178,35 @@ export async function anchorSealLiveOnBsc(seal: EvmLiveSeal): Promise<BscAnchorO
 
   const sent = await deriveSovereignEvm().then(async (derived) => {
     const provider = new ethers.JsonRpcProvider(BSC_ENDPOINTS[0], CHAIN_ID, { batchMaxCount: 1 });
-    const [balanceWei, gasWei] = await Promise.all([
-      provider.getBalance(derived.address, "latest"),
-      provider.send("eth_gasPrice", [])
-    ]);
-    const pg = pricedGas(BigInt(gasWei as string));
-    const cost = GAS_LIMIT * pg;
-    if (balanceWei < cost * BALANCE_MARGIN) {
-      provider.destroy();
-      throw new Error(
-        `balance gate: ${ethers.formatEther(balanceWei)} BNB < cost×2 ${ethers.formatEther(cost * BALANCE_MARGIN)} BNB — the BSC pulse did not fire (honest)`
-      );
-    }
+    try {
+      const [balanceWei, gasWei] = await Promise.all([
+        provider.getBalance(derived.address, "latest"),
+        provider.send("eth_gasPrice", [])
+      ]);
+      const pg = pricedGas(BigInt(gasWei as string));
+      const cost = GAS_LIMIT * pg;
+      if (balanceWei < cost * BALANCE_MARGIN) {
+        throw new Error(
+          `balance gate: ${ethers.formatEther(balanceWei)} BNB < cost×2 ${ethers.formatEther(cost * BALANCE_MARGIN)} BNB — the BSC pulse did not fire (honest)`
+        );
+      }
 
-    const signer = new ethers.Wallet(derived.privateKey, provider);
-    const tx = await signer.sendTransaction({
-      to: derived.address, // whitelisted: self-addressed, zero value
-      value: 0n,
-      data: dataHex,
-      gasLimit: GAS_LIMIT,
-      gasPrice: pg,
-      type: 0,
-      chainId: CHAIN_ID
-    });
-    const costBnb = ethers.formatEther((tx.gasPrice ?? pg) * (tx.gasLimit ?? GAS_LIMIT)).slice(0, 10);
-    return { hash: tx.hash as string, address: derived.address, provider, costBnb };
+      const signer = new ethers.Wallet(derived.privateKey, provider);
+      const tx = await signer.sendTransaction({
+        to: derived.address, // whitelisted: self-addressed, zero value
+        value: 0n,
+        data: dataHex,
+        gasLimit: GAS_LIMIT,
+        gasPrice: pg,
+        type: 0,
+        chainId: CHAIN_ID
+      });
+      const costBnb = ethers.formatEther((tx.gasPrice ?? pg) * (tx.gasLimit ?? GAS_LIMIT)).slice(0, 10);
+      return { hash: tx.hash as string, address: derived.address, provider, costBnb };
+    } catch (e) {
+      provider.destroy(); // v20.1 — broadcast path had ONE destroy (balance gate) — every other throw leaked
+      throw e;
+    }
   });
 
   const receipt = await waitForReceipt(sent.provider, sent.hash);

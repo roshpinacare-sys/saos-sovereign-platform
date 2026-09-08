@@ -188,14 +188,18 @@ export function explorerLink(txid: string): string {
 async function ethRpc<T>(method: string, params: unknown[]): Promise<{ value: T; endpoint: string }> {
   let lastErr = "no endpoint answered";
   for (const endpoint of ETH_ENDPOINTS) {
+    // v20.1: hoisted — a provider that fails before destroy() leaks an
+    // ethers 1s "failed to detect network" retry loop (zombie storm).
+    let provider: ethers.JsonRpcProvider | null = null;
     try {
-      const provider = new ethers.JsonRpcProvider(endpoint, CHAIN_ID, {
+      provider = new ethers.JsonRpcProvider(endpoint, CHAIN_ID, {
         batchMaxCount: 1 // one call per POST — same rotation lesson as STEEM
       });
       const value = (await provider.send(method, params)) as T;
       provider.destroy();
       return { value, endpoint };
     } catch (e) {
+      provider?.destroy(); // v20.1 — no zombie retry loops
       lastErr = e instanceof Error ? e.message : "rpc error";
     }
   }
@@ -317,38 +321,43 @@ export async function anchorSealLiveOnEvm(seal: EvmLiveSeal): Promise<EvmAnchorO
 
     // live balance gate — the pulse must fit, with margin
     const provider = new ethers.JsonRpcProvider(ETH_ENDPOINTS[0], CHAIN_ID, { batchMaxCount: 1 });
-    const [balanceWei, gasWei] = await Promise.all([
-      provider.getBalance(wallet.address, "latest"),
-      provider.getFeeData().then((f) => f.gasPrice)
-    ]);
-    if (!gasWei) throw new Error("node answered without a gas price (honest)");
-    const pricedGas =
-      gasWei * BigInt(Math.round(GAS_PRICE_BUFFER * 10)) / 10n > GAS_PRICE_FLOOR_WEI
-        ? gasWei * BigInt(Math.round(GAS_PRICE_BUFFER * 10)) / 10n
-        : GAS_PRICE_FLOOR_WEI;
-    const costWei = GAS_LIMIT * pricedGas;
-    if (balanceWei < costWei * BALANCE_MARGIN) {
-      throw new Error(
-        `balance gate: ${ethers.formatEther(balanceWei)} ETH < cost×2 ${ethers.formatEther(costWei * BALANCE_MARGIN)} ETH — the pulse did not fire`
-      );
-    }
+    try {
+      const [balanceWei, gasWei] = await Promise.all([
+        provider.getBalance(wallet.address, "latest"),
+        provider.getFeeData().then((f) => f.gasPrice)
+      ]);
+      if (!gasWei) throw new Error("node answered without a gas price (honest)");
+      const pricedGas =
+        gasWei * BigInt(Math.round(GAS_PRICE_BUFFER * 10)) / 10n > GAS_PRICE_FLOOR_WEI
+          ? gasWei * BigInt(Math.round(GAS_PRICE_BUFFER * 10)) / 10n
+          : GAS_PRICE_FLOOR_WEI;
+      const costWei = GAS_LIMIT * pricedGas;
+      if (balanceWei < costWei * BALANCE_MARGIN) {
+        throw new Error(
+          `balance gate: ${ethers.formatEther(balanceWei)} ETH < cost×2 ${ethers.formatEther(costWei * BALANCE_MARGIN)} ETH — the pulse did not fire`
+        );
+      }
 
-    // THE whitelisted operation — self-addressed, zero value, data = weave.
-    // By construction this module cannot sign a transfer/approval/call.
-    const signer = new ethers.Wallet(wallet.privateKey, provider);
-    const tx = await signer.sendTransaction({
-      to: wallet.address,
-      value: 0n,
-      data: dataHex,
-      gasLimit: GAS_LIMIT,
-      gasPrice: pricedGas,
-      type: 0, // legacy — deterministic, single fee dimension
-      chainId: CHAIN_ID
-    });
-    const costEth = ethers.formatEther(
-      (tx.gasPrice ?? pricedGas) * (tx.gasLimit ?? GAS_LIMIT)
-    ).slice(0, 10);
-    return { hash: tx.hash as string, address: wallet.address, provider, costEth };
+      // THE whitelisted operation — self-addressed, zero value, data = weave.
+      // By construction this module cannot sign a transfer/approval/call.
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
+      const tx = await signer.sendTransaction({
+        to: wallet.address,
+        value: 0n,
+        data: dataHex,
+        gasLimit: GAS_LIMIT,
+        gasPrice: pricedGas,
+        type: 0, // legacy — deterministic, single fee dimension
+        chainId: CHAIN_ID
+      });
+      const costEth = ethers.formatEther(
+        (tx.gasPrice ?? pricedGas) * (tx.gasLimit ?? GAS_LIMIT)
+      ).slice(0, 10);
+      return { hash: tx.hash as string, address: wallet.address, provider, costEth };
+    } catch (e) {
+      provider.destroy(); // v20.1 — every throw on this path leaked a zombie provider
+      throw e;
+    }
   });
 
   // inclusion proof — receipt + data read-back (independent of the sender)

@@ -316,20 +316,40 @@ async function autoCycle(): Promise<void> {
 
 // ─── watchdog + artifact watcher ───────────────────────────────────────────
 
+/** v20.1: burn a corrupted snapshot and boot a fresh genesis (honest reset). */
+async function burnAndRegenesis(): Promise<void> {
+  console.log("[evm-mesh] state snapshot unbootable — fresh genesis");
+  try { fs.rmSync(ANVIL_STATE, { force: true }); } catch { /* ignore */ }
+  try { RT.anvil?.kill(); } catch { /* dead */ }
+  await new Promise((r) => setTimeout(r, 500));
+  spawnAnvil();
+  await waitRpc();
+}
+
 async function watchdog(): Promise<void> {
   if (RT.busy) return;
   RT.busy = true;
   try {
-    const dead = !RT.anvil || RT.anvil.exitCode !== null;
-    if (!dead) {
-      const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
-      try {
-        await provider.send("eth_blockNumber");
-        provider.destroy();
-        return; // alive
-      } catch {
-        provider.destroy();
+    // v20.1 — RPC-FIRST truth: an adopted (external) anvil keeps RT.anvil
+    // null, and a crashed child with a still-live chain means someone else
+    // holds :8545. The RPC answer is the truth; the child is bookkeeping.
+    // (The old child-first check crash-looped EADDRINUSE forever when the
+    // runner restarted next to its own orphaned anvil.)
+    const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    let rpcUp = false;
+    try {
+      await probe.send("eth_blockNumber");
+      rpcUp = true;
+    } catch {
+      /* chain down */
+    }
+    probe.destroy();
+    if (rpcUp) {
+      if (RT.anvil && RT.anvil.exitCode !== null) {
+        console.log("[evm-mesh] watchdog: child anvil exited but :8545 still answers — ADOPTING the live chain");
+        RT.anvil = null; // adopted — do not respawn into EADDRINUSE
       }
+      return; // alive (owned or adopted)
     }
     console.log("[evm-mesh] watchdog: chain down — respawn");
     try {
@@ -343,12 +363,7 @@ async function watchdog(): Promise<void> {
       await waitRpc();
     } catch {
       // corrupted snapshot — burn it and boot fresh (honest regenesis)
-      console.log("[evm-mesh] state snapshot unbootable — fresh genesis");
-      try { fs.rmSync(ANVIL_STATE, { force: true }); } catch { /* ignore */ }
-      try { RT.anvil?.kill(); } catch { /* dead */ }
-      await new Promise((r) => setTimeout(r, 500));
-      spawnAnvil();
-      await waitRpc();
+      await burnAndRegenesis();
     }
     if (!(await meshAlive())) await deployMesh();
     runTick = 0;
@@ -384,17 +399,39 @@ async function artifactWatcher(): Promise<void> {
 
 async function main(): Promise<void> {
   RT.artifactMtime = 0;
-  spawnAnvil();
+  // v20.1 ADOPT — an anvil from a previous run may still hold :8545 with
+  // the persisted chain alive (orphaned child). Spawning a second anvil
+  // hits EADDRINUSE and the runner crash-loops forever while the chain
+  // lives untouched — the silent death of the whole mesh API. Adopt instead.
+  let adopted = false;
+  {
+    const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    try {
+      await probe.send("eth_chainId");
+      adopted = true;
+      console.log("[evm-mesh] anvil already LIVE on :8545 — ADOPTING the live chain (no respawn, no regenesis)");
+    } catch {
+      /* port free — we own the chain from here */
+    }
+    probe.destroy();
+  }
+  if (!adopted) spawnAnvil();
   try {
     await waitRpc();
   } catch {
-    // snapshot unbootable (corrupt/old format) — burn and boot fresh
-    console.log("[evm-mesh] state snapshot unbootable — fresh genesis");
-    try { fs.rmSync(ANVIL_STATE, { force: true }); } catch { /* ignore */ }
-    try { RT.anvil?.kill(); } catch { /* dead */ }
-    await new Promise((r) => setTimeout(r, 500));
-    spawnAnvil();
-    await waitRpc();
+    if (adopted) {
+      // the adopted chain vanished between the probe and now — take ownership
+      console.log("[evm-mesh] adopted chain vanished — spawning our own");
+      spawnAnvil();
+      try {
+        await waitRpc();
+      } catch {
+        await burnAndRegenesis();
+      }
+    } else {
+      // snapshot unbootable (corrupt/old format) — burn and boot fresh
+      await burnAndRegenesis();
+    }
   }
   if (await meshAlive()) {
     console.log("[evm-mesh] MESH RESUMED — persisted chain, order/run ids continue (no regenesis)");

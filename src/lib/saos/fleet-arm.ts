@@ -446,63 +446,69 @@ export async function armEvmFleet(): Promise<ArmOutcome> {
     }
 
     const provider = new ethers.JsonRpcProvider(ETH_ENDPOINTS[0], 1, { batchMaxCount: 1 });
-    const signer = new ethers.Wallet(wallet.privateKey, provider);
+    // v20.1: try/finally — ANY throw on this path (balance read, fee data,
+    // reserve gate, final reserveAfter read) leaked the provider into an
+    // ethers 1s "failed to detect network" retry loop (zombie storm).
+    try {
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
 
-    // live gates: balance must cover disbursements + gas + reserve floor
-    const balance = await provider.getBalance(wallet.address, "latest");
-    const gasWei = (await provider.getFeeData().then((f) => f.gasPrice)) ?? null;
-    if (!gasWei) throw new Error("node answered without a gas price (honest)");
-    const pricedGas =
-      gasWei * 14n / 10n > EVM_GAS_PRICE_FLOOR_WEI ? gasWei * 14n / 10n : EVM_GAS_PRICE_FLOOR_WEI;
-    const perTxGas = EVM_GAS_LIMIT * pricedGas;
-    const disburse = ethers.parseEther(String(EVM_PER_SOLDIER_ETH)) * BigInt(targets.length);
-    const floor = ethers.parseEther(String(EVM_RESERVE_FLOOR_ETH));
-    if (balance < disburse + perTxGas * BigInt(targets.length) + floor) {
-      throw new Error(
-        `reserve gate: ${ethers.formatEther(balance)} ETH < חימוש+גז+עתודה (${ethers.formatEther(disburse + perTxGas * BigInt(targets.length) + floor)} ETH) — נשאר לפיתוח (חסום)`
-      );
-    }
-
-    for (const t of targets) {
-      if (await alreadyArmed("EVM", t.agent)) {
-        skipped.push({ agent: t.agent, status: "skipped" });
-        continue;
+      // live gates: balance must cover disbursements + gas + reserve floor
+      const balance = await provider.getBalance(wallet.address, "latest");
+      const gasWei = (await provider.getFeeData().then((f) => f.gasPrice)) ?? null;
+      if (!gasWei) throw new Error("node answered without a gas price (honest)");
+      const pricedGas =
+        gasWei * 14n / 10n > EVM_GAS_PRICE_FLOOR_WEI ? gasWei * 14n / 10n : EVM_GAS_PRICE_FLOOR_WEI;
+      const perTxGas = EVM_GAS_LIMIT * pricedGas;
+      const disburse = ethers.parseEther(String(EVM_PER_SOLDIER_ETH)) * BigInt(targets.length);
+      const floor = ethers.parseEther(String(EVM_RESERVE_FLOOR_ETH));
+      if (balance < disburse + perTxGas * BigInt(targets.length) + floor) {
+        throw new Error(
+          `reserve gate: ${ethers.formatEther(balance)} ETH < חימוש+גז+עתודה (${ethers.formatEther(disburse + perTxGas * BigInt(targets.length) + floor)} ETH) — נשאר לפיתוח (חסום)`
+        );
       }
-      try {
-        // THE whitelisted operation: sovereign → registry soldier, capped value
-        const tx = await signer.sendTransaction({
-          to: t.address,
-          value: ethers.parseEther(String(EVM_PER_SOLDIER_ETH)),
-          gasLimit: EVM_GAS_LIMIT,
-          gasPrice: pricedGas,
-          type: 0,
-          chainId: 1
-        });
-        // inclusion proof — receipt poll
-        let receipt = null;
-        for (let i = 0; i < 18 && !receipt; i++) {
-          receipt = await provider.getTransactionReceipt(tx.hash).catch(() => null);
-          if (!receipt) await new Promise((r) => setTimeout(r, 2500));
-        }
-        if (!receipt || receipt.status !== 1) {
-          throw new Error(`tx mined without success receipt (${receipt ? "status≠1" : "no receipt in 45s"})`);
-        }
-        armed.push({ agent: t.agent, status: "armed", txid: tx.hash });
-        await recordArm("EVM", t.agent, `${EVM_PER_SOLDIER_ETH} ETH`, "armed", {
-          txid: tx.hash,
-          explorer: `https://etherscan.io/tx/${tx.hash}`,
-          block: receipt.blockNumber,
-          gasUsed: Number(receipt.gasUsed)
-        });
-      } catch (e) {
-        const error = e instanceof Error ? e.message : "send failed";
-        failed.push({ agent: t.agent, status: "failed", error });
-        await recordArm("EVM", t.agent, `${EVM_PER_SOLDIER_ETH} ETH`, "failed", { error });
-      }
-    }
 
-    reserveAfter = { eth: Number(ethers.formatEther(await provider.getBalance(wallet.address, "latest"))).toFixed(6) };
-    provider.destroy();
+      for (const t of targets) {
+        if (await alreadyArmed("EVM", t.agent)) {
+          skipped.push({ agent: t.agent, status: "skipped" });
+          continue;
+        }
+        try {
+          // THE whitelisted operation: sovereign → registry soldier, capped value
+          const tx = await signer.sendTransaction({
+            to: t.address,
+            value: ethers.parseEther(String(EVM_PER_SOLDIER_ETH)),
+            gasLimit: EVM_GAS_LIMIT,
+            gasPrice: pricedGas,
+            type: 0,
+            chainId: 1
+          });
+          // inclusion proof — receipt poll
+          let receipt = null;
+          for (let i = 0; i < 18 && !receipt; i++) {
+            receipt = await provider.getTransactionReceipt(tx.hash).catch(() => null);
+            if (!receipt) await new Promise((r) => setTimeout(r, 2500));
+          }
+          if (!receipt || receipt.status !== 1) {
+            throw new Error(`tx mined without success receipt (${receipt ? "status≠1" : "no receipt in 45s"})`);
+          }
+          armed.push({ agent: t.agent, status: "armed", txid: tx.hash });
+          await recordArm("EVM", t.agent, `${EVM_PER_SOLDIER_ETH} ETH`, "armed", {
+            txid: tx.hash,
+            explorer: `https://etherscan.io/tx/${tx.hash}`,
+            block: receipt.blockNumber,
+            gasUsed: Number(receipt.gasUsed)
+          });
+        } catch (e) {
+          const error = e instanceof Error ? e.message : "send failed";
+          failed.push({ agent: t.agent, status: "failed", error });
+          await recordArm("EVM", t.agent, `${EVM_PER_SOLDIER_ETH} ETH`, "failed", { error });
+        }
+      }
+
+      reserveAfter = { eth: Number(ethers.formatEther(await provider.getBalance(wallet.address, "latest"))).toFixed(6) };
+    } finally {
+      provider.destroy(); // v20.1 — success AND failure: no zombie providers
+    }
   });
 
   await armReceipt("EVM", armed.map((a) => a.agent), failed.map((a) => a.agent), skipped.map((a) => a.agent), {

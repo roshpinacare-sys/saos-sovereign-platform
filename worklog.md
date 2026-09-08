@@ -610,3 +610,22 @@ Stage Summary:
 - מצב-סיום (מדידה חיה): 9 חוזים (saos-mesh/v3) · 3 גרידים חיים (2 שוק-אמיתי + SELFTEST) · realized 0.003 SAOS-M · נשטף 0.003 לקופה · fillSeq 2 · auto-runner: אורקל+טיק+שטיפה בכל 120ש' בתוך ריצת-ה-mesh · REAL WORK ממשיך (12 מסירות) · ספרד DEX 0.173% נמדד.
 - הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v20.0.0.
 - המשך: מעברי-רמה אמיתיים יצטברו כשהשוק יחצה 1.2% (המנוע מוכיח עצמו ב-SELFTEST ובטריגרים החיים) · מסלול-ארביטראז' בוצע (ספרד נמדד; ביצוע דורש מפתחות) · הרחבת זוגות-גריד מהלוח החי · energize-TRON עם מפתחות חדשים.
+---
+Task ID: 14
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: המשך הוראת-הרשת (ביקורת עומק: "המון באגים, דברים שקיימים אבל לא יושמו") — v20.1.0 STORM PATCH: ציד זומבים בשכבת-ה-RPC + אימוץ שרשרת-מעבדה חיה + תיקוני-עומק.
+
+Work Log:
+- אבחון מקור-אמת של סערת-היומן: dev.log הוצף ב-"JsonRpcProvider failed to detect network; retry in 1s" בקצב הודעה/שנייה ברציפות. בדיקה אמפירית חשפה שלושה שלבים: (1) ב-ethers v6 גם ספק עם chainId סטטי שנכשל בעלייה נכנס ללולאת-ניסיון-חוזרת פרטית של 1ש' — לנצח, כל עוד מישהו מחזיק לו ידית; (2) binance.llamarpc.com מת מהמארח (ECONNREFUSED) והיה רשום כגיבוי ב-4 מודולים; (3) PROVIDER_POOL של dex-live החזיק ספקים מתים לנצח — הזומבי שיצר את הסערה.
+- תיקון-שורש ב-6 קבצים: dex-live.ts — providerKill (כל ספק שנכשל מושמד ומפונה מהבריכה; הבקשה הבאה פותחת חיבור טרי; ספקים חיים נשארים מרוכזים) · llamarpc המת הוחלף ב-bsc-dataseed.bnbchain.org הרשמי (אומת חי, 0x38) בכל 4 המודולים (dex-live, bsc-live, anchor-bsc, relay-contract) · anchor-bsc ו-anchor-evm — hoist+destroy בכל נתיבי-השגיאה (readiness + שידור) · relay-contract — עטיפת try/catch בשני מסלולי-השידור (deploy + call; כל שגיאת-רשת דלפה ספק) · fleet-arm armEvmFleet — try/finally מלא.
+- באג אמיתי שני (בדיוק "קיים אבל לא יושם"): evm-mesh runner שקם לצד anvil יתום חי על :8545 היה נכנס ללולאת-קריסה נצחית (spawnAnvil → EADDRINUSE) — ממשק-הרשת מת בשקט בעוד השרשרת חיה. תיקון v20.1 ADOPT: main() בודק RPC לפני spawn — שרשרת חיה מאומצת (אין respawn, אין regenesis); watchdog הפך ל-RPC-FIRST (תשובת-הרשת היא האמת; הבן רישום-פנקסים) + אימוץ אוטומטי כשהבן מת אך השרשרת עונה; burnAndRegenesis מופקד על תמונות-מצב מושחתות. אומת חי: "ADOPTING the live chain" + MESH RESUMED + SERVICE LIVE + REAL WORK נמסר במחזור הראשון.
+- באג שלישי שנתפס באימות-הדפדפן: Zap לא מיובא ב-sovereign-key.tsx → ReferenceError בטעינת-העמוד — תוקן.
+- ניהול-סביבה: נמצא דפוס-ההישרדות לתהליכי-רקע בסביבה ((cmd &) subshell double-fork — כל תהליך אחר נקצר בסוף-הפקודה); השרת וה-runner הוקמו בו; אנוויל השרשרת-המתמשכת שרד לכל אורך-המלחמה (chain-id 31337, state-interval 30).
+- אימות end-to-end: 4 מסלולי-API זהב ירוקים (dex WETH/USDC $2,483.22 + V3 $2,482.25 + ספרד-ונצוּאות נמדד · live-probes 5 סקטורים · mesh/work מסירה #19 runId 35 · מיקרו-גריד 3 גרידים + 2 מילויים על-שרשרת) · דפדפן: ויו מיקרו-גריד ורשת-360 חיים (11 ריפואים, Enlist 0x2765b861… מאושר, אורקל מול DEX 2483.22, ספרדים 0.135%/0.120%) · סערה: 0 שורות (נמדד פעמיים) · lint נקי · צילומים: upload/v20-stormpatch-microgrid.png · v20-stormpatch-network360.png · v20-stormpatch-sovereign-key.png.
+
+Stage Summary:
+- המוצר: v20.1.0 STORM PATCH — שכבת-ה-RPC נוקתה מזומבים: סערת-היומן (הודעה/שנייה לנצח) חוסלה לחלוטין, נקודת-גיבוי מתה הוחלפה ברשמית-חיה בכל 4 המודולים, וה-runner למד לאמץ שרשרת-מעבדה חיה במקום להתרסק אליה (המשכיות ללא regenesis גם בהפעלה-מחדש לצד anvil יתום).
+- שלושה דימומים אמיתיים נתפסו ותוקנו בשורש: (1) זומבי-ethers בבריכת-הספקים; (2) לולאת-EADDRINUSE הרסנית ב-runner; (3) import חסר שזרק שגיאת-עמוד.
+- גבול-האמת נשמר: llamarpc לא הוסתר אלא הוחלף בנקודה שאומתה-חיה · קריאות read-only · SELFTEST מתויג · אימוץ-שרשרת מדווח בכנות ביומן-השירות.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v20.1.0.
+- המשך: מפתחות חדשים מהבעלים נשארים הצעד הקריטי #1 (כל זרועות-החתימה ממתינות) · צבירת-רווח גריד כשהשוק יחצה 1.2% · מדידת-עומק ל-11 הריפואים ב-agents-net.

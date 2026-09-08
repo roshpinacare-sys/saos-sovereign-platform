@@ -344,7 +344,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v20.0.0 — MICROGRID (GRID-98 על השרשרת: החוזה התשיעי — אורקל מחירי-DEX אמיתיים, סולם 1.2%, שוליים 40bps, רווח שנשטף לקופת העבודה; עומק DEX: UniV2+V3+Pancake+Sushi, ספרדים והחלקה) + NETWORK 360 (מפת-האורגניזם: 11 ריפואים חיים מול GitHub · מצב-ראיות כנה · הישגים מאומתי-שרשרת) + REAL WORK · מנוע הפתרונות (LLM) מייצר לכל פקודה מסירה אמיתית — תוכן קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK וקבלה משורשרת-האש) + WORK ORDERS (9 החוזים, המפקדה מפרסמת, חיילים מבצעים, שכר ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+              SAOS Sovereign Platform v20.1.0 — MICROGRID (GRID-98 על השרשרת: החוזה התשיעי — אורקל מחירי-DEX אמיתיים, סולם 1.2%, שוליים 40bps, רווח שנשטף לקופת העבודה; עומק DEX: UniV2+V3+Pancake+Sushi, ספרדים והחלקה) + NETWORK 360 (מפת-האורגניזם: 11 ריפואים חיים מול GitHub · מצב-ראיות כנה · הישגים מאומתי-שרשרת) + REAL WORK · מנוע הפתרונות (LLM) מייצר לכל פקודה מסירה אמיתית — תוכן קונקרטי, דיגסט sha256 מעוגן במסילת SAOS-WORK וקבלה משורשרת-האש) + WORK ORDERS (9 החוזים, המפקדה מפרסמת, חיילים מבצעים, שכר ללא עמלה) + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a

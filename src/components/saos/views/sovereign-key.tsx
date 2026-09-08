@@ -27,6 +27,7 @@ import {
   Lock,
   ShieldCheck,
   UserCheck,
+  Zap,
   Flame
 } from "lucide-react";
 import {

@@ -36,12 +36,21 @@ const ETH_ENDPOINTS = [
   "https://rpc.mevblocker.io"
 ] as const;
 
-const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://binance.llamarpc.com"] as const;
+// v20.1: binance.llamarpc.com measured DEAD from this host (connection
+// refused) — replaced with the official bnbchain dataseed (verified live,
+// chainId 0x38). A dead fallback is not a fallback, it is a latency lie.
+const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"] as const;
 
 /** Normalize any stored address to a valid EIP-55 checksummed form (v14). */
 const A = (raw: string) => ethers.getAddress(raw.toLowerCase());
 
 // ─── v20: shared provider pool (one JsonRpcProvider per endpoint, reused) ──
+// v20.1 ZOMBIE FIX: an ethers v6 JsonRpcProvider whose startup RPC fails
+// enters a private "failed to detect network; retry in 1s" loop — forever,
+// as long as SOMETHING references it. The pool kept dead providers alive
+// => dev.log filled with a 1msg/sec retry storm from a single dead endpoint.
+// Rule now: any failed provider is destroyed AND evicted; the next request
+// opens a fresh connection. Live providers stay pooled (zero churn).
 
 const PROVIDER_POOL = new Map<string, ethers.JsonRpcProvider>();
 function providerFor(endpoint: string, chainId: number): ethers.JsonRpcProvider {
@@ -51,6 +60,16 @@ function providerFor(endpoint: string, chainId: number): ethers.JsonRpcProvider 
     PROVIDER_POOL.set(endpoint, p);
   }
   return p;
+}
+
+/** v20.1: kill a pooled provider — cancel its retry timer, evict from pool. */
+function providerKill(endpoint: string, p: ethers.JsonRpcProvider): void {
+  PROVIDER_POOL.delete(endpoint);
+  try {
+    p.destroy();
+  } catch {
+    /* already dead — nothing to cancel */
+  }
 }
 
 const SELECTOR = {
@@ -179,6 +198,7 @@ async function callRead(chain: "ethereum" | "bsc", to: string, data: string): Pr
       return res;
     } catch (e) {
       lastErr = e instanceof Error ? e.message : "eth_call failed";
+      providerKill(endpoint, provider); // v20.1 — no zombie retry loops
     }
   }
   throw new Error(`dex read failed: ${lastErr.slice(0, 120)}`);
