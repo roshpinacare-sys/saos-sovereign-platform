@@ -2,13 +2,77 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { anchoringMatrix } from "@/lib/saos/anchor-gates";
 import { HISTORIC_ANCHORS } from "@/lib/saos/historic";
+import { probeHiveRc, hiveAnchorAccount } from "@/lib/saos/hive-rc-live";
+import { probeTronVault } from "@/lib/saos/tron-live";
 
 export const dynamic = "force-dynamic";
 
+/** Short txid for display (never fabricates — truncation only). */
+function shortTx(txid: string | null): string {
+  return txid ? `${txid.slice(0, 10)}…` : "—";
+}
+
 export async function GET() {
   try {
-    const rcPct = Number(process.env.HIVE_RC_PCT ?? 0.6);
-    const tronEnergy = Number(process.env.TRON_ENERGY ?? 0);
+    // v9 — LIVE resource gates: the HIVE RC is MEASURED against the public
+    // chain (60s cache) and the TRON vault state is probed read-only. On
+    // any probe failure we fall back to the static env values and say so —
+    // never a fabricated "live" number.
+    const hiveRc = await probeHiveRc(hiveAnchorAccount());
+    const rcPct = hiveRc.ok ? hiveRc.rcPct : Number(process.env.HIVE_RC_PCT ?? 0.6);
+    const rcSource: "live" | "env" = hiveRc.ok ? "live" : "env";
+
+    const tronSlots = await db.vaultSlot.findMany({
+      where: { network: "TRON", address: { not: null } },
+      select: { address: true }
+    });
+    const tronLive = await probeTronVault(tronSlots.map((s) => s.address as string));
+    const tronEnergy = tronLive.ok
+      ? tronLive.totalEnergy > 0
+        ? tronLive.totalEnergy
+        : tronLive.funded > 0
+          ? 1
+          : 0
+      : Number(process.env.TRON_ENERGY ?? 0);
+
+    const matrix = anchoringMatrix(rcPct, tronEnergy);
+
+    // v12 — EVM/SVM rails: honest matrix rows from the REAL anchor ledger.
+    // A live mainnet anchor (txid from the node, confirmed) ⇒ "anchored";
+    // a funded sovereign wallet ⇒ "pending" (human-gated: real money);
+    // anything else ⇒ "probe" (read-only rail, no signing path yet).
+    const [evmAnchor, solAnchor] = await Promise.all([
+      db.anchorTx.findFirst({
+        where: { kind: "weave", network: "ETHEREUM", txid: { not: null }, status: "anchored" },
+        orderBy: { createdAt: "desc" },
+        select: { txid: true, createdAt: true, meta: true }
+      }),
+      db.anchorTx.findFirst({
+        where: { kind: "weave", network: "SOLANA", txid: { not: null }, status: "anchored" },
+        orderBy: { createdAt: "desc" },
+        select: { txid: true, createdAt: true, meta: true }
+      })
+    ]);
+    matrix.push(
+      {
+        network: "ETHEREUM",
+        status: evmAnchor ? "anchored" : "pending",
+        gate: evmAnchor ? null : "human-gate (עלות אמיתית — הפעימה ממתינה ללחיצה)",
+        detail: evmAnchor
+          ? `data-memo עצמי (to=עצמי, value=0) מהכתובת הריבונית · טרנזקציה אחרונה ${shortTx(evmAnchor.txid)}`
+          : "זרע-הכספת מאומת (m/44'/60'/0'/0/2), מאזן מדוד — המודול מוכן, חתימה בלחיצת אדם",
+        recovery: evmAnchor ? null : "POST /api/saos/anchor/evm — עוגן חי בלחיצה"
+      },
+      {
+        network: "SOLANA",
+        status: solAnchor ? "anchored" : "pending",
+        gate: solAnchor ? null : "human-gate (עמלה 5000 lamports — הפעימה ממתינה ללחיצה)",
+        detail: solAnchor
+          ? `הוראת Memo יחידה (zero lamports) מהמפתח הריבוני · חתימה אחרונה ${shortTx(solAnchor.txid)}`
+          : "זרע-הכספת מאומת (ed25519(sha256(seed|sol|headcorner))), מאזן מדוד — המודול מוכן, חתימה בלחיצת אדם",
+        recovery: solAnchor ? null : "POST /api/saos/anchor/svm — עוגן חי בלחיצה"
+      }
+    );
 
     const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = await Promise.all([
       db.sealRecord.findMany({
@@ -27,7 +91,36 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       motto: "אנחנו מנצחים את הבלוקצ'יין",
-      matrix: anchoringMatrix(rcPct, tronEnergy),
+      matrix,
+      live: {
+        hive: hiveRc.ok
+          ? {
+              ok: true,
+              account: hiveRc.account,
+              rcPct: hiveRc.rcPct,
+              currentMana: hiveRc.currentMana,
+              maxRc: hiveRc.maxRc,
+              hoursToLightFloor: hiveRc.hoursToLightFloor,
+              measuredAt: hiveRc.measuredAt,
+              source: rcSource
+            }
+          : {
+              ok: false,
+              account: hiveRc.account,
+              rcPct,
+              measuredAt: hiveRc.measuredAt,
+              source: rcSource,
+              error: hiveRc.error
+            },
+        tron: {
+          ok: tronLive.ok,
+          checked: tronLive.checked,
+          funded: tronLive.funded,
+          totalBalanceTrx: tronLive.totalBalanceTrx,
+          measuredAt: tronLive.measuredAt,
+          error: tronLive.error
+        }
+      },
       historic: HISTORIC_ANCHORS,
       seals: seals.map((s) => ({
         id: s.id,

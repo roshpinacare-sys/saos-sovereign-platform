@@ -1,0 +1,128 @@
+{
+  "name": "SAOSRelay",
+  "version": "saos-relay/v1",
+  "compiler": "solc ^0.8.24 (optimizer 200)",
+  "source": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\n/// @title SAOS Sovereign Relay — הממסר הריבוני\n/// @notice The fee-free on-chain link of the SAOS network: seal roots and\n///         agent enlistments become immutable events on Ethereum (and any\n///         EVM chain — the same code deploys on BSC). Zero protocol fees —\n///         senders pay only chain gas. No owner, no upgrade path, no\n///         pauser, no payable functions: the relay is immutable by\n///         construction and can never hold or take funds.\n/// @dev    saos-relay/v1 · source of truth: saos-sovereign-platform\ncontract SAOSRelay {\n    /// @dev A SAOS-NET seal root anchored through the relay (merkle root → chain event).\n    event Anchor(bytes32 indexed root, uint256 indexed height, string rail, string note, address indexed sender);\n\n    /// @dev An agent of the SAOS network enlists under its PUBLIC identity (never a secret).\n    event Enlist(string agent, string rail, string identity, address indexed sender);\n\n    /// @notice Anchor a SAOS-NET seal root. No fee, no gatekeeping, immutable log.\n    function anchor(bytes32 root, uint256 height, string calldata rail, string calldata note) external {\n        emit Anchor(root, height, rail, note, msg.sender);\n    }\n\n    /// @notice Enlist an agent identity (public info only — addresses/account names).\n    function enlist(string calldata agent, string calldata rail, string calldata identity) external {\n        emit Enlist(agent, rail, identity, msg.sender);\n    }\n}\n",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "root",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "height",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "rail",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "note",
+          "type": "string"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        }
+      ],
+      "name": "Anchor",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "agent",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "rail",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "identity",
+          "type": "string"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        }
+      ],
+      "name": "Enlist",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "root",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "height",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "rail",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "note",
+          "type": "string"
+        }
+      ],
+      "name": "anchor",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "agent",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "rail",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "identity",
+          "type": "string"
+        }
+      ],
+      "name": "enlist",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600e575f5ffd5b506103238061001c5f395ff3fe608060405234801561000f575f5ffd5b5060043610610034575f3560e01c8063277c9c3c146100385780638be975cf1461004d575b5f5ffd5b61004b610046366004610149565b610060565b005b61004b61005b3660046101e8565b6100b3565b336001600160a01b03167f575ce8e5d50824f9f4047df79496bab16ac8ca091944acd9226a0ac3a9384fcc8787878787876040516100a396959493929190610274565b60405180910390a2505050505050565b336001600160a01b031685877f2b6da07ceec987c694d420dda9f6ee1bfac7b9b6737cefa0beddeb44c959a379878787876040516100f494939291906102bc565b60405180910390a4505050505050565b5f5f83601f840112610114575f5ffd5b50813567ffffffffffffffff81111561012b575f5ffd5b602083019150836020828501011115610142575f5ffd5b9250929050565b5f5f5f5f5f5f6060878903121561015e575f5ffd5b863567ffffffffffffffff811115610174575f5ffd5b61018089828a01610104565b909750955050602087013567ffffffffffffffff81111561019f575f5ffd5b6101ab89828a01610104565b909550935050604087013567ffffffffffffffff8111156101ca575f5ffd5b6101d689828a01610104565b979a9699509497509295939492505050565b5f5f5f5f5f5f608087890312156101fd575f5ffd5b8635955060208701359450604087013567ffffffffffffffff811115610221575f5ffd5b61022d89828a01610104565b909550935050606087013567ffffffffffffffff8111156101ca575f5ffd5b81835281816020850137505f828201602090810191909152601f909101601f19169091010190565b606081525f61028760608301888a61024c565b828103602084015261029a81878961024c565b905082810360408401526102af81858761024c565b9998505050505050505050565b604081525f6102cf60408301868861024c565b82810360208401526102e281858761024c565b97965050505050505056fea26469706673582212208efebabc97427dcec5f3d506bf0d45111b2449fdc3db8fd8e7c11e5c0c8a913d64736f6c63430008240033"
+}

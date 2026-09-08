@@ -6,8 +6,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { Clock, Flame, Gauge as GaugeIcon, Wind, Zap } from "lucide-react";
+import { Clock, Flame, Gauge as GaugeIcon, RadioTower, Wind, Zap } from "lucide-react";
 import {
+  Btn,
   Callout,
   Panel,
   PanelBody,
@@ -17,14 +18,19 @@ import {
   Skeleton
 } from "../ui";
 import { Gauge, MeterBar } from "../charts";
-import { fmt, useLive } from "../lib";
-import type { EnergyHive, EnergyTron } from "../types";
+import { fmt, timeAgo, useLive } from "../lib";
+import type { EnergyHive, EnergyTron, LiveProbesData } from "../types";
 import { PageHead } from "../shell";
 
 export function ViewEnergy() {
   const [trx, setTrx] = useState(6500);
   const [txs, setTxs] = useState(4);
   const [rc, setRc] = useState(0.6);
+
+  // v9 — מדידה חיה של RC (קריאה בלבד) — הסליידר נשאר כלי-סימולציה,
+  // אך ברירת-המחדל של האמת היא הרשת, לא סביבה מקומית
+  const probes = useLive<LiveProbesData>("/api/saos/live-probes", 60000);
+  const hiveLiveRc = probes.data?.hive.ok ? probes.data.hive.rcPct : null;
 
   const tronUrl = `/api/saos/energy?net=tron&trx=${trx}&txs=${txs}`;
   const hiveUrl = `/api/saos/energy?net=hive&rc=${rc}`;
@@ -159,6 +165,24 @@ export function ViewEnergy() {
             }
           />
           <PanelBody className="space-y-4">
+            {/* v9 — פס RC חי מעל הסליידר */}
+            {probes.data?.hive && (
+              <Callout tone={hiveLiveRc !== null && hiveLiveRc >= 8 ? "green" : "gold"} icon={<RadioTower size={13} />}>
+                <span className="font-semibold">RC חי של {probes.data.hive.account}:</span>{" "}
+                {hiveLiveRc !== null ? `${hiveLiveRc.toFixed(2)}%` : "מדידה כשלה"} · נמדד מול השרשרת:{" "}
+                {timeAgo(probes.data.hive.measuredAt)}
+                {hiveLiveRc !== null && hiveLiveRc !== rc && (
+                  <Btn
+                    variant="secondary"
+                    size="sm"
+                    className="ms-2"
+                    onClick={() => setRc(hiveLiveRc)}
+                  >
+                    טען לסליידר
+                  </Btn>
+                )}
+              </Callout>
+            )}
             <RangeSlider label="RC נוכחי של החשבון" value={rc} min={0} max={100} step={0.1} suffix="%" onChange={setRc} />
 
             {!hiveLive.data ? (
@@ -198,7 +222,7 @@ export function ViewEnergy() {
                     />
                     <p className="text-[10px] text-zinc-600 flex items-center gap-1.5">
                       <Wind size={11} />
-                      regen {hiveLive.data.params.regenPctPerDay}%/יום · החסם ההיסטורי: 0.6% &lt; 12%
+                      regen {hiveLive.data.params.regenPctPerDay}%/יום · סליידר = סימולציית what-if · ה-RC האמיתי נמדד למעלה מהרשת
                     </p>
                   </div>
                 </div>

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v5 — Institutional Console.
- * הרכבה דקה: AppShell + 7 עמודים. קיצורי-מקלדת Alt+1..7.
+ * SAOS Sovereign Platform v15 — CONTRACT MESH (7 חוזים משורשרים על SAOS-EVM).
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 11 עמודים. קיצורי-מקלדת Alt+1..9.
  */
 
 import { useEffect, useState } from "react";
@@ -11,8 +11,12 @@ import { ToastProvider } from "@/components/saos/ui";
 import { useLive } from "@/components/saos/lib";
 import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
+import { ViewNetworks } from "@/components/saos/views/networks";
+import { ViewAgents } from "@/components/saos/views/agents";
 import { ViewSeals } from "@/components/saos/views/seals";
 import { ViewOps } from "@/components/saos/views/ops";
+import { ViewMesh } from "@/components/saos/views/mesh";
+import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
 import { ViewEconomy } from "@/components/saos/views/economy";
@@ -20,8 +24,12 @@ import { ViewResearch } from "@/components/saos/views/research";
 
 const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
+  networks: "רשתות חיות",
+  agents: "מעקב סוכנים",
   seals: "איטום ועגינה",
   ops: "מבצעי עגינה",
+  mesh: "רשת החוזים",
+  fleet: "חימוש הצי",
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
   economy: "כלכלה",
@@ -32,7 +40,7 @@ export default function Home() {
   const [view, setView] = useState<ViewId>("overview");
   const status = useLive<StatusData>("/api/saos/status", 12000);
 
-  // קיצורי-מקלדת: Alt+1..7 לניווט מהיר
+  // קיצורי-מקלדת: Alt+1..0 לניווט מהיר
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey) return;
@@ -55,8 +63,12 @@ export default function Home() {
     <ToastProvider>
       <AppShell view={view} onNav={setView} status={status}>
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
+        {view === "networks" && <ViewNetworks status={status} />}
+        {view === "agents" && <ViewAgents />}
         {view === "seals" && <ViewSeals status={status} />}
         {view === "ops" && <ViewOps status={status} />}
+        {view === "mesh" && <ViewMesh />}
+        {view === "fleet" && <ViewFleet />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}
         {view === "economy" && <ViewEconomy />}

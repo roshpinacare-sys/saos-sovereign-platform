@@ -1,18 +1,20 @@
 "use client";
 
 /**
- * SAOS v4 — מעטפת קונסולה מוסדית.
- * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + ניווט-גלילה (מובייל) + כותרת-תחתונה דביקה.
+ * SAOS v15 — מעטפת CONTRACT MESH (COMMAND DECK + 8-CHAIN GRID + 7 חוזים משורשרים).
+ * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 8-רשתות חי**
+ * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · BSC · SOLANA) + ניווט-גלילה (מובייל)
+ * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ExternalLink, GitBranch, RadioTower, RefreshCcw, ShieldCheck } from "lucide-react";
+import { Anchor, Crosshair, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
-import { timeAgo, useClock, useTick } from "./lib";
+import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
-import type { StatusData } from "./types";
+import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "seals" | "ops" | "proofs" | "energy" | "economy" | "research";
+export type ViewId = "overview" | "networks" | "agents" | "seals" | "ops" | "mesh" | "fleet" | "proofs" | "energy" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -33,6 +35,22 @@ export const VIEWS: ViewDef[] = [
     group: "תפעול"
   },
   {
+    id: "networks",
+    label: "רשתות חיות",
+    short: "רשתות",
+    desc: "רשת-8 שרשראות במדידה חיה — ETH · SOL · BSC + צמדי DEX אמיתיים",
+    icon: <Globe2 size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "agents",
+    label: "מעקב סוכנים",
+    short: "סוכנים",
+    desc: "8 הריפואים של האורגניזם במדידה חיה מול GitHub — דחיפות, קומיטים וטריות",
+    icon: <Users size={16} />,
+    group: "תפעול"
+  },
+  {
     id: "seals",
     label: "איטום ועגינה",
     short: "איטום",
@@ -46,6 +64,22 @@ export const VIEWS: ViewDef[] = [
     short: "מבצעים",
     desc: "רישום כספת, מעטפות שידור dry-run ויומן תפעול — מוכנות שלב 2",
     icon: <RadioTower size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "mesh",
+    label: "רשת החוזים",
+    short: "חוזים",
+    desc: "7 חוזים משורשרים על SAOS-EVM — חוזה מדבר לחוזה, ערך ופתרונות ללא עמלה",
+    icon: <Waypoints size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "fleet",
+    label: "חימוש הצי",
+    short: "הצי",
+    desc: "mint קטן ל-SAOS + יתרות-פעולה ל-11 החיילים על STEEM · ETH · SOL — עם עתודת פיתוח",
+    icon: <Crosshair size={16} />,
     group: "תפעול"
   },
   {
@@ -99,9 +133,11 @@ export function AppShell({
   const def = VIEWS.find((v) => v.id === view)!;
   const stats = status.data?.stats;
   const live = !status.error && !!status.data;
+  const probes = useLive<LiveProbesData>("/api/saos/live-probes", 20000);
 
   const doRefresh = () => {
     status.refresh();
+    probes.refresh();
     setSpinning(true);
     setTimeout(() => setSpinning(false), 700);
   };
@@ -119,7 +155,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Anchoring Platform · v5.1</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Contract Mesh · v15.0</p>
           </div>
         </div>
 
@@ -261,6 +297,9 @@ export function AppShell({
           </nav>
         </header>
 
+        {/* פס-פיקוד 8-רשתות — חי מול live-probes (SAOS-NET + 7 מסילות חיצוניות) */}
+        <ChainTicker height={stats?.lastHeight} status={status} probes={probes} />
+
         {/* תוכן */}
         <main className="relative flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-10">
           <div className="console-grid pointer-events-none absolute inset-x-0 top-0 h-64" aria-hidden />
@@ -272,7 +311,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v5.1.0 — קונסולת עגינה מוסדית
+              SAOS Sovereign Platform v15.0.0 — CONTRACT MESH · 7 חוזים משורשרים על SAOS-EVM (חוזה⇄חוזה, ללא עמלה, ערך·יעילות) + 8-CHAIN LIVE GRID + חוזה ריבוני באיתריום mainnet + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a
@@ -292,6 +331,161 @@ export function AppShell({
   );
 }
 
+// ─── ChainTicker — פס-פיקוד 8-רשתות חי ───────────────────────────────────────
+// SAOS-NET (גובה) · STEEM/BLURT (עוגן) · HIVE (RC) · TRON (מעבר)
+// · ETHEREUM (בלוק) · BSC (בלוק + מאזן BNB) · SOLANA (slot) — מדידה read-only מול RPC ציבורי.
+
+interface TickerChip {
+  id: string;
+  name: string;
+  value: string;
+  tone: "gold" | "green" | "amber" | "rose" | "zinc";
+  label: string;
+}
+
+function dotTone(t: TickerChip["tone"]): string {
+  switch (t) {
+    case "gold":
+      return "bg-amber-400";
+    case "green":
+      return "bg-emerald-400";
+    case "amber":
+      return "bg-amber-300";
+    case "rose":
+      return "bg-rose-400";
+    default:
+      return "bg-zinc-500";
+  }
+}
+
+function ChainTicker({
+  height,
+  status,
+  probes
+}: {
+  height: number | undefined;
+  status: LiveResult<StatusData>;
+  probes: LiveResult<LiveProbesData>;
+}) {
+  const matrix = status.data?.matrix ?? [];
+  const gateOf = (n: string) => matrix.find((m) => m.network === n);
+  const p = probes.data;
+
+  const hive = gateOf("HIVE");
+  const tronGate = gateOf("TRON");
+  const hiveRc = p?.hive?.rcPct ?? null;
+
+  const chips: TickerChip[] = [
+    {
+      id: "saosnet",
+      name: "SAOS-NET",
+      value: height != null ? `#${height}` : "…",
+      tone: "gold",
+      label: "שרשרת ריבונית"
+    },
+    {
+      id: "steem",
+      name: "STEEM",
+      value: "עוגן",
+      tone: gateOf("STEEM")?.status === "anchored" ? "green" : "amber",
+      label: "מסילת-עגינה"
+    },
+    {
+      id: "blurt",
+      name: "BLURT",
+      value: "עוגן",
+      tone: gateOf("BLURT")?.status === "anchored" ? "green" : "amber",
+      label: "מסילת-עגינה"
+    },
+    {
+      id: "hive",
+      name: "HIVE",
+      value: hiveRc != null ? `RC ${hiveRc.toFixed(1)}%` : hive?.status === "gated" ? "חסום-RC" : "…",
+      tone: hive?.status === "gated" || (hiveRc != null && hiveRc < 8) ? "rose" : "green",
+      label: "RC-gated"
+    },
+    {
+      id: "tron",
+      name: "TRON",
+      value: tronGate?.status === "transit" ? "מעבר" : (tronGate?.status ?? "…"),
+      tone: tronGate?.status === "anchored" ? "green" : "zinc",
+      label: "רכב-מעבר"
+    },
+    {
+      id: "eth",
+      name: "ETHEREUM",
+      value: p?.eth?.blockNumber != null ? fmtInt(p.eth.blockNumber) : "…",
+      tone: p?.eth?.ok ? "green" : "zinc",
+      label: p?.eth?.gasPriceGwei != null ? `${p.eth.gasPriceGwei} Gwei` : "רכב-חי"
+    },
+    {
+      id: "bsc",
+      name: "BSC",
+      value: p?.bsc?.blockNumber != null ? fmtInt(p.bsc.blockNumber) : "…",
+      tone: p?.bsc?.ok ? "green" : "zinc",
+      label:
+        p?.bsc?.sovereign?.bnb != null
+          ? `BNB ${Number(p.bsc.sovereign.bnb).toFixed(4)} · ${p.bsc.gasPriceGwei ?? "—"} Gwei`
+          : "רכב-חי (ממתין להקצאה)"
+    },
+    {
+      id: "sol",
+      name: "SOLANA",
+      value: p?.sol?.slot != null ? fmtInt(p.sol.slot) : "…",
+      tone: p?.sol?.ok ? "green" : "zinc",
+      label:
+        p?.sol?.epoch != null
+          ? `epoch ${p.sol.epoch}${p.sol.epochProgressPct != null ? ` · ${p.sol.epochProgressPct}%` : ""}`
+          : "רכב-חי"
+    }
+  ];
+
+  const online =
+    (p?.hive?.ok ? 1 : 0) +
+    (p?.tron?.ok ? 1 : 0) +
+    (p?.eth?.ok ? 1 : 0) +
+    (p?.sol?.ok ? 1 : 0) +
+    (p?.bsc?.ok ? 1 : 0);
+
+  return (
+    <div
+      className="sticky top-14 z-20 border-b border-white/[0.05] bg-zinc-950/80 backdrop-blur-md"
+      role="status"
+      aria-label="פס-פיקוד 8 רשתות חי"
+    >
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto scroll-slim h-9">
+        <span className="hidden sm:inline-flex items-center gap-1.5 shrink-0 pe-2 me-1 border-e border-white/[0.06] text-[9px] font-bold tracking-wider text-amber-400/80 uppercase">
+          8-Chain
+        </span>
+        {chips.map((c) => (
+          <span
+            key={c.id}
+            title={c.label}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 hover:bg-white/[0.04] transition-colors"
+          >
+            <span className="relative flex h-1.5 w-1.5" aria-hidden>
+              <span className={`absolute inline-flex h-full w-full rounded-full ${dotTone(c.tone)} opacity-60 animate-ping`} />
+              <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${dotTone(c.tone)}`} />
+            </span>
+            <span dir="ltr" className="text-[10px] font-bold tracking-tight text-zinc-300">
+              {c.name}
+            </span>
+            <span
+              dir={/[0-9]/.test(c.value) ? "ltr" : "rtl"}
+              className="text-[10px] font-semibold tabular-nums text-zinc-500 whitespace-nowrap"
+            >
+              {c.value}
+            </span>
+          </span>
+        ))}
+        <span className="shrink-0 ms-auto ps-2 text-[9px] text-zinc-600 hidden sm:inline" dir="ltr">
+          probes {online}/5
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── PageHead — כותרת עמוד פנימית ───────────────────────────────────────────
 
 export function PageHead({
@@ -304,12 +498,12 @@ export function PageHead({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-5">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+      <div className="min-w-0 flex-1">
         <h2 className="text-xl font-bold tracking-tight text-zinc-50">{title}</h2>
         {sub && <p className="mt-1 text-xs text-zinc-500 leading-relaxed max-w-2xl">{sub}</p>}
       </div>
-      {actions && <div className="shrink-0 flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

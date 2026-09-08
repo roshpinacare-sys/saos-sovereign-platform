@@ -1,0 +1,16 @@
+{
+  "name": "saos-evm-mesh",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SAOS-EVM — the sovereign laboratory chain (anvil :8545) hosting the 7-contract CONTRACT MESH",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "deploy": "bun run src/deploy-only.ts"
+  },
+  "dependencies": {
+    "ethers": "^6.13.4"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.4"
+  }
+}
