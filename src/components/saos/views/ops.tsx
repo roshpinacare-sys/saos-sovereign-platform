@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Coins,
   Fingerprint,
+  FileCode2,
   Gauge as GaugeIcon,
   History,
   KeyRound,
@@ -33,6 +34,7 @@ import {
 import {
   Btn,
   Callout,
+  CopyBtn,
   EmptyBlock,
   ErrorNotice,
   Field,
@@ -58,6 +60,10 @@ import type {
   AutoAnchorToggleResult,
   BroadcastListData,
   BroadcastResult,
+  BscAnchorLedgerData,
+  BscRailData,
+  ContractActionResult,
+  ContractData,
   Envelope,
   HivePulseResult,
   HiveReadinessData,
@@ -78,7 +84,7 @@ import type {
 import { PageHead } from "../shell";
 import { cn } from "../ui";
 
-const NETWORKS = ["STEEM", "BLURT", "HIVE", "TRON", "ETHEREUM", "SOLANA"] as const;
+const NETWORKS = ["STEEM", "BLURT", "HIVE", "TRON", "ETHEREUM", "BSC", "SOLANA"] as const;
 
 const STATUS_TONE: Record<string, PillTone> = {
   anchored: "green",
@@ -92,7 +98,8 @@ const RELEASE: Record<string, string> = {
   BLURT: "מפתח + עמלה 0.05+0.2×KB → חתימה קנונית ידנית",
   HIVE: "RC ≥ 8% + מפתח → weave נוחת בפעימה הבאה",
   TRON: "energize (freezeBalanceV2) → מסלול ישיר; עד אז — רכבת tronbridge",
-  ETHEREUM: "זרע-הכספת מאומת → data-memo עצמי בלחיצה (עלות מדודה)",
+  ETHEREUM: "זרע-הכספת מאומת → data-memo עצמי בלחיצה (עלות מדודה) · v14: חוזה saos-relay/v1 פרוס",
+  BSC: "אותה כתובת EVM → הקצאת BNB קטנה תפתח עוגן+חוזה באותו קוד (v14)",
   SOLANA: "זרע-הכספת מאומת → הוראת Memo בלחיצה (5000 lamports)"
 };
 
@@ -618,6 +625,95 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
     else svmLedger.refresh();
   };
 
+  // ─── v14: הממסר הריבוני (חוזה חכם באיתריום) + רכב-עגינה BSC ──────────────
+  const contract = useLive<ContractData>("/api/saos/contract", 45000);
+  const [contractBusy, setContractBusy] = useState<string | null>(null);
+  const [contractResult, setContractResult] = useState<ContractActionResult | null>(null);
+  const [enlistAgent, setEnlistAgent] = useState("headcorner");
+
+  const doContractAction = async (
+    action: "deploy" | "relay" | "enlist",
+    extra: Record<string, unknown> = {}
+  ) => {
+    if (contractBusy) return;
+    setContractBusy(action);
+    setContractResult(null);
+    const res = await postJson<ContractActionResult>("/api/saos/contract", { action, ...extra });
+    setContractBusy(null);
+    if (res.ok && res.data) {
+      setContractResult(res.data);
+      contract.refresh();
+      ops.refresh();
+      broadcasts.refresh();
+      if (res.data.ok) {
+        toast.push({
+          tone: res.data.already ? "gold" : "green",
+          title:
+            action === "deploy"
+              ? res.data.already
+                ? "החוזה כבר פרוס"
+                : "החוזה הריבוני פרוס ב-ETHEREUM mainnet ✓"
+              : action === "relay"
+                ? res.data.already
+                  ? `חותם #${res.data.height} כבר מעוגן דרך החוזה`
+                  : `שורש חותם #${res.data.height} עוגן דרך החוזה — event חי`
+                : res.data.already
+                  ? `${res.data.agent} כבר גויס`
+                  : `${res.data.agent} גויס דרך החוזה — Enlist event`,
+          desc: res.data.txid
+            ? `txid ${short(res.data.txid)}${res.data.costNative ? ` · ${res.data.costNative} ETH` : ""}`
+            : (res.data.message ?? "הפעולה תועדה")
+        });
+      } else {
+        toast.push({
+          tone: res.data.gated ? "gold" : "rose",
+          title: action === "deploy" ? "הפריסה לא בוצעה (שער כנות)" : "הפעולה לא בוצעה",
+          desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות"
+        });
+      }
+    } else {
+      toast.push({ tone: "rose", title: "הפעולה נכשלה", desc: res.error ?? "השרת לא ענה" });
+    }
+  };
+
+  const bscRail = useLive<BscRailData>("/api/saos/anchor/bsc", 60000);
+  const bscLedger = useLive<BscAnchorLedgerData>("/api/saos/anchor/bsc?list=1", 30000);
+  const [bscPulsing, setBscPulsing] = useState(false);
+  const [bscResult, setBscResult] = useState<RailPulseResult | null>(null);
+  const bscReadyBsc =
+    bscRail.data?.readiness && "address" in bscRail.data.readiness ? bscRail.data.readiness : null;
+
+  const doBscPulse = async () => {
+    if (bscPulsing) return;
+    setBscPulsing(true);
+    setBscResult(null);
+    const res = await postJson<RailPulseResult>("/api/saos/anchor/bsc", {});
+    setBscPulsing(false);
+    if (res.ok && res.data) {
+      setBscResult(res.data);
+      bscRail.refresh();
+      bscLedger.refresh();
+      ops.refresh();
+      if (res.data.ok) {
+        toast.push({
+          tone: res.data.already ? "gold" : "green",
+          title: res.data.already
+            ? `חותם #${res.data.height} כבר מעוגן ב-BSC`
+            : `עוגן BSC נחת — חותם #${res.data.height}`,
+          desc: res.data.txid ? `txid ${short(res.data.txid)} · BNB Chain` : "הפעימה תועדה"
+        });
+      } else {
+        toast.push({
+          tone: res.data.gated ? "gold" : "rose",
+          title: "פעימת BSC נכשלה",
+          desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות"
+        });
+      }
+    } else {
+      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
+    }
+  };
+
   // ─── v9: פעימה אוטומטית + מדידות חיות ─────────────────────────────────
   const auto = useLive<AutoAnchorData>("/api/saos/anchor-auto", 20000);
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 60000);
@@ -747,6 +843,280 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
           </Pill>
         }
       />
+
+      {/* ═══ v14: הממסר הריבוני — חוזה חכם באיתריום mainnet ═══ */}
+      <Panel accent={contract.data?.contracts?.some((c) => c.status === "deployed")}>
+        <PanelHeader
+          icon={<FileCode2 size={15} />}
+          title="הממסר הריבוני — saos-relay/v1 (חוזה-חי בלי עמלה)"
+          sub="החוזה החכם שמקשר את הרשת: anchor(שורש, גובה) ו-enlist(סוכן) הופכים לאירועים בלתי-ניתנים לשינוי בשרשרת. אין בעלים, אין שדרוג, אין עמלת-פרוטוקול — המשלם משלם רק גז. פרוס מזרע-הכספת (self-verify כפול)"
+          actions={
+            <Pill tone={contract.data?.contracts?.some((c) => c.status === "deployed") ? "green" : "zinc"}>
+              {contract.data?.contracts?.some((c) => c.status === "deployed") ? (
+                <>
+                  <CheckCircle2 size={10} /> deployed
+                </>
+              ) : (
+                "לא פרוס"
+              )}
+            </Pill>
+          }
+        />
+        <PanelBody className="space-y-4">
+          {contract.loading && !contract.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : contract.data?.error ? (
+            <ErrorNotice message={contract.data.error} onRetry={contract.refresh} />
+          ) : (
+            <>
+              {/* סטטוס לפי שרשרת */}
+              {(contract.data?.contracts ?? []).length === 0 ? (
+                <EmptyBlock
+                  icon={<FileCode2 size={20} />}
+                  title="החוזה טרם פרוס"
+                  desc="לחיצה אחת על 'פרוס באיתריום' תקמפל-פריסה מה-artifact הקנוני (831 בתים) ותנחית אותו ב-mainnet מהכתובת הריבונית."
+                />
+              ) : (
+                (contract.data?.contracts ?? []).map((c) => {
+                  const verify = (contract.data?.verified ?? []).find((v) => v.rowId === (c as unknown as { id?: string }).id);
+                  const onChain = verify?.state.codeOnChain ?? c.status === "deployed";
+                  return (
+                    <div
+                      key={c.chain}
+                      className={`rounded-xl border px-3.5 py-3 ${
+                        c.status === "deployed"
+                          ? "border-amber-400/30 bg-gradient-to-b from-amber-400/[0.07] to-transparent"
+                          : c.status === "gated"
+                            ? "border-white/[0.08] bg-white/[0.015]"
+                            : "border-rose-400/25 bg-rose-400/[0.03]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="flex items-center gap-2">
+                          <span className="text-[13px] font-bold text-zinc-100" dir="ltr">
+                            {c.network}
+                          </span>
+                          <Tag tone={c.status === "deployed" ? "green" : c.status === "gated" ? "zinc" : "rose"}>
+                            {c.status === "deployed" ? `code ✓ ${verify?.state.runtimeBytes ?? c.runtimeBytes ?? "—"}B` : c.status}
+                          </Tag>
+                        </span>
+                        <span className="flex items-center gap-2 text-[10px] text-zinc-500">
+                          <span dir="ltr" className="tabular-nums">
+                            {c.gasUsed ? `${c.gasUsed.toLocaleString("en-US")} gas` : ""}
+                            {c.costNative ? ` · ${c.costNative} ${c.chain === "bsc" ? "BNB" : "ETH"}` : ""}
+                          </span>
+                          {c.explorer && (
+                            <a
+                              href={c.explorer}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-amber-300/80 hover:text-amber-300 transition-colors"
+                            >
+                              explorer ↗
+                            </a>
+                          )}
+                        </span>
+                      </div>
+                      {c.status === "deployed" ? (
+                        <>
+                          <div className="mt-2 flex items-center gap-1.5 min-w-0">
+                            <span dir="ltr" className="font-mono text-[11px] text-amber-300 truncate" title={c.address}>
+                              {c.address}
+                            </span>
+                            <CopyBtn text={c.address} size={12} />
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-zinc-600">
+                            <span dir="ltr" className="font-mono">
+                              block #{c.blockNumber ?? "—"}
+                            </span>
+                            {c.bytecodeHash && (
+                              <span dir="ltr" className="font-mono" title={`sha256(runtime): ${c.bytecodeHash}`}>
+                                sha256 {short(c.bytecodeHash)}
+                              </span>
+                            )}
+                            <span dir="ltr" className="font-mono">
+                              eth_getCode: {onChain ? "≠0x ✓ (חי)" : "לא אומת"}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="mt-1.5 text-[11px] text-zinc-500 leading-relaxed">
+                          {c.chain === "bsc"
+                            ? "שער-כנות: אין BNB בכתובת הריבונית — הקצאה קטנה תפתח פריסה באותו קוד בדיוק (אותו מפתח EVM)."
+                            : "הפריסה נכשלה — השגיאה מתועדת בשורה ובקבלה."}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+
+              {/* פעולות */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Btn
+                  variant="primary"
+                  onClick={() => doContractAction("deploy")}
+                  disabled={contractBusy != null || (contract.data?.contracts?.some((c) => c.chain === "ethereum" && c.status === "deployed") ?? false)}
+                  loading={contractBusy === "deploy"}
+                >
+                  <FileCode2 size={13} /> פרוס באיתריום (mainnet)
+                </Btn>
+                <Btn
+                  variant="secondary"
+                  onClick={() => doContractAction("relay")}
+                  disabled={contractBusy != null || !(contract.data?.contracts?.some((c) => c.chain === "ethereum" && c.status === "deployed") ?? false)}
+                  loading={contractBusy === "relay"}
+                >
+                  <Send size={13} /> עגן שורש דרך החוזה
+                </Btn>
+                <div className="flex-1 flex gap-2 min-w-0">
+                  <Input
+                    value={enlistAgent}
+                    onChange={(v) => setEnlistAgent(v)}
+                    placeholder="agent (למשל headcorner)"
+                    dir="ltr"
+                    className="flex-1"
+                  />
+                  <Btn
+                    variant="secondary"
+                    onClick={() => doContractAction("enlist", { agent: enlistAgent })}
+                    disabled={contractBusy != null || enlistAgent.trim().length < 3 || !(contract.data?.contracts?.some((c) => c.chain === "ethereum" && c.status === "deployed") ?? false)}
+                    loading={contractBusy === "enlist"}
+                  >
+                    <Users size={13} /> גייס
+                  </Btn>
+                </div>
+              </div>
+
+              {/* תוצאה חיה */}
+              {contractResult && (
+                <div
+                  className={`rounded-xl border px-3.5 py-3 space-y-1.5 ${
+                    contractResult.ok
+                      ? "border-emerald-400/25 bg-emerald-400/[0.04]"
+                      : contractResult.gated
+                        ? "border-amber-400/25 bg-amber-400/[0.04]"
+                        : "border-rose-400/25 bg-rose-400/[0.03]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-[12px] font-bold text-zinc-100">
+                      {contractResult.ok
+                        ? contractResult.address
+                          ? `נפרס/בוצע ✓${contractResult.confirmed ?? contractResult.confirmedByHistory ? " (אומת)" : ""}`
+                          : `בוצע ✓${contractResult.confirmedByHistory ? " (event אומת מהשרשרת)" : ""}`
+                        : contractResult.gated
+                          ? "שער-כנות — לא בוצע"
+                          : "נכשל (כנות)"}
+                    </p>
+                    {contractResult.receipt && <CopyBtn text={contractResult.receipt} size={12} />}
+                  </div>
+                  {contractResult.txid && (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span dir="ltr" className="font-mono text-[10px] text-zinc-400 truncate">{short(contractResult.txid)}</span>
+                      {contractResult.explorer && (
+                        <a href={contractResult.explorer} target="_blank" rel="noreferrer" className="text-[10px] text-amber-300/80 hover:text-amber-300">
+                          explorer ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  {contractResult.eventJson && (
+                    <p dir="ltr" className="font-mono text-[10px] text-emerald-300/80 truncate" title={contractResult.eventJson}>
+                      {contractResult.eventJson}
+                    </p>
+                  )}
+                  {!contractResult.ok && contractResult.error && (
+                    <p dir="auto" className="text-[11px] text-rose-300/90 leading-relaxed">{contractResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {/* ספר העוגנים דרך החוזה */}
+              {(contract.data?.relayLedger?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-zinc-300 mb-2 flex items-center gap-1.5">
+                    <ScrollText size={12} className="text-amber-300/80" /> עוגנים דרך החוזה
+                  </p>
+                  <div className="space-y-1.5">
+                    {(contract.data?.relayLedger ?? []).map((row) => (
+                      <div
+                        key={row.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.05] bg-zinc-950/40 px-3 py-2 text-[11px]"
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <Tag tone={row.confirmed ? "green" : "gold"}>#{row.height}</Tag>
+                          <span dir="ltr" className="font-mono text-[10px] text-zinc-500 truncate">
+                            {short(row.root)}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          {row.costNative && (
+                            <span dir="ltr" className="text-[10px] text-zinc-600 tabular-nums">
+                              {row.costNative} ETH
+                            </span>
+                          )}
+                          {row.txid && (
+                            <a href={`https://etherscan.io/tx/${row.txid}`} target="_blank" rel="noreferrer" dir="ltr" className="font-mono text-[10px] text-amber-300/80 hover:text-amber-300">
+                              {short(row.txid)} ↗
+                            </a>
+                          )}
+                          <span className="text-[10px] text-zinc-600">{timeAgo(row.at)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ספר הגיוסים */}
+              {(contract.data?.enlists?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-zinc-300 mb-2 flex items-center gap-1.5">
+                    <Users size={12} className="text-emerald-300/80" /> סוכנים מגויסים דרך החוזה
+                  </p>
+                  <div className="space-y-1.5">
+                    {(contract.data?.enlists ?? []).map((row) => (
+                      <div
+                        key={row.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.05] bg-zinc-950/40 px-3 py-2 text-[11px]"
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <Tag tone={row.confirmed ? "green" : "gold"}>{row.agent}</Tag>
+                          <span dir="ltr" className="text-[10px] text-zinc-500">rail {row.rail}</span>
+                          <span dir="ltr" className="font-mono text-[10px] text-zinc-600 truncate">{short(row.identity)}</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          {row.txid && (
+                            <a href={`https://etherscan.io/tx/${row.txid}`} target="_blank" rel="noreferrer" dir="ltr" className="font-mono text-[10px] text-amber-300/80 hover:text-amber-300">
+                              {short(row.txid)} ↗
+                            </a>
+                          )}
+                          <span className="text-[10px] text-zinc-600">{timeAgo(row.at)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* מקור החוזה — אמת מלאה */}
+              <details className="group rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5">
+                <summary className="cursor-pointer text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors list-none flex items-center gap-2">
+                  <FileCode2 size={12} /> מקור החוזה (Solidity · {contract.data?.compiler})
+                </summary>
+                <pre dir="ltr" className="mt-2 max-h-56 overflow-auto scroll-slim text-[10px] leading-relaxed text-zinc-400 font-mono whitespace-pre">
+                  {contract.data?.source}
+                </pre>
+              </details>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
 
       {/* ─── מטריצת מוכנות ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -1197,6 +1567,145 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
         onRecheck={(id) => doRailRecheck("svm", id)}
         rechecking={railRecheck}
       />
+
+      {/* ─── v14: פעימת עגינה חיה — BSC (מגודר עד הקצאת BNB) ──────────────── */}
+      <Panel accent={bscRail.data?.alreadyAnchored ?? false}>
+        <PanelHeader
+          icon={<Coins size={15} />}
+          title="פעימת עגינה חיה — BSC · BNB Chain"
+          sub="המסילה השמינית: אותה כתובת EVM ריבונית (m/44'/60'/0'/0/2) ואותה צורת-weave כמו באיתריום — rail:bsc. עד הקצאת BNB כל לחיצה תיענה בשער-כנות, לא בפעימה מפוברקת"
+          actions={
+            bscRail.data?.ok ? (
+              bscRail.data.alreadyAnchored ? (
+                <Pill tone="green">
+                  <CheckCircle2 size={10} /> anchored
+                </Pill>
+              ) : bscReadyBsc?.funded ? (
+                <Pill tone="gold">live-ready</Pill>
+              ) : (
+                <Pill tone="zinc">ממתין להקצאת BNB</Pill>
+              )
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-4">
+          {bscRail.loading && !bscRail.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : !bscRail.data?.ready ? (
+            <EmptyBlock
+              icon={<Coins size={20} />}
+              title="אין חותם לעיגון"
+              desc="צור חותם בעמוד האיטום — שורש מרקל חי הוא המטען שהפעימה משדרת."
+            />
+          ) : !bscReadyBsc ? (
+            <Callout tone="rose" icon={<Lock size={14} />}>
+              <span className="font-semibold">מוכנות הרכב נכשלה:</span>{" "}
+              <span dir="auto">{(bscRail.data?.readiness as { error?: string } | undefined)?.error ?? "—"}</span>
+            </Callout>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat label="חותם לשידור" value={`#${bscRail.data.seal?.height ?? 0}`} icon={<ScrollText size={13} />} />
+                <SealStat
+                  label="מאזן BNB ריבוני"
+                  value={bscReadyBsc.balanceBnb ?? "—"}
+                  icon={<Coins size={13} />}
+                  ltr
+                />
+                <SealStat label="גז (מדוד)" value={`${bscReadyBsc.gasPriceGwei ?? "—"} Gwei`} icon={<GaugeIcon size={13} />} ltr />
+                <SealStat label="בלוק BSC" value={String(bscReadyBsc.blockNumber ?? "—")} icon={<Coins size={13} />} ltr />
+              </div>
+
+              <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5 space-y-1.5">
+                <div className="flex justify-between items-center gap-2 text-[11px]">
+                  <span className="text-zinc-500">הכתובת הריבונית (זהה ב-BSC ובאיתריום)</span>
+                  <span dir="ltr" className="font-mono text-amber-300">{short(bscReadyBsc.address)}</span>
+                </div>
+                <p className="text-[10.5px] text-zinc-500 leading-relaxed">
+                  self-verify כפול ✓ (כספת + מניפסט-עוגן) · עלות מדודה: {bscReadyBsc.costEstimateBnb ?? "—"} BNB ·
+                  החלפת ~1$ בגשר חוצה-שרשראות עולה יותר מ-1$ — המסלול הריבוני הוא הקצאת BNB קטנה ישירות לכתובת
+                  הזו, ומיד: עוגן-weave + פריסת החוזה ב-BSC.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Btn
+                  variant={bscRail.data.alreadyAnchored ? "secondary" : "primary"}
+                  onClick={doBscPulse}
+                  disabled={bscPulsing || bscRail.data.alreadyAnchored}
+                  loading={bscPulsing}
+                  className="sm:w-auto"
+                >
+                  <Send size={13} />
+                  {bscPulsing ? "משדר…" : bscRail.data.alreadyAnchored ? "החותם מעוגן" : "שדר פעימת BSC חיה"}
+                </Btn>
+                <p className="text-[10.5px] text-zinc-600 leading-relaxed">
+                  לפני כל נגיעה במפתח: מוכנות מדודה · שער מאזן ×2 · דה-דופ לכל חותם · קבלה משורשרת גם לכישלון.
+                </p>
+              </div>
+
+              {bscResult && (
+                <div className={`rounded-xl border px-3.5 py-3 space-y-1.5 ${bscResult.ok ? "border-emerald-400/25 bg-emerald-400/[0.04]" : bscResult.gated ? "border-amber-400/25 bg-amber-400/[0.04]" : "border-rose-400/25 bg-rose-400/[0.03]"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-bold text-zinc-100">
+                      {bscResult.ok ? `חותם #${bscResult.height} מעוגן ב-BSC` : bscResult.gated ? "שער-כנות — לא שודר" : "הפעימה נכשלה (כנות)"}
+                    </p>
+                    {bscResult.receipt && <CopyBtn text={bscResult.receipt} size={12} />}
+                  </div>
+                  {bscResult.txid && (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span dir="ltr" className="font-mono text-[10px] text-zinc-400 truncate">{short(bscResult.txid)}</span>
+                      {bscResult.explorer && (
+                        <a href={bscResult.explorer} target="_blank" rel="noreferrer" className="text-[10px] text-amber-300/80 hover:text-amber-300">
+                          bscscan ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  {!bscResult.ok && bscResult.error && (
+                    <p dir="auto" className="text-[11px] text-rose-300/90 leading-relaxed">{bscResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {/* ספר עוגני BSC — כולל שורות-שער כנות */}
+              {(bscLedger.data?.anchors?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  {(bscLedger.data?.anchors ?? []).slice(0, 4).map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.05] bg-zinc-950/40 px-3 py-2 text-[11px]"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <Tag tone={row.status === "anchored" ? "green" : row.status === "gated" ? "gold" : "zinc"}>
+                          #{row.height}
+                        </Tag>
+                        <span className="text-[10px] text-zinc-500">
+                          {row.status === "gated" ? "שער-כנות (ממתין ל-BNB)" : row.status}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        {row.txid ? (
+                          <a href={`https://bscscan.com/tx/${row.txid}`} target="_blank" rel="noreferrer" dir="ltr" className="font-mono text-[10px] text-amber-300/80 hover:text-amber-300">
+                            {short(row.txid)} ↗
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-zinc-600">tx: —</span>
+                        )}
+                        <span className="text-[10px] text-zinc-600">{timeAgo(row.at)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </PanelBody>
+      </Panel>
 
       {/* ─── v9: פעימה אוטומטית — איטום ← עגינה ─────────────────────────── */}
       <Panel accent={auto.data?.enabled ?? false}>

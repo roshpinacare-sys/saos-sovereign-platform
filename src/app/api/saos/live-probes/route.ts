@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { probeHiveRc, hiveAnchorAccount } from "@/lib/saos/hive-rc-live";
 import { probeTronVault } from "@/lib/saos/tron-live";
 import { probeEthereum, probeSolana } from "@/lib/saos/eth-sol-live";
+import { probeBsc } from "@/lib/saos/bsc-live";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export const dynamic = "force-dynamic";
  *   tron  — funded/energy state of the 6 vault TRON addresses (90s cache)
  *   eth   — Ethereum mainnet: blockNumber + chainId + gasPrice (v10, 60s cache)
  *   sol   — Solana mainnet-beta: health + slot + epoch + version (v10, 60s cache)
+ *   bsc   — BNB Smart Chain: blockNumber + chainId + gasPrice + sovereign
+ *           BNB balance (v14, 60s cache — the 8th rail, same EVM address)
  *
  * Read-only public API calls; no keys, no broadcast. Failure is data:
  * each section carries its own ok/error — the matrix falls back honestly.
@@ -22,7 +25,7 @@ export async function GET(req: Request) {
     const q = new URL(req.url).searchParams;
     const force = q.get("force") === "1";
 
-    const [hive, tronSlots, eth, sol] = await Promise.all([
+    const [hive, tronSlots, eth, sol, bsc] = await Promise.all([
       probeHiveRc(hiveAnchorAccount(), { force }),
       db.vaultSlot.findMany({
         where: { network: "TRON", address: { not: null } },
@@ -30,7 +33,8 @@ export async function GET(req: Request) {
         select: { slot: true, address: true }
       }),
       probeEthereum({ force }),
-      probeSolana({ force })
+      probeSolana({ force }),
+      probeBsc({ force })
     ]);
 
     const tron = await probeTronVault(
@@ -39,7 +43,7 @@ export async function GET(req: Request) {
     );
 
     return NextResponse.json({
-      ok: hive.ok || tron.ok || eth.ok || sol.ok,
+      ok: hive.ok || tron.ok || eth.ok || sol.ok || bsc.ok,
       hive: {
         ok: hive.ok,
         account: hive.account,
@@ -89,6 +93,16 @@ export async function GET(req: Request) {
         endpoint: sol.endpoint,
         measuredAt: sol.measuredAt,
         error: sol.error
+      },
+      bsc: {
+        ok: bsc.ok,
+        chainId: bsc.chainId,
+        blockNumber: bsc.blockNumber,
+        gasPriceGwei: bsc.gasPriceGwei,
+        endpoint: bsc.endpoint,
+        sovereign: bsc.sovereign,
+        measuredAt: bsc.measuredAt,
+        error: bsc.error
       },
       usage: "GET ?force=1 — מדידה טרייה (עוקף מטמון)"
     });

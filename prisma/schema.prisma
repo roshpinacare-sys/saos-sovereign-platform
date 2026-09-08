@@ -192,6 +192,31 @@ model SaosMintEntry {
   @@index([agent])
 }
 
+// ─── v14: Sovereign relay contract (החוזה הריבוני — saos-relay/v1) ────────
+// The fee-free on-chain link: one row per chain (ETHEREUM · BSC — same
+// bytecode, same sovereign EOA). Holds the deployed address, deployment
+// proof (txid, block, gas, cost, runtime bytecode hash) and status.
+// The contract itself is immutable on-chain — this row is our honest book.
+
+model SovereignContract {
+  id           String   @id @default(cuid())
+  chain        String   @unique // ethereum | bsc
+  kind         String   @default("saos-relay/v1")
+  address      String
+  deployer     String?
+  txid         String?
+  blockNumber  Int?
+  gasUsed      Int?
+  costNative   String? // ETH / BNB
+  bytecodeHash String? // sha256(runtime code) — measured on-chain
+  runtimeBytes Int?
+  status       String // deployed | failed | gated
+  meta         String? // JSON extras (compiler, explorer, event args...)
+  createdAt    DateTime @default(now())
+
+  @@index([status])
+}
+
 // ─── v13: Fleet arming ledger (יומן חימוש הצי) ─────────────────────────────
 // Every whitelisted disbursement to a soldier leaves an honest row:
 // rail (STEEM-RC | STEEM-TR | EVM | SOL), agent, amount, txid, status.

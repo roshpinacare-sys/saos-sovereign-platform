@@ -1,6 +1,6 @@
 {
   "name": "nextjs_tailwind_shadcn_ts",
-  "version": "13.0.0",
+  "version": "14.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
@@ -75,6 +75,7 @@
     "react-syntax-highlighter": "^15.6.1",
     "recharts": "^2.15.4",
     "sharp": "^0.34.3",
+    "solc": "^0.8.36",
     "sonner": "^2.0.6",
     "steem": "0.7.11",
     "tailwind-merge": "^3.3.1",

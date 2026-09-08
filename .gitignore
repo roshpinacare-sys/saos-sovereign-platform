@@ -58,3 +58,7 @@ server.log
 /tool-results/
 /repos-scan/
 *.pid
+
+# v14 hygiene — the fleet vault is LOCAL-RUNTIME ONLY (Task-82 source: steem repo).
+# Purged from repo history by the forensic audit (kill order); never commit again.
+/agent/

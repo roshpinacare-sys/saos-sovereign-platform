@@ -118,8 +118,10 @@ interface DerivedEvm {
  * Derives the sovereign EVM key from the sealed seed and verifies it
  * against BOTH the vault registry and the anchored public manifest.
  * Returns the key — the caller must keep it inside its scope.
+ * (v14: exported for the sovereign relay contract module — same envelope
+ * discipline: the key lives only inside the caller's scope.)
  */
-async function deriveSovereignEvm(): Promise<DerivedEvm> {
+export async function deriveSovereignEvm(): Promise<DerivedEvm> {
   return withVaultMember("keys/wallets-seed.json", async (seedContent) => {
     const seedDoc = JSON.parse(seedContent) as { seed?: string };
     const seed = String(seedDoc.seed ?? "");
@@ -159,8 +161,9 @@ export interface EvmLiveSeal {
   gasUsed: number;
 }
 
-/** Canonical weave payload with the EVM rail marker — ASCII, ~250 bytes. */
-export function buildEvmWeaveData(seal: EvmLiveSeal, at: string): string {
+/** Canonical weave payload with the EVM rail marker — ASCII, ~250 bytes.
+ * (v14: rail is parameterized — BSC reuses the exact same convention.) */
+export function buildEvmWeaveData(seal: EvmLiveSeal, at: string, rail: "ethereum" | "bsc" = "ethereum"): string {
   return canonicalize({
     protocol: "saos-weave/v1",
     action: "seal",
@@ -171,7 +174,7 @@ export function buildEvmWeaveData(seal: EvmLiveSeal, at: string): string {
     leaves: seal.leaves,
     alg: "sha256/merkle-odd-duplicate",
     source: "saos-sovereign-platform",
-    rail: "ethereum",
+    rail,
     at
   });
 }

@@ -49,7 +49,10 @@ import { Sparkline } from "../charts";
 import { fmt, fmtInt, short, timeAgo, useLive, useTick } from "../lib";
 import type { LiveResult } from "../lib";
 import type {
+  AgentsNetData,
   ChainGate,
+  ContractData,
+  DexData,
   LastAuditData,
   LiveProbesData,
   SelftestData,
@@ -68,6 +71,9 @@ export function ViewOverview({
   const selftest = useLive<SelftestData>("/api/saos/kernel", 60000);
   const lastAudit = useLive<LastAuditData>("/api/saos/audit", 30000);
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 20000);
+  const contract = useLive<ContractData>("/api/saos/contract", 45000);
+  const dex = useLive<DexData>("/api/saos/dex", 45000);
+  const agents = useLive<AgentsNetData>("/api/saos/agents-net", 60000);
 
   if (status.error && !status.data) {
     return <ErrorNotice message={status.error} onRetry={status.refresh} />;
@@ -83,15 +89,15 @@ export function ViewOverview({
     <div className="space-y-5 animate-view">
       <PageHead
         title="לוח בקרה — Command Deck"
-        sub="מצב הרשת הריבונית בזמן אמת: שבע מסילות במדידה חיה, שרשרת החותמים, יומן הראיות, בריאות הגרעין ומסקנות-ביצוע מביקורת הריפואים. מתעדכן אוטומטית."
+        sub="מצב הרשת הריבונית בזמן אמת: שמונה מסילות במדידה חיה, שרשרת החותמים, יומן הראיות, בריאות הגרעין ומסקנות-ביצוע מביקורת הריפואים. מתעדכן אוטומטית."
       />
 
-      {/* ═══ 7-CHAIN GRID — מצגת הדגל ═══ */}
+      {/* ═══ 8-CHAIN GRID — מצגת הדגל ═══ */}
       <Panel>
         <PanelHeader
           icon={<Network size={15} />}
-          title="רשת-הרשתות הריבונית · 7-CHAIN GRID"
-          sub="SAOS-NET (ריבונית) + STEEM · BLURT · HIVE · TRON (מסילות-עגינה) + ETHEREUM · SOLANA (עוגני mainnet חיים מזרע-הכספת) — מדידה חיה מול RPC ציבורי"
+          title="רשת-הרשתות הריבונית · 8-CHAIN GRID"
+          sub="SAOS-NET (ריבונית) + STEEM · BLURT · HIVE · TRON (מסילות-עגינה) + ETHEREUM · BSC · SOLANA (רכבי mainnet) — BSC נפתח ב-v14: אותו מפתח EVM, שתי שרשראות"
           actions={
             <Btn variant="ghost" size="xs" onClick={() => onNav("networks")}>
               כל המדידות <ArrowLeft size={11} />
@@ -100,13 +106,13 @@ export function ViewOverview({
         />
         <PanelBody className="p-3 sm:p-4">
           {probes.loading && !probes.data && status.loading && !d ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
-              {Array.from({ length: 7 }).map((_, i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton key={i} className="h-[108px] rounded-xl" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               <GridTile
                 name="SAOS-NET"
                 tag="שרשרת ריבונית"
@@ -196,6 +202,27 @@ export function ViewOverview({
                 }
               />
               <GridTile
+                name="BSC"
+                tag="מסילה נפתחה"
+                tone={probes.data?.bsc?.ok ? "green" : "zinc"}
+                icon={<Coins size={14} />}
+                metric={
+                  probes.data?.bsc?.blockNumber != null
+                    ? fmtInt(probes.data.bsc.blockNumber)
+                    : "—"
+                }
+                metricLabel={
+                  probes.data?.bsc?.gasPriceGwei != null
+                    ? `BNB Chain · גז ${probes.data.bsc.gasPriceGwei} Gwei`
+                    : "BNB Chain"
+                }
+                sub={
+                  probes.data?.bsc?.sovereign
+                    ? `ריבון: ${Number(probes.data.bsc.sovereign.bnb).toFixed(4)} BNB — ממתין להקצאה קטנה`
+                    : (probes.data?.bsc?.endpoint ?? "אותו מפתח EVM כמו איתריום")
+                }
+              />
+              <GridTile
                 name="SOLANA"
                 tag={
                   status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
@@ -234,6 +261,119 @@ export function ViewOverview({
         </PanelBody>
       </Panel>
 
+      {/* ═══ ממסר ריבוני — חוזה-חי + צמדי-DEX + סוכנים ═══ */}
+      <Panel>
+        <PanelHeader
+          icon={<KeyRound size={15} />}
+          title="הממסר הריבוני — v14 בפועל"
+          sub="חוזה חכם אמיתי ב-ETHEREUM mainnet שמקשר את הרשת בלי עמלה · צמדי-DEX במחירי שוק אמיתיים · מעקב-סוכנים חי"
+          actions={
+            <Btn variant="ghost" size="xs" onClick={() => onNav("ops")}>
+              למבצעי העגינה <ArrowLeft size={11} />
+            </Btn>
+          }
+        />
+        <PanelBody>
+          {contract.loading && !contract.data ? (
+            <Skeleton className="h-[96px] rounded-xl" />
+          ) : (
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+              {/* החוזה */}
+              <div className="rounded-xl border border-amber-400/30 bg-gradient-to-b from-amber-400/[0.07] to-transparent px-3.5 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-zinc-200">החוזה הריבוני</span>
+                  <Pill tone={contract.data?.contracts?.some((c) => c.status === "deployed") ? "green" : "zinc"}>
+                    {contract.data?.contracts?.some((c) => c.status === "deployed") ? "deployed ✓" : "לא פרוס"}
+                  </Pill>
+                </div>
+                {(() => {
+                  const c = contract.data?.contracts?.find((x) => x.status === "deployed");
+                  return c ? (
+                    <>
+                      <p dir="ltr" className="mt-2 font-mono text-[11px] text-amber-300 truncate text-left" title={c.address}>
+                        {c.address}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <a
+                          href={c.explorer ?? "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          dir="ltr"
+                          className="text-[10px] text-zinc-500 hover:text-amber-300 transition-colors"
+                        >
+                          etherscan ↗
+                        </a>
+                        <CopyBtn text={c.address} size={11} />
+                        <span dir="ltr" className="text-[10px] text-zinc-600 tabular-nums">
+                          {(c.costNative ?? "—")} ETH
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-[10px] text-zinc-600">אין חוזה פרוס עדיין</p>
+                  );
+                })()}
+              </div>
+              {/* צמד ETH */}
+              {(() => {
+                const p = dex.data?.pairs?.find((x) => x.pair === "WETH/USDC" && x.exists);
+                return (
+                  <div className="rounded-xl border border-white/[0.08] bg-white/[0.015] px-3.5 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span dir="ltr" className="text-[11px] font-bold text-zinc-200">WETH/USDC</span>
+                      <span className="text-[9px] text-zinc-600">Uniswap V2</span>
+                    </div>
+                    <p dir="ltr" className="mt-2 text-[15px] font-bold tabular-nums text-emerald-300 text-left">
+                      {p?.price ? `$${p.price}` : "—"}
+                    </p>
+                    <p className="text-[9.5px] text-zinc-600 mt-1.5 truncate" title={p ? `${p.reserveBase} WETH בפool` : ""}>
+                      {p?.reserveBase ? `${Number(p.reserveBase).toFixed(0)} WETH בעתודה` : "מדידה חיה"}
+                    </p>
+                  </div>
+                );
+              })()}
+              {/* צמד BNB */}
+              {(() => {
+                const p = dex.data?.pairs?.find((x) => x.pair === "WBNB/USDT" && x.exists);
+                return (
+                  <div className="rounded-xl border border-white/[0.08] bg-white/[0.015] px-3.5 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span dir="ltr" className="text-[11px] font-bold text-zinc-200">WBNB/USDT</span>
+                      <span className="text-[9px] text-zinc-600">PancakeSwap V2</span>
+                    </div>
+                    <p dir="ltr" className="mt-2 text-[15px] font-bold tabular-nums text-emerald-300 text-left">
+                      {p?.price ? `$${p.price}` : "—"}
+                    </p>
+                    <p className="text-[9.5px] text-zinc-600 mt-1.5 truncate" title={p ? `${p.reserveBase} WBNB בעתודה` : ""}>
+                      {p?.reserveBase ? `${Number(p.reserveBase).toFixed(0)} WBNB בעתודה` : "מדידה חיה · BSC"}
+                    </p>
+                  </div>
+                );
+              })()}
+              {/* סוכנים */}
+              <button
+                onClick={() => onNav("agents")}
+                className="text-start rounded-xl border border-white/[0.08] bg-white/[0.015] px-3.5 py-3 hover:border-white/[0.2] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-zinc-200">סוכני האורגניזם</span>
+                  <span className="relative flex h-1.5 w-1.5" aria-hidden>
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  </span>
+                </div>
+                <p dir="ltr" className="mt-2 text-[15px] font-bold tabular-nums text-zinc-100 text-left">
+                  {agents.data ? `${agents.data.activeNow}/${agents.data.repos.length}` : "…"}
+                </p>
+                <p className="text-[9.5px] text-zinc-600 mt-1.5 truncate">
+                  {agents.data?.lastPushAt ? `דחיפה אחרונה ${timeAgo(agents.data.lastPushAt)} · לחץ למעקב` : "מדידה חיה מול GitHub"}
+                </p>
+              </button>
+            </div>
+          )}
+        </PanelBody>
+      </Panel>
+
       {/* ═══ מסקנות ביצוע — ביקורת 8 הריפואים ═══ */}
       <Panel>
         <PanelHeader
@@ -254,14 +394,21 @@ export function ViewOverview({
             היסטורי. לקבל את הסיכון רשמית או להעביר לניהול-סודות חיצוני.
           </Callout>
           <Callout tone="green" icon={<ShieldCheck size={14} className="text-emerald-300" />}>
-            <span className="font-bold">ETH/SOL — בוצע:</span> אין מפתחות פרטיים בטקסט-גלוי באף HEAD של
-            הריפואים — הזרע הריבוני חי בתוך הכספת ומעולם לא יצא ממנה. v12: עוגני mainnet אמיתיים
-            נחתו (data-memo ב-Ethereum · הוראת Memo ב-Solana) חתומים מהזרע — ההכלה אומתה read-back.
+            <span className="font-bold">החוזה הריבוני — בוצע (v14):</span> חוזה חכם אמיתי פרוס
+            ב-ETHEREUM mainnet (<span dir="ltr" className="font-mono">saos-relay/v1</span>, קוד בלתי-ניתן לשינוי,
+            אפס עמלות פרוטוקול) — שורש חותם #10 עוגן דרכו והסוכנים מתגייסים אליו ב-2 עסקאות חיות. ETH/SOL
+            ממשיכים להיות מעוגנים ישירות מהזרע.
+          </Callout>
+          <Callout tone="amber" icon={<Network size={14} className="text-amber-300" />}>
+            <span className="font-bold">BSC נפתח — ממתין להקצאה:</span> המסילה השמינית חיה (בלוק · גז ·
+            צמדי PancakeSwap) עם אותה כתובת ריבונית. החלפת ~1$ דרך גשר עולה יותר מ-1$ — המסלול הריבוני:
+            הקצאת BNB קטנה ישירות לכתובת, ואז אותו קוד חוזה ייפרס גם שם (עלות ≈ 0.00005 BNB).
           </Callout>
           <Callout tone="zinc" icon={<Network size={14} className="text-zinc-400" />}>
-            <span className="font-bold">אורגניזם-אחד:</span> steem הוא מקור המפתחות וההוכחות (SAOS-NET,
-            שומר-על-עצמו), saos-dex הבורסה, Saosmartwallet הארנק, roshpina גשר-ההוכחות, foundry
-            היאיר — והפלטפורמה הזו היא בית-העגינה הקנוני של כולם.
+            <span className="font-bold">אורגניזם-אחד — עכשיו במעקב חי:</span> steem הוא מקור המפתחות
+            וההוכחות (SAOS-NET, שומר-על-עצמו), saos-dex הבורסה, Saosmartwallet הארנק, roshpina גשר-ההוכחות,
+            foundry היאיר — והפלטפורמה הזו היא בית-העגינה הקנוני של כולם. תצוגת "מעקב סוכנים" בוחנת את
+            כולם מול GitHub בזמן-אמת.
           </Callout>
         </PanelBody>
       </Panel>

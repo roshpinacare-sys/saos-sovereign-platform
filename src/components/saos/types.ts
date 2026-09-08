@@ -570,7 +570,230 @@ export interface LiveProbesData {
   };
   eth?: EthProbe;
   sol?: SolProbe;
+  bsc?: BscProbe;
   usage?: string;
+}
+
+// ─── v14: BNB Smart Chain (הרכב השמיני — אותו מפתח EVM) ─────────────────────
+
+export interface BscProbe {
+  ok: boolean;
+  chainId: number | null;
+  blockNumber: number | null;
+  gasPriceGwei: number | null;
+  endpoint: string | null;
+  sovereign: { address: string; bnb: string } | null;
+  measuredAt: string;
+  error?: string;
+}
+
+// ─── v14: LIVE DEX PAIRS (צמדים חיים — Uniswap + PancakeSwap) ────────────────
+
+export interface DexPairRow {
+  dex: string;
+  chain: string;
+  pair: string;
+  base: string;
+  quote: string;
+  address: string | null;
+  exists: boolean;
+  price: string | null;
+  reserveBase: string | null;
+  reserveQuote: string | null;
+  blockTimestampLast: number | null;
+  error?: string;
+}
+
+export interface DexData {
+  ok: boolean;
+  pairs: DexPairRow[];
+  okCount: number;
+  measuredAt: string;
+  error?: string;
+}
+
+// ─── v14: LIVE AGENT NETWORK MONITOR (מעקב סוכנים בגיטהאב) ──────────────────
+
+export interface AgentRepoRow {
+  name: string;
+  role: string;
+  url: string;
+  pushedAt: string | null;
+  lastCommit: { sha: string; message: string; author: string; date: string } | null;
+  sizeKb: number;
+  freshness: "live" | "active" | "idle" | "unknown";
+  freshnessHe: string;
+}
+
+export interface AgentsNetData {
+  ok: boolean;
+  owner: string | null;
+  repos: AgentRepoRow[];
+  activeNow: number;
+  active24h: number;
+  lastPushAt: string | null;
+  measuredAt: string;
+  error?: string;
+}
+
+// ─── v14: Sovereign relay contract (החוזה הריבוני) ──────────────────────────
+
+export interface ContractRowInfo {
+  chain: string;
+  network: string;
+  kind: string;
+  address: string;
+  deployer: string | null;
+  txid: string | null;
+  blockNumber: number | null;
+  gasUsed: number | null;
+  costNative: string | null;
+  bytecodeHash: string | null;
+  runtimeBytes: number | null;
+  status: string;
+  explorer: string | null;
+  createdAt: string;
+}
+
+export interface RelayReadinessInfo {
+  ok: boolean;
+  chain: string;
+  chainId: number | null;
+  address: string | null;
+  derivation: string;
+  selfVerified: boolean;
+  balance: string | null;
+  gasPriceGwei: number | null;
+  blockNumber: number | null;
+  deployCostEstimate: string | null;
+  callCostEstimate: string | null;
+  funded: boolean;
+  endpoint: string | null;
+  error?: string;
+  at: string;
+}
+
+export interface ContractVerifiedRow {
+  rowId: string;
+  state: {
+    chain: string;
+    network: string;
+    address: string;
+    codeOnChain: boolean;
+    bytecodeHash: string | null;
+    runtimeBytes: number | null;
+    blockNumber: number | null;
+    error?: string;
+  };
+}
+
+export interface RelayLedgerRow {
+  id: string;
+  height: number;
+  root: string;
+  txid: string | null;
+  block: number | null;
+  confirmed: boolean;
+  eventJson: string | null;
+  costNative: string | null;
+  status: string;
+  at: string;
+}
+
+export interface EnlistRow {
+  id: string;
+  agent: string;
+  rail: string;
+  identity: string;
+  txid: string | null;
+  block: number | null;
+  confirmed: boolean;
+  eventJson: string | null;
+  status: string;
+  at: string;
+}
+
+export interface ContractData {
+  ok: boolean;
+  version?: string;
+  compiler?: string;
+  source?: string;
+  contracts?: ContractRowInfo[];
+  verified?: ContractVerifiedRow[];
+  readiness?: { ethereum: RelayReadinessInfo | null; bsc: RelayReadinessInfo | null };
+  relayLedger?: RelayLedgerRow[];
+  enlists?: EnlistRow[];
+  error?: string;
+}
+
+export interface ContractActionResult {
+  ok: boolean;
+  already?: boolean;
+  gated?: boolean;
+  chain?: string;
+  address?: string;
+  deployer?: string;
+  txid?: string | null;
+  block?: number | null;
+  gasUsed?: number | null;
+  costNative?: string | null;
+  bytecodeHash?: string | null;
+  runtimeBytes?: number | null;
+  confirmed?: boolean;
+  confirmedByHistory?: boolean;
+  eventJson?: string | null;
+  height?: number;
+  agent?: string;
+  rail?: string;
+  identity?: string;
+  explorer?: string | null;
+  receipt?: string;
+  message?: string;
+  error?: string;
+}
+
+// ─── v14: BNB Smart Chain anchor rail (עוגן BSC — אותו מפתח EVM) ────────────
+
+export interface BscRailData {
+  ok: boolean;
+  ready?: boolean;
+  seal?: { height: number; root: string; stateRoot: string; leaves: number; gasUsed: number } | null;
+  alreadyAnchored?: boolean;
+  existing?: { txid: string | null; status: string; at: string } | null;
+  readiness?:
+    | {
+        address: string;
+        selfVerified: boolean;
+        funded: boolean;
+        balanceBnb: string | null;
+        gasPriceGwei: number | null;
+        blockNumber: number | null;
+        chainId: number | null;
+        costEstimateBnb: string | null;
+        endpoint: string | null;
+        derivation: string;
+      }
+    | { error: string };
+  usage?: string;
+}
+
+export interface BscAnchorLedgerData {
+  ok: boolean;
+  empty?: boolean;
+  message?: string;
+  anchors: {
+    id: string;
+    height: number;
+    root: string;
+    txid: string | null;
+    block: number | null;
+    confirmed: boolean;
+    status: string;
+    at: string;
+    costBnb: string | null;
+    account: string;
+  }[];
+  error?: string;
 }
 
 // ─── v10: ETHEREUM + SOLANA rails (רשתות-רכב חדשות — מדידה חיה) ──────────────

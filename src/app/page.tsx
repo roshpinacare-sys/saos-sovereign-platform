@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v13 — FLEET ARMING (mint קטן + חימוש צי).
- * הרכבה דקה: AppShell (פס-פיקוד 7-רשתות חי) + 9 עמודים. קיצורי-מקלדת Alt+1..9.
+ * SAOS Sovereign Platform v14 — SOVEREIGN RELAY (BSC נפתח + חוזה חכם באיתריום).
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 10 עמודים. קיצורי-מקלדת Alt+1..0.
  */
 
 import { useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import { useLive } from "@/components/saos/lib";
 import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
 import { ViewNetworks } from "@/components/saos/views/networks";
+import { ViewAgents } from "@/components/saos/views/agents";
 import { ViewSeals } from "@/components/saos/views/seals";
 import { ViewOps } from "@/components/saos/views/ops";
 import { ViewFleet } from "@/components/saos/views/fleet";
@@ -23,6 +24,7 @@ import { ViewResearch } from "@/components/saos/views/research";
 const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
   networks: "רשתות חיות",
+  agents: "מעקב סוכנים",
   seals: "איטום ועגינה",
   ops: "מבצעי עגינה",
   fleet: "חימוש הצי",
@@ -36,7 +38,7 @@ export default function Home() {
   const [view, setView] = useState<ViewId>("overview");
   const status = useLive<StatusData>("/api/saos/status", 12000);
 
-  // קיצורי-מקלדת: Alt+1..9 לניווט מהיר
+  // קיצורי-מקלדת: Alt+1..0 לניווט מהיר
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey) return;
@@ -60,6 +62,7 @@ export default function Home() {
       <AppShell view={view} onNav={setView} status={status}>
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
         {view === "networks" && <ViewNetworks status={status} />}
+        {view === "agents" && <ViewAgents />}
         {view === "seals" && <ViewSeals status={status} />}
         {view === "ops" && <ViewOps status={status} />}
         {view === "fleet" && <ViewFleet />}

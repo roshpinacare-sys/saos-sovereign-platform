@@ -390,3 +390,35 @@ Stage Summary:
 - גבול-האמת נשמר: הזרע/WIF לא יצאו מהמעטפה; יעדי החימוש רק מרישום הכספת; סכומים קפואים בקוד; שערי-עתודה fail-closed; HIVE (RC 0%, אין HP) ו-TRON (0 TRX) חסומים בכנות ומוצגים כך; BTC מעקב-צפייה.
 - הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v13.0.0.
 - המשך: HIVE חי כש-RC יחלוף 8% (המפתח מוסמך) · energize TRON כשיופיע TRX · לתת לחיילים עבודה (עוגנים/הקצאות) מהיתרות שקיבלו · מדדי צריכה ליומן החימוש.
+
+---
+Task ID: 6
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: "בחן את שאר הסוכנים תמיד חשוב להיות במעקב · נסה להחליף עוד כסף לייצר לסוכנים עוד צמדים ויכולות · יש לפתוח ל-BSC · להקים חוזה חכם באיתריום שיקשר אותנו ללא עמלה · פרוץ דרך ויותר פעילות אמיתית · בחן את הקיים" — v14.0.0 SOVEREIGN RELAY.
+
+Work Log:
+- אבחון מצב כניסה: v13.0.0 (מינט 300K + חימוש 33/33) בריפו ובסנדבוקס, HEAD 41fbae0, השרת חי. מאזן ריבון ETH נמדד 0.00055→0.00013 ETH (סוכנים מקבילים — saos-dex/foundry "breakthrough proofs" — השתמשו בארנק הריבוני המשותף; אורגניזם-אחד בפעולה).
+- בדיקות חיבוריות: BSC publicnode חי (chainId 56, בלוק 120.6M, גז 0.05 Gwei) · GitHub API חי (8 ריפואים, 4 פעילים בשעה) · Uniswap V2 factory עונה.
+- תיקון שרת: תהליך ה-dev מת בין קריאות-כלים — הוחלף לדפוס subshell-fork מנותק; שרד מאז ביציבות.
+- v14.0.0 נבנתה (כולה אדיטיבית, 0 הרס):
+  - lib/saos/bsc-live.ts — גשש BSC (chainId=56 fail-closed, בלוק, גז, מאזן BNB ריבוני) + מטמון 60ש׳.
+  - lib/saos/dex-live.ts — צמדי-DEX חיים: Uniswap V2 (ETH) + PancakeSwap V2 (BSC), factory.getPair→token0/1→getReserves, מחיר ב-BigInt. באג-קרב: כתובת WBNB שגויה מזיכרון → אומתה מ-Router02.WETH() בשרשרת (0xbb4…3bc095c); נרמול EIP-55 בכל קריאה.
+  - lib/saos/agents-net.ts — מעקב-סוכנים חי מול GitHub (טוקן server-side בלבד, 90ש׳ מטמון, טריות <1ש׳/<24ש׳).
+  - contracts/SAOSRelay.sol + scripts/compile-relay.ts (solc) → generated/SAOSRelay.json — artifact קנוני 831 בתים; ה-runtime לא מקמפל.
+  - lib/saos/relay-contract.ts — פריסה+קריאות בדיסציפלינת anchor-evm: derive+double-self-verify מהכספת, שער מאזן ×2, type-0 legacy, אימות eth_getCode+sha256(runtime), whitelist-by-construction (רק החוזה שלנו). מודל עלות כוון לגז-צפוי (450K) במקום גז-מקסימלי — הערכת-שער כנה.
+  - lib/saos/anchor-bsc.ts + /api/saos/anchor/bsc — רכב-עגינה BSC מלא (rail:bsc, bscscan, שער BNB כנה). anchor-evm: deriveSovereignEvm יוצא לשימוש-משותף + rail מופרמט.
+  - Prisma: SovereignContract (שורה לכל שרשרת) — db:push.
+  - מסלולים: /api/saos/contract (GET status+verify+מקור · POST deploy|relay|enlist עם whitelist-סוכנים מהכספת ודה-דופ) · /api/saos/dex · /api/saos/agents-net · live-probes +bsc.
+- בוצע בפועל — החוזה פרוס ב-ETHEREUM MAINNET: SAOSRelay 0xa52D85cAa4C04C15cE60d0c582e8C138d16678E6 · txid 0x25c3f9f5…e6eb0 · בלוק 25,929,839 · 226,962 gas · 0.0000227 ETH · runtime 803B sha256=701f10c6… · eth_getCode ✓.
+- בוצע בפועל — RELAY: שורש חותם #10 (4460a0c2…, שורש ה-mint) עוגן דרך החוזה: txid 0x474b1dcd…0fc65d · בלוק 25,929,842 · 28,000 gas · 0.0000028 ETH · Anchor event נפרס מהלוגים ✓ (לאחר תיקון spread-args שנתפס לפני שידור — כישלון מתועד בקבלה).
+- בוצע בפועל — ENLIST: headcorner (rail ethereum) txid 0x9d83d229… + cashmachine (החייל הראשון, זהות EVM מהכספת 0x0FB6C180…) txid 0x524a3b3c… — שני Enlist events חיים. BSC deploy: שער-כנות מתועד (0 BNB) עם קבלה.
+- צמדי-DEX חיים אומתו: WETH/USDC $2,491.80 · WETH/USDT $2,491.95 · WETH/DAI $2,491.41 · WBNB/USDT $738.91 · WBNB/BUSD $739.35 · CAKE/WBNB 0.003012 — 6/6 מהעתודות בפועל.
+- מעקב-סוכנים אומת: 4/8 פעילים-כרגע (saos-dex "supremacy proof" · steem "117g-door" · הפלטפורמה v13 · foundry "Task 14 cross-chain atomic state clock") — 8/8 ביממה.
+- UI v14: 8-CHAIN GRID (אריח BSC + 2×4) · פס "הממסר הריבוני" בלוח-בקרה (חוזה+2 צמדים+סוכנים) · תצוגת "מעקב סוכנים" חדשה (10 תצוגות) · networks: פאנל BSC + טבלת צמדי-DEX · ops: פאנל חוזה-דגל (פריסה/עיגון/גיוס + מקור Solidity) + רכב BSC · fleet: כרטיס BSC · ticker 8-רשתות · v14.0.0 SOVEREIGN RELAY.
+- איכות: lint נקי · אפס שגיאות-קונסולה/עמוד · מובייל 375px ללא גלילה אופקית בכל התצוגות · אינטראקציה חיה (כפתור relay → API → toast עם txid אמיתי) · dev.log הכל 200. צילומים: upload/v14-overview-desktop.png, v14-agents-desktop.png, v14-networks-desktop.png, v14-ops-contract-desktop.png, v14-overview-mobile.png, v14-agents-mobile.png. README קנוני v14.
+
+Stage Summary:
+- המוצר: v14.0.0 SOVEREIGN RELAY חיה — החוזה החכם הריבוני הראשון של הרשת פרוס ב-ETHEREUM mainnet ומקשר אותה בלי עמלה (anchor+enlist, immutable, אפס-עמלות); BSC נפתח כרכב-8 עם אותו מפתח; 6 צמדי-DEX חיים; 8 הסוכנים במעקב חי.
+- הוכחות-שרשרת: deploy 0x25c3f9f5… (בלוק 25,929,839) · relay h=10 דרך החוזה 0x474b1dcd… (בלוק 25,929,842) · enlist headcorner 0x9d83d229… + cashmachine 0x524a3b3c… — 4 עסקאות mainnet, ~0.000031 ETH סה"כ, עתודת ריבון נשמרה.
+- גבול-האמת נשמר: הזרע לא יצא מהמעטפת; יעדי הגיוס רק מרישום הכספת (fail-closed); החוזה בלתי-ניתן לשינוי ולא יכול להחזיק כסף; BSC חסום-בכנות עד הקצאת BNB (גשר חוצה-שרשראות ל-$1 עולה יותר מ-$1 — המסלול הריבוני: הקצאה ישירה לכתובת); טוקן GitHub server-side בלבד.
+- ההמשך: הקצאת BNB קטנה ל-0x2767e814… תפתח deploy+anchor ב-BSC באותו קוד · HIVE RC יחלוף 8% בעוד ~9ש׳ · אזהרת PAT ב-anchor-baseline עדיין דחופה.

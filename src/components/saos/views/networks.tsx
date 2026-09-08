@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * SAOS v10 — רשתות חיות: רשת-7 שרשראות במדידה חיה.
+ * SAOS v14 — רשתות חיות: רשת-8 שרשראות במדידה חיה.
  * STEEM · HIVE · BLURT · TRON · SAOS-NET (אקוסיסטם קיים)
- *   + ETHEREUM · SOLANA (רכבי-רשת חדשים שחיבר הבעלים — מדידה read-only).
+ *   + ETHEREUM · SOLANA (רכבי-רשת שחיבר הבעלים) + BSC (v14 — אותו מפתח EVM)
+ *   + צמדי-DEX חיים (Uniswap V2 + PancakeSwap V2 — read-only).
  * כל כרטיס מציג נתון שנמדד באמת מול RPC ציבורי; כשל = נתון ("offline" כנה),
- * לעולם לא "online" מפוברק. מקור: /api/saos/live-probes + /api/saos/status.
+ * לעולם לא "online" מפוברק. מקור: /api/saos/live-probes + /api/saos/status + /api/saos/dex.
  */
 
 import {
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   Btn,
+  CopyBtn,
   ErrorNotice,
   Kpi,
   Panel,
@@ -32,11 +34,14 @@ import {
   Pill,
   type PillTone,
   Skeleton,
-  Tag
+  Table,
+  Tag,
+  Td,
+  Th
 } from "../ui";
 import { fmt, fmtInt, timeAgo, useLive, useTick } from "../lib";
 import type { LiveResult } from "../lib";
-import type { LiveProbesData, StatusData } from "../types";
+import type { DexData, LiveProbesData, StatusData } from "../types";
 import { PageHead } from "../shell";
 
 // ─── מפת האקוסיסטם — מסקנות סריקת 8 הריפואים ב-org (2026-09-07) ──────────────
@@ -122,6 +127,7 @@ function ChainTile({ c }: { c: ChainCard }) {
 export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
   useTick(10000);
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 15000);
+  const dex = useLive<DexData>("/api/saos/dex", 45000);
 
   const p = probes.data;
   const d = status.data;
@@ -133,6 +139,7 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
     (p?.hive?.ok ? 1 : 0) +
     (p?.tron?.ok ? 1 : 0) +
     (p?.eth?.ok ? 1 : 0) +
+    (p?.bsc?.ok ? 1 : 0) +
     (p?.sol?.ok ? 1 : 0);
 
   const cards: ChainCard[] = [
@@ -260,6 +267,28 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
       measuredAt: p?.sol?.measuredAt ?? null,
       note: p?.sol?.error ?? `solana-core ${p?.sol?.solanaCore ?? "—"} · ${p?.sol?.transactionCount != null ? fmtInt(p.sol.transactionCount) + " טרנזקציות היסטוריות" : ""}`,
       rail: "חדש"
+    },
+    {
+      id: "bsc",
+      name: "BSC",
+      family: "EVM L1 · BNB Chain · v14",
+      role: "המסילה השמינית — נפתחה",
+      tone: p?.bsc?.ok ? "green" : "zinc",
+      statusLabel: p?.bsc?.ok ? `chain ${p.bsc.chainId}` : "מנותק",
+      metric: {
+        label: "בלוק נוכחי",
+        value: p?.bsc?.blockNumber != null ? fmtInt(p.bsc.blockNumber) : "—"
+      },
+      secondary: {
+        label: "מאזן BNB ריבוני",
+        value: p?.bsc?.sovereign ? `${Number(p.bsc.sovereign.bnb).toFixed(4)}` : "—"
+      },
+      endpoint: p?.bsc?.endpoint ?? null,
+      measuredAt: p?.bsc?.measuredAt ?? null,
+      note:
+        p?.bsc?.error ??
+        "אותה כתובת EVM כמו באיתריום (m/44'/60'/0'/0/2) — הקצאת BNB קטנה תפתח עגינה+חוזה באותו קוד.",
+      rail: "חדש"
     }
   ];
 
@@ -267,7 +296,7 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
     <div className="space-y-5 animate-view">
       <PageHead
         title="רשתות חיות"
-        sub="רשת-7 שרשראות במדידה ישירה מול RPC ציבורי — קריאה בלבד, בלי מפתחות, בלי שידור. Ethereum ו-Solana הם רכבי-הרשת החדשים שחיברת; המדידה מאמתת שהם חיים — כשל הוא נתון, לא קריסה."
+        sub="רשת-8 שרשראות במדידה ישירה מול RPC ציבורי — קריאה בלבד, בלי מפתחות, בלי שידור. BSC נפתח ב-v14 (אותו מפתח EVM כמו איתריום) וצמדי-DEX נמדדים חי מ-Uniswap ו-PancakeSwap; כשל הוא נתון, לא קריסה."
         actions={
           <Btn variant="secondary" size="sm" loading={probes.loading} onClick={probes.refresh}>
             <RefreshCcw size={13} /> מדידה טרייה
@@ -283,10 +312,10 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
           <>
             <Kpi
               label="שרשראות במדידה חיה"
-              value={`${online}/4`}
+              value={`${online}/5`}
               tone="gold"
               icon={<Globe2 size={15} />}
-              hint="HIVE · TRON · ETH · SOL — גששים פעילים"
+              hint="HIVE · TRON · ETH · BSC · SOL — גששים פעילים"
             />
             <Kpi
               label="בלוק Ethereum"
@@ -319,7 +348,7 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
       <Panel>
         <PanelHeader
           icon={<Radio size={15} />}
-          title="מטריצת 7 הרשתות — מדידה חיה"
+          title="מטריצת 8 הרשתות — מדידה חיה"
           sub="כל כרטיס נמדד מול השרשרת בפועל; הרצפה הצבועה בזהב = רכבי-רשת חדשים"
           actions={<Pill tone="gold" pulse>{cards.filter((c) => c.tone === "green").length} online</Pill>}
         />
@@ -459,7 +488,148 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
             </p>
           </PanelBody>
         </Panel>
+
+        <Panel accent>
+          <PanelHeader
+            icon={<Coins size={15} />}
+            title="BSC — BNB Chain · אימות רכב-רשת (v14)"
+            sub="המסילה השמינית · אותה כתובת EVM ריבונית כמו באיתריום"
+          />
+          <PanelBody className="space-y-3">
+            {p?.bsc ? (
+              <>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-white/[0.05] bg-zinc-950/50 py-2.5">
+                    <p className="text-[9px] text-zinc-600">בלוק</p>
+                    <p dir="ltr" className="text-base font-bold tabular-nums text-zinc-100">
+                      {p.bsc.blockNumber != null ? fmtInt(p.bsc.blockNumber) : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/[0.05] bg-zinc-950/50 py-2.5">
+                    <p className="text-[9px] text-zinc-600">chainId</p>
+                    <p dir="ltr" className="text-base font-bold text-emerald-300">{p.bsc.chainId ?? "—"}</p>
+                  </div>
+                  <div className="rounded-lg border border-white/[0.05] bg-zinc-950/50 py-2.5">
+                    <p className="text-[9px] text-zinc-600">גז</p>
+                    <p dir="ltr" className="text-base font-bold text-amber-300">
+                      {p.bsc.gasPriceGwei != null ? `${p.bsc.gasPriceGwei} Gwei` : "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5 space-y-1.5">
+                  <div className="flex justify-between items-center gap-2 text-[11px]">
+                    <span className="text-zinc-500">מאזן BNB ריבוני</span>
+                    <span dir="ltr" className="font-mono text-amber-300 tabular-nums font-semibold">
+                      {p.bsc.sovereign ? `${Number(p.bsc.sovereign.bnb).toFixed(6)} BNB` : "—"}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500 leading-relaxed">
+                    הכתובת <span dir="ltr" className="font-mono text-zinc-400">{p.bsc.sovereign?.address.slice(0, 12)}…</span>{" "}
+                    זהה לאיתריום (מפתח אחד — שתי שרשראות). הקצאת BNB קטנה תפתח את עוגן ה-weave ואת פריסת החוזה
+                    ב-BSC באותו קוד בדיוק.
+                  </p>
+                </div>
+                {p.bsc.error && (
+                  <p className="text-[11px] text-rose-300/90 leading-relaxed" dir="auto">⚠ {p.bsc.error}</p>
+                )}
+              </>
+            ) : (
+              <Skeleton className="h-24" />
+            )}
+            <p className="text-[10px] text-zinc-600 leading-relaxed">
+              המדידה מאמתת chainId=56 (mainnet) לפני קבלת התוצאה — endpoint שעונה עם שרשרת שגויה נחשב כשל.
+            </p>
+          </PanelBody>
+        </Panel>
       </div>
+
+      {/* ═══ צמדי DEX חיים — נתוני שוק אמיתיים בקריאה-בלבד ═══ */}
+      <Panel>
+        <PanelHeader
+          icon={<Coins size={15} />}
+          title="צמדי-DEX חיים — עוד צמדים לסוכנים"
+          sub="מחירים אמיתיים מ-Uniswap V2 (איתריום) ו-PancakeSwap V2 (BSC) — factory → getPair → getReserves · eth_call בקריאה-בלבד, בלי מפתחות"
+          actions={
+            <div className="flex items-center gap-2">
+              <Pill tone={dex.data?.okCount ? "green" : "zinc"}>
+                {dex.data ? `${dex.data.okCount}/${dex.data.pairs.length} צמדים` : "…"}
+              </Pill>
+              <Btn variant="ghost" size="xs" onClick={dex.refresh}>
+                <RefreshCcw size={11} /> מדידה
+              </Btn>
+            </div>
+          }
+        />
+        <PanelBody className="p-0">
+          {dex.loading && !dex.data ? (
+            <div className="p-4 space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <div className="max-h-[380px] overflow-y-auto scroll-slim">
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>צמד</Th>
+                    <Th>DEX · שרשרת</Th>
+                    <Th>מחיר (quote לבסיס)</Th>
+                    <Th className="hidden sm:table-cell">נזילות</Th>
+                    <Th className="hidden md:table-cell">כתובת-זוג</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(dex.data?.pairs ?? []).map((pair) => (
+                    <tr key={`${pair.chain}-${pair.pair}`} className="hover:bg-white/[0.02] transition-colors">
+                      <Td>
+                        <span dir="ltr" className="font-mono text-[12px] font-bold text-zinc-100">
+                          {pair.pair}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                          <Tag tone={pair.chain === "ETHEREUM" ? "gold" : "amber"}>{pair.chain}</Tag>
+                          <span className="text-[10px] text-zinc-500">{pair.dex}</span>
+                        </span>
+                      </Td>
+                      <Td className="text-right">
+                        {pair.price ? (
+                          <span dir="ltr" className="font-bold tabular-nums text-emerald-300">
+                            {pair.quote.match(/USD|USDT|USDC|BUSD|DAI/) ? `$${pair.price}` : pair.price}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-rose-300/80">{pair.error?.slice(0, 40) ?? "אין נתונים"}</span>
+                        )}
+                      </Td>
+                      <Td className="hidden sm:table-cell text-right">
+                        <span dir="ltr" className="text-[11px] text-zinc-400 tabular-nums">
+                          {pair.reserveBase
+                            ? `${Number(pair.reserveBase).toLocaleString("en-US", { maximumFractionDigits: 0 })} ${pair.base}`
+                            : "—"}
+                        </span>
+                      </Td>
+                      <Td className="hidden md:table-cell">
+                        <span className="flex items-center gap-1.5">
+                          <span dir="ltr" className="font-mono text-[10px] text-zinc-600 truncate max-w-[120px]">
+                            {pair.address ? `${pair.address.slice(0, 8)}…${pair.address.slice(-6)}` : "—"}
+                          </span>
+                          {pair.address && <CopyBtn text={pair.address} size={11} />}
+                        </span>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          )}
+          <p className="px-5 py-2.5 border-t border-white/[0.05] text-[10px] text-zinc-600 leading-relaxed">
+            המחיר מחושב מהעתודות בפועל של הזוג (BigInt, ללא צף) · 6 צמדים · מטמון 60 שנ׳ · כישלון פר-צמד הוא
+            נתון כנה (זוג שאינו בפקטוריה מוצג כשגוי, לא מוסתר).{" "}
+            {dex.data?.measuredAt ? `עודכן ${timeAgo(dex.data.measuredAt)}` : ""}
+          </p>
+        </PanelBody>
+      </Panel>
 
       {/* מפת האקוסיסטם — מסקנות סריקת 8 הריפואים */}
       <Panel>

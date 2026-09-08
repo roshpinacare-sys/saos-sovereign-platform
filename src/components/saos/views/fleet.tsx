@@ -430,6 +430,19 @@ export function ViewFleet() {
                 </div>
               </div>
 
+              {/* BSC — v14 opened, awaiting allocation */}
+              <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.03] p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold text-amber-200">BSC — המסילה השמינית (v14)</span>
+                  <Pill tone="gold">מסילה פתוחה · ממתין להקצאה</Pill>
+                </div>
+                <div className="text-[11px] text-zinc-400 space-y-1">
+                  <div>אותה כתובת ריבונית כמו באיתריום: <span dir="ltr">{short(sovereign?.evm.address ?? "—")}</span> · מאזן 0 BNB.</div>
+                  <div>הקצאת BNB קטנה (≈0.003) תפתח: עוגן-weave + פריסת חוזה הממסר וחימוש 11 החיילים באותו קוד.</div>
+                  <div className="text-amber-300/80">החלפת ~1$ דרך גשר חוצה-שרשראות עולה יותר מ-1$ — הקצאה ישירה היא המסלול הריבוני.</div>
+                </div>
+              </div>
+
               {/* HIVE — gated */}
               <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.03] p-4">
                 <div className="flex items-center justify-between mb-2">

@@ -1,20 +1,20 @@
 "use client";
 
 /**
- * SAOS v13 — מעטפת FLEET ARMING (COMMAND DECK + 7-CHAIN GRID + חימוש צי).
- * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 7-רשתות חי**
- * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · SOLANA) + ניווט-גלילה (מובייל)
+ * SAOS v14 — מעטפת SOVEREIGN RELAY (COMMAND DECK + 8-CHAIN GRID + חוזה ריבוני).
+ * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 8-רשתות חי**
+ * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · BSC · SOLANA) + ניווט-גלילה (מובייל)
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, Crosshair, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck } from "lucide-react";
+import { Anchor, Crosshair, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck, Users } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "networks" | "seals" | "ops" | "fleet" | "proofs" | "energy" | "economy" | "research";
+export type ViewId = "overview" | "networks" | "agents" | "seals" | "ops" | "fleet" | "proofs" | "energy" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -38,8 +38,16 @@ export const VIEWS: ViewDef[] = [
     id: "networks",
     label: "רשתות חיות",
     short: "רשתות",
-    desc: "רשת-7 שרשראות במדידה חיה — כולל Ethereum ו-Solana שחוברו",
+    desc: "רשת-8 שרשראות במדידה חיה — ETH · SOL · BSC + צמדי DEX אמיתיים",
     icon: <Globe2 size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "agents",
+    label: "מעקב סוכנים",
+    short: "סוכנים",
+    desc: "8 הריפואים של האורגניזם במדידה חיה מול GitHub — דחיפות, קומיטים וטריות",
+    icon: <Users size={16} />,
     group: "תפעול"
   },
   {
@@ -139,7 +147,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Fleet Arming · v13.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Sovereign Relay · v14.0</p>
           </div>
         </div>
 
@@ -281,7 +289,7 @@ export function AppShell({
           </nav>
         </header>
 
-        {/* פס-פיקוד 7-רשתות — חי מול live-probes (SAOS-NET + 6 מסילות חיצוניות) */}
+        {/* פס-פיקוד 8-רשתות — חי מול live-probes (SAOS-NET + 7 מסילות חיצוניות) */}
         <ChainTicker height={stats?.lastHeight} status={status} probes={probes} />
 
         {/* תוכן */}
@@ -295,7 +303,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v13.0.0 — FLEET ARMING · 7-CHAIN LIVE GRID + mint קטן ל-SAOS + חימוש 11 החיילים ב-STEEM · ETHEREUM(mainnet) · SOLANA(mainnet-beta) עם עתודת-פיתוח
+              SAOS Sovereign Platform v14.0.0 — SOVEREIGN RELAY · 8-CHAIN LIVE GRID (BSC נפתח) + חוזה חכם ריבוני באיתריום mainnet בלי עמלה + צמדי DEX חיים + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a
@@ -315,9 +323,9 @@ export function AppShell({
   );
 }
 
-// ─── ChainTicker — פס-פיקוד 7-רשתות חי ───────────────────────────────────────
+// ─── ChainTicker — פס-פיקוד 8-רשתות חי ───────────────────────────────────────
 // SAOS-NET (גובה) · STEEM/BLURT (עוגן) · HIVE (RC) · TRON (מעבר)
-// · ETHEREUM (בלוק) · SOLANA (slot) — מדידה read-only מול RPC ציבורי.
+// · ETHEREUM (בלוק) · BSC (בלוק + מאזן BNB) · SOLANA (slot) — מדידה read-only מול RPC ציבורי.
 
 interface TickerChip {
   id: string;
@@ -403,6 +411,16 @@ function ChainTicker({
       label: p?.eth?.gasPriceGwei != null ? `${p.eth.gasPriceGwei} Gwei` : "רכב-חי"
     },
     {
+      id: "bsc",
+      name: "BSC",
+      value: p?.bsc?.blockNumber != null ? fmtInt(p.bsc.blockNumber) : "…",
+      tone: p?.bsc?.ok ? "green" : "zinc",
+      label:
+        p?.bsc?.sovereign?.bnb != null
+          ? `BNB ${Number(p.bsc.sovereign.bnb).toFixed(4)} · ${p.bsc.gasPriceGwei ?? "—"} Gwei`
+          : "רכב-חי (ממתין להקצאה)"
+    },
+    {
       id: "sol",
       name: "SOLANA",
       value: p?.sol?.slot != null ? fmtInt(p.sol.slot) : "…",
@@ -415,17 +433,21 @@ function ChainTicker({
   ];
 
   const online =
-    (p?.hive?.ok ? 1 : 0) + (p?.tron?.ok ? 1 : 0) + (p?.eth?.ok ? 1 : 0) + (p?.sol?.ok ? 1 : 0);
+    (p?.hive?.ok ? 1 : 0) +
+    (p?.tron?.ok ? 1 : 0) +
+    (p?.eth?.ok ? 1 : 0) +
+    (p?.sol?.ok ? 1 : 0) +
+    (p?.bsc?.ok ? 1 : 0);
 
   return (
     <div
       className="sticky top-14 z-20 border-b border-white/[0.05] bg-zinc-950/80 backdrop-blur-md"
       role="status"
-      aria-label="פס-פיקוד 7 רשתות חי"
+      aria-label="פס-פיקוד 8 רשתות חי"
     >
       <div className="max-w-6xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto scroll-slim h-9">
         <span className="hidden sm:inline-flex items-center gap-1.5 shrink-0 pe-2 me-1 border-e border-white/[0.06] text-[9px] font-bold tracking-wider text-amber-400/80 uppercase">
-          7-Chain
+          8-Chain
         </span>
         {chips.map((c) => (
           <span
@@ -449,7 +471,7 @@ function ChainTicker({
           </span>
         ))}
         <span className="shrink-0 ms-auto ps-2 text-[9px] text-zinc-600 hidden sm:inline" dir="ltr">
-          probes {online}/4
+          probes {online}/5
         </span>
       </div>
     </div>
