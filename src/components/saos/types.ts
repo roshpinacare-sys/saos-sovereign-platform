@@ -459,6 +459,84 @@ export interface LivePulseResult {
   error?: string;
 }
 
+// ─── v12: EVM/SVM LIVE ANCHOR RAILS (עוגני ETHEREUM + SOLANA חיים) ─────────
+
+export interface RailReadinessData {
+  ok: boolean;
+  ready: boolean;
+  seal: {
+    height: number;
+    root: string;
+    stateRoot: string;
+    leaves: number;
+    gasUsed: number;
+  } | null;
+  alreadyAnchored: boolean;
+  existing: { txid: string | null; status: string; at: string } | null;
+  readiness:
+    | {
+        address: string;
+        selfVerified: boolean;
+        funded: boolean;
+        balanceEth?: string | null;
+        gasPriceGwei?: number | null;
+        blockNumber?: number | null;
+        chainId?: number | null;
+        costEstimateEth?: string | null;
+        balanceSol?: string | null;
+        slot?: number | null;
+        memoProgramOnChain?: boolean;
+        endpoint?: string | null;
+        derivation?: string;
+        error?: string;
+      }
+    | { error: string };
+  error?: string;
+}
+
+export interface RailAnchorRow {
+  id: string;
+  height: number;
+  root: string;
+  txid: string | null;
+  block?: number | null;
+  slot?: number | null;
+  confirmed: boolean;
+  status: string;
+  at: string;
+  costEth?: string | null;
+  account: string;
+}
+
+export interface RailAnchorLedgerData {
+  ok: boolean;
+  empty?: boolean;
+  message?: string;
+  anchors: RailAnchorRow[];
+  error?: string;
+}
+
+export interface RailPulseResult {
+  ok: boolean;
+  already?: boolean;
+  gated?: boolean;
+  height?: number;
+  account?: string;
+  txid?: string | null;
+  block?: number | null;
+  slot?: number | null;
+  confirmationStatus?: string | null;
+  confirmedByHistory?: boolean;
+  gasUsed?: number | null;
+  costEth?: string | null;
+  feeLamports?: number | null;
+  explorer?: string | null;
+  anchorId?: string;
+  receipt?: string;
+  message?: string;
+  error?: string;
+}
+
 // ─── v9: AUTO-ANCHOR + LIVE PROBES (פעימה אוטומטית + מדידות חיות) ────────────
 
 export interface LiveProbesData {

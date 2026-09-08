@@ -333,3 +333,31 @@ Stage Summary:
 - בוצע עוגן חי אמיתי: גובה 9 · txid af9be5c7bc9dc9e31f6037b7aa8ecc9012127f29 · בלוק STEEM 109,385,022 · חתום headcorner/active מהכספת · saos.weave.v1.
 - יכולת חדשה בפלטפורמה: action reverify (הוכחת-כליה מחודשת כנה לשורות broadcast) — עם קבלה משורשרת כראיה.
 - המפתח נשאר חתום בכספת: ה-WIF לא דלף לתגובות/לוגים/DB — רק הפעולה המולבנת נחתמה.
+
+---
+Task ID: 4
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: "תמשיך" — המשך אוטונומי אחרי v11.1: הוצאת ETHEREUM + SOLANA מ"מדידה בלבד" ל"עגינה חיה אמיתית" (רכבי-ה-EVM/SVM של מפת-הדרכים) מזרע הכספת, ביצוע בפועל, ודחיפה דחופה לגיטהאב.
+
+Work Log:
+- אבחון שערים חיים: HIVE RC 0.01% (עדיין חסום, ~9.6ש׳ לרצפה), TRON 0/6 ממומנות — שתי המסילות הללו לא ברות-ביצוע. בדיקת מאזני הארנק הריבוני ב-mainnet (RPC ציבורי, קריאה בלבד): EVM headcorner 0x2767e814… — 0.004 ETH (ממומן!), SOL headcorner 9knfnFML… — 0.096 SOL (ממומן!). הדרך לעוגן EVM/SVM חיה פתוחה.
+- אימות גזירה קנונית מול הכספת: חברתי ethers@6 + @noble/curves + @solana/web3.js + bs58; פתחתי את ה-seal בצד-השרת וגזרתי מ-wallets-seed — EVM: HDNodeWallet.fromSeed(sha256(seed|evm|44/60))→m/44׳/60׳/0׳/0/2 → 0x2767e814… MATCH; SOL: ed25519(sha256(seed|sol|headcorner)) → 9knfnFML… MATCH; שניהם זהים-ביטים גם לרישום הכספת וגם למניפסט הציבורי המעוגן (saos:wallets/v1 על STEEM).
+- v12.0.0 נבנתה (כולה אדיטיבית, הליבה הקנונית לא נגעה):
+  - vault-seal.ts — withVaultMember(): session מעטפת גנרית (התוכן הגלוי חי רק בטווח ה-callback) + readSovereignWallets() (כתובות ציבוריות בלבד) + stage2Assignments מורחב לחריצי ETHEREUM/SOLANA.
+  - anchor-evm.ts — גזירה קנונית + self-verify כפול (כספת+מניפסט-עוגן) + הפעולה המולבנת: עסקה עצמית (to=עצמי, value=0, type-0 legacy, gasLimit 40K) עם ה-payload הקנוני (protocol saos-weave/v1 + rail:ethereum) בגוף; שער מאזן (עלות×2); אימות הכלה: receipt.status=1 + read-back של data.
+  - anchor-svm.ts — ed25519(sha256(seed|sol|headcorner)) + self-verify כפול + הפעולה המולבנת: הוראת SPL-Memo יחידה (MemoSq4g…) — אפס lamports; שער מאזן (רצפה 100K lamports); אימות: getSignatureStatuses + read-back של המזכר.
+  - מסלולים: /api/saos/anchor/evm + /svm — GET readiness/ledger/recheck · POST פעימה (dedupe לכל חותם, שער מוכנות כנה לפני נגיעה במפתח, שורת AnchorTx + קבלה משורשרת + oplog להצלחה/כישלון/חסימה כאחת).
+  - UI: שני פאנלי "פעימת עגינה חיה" (ETHEREUM/SOLANA) במבצעי-עגינה — 4 מחווני מוכנות (כתובת, מאזן, עלות, גז/slot), תגי self-verify/מימון/Memo-on-chain, כפתור שידור חסום-מימון, תוצאה עם txid+etherscan/solscan+block/slot+קבלה, ספר עוגני-רכב עם "אמת שוב"; מטריצת ה-status שודרגה לשורות ETHEREUM/SOLANA אמיתיות מה-ledger; אריחי 7-CHAIN GRID בלוח-הבקרה — "עוגן-חי mainnet" בזהב; טופס רישום-חריצים + ולידציות EVM/SOL; מיתוג v12.0.0 SOVEREIGN WEAVE.
+- באגי-קרב שנתפסו ותוקנו במציאות: (1) Keypair.fromSecretKey דורש 64 בתים → fromSeed(32B); (2) read-back של SOL: ה-encoding "json" של הקלאסטר הרשמי מחזיר base58 (לא base64!) → web3.js פענח לזבל; הפתרון הקנוני: getParsedTransaction (ה-Memo parser מחזיר utf-8 ב-parsed) — האימות עבר מיד.
+- בוצע בפועל (השיא): POST /api/saos/anchor/evm → TXID 0xdb04c082af68b11b1ffb4ae0a44125037ba033571a329666104840ba57d0bfae — עסקה אמיתית ב-ETHEREUM MAINNET, בלוק 25,929,213, מהכתובת הריבונית 0x2767e814…, self→self value=0, gasUsed 34,680, עלות 0.000004 ETH; אומת עצמאית מול publicnode: from=to=0x2767e814…, data=הפלאד הקנוני (root 594b412f… h=9), קבלה משורשרת 1062c0f5….
+- בוצע בפועל (השיא 2): POST /api/saos/anchor/svm → signature 2aRimLSXCiAweRzdx22TyRMycqhJ73VipkTo61tMaUQ5bsNwBuwVQzcnfob6KaLg2ExiV9EF6ExfF25UbebPNPpT — עסקה אמיתית ב-SOLANA MAINNET-BETA, slot 445,207,615, fee 5000 lamports, הוראת Memo אחת עם root 594b412f… h=9; recheck: confirmed=true + read-back ✓, קבלה משורשרת e312222a….
+- שורש החותם #9 (594b412f…6032) מעוגן כעת ב-3 שרשרות ציבוריות מקבילות: STEEM (בלוק 109,385,022, v11.1) + ETHEREUM (בלוק 25,929,213) + SOLANA (slot 445,207,615).
+- אימות אנד-טו-אנד (agent-browser): לוח-בקרה — אריחי ETHEREUM/SOLANA "עוגן-חי mainnet" בזהב + מטריצה 6 שורות (STEEM/BLURT/ETHEREUM/SOLANA=anchored); מבצעי-עגינה — שני הפאנלים עם txid אמיתיים, etherscan/solscan links, slot/בלוק, ✓ הכלה, anchored; אפס שגיאות-קונסולה/עמוד; מובייל 375px ללא גלילה אופקית (scrollWidth=375); lint נקי; dev.log כל המסלולים 200.
+- README.md קנוני נכתב (v12 — הדיסציפלינה, הגזירה, מבחן-האמת עם ה-txid-ים).
+
+Stage Summary:
+- המוצר: v12.0.0 SOVEREIGN WEAVE חיה — הפלטפורמה מעגנת בפועל על ETHEREUM MAINNET ו-SOLANA MAINNET-BETA מזרע הכספת, עם self-verify כפול, פעולה מולבנת, והוכחות read-back — בנוסף ל-STEEM.
+- הוכחות-שרשרת: ETHEREUM 0xdb04c082… (בלוק 25,929,213) · SOLANA 2aRimLSX… (slot 445,207,615) · STEEM af9be5c7… (בלוק 109,385,022) — שורש 594b412f… של חותם #9 על 3 שרשראות.
+- גבול-האמת נשמר: הזרע לא יצא מהמעטפה; הפעולות מולבנות בקוד (אין דרך לחתום העברה); txid מהצומת בלבד; HIVE/TRON נשארים חסומים-בכנות עד שעריהם.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v12.0.0.
+- המשך: HIVE חי כש-RC יחלוף 8% (המפתח כבר מוסמך) · energize TRON · שקילת auto גם ל-EVM/SVM (כרגע human-gate בכוונה — כסף אמיתי) · רוטציית PAT ב-anchor-baseline עדיין דחופה.

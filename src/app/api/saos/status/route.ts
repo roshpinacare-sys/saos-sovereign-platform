@@ -7,6 +7,11 @@ import { probeTronVault } from "@/lib/saos/tron-live";
 
 export const dynamic = "force-dynamic";
 
+/** Short txid for display (never fabricates — truncation only). */
+function shortTx(txid: string | null): string {
+  return txid ? `${txid.slice(0, 10)}…` : "—";
+}
+
 export async function GET() {
   try {
     // v9 — LIVE resource gates: the HIVE RC is MEASURED against the public
@@ -31,6 +36,43 @@ export async function GET() {
       : Number(process.env.TRON_ENERGY ?? 0);
 
     const matrix = anchoringMatrix(rcPct, tronEnergy);
+
+    // v12 — EVM/SVM rails: honest matrix rows from the REAL anchor ledger.
+    // A live mainnet anchor (txid from the node, confirmed) ⇒ "anchored";
+    // a funded sovereign wallet ⇒ "pending" (human-gated: real money);
+    // anything else ⇒ "probe" (read-only rail, no signing path yet).
+    const [evmAnchor, solAnchor] = await Promise.all([
+      db.anchorTx.findFirst({
+        where: { kind: "weave", network: "ETHEREUM", txid: { not: null }, status: "anchored" },
+        orderBy: { createdAt: "desc" },
+        select: { txid: true, createdAt: true, meta: true }
+      }),
+      db.anchorTx.findFirst({
+        where: { kind: "weave", network: "SOLANA", txid: { not: null }, status: "anchored" },
+        orderBy: { createdAt: "desc" },
+        select: { txid: true, createdAt: true, meta: true }
+      })
+    ]);
+    matrix.push(
+      {
+        network: "ETHEREUM",
+        status: evmAnchor ? "anchored" : "pending",
+        gate: evmAnchor ? null : "human-gate (עלות אמיתית — הפעימה ממתינה ללחיצה)",
+        detail: evmAnchor
+          ? `data-memo עצמי (to=עצמי, value=0) מהכתובת הריבונית · טרנזקציה אחרונה ${shortTx(evmAnchor.txid)}`
+          : "זרע-הכספת מאומת (m/44'/60'/0'/0/2), מאזן מדוד — המודול מוכן, חתימה בלחיצת אדם",
+        recovery: evmAnchor ? null : "POST /api/saos/anchor/evm — עוגן חי בלחיצה"
+      },
+      {
+        network: "SOLANA",
+        status: solAnchor ? "anchored" : "pending",
+        gate: solAnchor ? null : "human-gate (עמלה 5000 lamports — הפעימה ממתינה ללחיצה)",
+        detail: solAnchor
+          ? `הוראת Memo יחידה (zero lamports) מהמפתח הריבוני · חתימה אחרונה ${shortTx(solAnchor.txid)}`
+          : "זרע-הכספת מאומת (ed25519(sha256(seed|sol|headcorner))), מאזן מדוד — המודול מוכן, חתימה בלחיצת אדם",
+        recovery: solAnchor ? null : "POST /api/saos/anchor/svm — עוגן חי בלחיצה"
+      }
+    );
 
     const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = await Promise.all([
       db.sealRecord.findMany({

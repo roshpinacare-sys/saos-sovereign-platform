@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v11 — COMMAND DECK.
+ * SAOS Sovereign Platform v12 — SOVEREIGN WEAVE (EVM/SVM live anchors).
  * הרכבה דקה: AppShell (פס-פיקוד 7-רשתות חי) + 8 עמודים. קיצורי-מקלדת Alt+1..8.
  */
 

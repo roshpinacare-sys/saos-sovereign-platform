@@ -264,6 +264,62 @@ export async function withRoleWif<T>(
   return { authority, result };
 }
 
+// ─── Generic member session (v12 — EVM/SVM rails) ──────────────────────────
+//
+// Same envelope discipline as withRoleWif, generalized to any sealed member
+// (wallets-seed.json, wallets-registry.json …). The member's plaintext
+// content exists ONLY inside fn's scope — callers must whitelist what they
+// will build with it BEFORE opening the session (anchor-evm/anchor-svm
+// derive a key and immediately self-verify it against the anchored public
+// registry; the seed/secret is never returned, logged or persisted).
+
+export async function withVaultMember<T>(
+  member: string,
+  fn: (content: string) => Promise<T>
+): Promise<T> {
+  const bundle = await openSeal();
+  const content = bundle.files[member];
+  if (typeof content !== "string" || content.length === 0) {
+    throw new Error(`vault: member "${member}" absent from envelope (fail-closed)`);
+  }
+  return fn(content);
+}
+
+/** Public mirror of the sovereign wallet registry inside the seal (no secrets). */
+export interface SovereignWalletPublic {
+  idx: number;
+  agent: string;
+  evm: string | null;
+  evmPath: string | null;
+  tron: string | null;
+  sol: string | null;
+  btc: string | null;
+}
+
+/** Reads the wallets-registry member and returns PUBLIC addresses only. */
+export async function readSovereignWallets(): Promise<SovereignWalletPublic[]> {
+  return withVaultMember("keys/wallets-registry.json", (content) => {
+    const reg = JSON.parse(content) as {
+      accounts?: Array<Record<string, unknown>>;
+    };
+    return (reg.accounts ?? []).map((a) => {
+      const evm = (a.evm ?? {}) as Record<string, unknown>;
+      const tron = (a.tron ?? {}) as Record<string, unknown>;
+      const sol = (a.sol ?? {}) as Record<string, unknown>;
+      const btc = (a.btc ?? {}) as Record<string, unknown>;
+      return {
+        idx: typeof a.idx === "number" ? a.idx : 0,
+        agent: String(a.agent ?? ""),
+        evm: typeof evm.address === "string" ? evm.address : null,
+        evmPath: typeof evm.path === "string" ? evm.path : null,
+        tron: typeof tron.address === "string" ? tron.address : null,
+        sol: typeof sol.address === "string" ? sol.address : null,
+        btc: typeof btc.address === "string" ? btc.address : null
+      };
+    });
+  });
+}
+
 // ─── Stage-2 manifest mapping (seal → VAULT_MANIFEST slots) ────────────────
 
 export interface Stage2Assignment {
@@ -297,5 +353,15 @@ export function stage2Assignments(inv: SealInventory): Stage2Assignment[] {
     .forEach((w, i) => {
       out.push({ network: "TRON", slot: `vault-${i + 1}`, address: w.tron as string, source: `wallets-registry #${w.idx}` });
     });
+  // v12 — EVM/SVM rails: the sovereign agent's own derived addresses
+  // (headcorner) become sealed slots (the wallets-seed inside the same
+  // envelope is the signing root — never exposed, only the watch address).
+  const sovereign = inv.wallets.find((w) => w.agent === "headcorner");
+  if (sovereign?.evm) {
+    out.push({ network: "ETHEREUM", slot: "sovereign/headcorner", address: sovereign.evm, source: "wallets-registry (m/44'/60'/0'/0/2)" });
+  }
+  if (sovereign?.sol) {
+    out.push({ network: "SOLANA", slot: "sovereign/headcorner", address: sovereign.sol, source: "wallets-registry (ed25519(sha256(seed|sol|headcorner)))" });
+  }
   return out;
 }

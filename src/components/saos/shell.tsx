@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS v11 — מעטפת COMMAND DECK.
+ * SAOS v12 — מעטפת SOVEREIGN WEAVE (COMMAND DECK + EVM/SVM LIVE ANCHORS).
  * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 7-רשתות חי**
  * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · SOLANA) + ניווט-גלילה (מובייל)
  * + כותרת-תחתונה דביקה.
@@ -131,7 +131,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Command Deck · v11.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Sovereign Weave · v12.0</p>
           </div>
         </div>
 
@@ -287,7 +287,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v11.0.0 — COMMAND DECK · 7-CHAIN GRID: SAOS-NET + STEEM · BLURT · HIVE · TRON + ETHEREUM · SOLANA
+              SAOS Sovereign Platform v12.0.0 — SOVEREIGN WEAVE · 7-CHAIN LIVE GRID: SAOS-NET + STEEM · BLURT · HIVE · TRON + ETHEREUM(mainnet-anchor) · SOLANA(mainnet-anchor)
             </span>
             <span className="flex items-center gap-3">
               <a

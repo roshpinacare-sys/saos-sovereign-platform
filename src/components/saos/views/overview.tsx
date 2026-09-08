@@ -91,7 +91,7 @@ export function ViewOverview({
         <PanelHeader
           icon={<Network size={15} />}
           title="רשת-הרשתות הריבונית · 7-CHAIN GRID"
-          sub="SAOS-NET (ריבונית) + STEEM · BLURT · HIVE · TRON (מסילות-עגינה) + ETHEREUM · SOLANA (רכבי-רשת חדשים שחיבר הבעלים) — מדידה חיה read-only מול RPC ציבורי"
+          sub="SAOS-NET (ריבונית) + STEEM · BLURT · HIVE · TRON (מסילות-עגינה) + ETHEREUM · SOLANA (עוגני mainnet חיים מזרע-הכספת) — מדידה חיה מול RPC ציבורי"
           actions={
             <Btn variant="ghost" size="xs" onClick={() => onNav("networks")}>
               כל המדידות <ArrowLeft size={11} />
@@ -164,8 +164,20 @@ export function ViewOverview({
               />
               <GridTile
                 name="ETHEREUM"
-                tag={probes.data?.eth?.ok ? "רכב-חי" : "מנותק"}
-                tone={probes.data?.eth?.ok ? "green" : "zinc"}
+                tag={
+                  status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
+                    ? "עוגן-חי mainnet"
+                    : probes.data?.eth?.ok
+                      ? "רכב-חי"
+                      : "מנותק"
+                }
+                tone={
+                  status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
+                    ? "gold"
+                    : probes.data?.eth?.ok
+                      ? "green"
+                      : "zinc"
+                }
                 icon={<Coins size={14} />}
                 metric={
                   probes.data?.eth?.blockNumber != null
@@ -177,12 +189,28 @@ export function ViewOverview({
                     ? `mainnet · גז ${probes.data.eth.gasPriceGwei} Gwei`
                     : "mainnet"
                 }
-                sub={probes.data?.eth?.endpoint ?? "RPC ציבורי"}
+                sub={
+                  status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
+                    ? "עוגן data-memo חתום מזרע-הכספת ✓"
+                    : (probes.data?.eth?.endpoint ?? "RPC ציבורי")
+                }
               />
               <GridTile
                 name="SOLANA"
-                tag={probes.data?.sol?.ok ? "רכב-חי" : "מנותק"}
-                tone={probes.data?.sol?.ok ? "green" : "zinc"}
+                tag={
+                  status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
+                    ? "עוגן-חי mainnet"
+                    : probes.data?.sol?.ok
+                      ? "רכב-חי"
+                      : "מנותק"
+                }
+                tone={
+                  status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
+                    ? "gold"
+                    : probes.data?.sol?.ok
+                      ? "green"
+                      : "zinc"
+                }
                 icon={<Fingerprint size={14} />}
                 metric={probes.data?.sol?.slot != null ? fmtInt(probes.data.sol.slot) : "—"}
                 metricLabel={
@@ -191,9 +219,11 @@ export function ViewOverview({
                     : "mainnet-beta"
                 }
                 sub={
-                  probes.data?.sol?.solanaCore
-                    ? `solana-core ${probes.data.sol.solanaCore}`
-                    : "RPC רשמי"
+                  status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
+                    ? "הוראת Memo חתומה מזרע-הכספת ✓"
+                    : probes.data?.sol?.solanaCore
+                      ? `solana-core ${probes.data.sol.solanaCore}`
+                      : "RPC רשמי"
                 }
               />
             </div>
@@ -224,9 +254,9 @@ export function ViewOverview({
             היסטורי. לקבל את הסיכון רשמית או להעביר לניהול-סודות חיצוני.
           </Callout>
           <Callout tone="green" icon={<ShieldCheck size={14} className="text-emerald-300" />}>
-            <span className="font-bold">ETH/SOL — נקי:</span> אין מפתחות פרטיים בטקסט-גלוי באף HEAD
-            של הריפואים. הרכבים שחוברו הם read-only (מדידה) — והקוד החתום חי בעותקים אחרים
-            (xwallet paymaster · SPL-MEMO devnet). הצעד הבא: עוגן EVM/SVM עם SignRequest חסר-מפתח.
+            <span className="font-bold">ETH/SOL — בוצע:</span> אין מפתחות פרטיים בטקסט-גלוי באף HEAD של
+            הריפואים — הזרע הריבוני חי בתוך הכספת ומעולם לא יצא ממנה. v12: עוגני mainnet אמיתיים
+            נחתו (data-memo ב-Ethereum · הוראת Memo ב-Solana) חתומים מהזרע — ההכלה אומתה read-back.
           </Callout>
           <Callout tone="zinc" icon={<Network size={14} className="text-zinc-400" />}>
             <span className="font-bold">אורגניזם-אחד:</span> steem הוא מקור המפתחות וההוכחות (SAOS-NET,
