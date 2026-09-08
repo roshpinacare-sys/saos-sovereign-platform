@@ -155,3 +155,59 @@ model PlatformSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// ─── v13: SAOS sovereign mint (טביעת המטבע הריבוני) ────────────────────────
+// The small SAOS mint: one batch = one seal on SAOS-NET whose leaves are
+// kernel ops (harvest = mint into treasury, wallet = allocate to soldier),
+// merkle-rooted and anchored on the live rails. The entries are the
+// persistent sovereign ledger — who holds how much SAOS.
+
+model SaosMint {
+  id              String   @id @default(cuid())
+  mintId          String   @unique // canonical: mint-<sealHeight>
+  total           Int // total SAOS minted in this batch
+  soldiers        Int // # soldiers allocated
+  perSoldier      Int
+  treasuryReserve Int // dev reserve kept for development
+  payload         String // canonical allocation JSON
+  digest          String // sha256(canonical payload)
+  sealHeight      Int?
+  sealRoot        String?
+  status          String // allocated | sealed | anchored
+  createdAt       DateTime @default(now())
+  entries         SaosMintEntry[]
+
+  @@index([createdAt])
+}
+
+model SaosMintEntry {
+  id     String   @id @default(cuid())
+  mintId String
+  mint   SaosMint @relation(fields: [mintId], references: [id], onDelete: Cascade)
+  agent  String // soldier username | saos:dev-reserve
+  role   String // soldier | treasury
+  amount Int
+
+  @@unique([mintId, agent])
+  @@index([agent])
+}
+
+// ─── v13: Fleet arming ledger (יומן חימוש הצי) ─────────────────────────────
+// Every whitelisted disbursement to a soldier leaves an honest row:
+// rail (STEEM-RC | STEEM-TR | EVM | SOL), agent, amount, txid, status.
+// Failed/gated attempts are recorded with the same discipline.
+
+model FleetArmOp {
+  id        String   @id @default(cuid())
+  rail      String // STEEM-RC | STEEM-TR | EVM | SOL
+  agent     String
+  amount    String // canonical per-rail units ("1000000.000000 VESTS" | "0.0002 ETH" | "0.006 SOL" | "0.050 STEEM")
+  txid      String? // from the node — never fabricated
+  explorer  String?
+  detail    String // JSON extras (block/slot, confirmed, reserve-after...)
+  status    String // armed | failed | gated
+  createdAt DateTime @default(now())
+
+  @@index([rail, status])
+  @@index([agent])
+}

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v12 — SOVEREIGN WEAVE (EVM/SVM live anchors).
- * הרכבה דקה: AppShell (פס-פיקוד 7-רשתות חי) + 8 עמודים. קיצורי-מקלדת Alt+1..8.
+ * SAOS Sovereign Platform v13 — FLEET ARMING (mint קטן + חימוש צי).
+ * הרכבה דקה: AppShell (פס-פיקוד 7-רשתות חי) + 9 עמודים. קיצורי-מקלדת Alt+1..9.
  */
 
 import { useEffect, useState } from "react";
@@ -14,6 +14,7 @@ import { ViewOverview } from "@/components/saos/views/overview";
 import { ViewNetworks } from "@/components/saos/views/networks";
 import { ViewSeals } from "@/components/saos/views/seals";
 import { ViewOps } from "@/components/saos/views/ops";
+import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
 import { ViewEconomy } from "@/components/saos/views/economy";
@@ -24,6 +25,7 @@ const TITLES: Record<ViewId, string> = {
   networks: "רשתות חיות",
   seals: "איטום ועגינה",
   ops: "מבצעי עגינה",
+  fleet: "חימוש הצי",
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
   economy: "כלכלה",
@@ -34,7 +36,7 @@ export default function Home() {
   const [view, setView] = useState<ViewId>("overview");
   const status = useLive<StatusData>("/api/saos/status", 12000);
 
-  // קיצורי-מקלדת: Alt+1..8 לניווט מהיר
+  // קיצורי-מקלדת: Alt+1..9 לניווט מהיר
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey) return;
@@ -60,6 +62,7 @@ export default function Home() {
         {view === "networks" && <ViewNetworks status={status} />}
         {view === "seals" && <ViewSeals status={status} />}
         {view === "ops" && <ViewOps status={status} />}
+        {view === "fleet" && <ViewFleet />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}
         {view === "economy" && <ViewEconomy />}

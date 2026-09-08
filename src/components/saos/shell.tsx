@@ -1,20 +1,20 @@
 "use client";
 
 /**
- * SAOS v12 — מעטפת SOVEREIGN WEAVE (COMMAND DECK + EVM/SVM LIVE ANCHORS).
+ * SAOS v13 — מעטפת FLEET ARMING (COMMAND DECK + 7-CHAIN GRID + חימוש צי).
  * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 7-רשתות חי**
  * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · SOLANA) + ניווט-גלילה (מובייל)
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck } from "lucide-react";
+import { Anchor, Crosshair, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "networks" | "seals" | "ops" | "proofs" | "energy" | "economy" | "research";
+export type ViewId = "overview" | "networks" | "seals" | "ops" | "fleet" | "proofs" | "energy" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -56,6 +56,14 @@ export const VIEWS: ViewDef[] = [
     short: "מבצעים",
     desc: "רישום כספת, מעטפות שידור dry-run ויומן תפעול — מוכנות שלב 2",
     icon: <RadioTower size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "fleet",
+    label: "חימוש הצי",
+    short: "הצי",
+    desc: "mint קטן ל-SAOS + יתרות-פעולה ל-11 החיילים על STEEM · ETH · SOL — עם עתודת פיתוח",
+    icon: <Crosshair size={16} />,
     group: "תפעול"
   },
   {
@@ -131,7 +139,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Sovereign Weave · v12.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Fleet Arming · v13.0</p>
           </div>
         </div>
 
@@ -287,7 +295,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v12.0.0 — SOVEREIGN WEAVE · 7-CHAIN LIVE GRID: SAOS-NET + STEEM · BLURT · HIVE · TRON + ETHEREUM(mainnet-anchor) · SOLANA(mainnet-anchor)
+              SAOS Sovereign Platform v13.0.0 — FLEET ARMING · 7-CHAIN LIVE GRID + mint קטן ל-SAOS + חימוש 11 החיילים ב-STEEM · ETHEREUM(mainnet) · SOLANA(mainnet-beta) עם עתודת-פיתוח
             </span>
             <span className="flex items-center gap-3">
               <a

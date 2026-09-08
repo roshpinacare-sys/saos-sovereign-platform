@@ -361,3 +361,32 @@ Stage Summary:
 - גבול-האמת נשמר: הזרע לא יצא מהמעטפה; הפעולות מולבנות בקוד (אין דרך לחתום העברה); txid מהצומת בלבד; HIVE/TRON נשארים חסומים-בכנות עד שעריהם.
 - הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v12.0.0.
 - המשך: HIVE חי כש-RC יחלוף 8% (המפתח כבר מוסמך) · energize TRON · שקילת auto גם ל-EVM/SVM (כרגע human-gate בכוונה — כסף אמיתי) · רוטציית PAT ב-anchor-baseline עדיין דחופה.
+
+---
+Task ID: 5
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: "צריך לעשות mint קטן גם ל-saos ולהתחיל לתת לחיילים לעבוד… חייב לסדר יתרות אצל כולם… תשאיר שיהיה לנו לפיתוח אבל תן להם… תאמת ודחוף לריפו" — v13.0.0 FLEET ARMING.
+
+Work Log:
+- אבחון מצב הצי (מדידה חיה, 6 רשתות): 11 חיילים (cashmachine…ynet, פרט ל-headcorner הריבוני) — EVM 0 ETH לכולם, SOL 0 לכולם, STEEM מאזן-אבק (~0.01) עם RC קטן (max_rc 83-88B), HIVE ~0, TRON 0. הריבון: 0.763 STEEM + 8.64M VESTS (4.3 SP) + 0.003747 ETH + 0.0959 SOL.
+- v13.0.0 נבנתה (אדיטיבית, 0 תלויות חדשות):
+  - Prisma: SaosMint + SaosMintEntry (הספר הריבוני המתמשך) + FleetArmOp (יומן חימוש) — db:push.
+  - lib/saos/saos-mint.ts — ההטבעה כ-kernel batch אמיתי על SAOS-NET: 3 stamps + harvest 300,000 + 11×wallet(20,000 לחייל) + wallet(80,000 ל-saos:dev-reserve) + seal → replay → stateRoot → merkle root → חותם חדש; ההקצאה קנונית ומהודקת (saos-mint/v1); הרשימה נגזרת מהכספת (fail-closed).
+  - lib/saos/fleet-arm.ts — מנוע החימוש: fleetRoster() (מדידה חיה STEEM+RC-API/HIVE/EVM/SOL/SAOS), armSteemFleet (האצלת 500,000 VESTS + העברת 0.050 STEEM לכל חייל, שידור אחד לחייל עם headcorner/active, שערי-עתודה fail-closed), armEvmFleet (0.0002 ETH לחייל מהארנק הריבוני, self-verify כפול + receipt-poll), armSolFleet (0.006 SOL לחייל, sendAndConfirm) — היעדים רק מרישום הכספת, הסכומים קפואים בקוד, idempotence 30 יום.
+  - מסלולים: GET/POST /api/saos/mint + GET/POST /api/saos/fleet (action בלבד בבקשה).
+  - UI: תצוגת "חימוש הצי" — פאנל mint (מדיניות 300K/20K/80K, ספר ריבוני, תוצאה), לוח חימוש 5 רכבים (STEEM/EVM/SOL פעילים + HIVE/TRON חסומים-בכנות + BTC מעקב), צי-החיילים (טבלה בדסקטופ, כרטיסים במובייל), יומן חימוש עם explorer links; מיתוג v13.0.0 FLEET ARMING (9 תצוגות, Alt+1..9).
+- באגי-קרב שנתפסו: (1) seal דורש stamps ב-batch → 3 stamps נוספו; (2) sha256Hex async → await; (3) canonical receipts דוחים floats → כל reserveAfter/per-soldier למחרוזות; (4) rc_api מחזיר {rc_accounts} → חילוץ; (5) חותם יתום #10 מהניסיון הראשון נוקה (שום דבר לא שודר — rollback נקי) ו-Prisma client חדש דרש restart dev.
+- בוצע בפועל — ה-MINT: POST /api/saos/mint → mint-10: 300,000 SAOS (11×20,000 + 80,000 עתודה), חותם #10 (17 עלים, root 4460a0c2…6032 — כולל 11 עלי-הקצאה), קבלה משורשרת 3e23d084…; ה-auto-anchor ירה ל-STEEM: txid df122f04… בלוק 109,387,678 (אומת מול get_transaction: saos.weave.v1 h=10); פעימות EVM+SVM נורו ידנית: 0x3dcdda27… בלוק 25,929,549 + 4cGy3A6B… slot 445,220,357 — שורש ה-mint מעוגן ב-3 שרשראות; סטטוס mint-10 → anchored.
+- בוצע בפועל — חימוש STEEM: 11 שידורים (delegate_vesting_shares 500,000 VESTS + transfer 0.05 STEEM לכל חייל) חתומים headcorner/active מהכספת — אומת בשרשרת: cashmachine received_delegation=500,000 VESTS + 0.063 STEEM, max_rc קפץ 83B→502B (×6); הריבון נשאר עם 0.213 STEEM + ~1.9M VESTS אפקטיביים (RC 99.99%).
+- בוצע בפועל — חימוש EVM: 11 העברות × 0.0002 ETH מהארנק הריבוני (m/44'/60'/0'/0/2, self-verify כפול מול הכספת והמניפסט המעוגן) — אומת חי: לכל חייל 0.000200 ETH, הריבון 0.001521 ETH עתודה.
+- בוצע בפועל — חימוש SOL: 11 העברות × 0.006 SOL (ed25519(sha256(seed|sol|headcorner))) — אומת חי: לכל חייל 0.0060 SOL, הריבון 0.0299 SOL עתודה.
+- 3 קבלות makeup הושלמו אחרי תיקון הסריאליזציה (STEEM: e24d6aae…, EVM: 5815e448…, SOL: 99072e42…) — השידורים עצמם הצליחו כולם; היומן: 33/33 armed, 0 failed.
+- אימות אנד-טו-אנד (agent-browser): KPI חי 11/11 חמושים · 33 פעולות · עתודות ריבון; פאנל mint-10 anchored עם הספר המלא; לוח החימוש עם רכבים פעילים+חסומים-בכנות; טבלת הצי עם יתרות אמיתיות; מובייל 375px ללא גלישה (scrollWidth=375, פוטר נדחק טבעית); VLM 9/10 דסקטופ + 9/10 מובייל; 0 שגיאות קונסולה/עמוד; lint נקי; dev.log הכל 200.
+- צילומים: upload/v13-fleet-desktop.png, upload/v13-fleet-mobile.png. README קנוני עודכן ל-v13 (mint + חימוש + דיסציפלינה).
+
+Stage Summary:
+- המוצר: v13.0.0 FLEET ARMING חיה — ה-SAOS נטבע (mint קטן 300,000, 73.3% לחיילים/26.7% לפיתוח) והשורש של ההטבעה מעוגן ב-STEEM+ETHEREUM+SOLANA; ו-11 החיילים חומשו בפועל ב-3 רשתות (RC ×6 ב-STEEM, 0.0002 ETH, 0.006 SOL) עם עתודת-פיתוח שנשמרה אצל הריבון.
+- הוכחות-שרשרת: STEEM df122f04… (בלוק 109,387,678) · ETH 0x3dcdda27… (בלוק 25,929,549) · SOL 4cGy3A6B… (slot 445,220,357) — שורש 4460a0c2… של mint-10.
+- גבול-האמת נשמר: הזרע/WIF לא יצאו מהמעטפה; יעדי החימוש רק מרישום הכספת; סכומים קפואים בקוד; שערי-עתודה fail-closed; HIVE (RC 0%, אין HP) ו-TRON (0 TRX) חסומים בכנות ומוצגים כך; BTC מעקב-צפייה.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v13.0.0.
+- המשך: HIVE חי כש-RC יחלוף 8% (המפתח מוסמך) · energize TRON כשיופיע TRX · לתת לחיילים עבודה (עוגנים/הקצאות) מהיתרות שקיבלו · מדדי צריכה ליומן החימוש.

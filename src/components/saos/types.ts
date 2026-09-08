@@ -697,3 +697,124 @@ export interface HivePulseResult {
   note?: string;
   error?: string;
 }
+
+// ─── v13: SAOS mint + fleet arming ────────────────────────────────────────
+
+export interface MintPolicy {
+  protocol: string;
+  total: number;
+  perSoldier: number;
+  treasuryReserve: number;
+  soldierCount: number;
+  breakdownHe: string;
+}
+
+export interface MintAllocationSoldier {
+  agent: string;
+  amount: number;
+}
+
+export interface MintLedgerRow {
+  agent: string;
+  role: string;
+  balance: number;
+}
+
+export interface MintBatchInfo {
+  mintId: string;
+  total: number;
+  soldiers: number;
+  perSoldier: number;
+  treasuryReserve: number;
+  digest: string;
+  sealHeight: number | null;
+  sealRoot: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface MintData {
+  ok: boolean;
+  supply?: number;
+  mints?: MintBatchInfo[];
+  balances?: MintLedgerRow[];
+  policy?: MintPolicy;
+  error?: string;
+}
+
+export interface MintResult {
+  ok: boolean;
+  mintId?: string;
+  policy?: MintPolicy;
+  digest?: string;
+  seal?: { height: number; root: string; stateRoot: string; leaves: number; gasUsed: number };
+  ledger?: { agent: string; role: string; amount: number }[];
+  receipt?: string;
+  autoAnchor?: string;
+  error?: string;
+}
+
+export interface ArmPolicy {
+  steem: { delegateVests: number; transferSteem: string; reserveVestsFloor: number; reserveSteemFloor: number };
+  evm: { perSoldierEth: number; reserveFloorEth: number };
+  sol: { perSoldierSol: number; reserveFloorSol: number };
+  gatesHe: { hive: string; tron: string };
+}
+
+export interface SoldierRow {
+  agent: string;
+  tier: string;
+  steem: { balance: number; vests: number; rcPct: number | null } | null;
+  hive: { balance: number; vests: number } | null;
+  evm: { address: string; balanceEth: number } | null;
+  sol: { address: string; balanceSol: number } | null;
+  tron: string | null;
+  saos: number;
+}
+
+export interface SovereignRow {
+  account: string;
+  steem: { balance: number; sbd: number; vests: number; rcPct: number | null };
+  hive: { balance: number; vests: number };
+  evm: { address: string; balanceEth: number };
+  sol: { address: string; balanceSol: number };
+  saos: number;
+}
+
+export interface ArmLedgerRow {
+  rail: string;
+  agent: string;
+  amount: string;
+  txid: string | null;
+  explorer: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface FleetData {
+  ok: boolean;
+  soldiers?: SoldierRow[];
+  sovereign?: SovereignRow | null;
+  policy?: ArmPolicy;
+  saosSupply?: number;
+  measuredAt?: string;
+  armLedger?: { ok: boolean; ops: ArmLedgerRow[]; totals: Record<string, { armed: number; failed: number }> };
+  error?: string;
+}
+
+export interface ArmResultRow {
+  agent: string;
+  status: "armed" | "failed" | "skipped";
+  txid?: string;
+  error?: string;
+}
+
+export interface ArmOutcome {
+  ok: boolean;
+  rail?: string;
+  armed?: ArmResultRow[];
+  failed?: ArmResultRow[];
+  skipped?: ArmResultRow[];
+  reserveAfter?: Record<string, number>;
+  error?: string;
+}
