@@ -1041,3 +1041,121 @@ export interface ArmOutcome {
   reserveAfter?: Record<string, number>;
   error?: string;
 }
+
+// ─── v15 — CONTRACT MESH (SAOS-EVM) DTOs ────────────────────────────────────
+
+export interface MeshContractInfo {
+  name: string;
+  role: string;
+  address: string;
+  bytecodeBytes: number;
+}
+
+export interface MeshRunHop {
+  index: number;
+  link: string;
+  role: string;
+  address: string;
+  gas: number | null;
+}
+
+export interface MeshRunView {
+  id: number;
+  intent: string;
+  initiator: string;
+  status: "completed" | "open";
+  startedAt: number;
+  completedAt: number | null;
+  durationMs: number | null;
+  gasUsed: number | null;
+  score: number | null;
+  hops: number | null;
+  rewardTo: string | null;
+  rewardAmount: string | null;
+  solutionTitle: string | null;
+  solutionDigest: string | null;
+  anchors: Array<{ chain: string; height: string; digest: string }>;
+  hopTrace: MeshRunHop[];
+  txid: string;
+  block: number;
+}
+
+export interface MeshTransferView {
+  seq: number;
+  from: string;
+  to: string;
+  amount: string;
+  fee: string;
+  txid: string;
+  block: number;
+}
+
+export interface MeshAgentView {
+  handle: string;
+  address: string;
+  joinedAt: number;
+  runs: number;
+  balance: string;
+}
+
+export interface MeshRailView {
+  chain: string;
+  height: string;
+  digest: string;
+  at: number;
+}
+
+export interface MeshStatusData {
+  ok: boolean;
+  chain: string;
+  chainId: number | null;
+  blockNumber: number | null;
+  node: string | null;
+  artifactVersion: string | null;
+  deployedAt: string | null;
+  deployBlock: number | null;
+  operator: string | null;
+  contracts: MeshContractInfo[];
+  links: Array<{ name: string; role: string; address: string }>;
+  stats: {
+    runs: number;
+    completed: number;
+    agents: number;
+    solutions: number;
+    transfers: number;
+    totalSupply: string;
+    runMinted: string;
+    valueMoved: string;
+    totalGas: string;
+    avgScore: string;
+    bestScore: string;
+    scoredRuns: number;
+    links: number;
+    rails: number;
+  };
+  ledger: { symbol: string; fee: string; runReward: string };
+  error?: string;
+}
+
+export interface MeshFeedData {
+  ok: boolean;
+  runs: MeshRunView[];
+  transfers: MeshTransferView[];
+  agents: MeshAgentView[];
+  rails: MeshRailView[];
+  error?: string;
+}
+
+export interface MeshLedgerData {
+  ok: boolean;
+  agents: MeshAgentView[];
+  totals: { supply: string; runMinted: string; transfers: string; valueMoved: string; fee: string; symbol: string };
+  error?: string;
+}
+
+export interface MeshRunOutcome {
+  ok: boolean;
+  run: MeshRunView | null;
+  anchorsStamped: number;
+  error?: string;
+}

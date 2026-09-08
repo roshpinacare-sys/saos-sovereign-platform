@@ -115,8 +115,11 @@ export async function relayReadiness(chain: RelayChain): Promise<RelayReadiness>
     const derived = await deriveSovereignEvm(); // double self-verify inside
     let lastErr = "no endpoint answered";
     for (const endpoint of cfg.endpoints) {
+      // v15 fix: the provider MUST die on the error path too — otherwise its
+      // background retry loop spams "failed to detect network" forever.
+      let provider: ethers.JsonRpcProvider | null = null;
       try {
-        const provider = new ethers.JsonRpcProvider(endpoint, cfg.chainId, { batchMaxCount: 1 });
+        provider = new ethers.JsonRpcProvider(endpoint, cfg.chainId, { batchMaxCount: 1 });
         const [balanceWei, gasWei, block] = await Promise.all([
           provider.getBalance(derived.address, "latest"),
           provider.send("eth_gasPrice", []),
@@ -142,6 +145,7 @@ export async function relayReadiness(chain: RelayChain): Promise<RelayReadiness>
           at
         };
       } catch (e) {
+        provider?.destroy();
         lastErr = e instanceof Error ? e.message : "rpc error";
       }
     }
@@ -440,8 +444,9 @@ export async function verifyRelayOnChain(
   address: string
 ): Promise<ContractChainState> {
   const cfg = CHAINS[chain];
+  // v15 fix: destroy on the error path too (no zombie retry loops).
+  const provider = new ethers.JsonRpcProvider(cfg.endpoints[0], cfg.chainId, { batchMaxCount: 1 });
   try {
-    const provider = new ethers.JsonRpcProvider(cfg.endpoints[0], cfg.chainId, { batchMaxCount: 1 });
     const [code, block] = await Promise.all([
       provider.getCode(address),
       provider.getBlockNumber()
@@ -459,6 +464,7 @@ export async function verifyRelayOnChain(
       blockNumber: block
     };
   } catch (e) {
+    provider.destroy();
     return {
       chain,
       network: cfg.network,

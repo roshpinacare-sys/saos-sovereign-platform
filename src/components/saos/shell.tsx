@@ -1,20 +1,20 @@
 "use client";
 
 /**
- * SAOS v14 — מעטפת SOVEREIGN RELAY (COMMAND DECK + 8-CHAIN GRID + חוזה ריבוני).
+ * SAOS v15 — מעטפת CONTRACT MESH (COMMAND DECK + 8-CHAIN GRID + 7 חוזים משורשרים).
  * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 8-רשתות חי**
  * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · BSC · SOLANA) + ניווט-גלילה (מובייל)
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, Crosshair, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck, Users } from "lucide-react";
+import { Anchor, Crosshair, ExternalLink, GitBranch, Globe2, RadioTower, RefreshCcw, ShieldCheck, Users, Waypoints } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "networks" | "agents" | "seals" | "ops" | "fleet" | "proofs" | "energy" | "economy" | "research";
+export type ViewId = "overview" | "networks" | "agents" | "seals" | "ops" | "mesh" | "fleet" | "proofs" | "energy" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -64,6 +64,14 @@ export const VIEWS: ViewDef[] = [
     short: "מבצעים",
     desc: "רישום כספת, מעטפות שידור dry-run ויומן תפעול — מוכנות שלב 2",
     icon: <RadioTower size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "mesh",
+    label: "רשת החוזים",
+    short: "חוזים",
+    desc: "7 חוזים משורשרים על SAOS-EVM — חוזה מדבר לחוזה, ערך ופתרונות ללא עמלה",
+    icon: <Waypoints size={16} />,
     group: "תפעול"
   },
   {
@@ -147,7 +155,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Sovereign Relay · v14.0</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Contract Mesh · v15.0</p>
           </div>
         </div>
 
@@ -303,7 +311,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v14.0.0 — SOVEREIGN RELAY · 8-CHAIN LIVE GRID (BSC נפתח) + חוזה חכם ריבוני באיתריום mainnet בלי עמלה + צמדי DEX חיים + מעקב סוכנים
+              SAOS Sovereign Platform v15.0.0 — CONTRACT MESH · 7 חוזים משורשרים על SAOS-EVM (חוזה⇄חוזה, ללא עמלה, ערך·יעילות) + 8-CHAIN LIVE GRID + חוזה ריבוני באיתריום mainnet + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a

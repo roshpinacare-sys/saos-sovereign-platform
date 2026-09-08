@@ -438,3 +438,25 @@ Work Log:
 Stage Summary:
 - v14.0.0 SOVEREIGN RELAY חיה בריפו (d87cfb0) מעל ההיסטוריה המטוהרת של הביקורת — שני הצדדים כובדו: ה-Repo נקי מסודות (Kill Order), ה-runtime ריבוני ופעיל.
 - ממצא לבעלים (מהביקורת המקבילה + שלנו): הסיסמה בטקסט-גלוי בכל 3 העותקים בריפו steem — רוטציית מפתחות מומלצת בהקדם; גם PAT של anchor-baseline בהיסטוריה.
+
+---
+Task ID: 8
+Agent: Z.ai Code (מהנדס ראשי — Chief Engineer)
+Task: "פרוס את כל החוזים צריך שנוכל לתקשר בשרשרת דבר מוביל לדבר שמוביל לדבר חוזה שמדבר לחוזה שמדבר לחוזה.. פתרונות. ערך יעילות" — v15.0.0 CONTRACT MESH.
+
+Work Log:
+- קראתי את worklog (Task 1-7: v14 SOVEREIGN RELAY חי — חוזה mainnet + BSC + DEX + מעקב סוכנים). התקנתי foundry (anvil 1.8.1) לשרשרת-המעבדה; solc 0.8.36 + ethers 6 כבר ב-package.json.
+- כתבתי 7 חוזי Solidity (contracts/mesh/): SAOSMeshHub (dispatch/complete), SAOSMeshRelay (ממסר — pass() מקפיץ את ההודעה מחוזה לחוזה + אירועי Hop עם מדידת גז), SAOSIdentity (גיוס אוטומטי לכל יוזם), SAOSLedger (mint קטן 10 SAOS-M לריצה · FEE=0 קבוע-קומפילציה · transfer ללא-עמלה), SAOSSolutions (כל ריצה מתחייבת כפתרון keccak256), SAOSBridge (מטביע 8 מסילות חיות בכל ריצה + anchorExternalBulk), SAOSValueEngine (ניקוד (1000+250·hops)²/(gas/1000+1)).
+- scripts/compile-mesh.ts → generated/SAOSMesh.json (ארטיפקט קנוני מקובץ: 7 חוזים, 19.1KB bytecode, cancun/optimizer-200 — אותו EVM ל-ETH/BSC).
+- mini-services/evm-mesh (פורט 8545, bun --hot): מריץ anvil chainId 31337, פורס ומחווט את השרשרת (כל חץ = קריאה בין-חוזים), רושם 8 מסילות, מגייס את סוכני הצי האמיתיים (כתובות ציבוריות מ-/api/saos/fleet), מטביע עוגנים חיים, auto-runner כל 120ש' (ריצות אמיתיות + העברות ללא-עמלה בכל מחזור שלישי) + watchdog + artifact-watcher.
+- backend: lib/saos/mesh-client.ts (קריאות-שרשרת + פענוח לוגים ל-Feed עם עקבות גז פר-קפיצה) + 4 מסלולים: /api/saos/mesh · mesh/feed · mesh/run (POST) · mesh/ledger. ה-DTOs ב-types.ts המשותף.
+- frontend: views/mesh.tsx — מפת-שרשרת מונפשת (7 חוזים + אנימציית זרימה בעת ריצה), שיגור ריצות חי, פיד ריצות (hop-by-hop gas trail + anchors chips + txid), מזכיר ללא-עמלה, פתרונות מחויבים, פאנל פריסה עם העתקות + קישור etherscan ל-SAOSRelay ב-mainnet. shell/page/overview/README → v15.0.0 CONTRACT MESH.
+- באגי-קרב שנתפסו ותוקנו: (1) JsonRpcProvider קריאות-בלבד חייב Provider כ-runner (UNSUPPORTED_OPERATION); (2) BigInt("30.0") במיון המזכיר → מיון מספרי; (3) getSigner() הוא Promise — await חסר ב-auto-runner (×2); (4) timeout של fleet 6ש' < זמן-תגובה 9.2ש' → 25ש'; (5) זומבי-provider של v14: relay-contract.ts השמיד provider רק בנתיב-ההצלחה — לולאת-retry נצחית של "failed to detect network" (696 שורות ב-dev.log) → destroy גם ב-catch (×2), restart שרת; (6) גלישה אופקית ב-375px: פריטי grid עם min-width:auto נדחקו ל-576px ע"י digest-nowrap של HashLine → min-w-0 על שני הפאנלים → scrollWidth=375 מדויק.
+- אימות אנד-טו-אנד (agent-browser): ניווט ל"חוזים" · 6 פאנלים · **שביל-הזהב: הקלדת כוונה + לחיצה → ריצה #6 "בדיקת דפדפן: החוזים מדברים" נחתמה על השרשרת (gas 462,875)** · toast + פיד מתעדכן · 0 שגיאות-קונסולה/עמוד · מובייל 375px ללא גלישה · פוטר נדחק טבעית · lint נקי · dev.log הכל 200 בלי ספאם. צילומים: upload/v15-mesh-desktop.png, v15-mesh-mobile.png, v15-overview-desktop.png.
+
+Stage Summary:
+- המוצר: v15.0.0 CONTRACT MESH חיה — שבעה חוזים משורשרים על SAOS-EVM (anvil :8545, mini-service עצמאי): חוזה מדבר לחוזה שמדבר לחוזה בעסקה אחת, עם ערך פנימי ללא-עמלה (fee=0 בקומפילציה), mint קטן לכל ריצה, פתרון מחויב בכל ריצה, הטבעת 8 המסילות החיות וניקוד יעילות.
+- מצב-סיום (מדידה חיה): 10 ריצות · 18 סוכנים על השרשרת (mesh-operator + headcorner + 11 חיילים + 5 יוזמים-מתחלפים) · 100 SAOS-M במחזור · 10 פתרונות · 2 העברות ללא-עמלה · auto-runner ממשיך לרוץ כל 120ש'.
+- גבול-האמת נשמר: SAOS-EVM = שרשרת-מעבדה ריבונית (regenesis בהפעלה מחדש, הפריסה משוחזרת אוטומטית); אפס מפתחות פרטיים בשירות (eth_sendTransaction לחשבונות פתוחים); עוגני הריצות = מדידות חיות אמיתיות; החוזה הציבורי ב-mainnet (SAOSRelay 0xa52D…78E6) נשאר הקישור הריבוני החיצוני.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v15.0.0.
+- המשך: העברת ה-mesh ל-BSC/ETH עם מימון · חיבור runMesh→relayAnchorThroughContract (הרצה ב-mainnet אחרי אישור בעלים) · מתן "עבודה" לסוכנים על גבי הרשת (פתרונות מהחיילים) · מדדי צריכה.

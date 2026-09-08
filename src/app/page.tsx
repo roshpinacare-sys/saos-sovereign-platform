@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v14 — SOVEREIGN RELAY (BSC נפתח + חוזה חכם באיתריום).
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 10 עמודים. קיצורי-מקלדת Alt+1..0.
+ * SAOS Sovereign Platform v15 — CONTRACT MESH (7 חוזים משורשרים על SAOS-EVM).
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 11 עמודים. קיצורי-מקלדת Alt+1..9.
  */
 
 import { useEffect, useState } from "react";
@@ -15,6 +15,7 @@ import { ViewNetworks } from "@/components/saos/views/networks";
 import { ViewAgents } from "@/components/saos/views/agents";
 import { ViewSeals } from "@/components/saos/views/seals";
 import { ViewOps } from "@/components/saos/views/ops";
+import { ViewMesh } from "@/components/saos/views/mesh";
 import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
@@ -27,6 +28,7 @@ const TITLES: Record<ViewId, string> = {
   agents: "מעקב סוכנים",
   seals: "איטום ועגינה",
   ops: "מבצעי עגינה",
+  mesh: "רשת החוזים",
   fleet: "חימוש הצי",
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
@@ -65,6 +67,7 @@ export default function Home() {
         {view === "agents" && <ViewAgents />}
         {view === "seals" && <ViewSeals status={status} />}
         {view === "ops" && <ViewOps status={status} />}
+        {view === "mesh" && <ViewMesh />}
         {view === "fleet" && <ViewFleet />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}

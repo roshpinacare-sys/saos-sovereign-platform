@@ -265,8 +265,8 @@ export function ViewOverview({
       <Panel>
         <PanelHeader
           icon={<KeyRound size={15} />}
-          title="הממסר הריבוני — v14 בפועל"
-          sub="חוזה חכם אמיתי ב-ETHEREUM mainnet שמקשר את הרשת בלי עמלה · צמדי-DEX במחירי שוק אמיתיים · מעקב-סוכנים חי"
+          title="הממסר הריבוני — v15 בפועל"
+          sub="חוזה חכם ב-ETHEREUM mainnet בלי עמלה · 7 חוזים משורשרים על SAOS-EVM (CONTRACT MESH) · צמדי-DEX במחירי שוק · מעקב-סוכנים חי"
           actions={
             <Btn variant="ghost" size="xs" onClick={() => onNav("ops")}>
               למבצעי העגינה <ArrowLeft size={11} />
@@ -398,6 +398,12 @@ export function ViewOverview({
             ב-ETHEREUM mainnet (<span dir="ltr" className="font-mono">saos-relay/v1</span>, קוד בלתי-ניתן לשינוי,
             אפס עמלות פרוטוקול) — שורש חותם #10 עוגן דרכו והסוכנים מתגייסים אליו ב-2 עסקאות חיות. ETH/SOL
             ממשיכים להיות מעוגנים ישירות מהזרע.
+          </Callout>
+          <Callout tone="green" icon={<ShieldCheck size={14} className="text-emerald-300" />}>
+            <span className="font-bold">רשת החוזים — בוצע (v15):</span> שבעה חוזים משורשרים על SAOS-EVM (שרשרת-מעבדה
+            ריבונית): Hub → Relay → Identity → Ledger → Solutions → Bridge → ValueEngine — חוזה מדבר לחוזה
+            בכל קפיצה, ערך פנימי ללא עמלה (fee=0 לנצח), mint קטן לכל ריצה ומנוע ניקוד יעילות. 14 סוכני הצי
+            האמיתיים רשומים על השרשרת; הרשת מריצה ריצות אמיתיות כל 2 דקות. לחץ "חוזים" בתפריט.
           </Callout>
           <Callout tone="amber" icon={<Network size={14} className="text-amber-300" />}>
             <span className="font-bold">BSC נפתח — ממתין להקצאה:</span> המסילה השמינית חיה (בלוק · גז ·
