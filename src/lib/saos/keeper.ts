@@ -31,6 +31,7 @@ import { backupsStatus, type BackupsStatus } from "./backups";
 
 const KEEPER_URL = "http://127.0.0.1:3005/";
 const HERALD_URL = "http://127.0.0.1:3006/";
+const SWARM_URL = "http://127.0.0.1:3007/";
 const CACHE_TTL_MS = 30_000;
 
 export interface KeeperMember {
@@ -57,7 +58,7 @@ export interface KeeperStatus {
     degraded: boolean | null;
     error?: string;
   };
-  members: Record<"web" | "anvil" | "runner" | "keeper" | "herald", KeeperMember>;
+  members: Record<"web" | "anvil" | "runner" | "keeper" | "herald" | "swarm", KeeperMember>;
   memory: {
     totalMb: number | null;
     availableMb: number | null;
@@ -101,7 +102,8 @@ interface KeeperRaw {
     web?: { alive?: boolean; lastOkAt?: string | null; lastHttp?: number | null; degraded?: boolean; failStreak?: number; revives?: number; lastReviveAt?: string | null; recovering?: boolean };
     anvil?: { alive?: boolean; block?: number | null; lastOkAt?: string | null };
     runner?: { alive?: boolean; revives?: number; zombieRestarts?: number; block?: number | null };
-    herald?: { alive?: boolean; failStreak?: number; revives?: number; lastOkAt?: string | null; agent?: string; port?: number };
+    herald?: { alive?: boolean; failStreak?: number; revives?: number; lastOkAt?: string | null };
+    swarm?: { alive?: boolean; failStreak?: number; revives?: number; lastOkAt?: string | null };
   };
   memory?: { totalMb?: number; availableMb?: number; nextRssMb?: number; pressure?: boolean };
   pressureThresholdMb?: number;
@@ -120,6 +122,25 @@ interface HeraldRaw {
   agent?: { name?: string; role?: string; armedAt?: string | null; reArms?: number };
   presence?: { gateUp?: boolean; lastFeedAt?: string | null; gateLatencyMs?: number | null; polls?: number };
   stats?: { polls?: number; orders?: number; directives?: number; heartbeats?: number; authFails?: number; uptimeSec?: number };
+}
+
+/** v38 — the sovereign swarm host's OWN status (:3007, loopback, numbers
+ *  only): the two awakened chat agents + the LLM engine's honest counters. */
+interface SwarmAgentRaw {
+  name?: string;
+  hebrew?: string;
+  role?: string;
+  armed?: boolean;
+  presence?: { polls?: number; lastFeedAt?: string | null; gateLatencyMs?: number | null; authFails?: number };
+  work?: { cycles?: number; reports?: number; orders?: number; directives?: number; patrols?: number; alerts?: number; activeFlags?: string[] };
+}
+interface SwarmRaw {
+  ok?: boolean;
+  service?: string;
+  version?: string;
+  uptimeSec?: number;
+  agents?: SwarmAgentRaw[];
+  llm?: { ok?: number; fail?: number; lastOkAt?: string | null; lastLatencyMs?: number | null; lastMode?: string | null };
 }
 
 // ─── local /proc cross-check (facts only) ──────────────────────────────────
@@ -149,7 +170,7 @@ function procScan(): Array<{ pid: number; cmdline: string; cwd: string }> {
   return out;
 }
 
-export function localMemberScan(): { web: boolean; anvil: boolean; runner: boolean; keeper: boolean; herald: boolean; nextRssMb: number } {
+export function localMemberScan(): { web: boolean; anvil: boolean; runner: boolean; keeper: boolean; herald: boolean; swarm: boolean; nextRssMb: number } {
   const procs = procScan();
   return {
     web: procs.some((p) => p.cmdline.includes("next-server")),
@@ -157,6 +178,7 @@ export function localMemberScan(): { web: boolean; anvil: boolean; runner: boole
     runner: procs.some((p) => p.cmdline.includes("bun") && p.cmdline.includes("--hot") && p.cwd.includes("mini-services/evm-mesh")),
     keeper: procs.some((p) => p.cmdline.includes("bun") && p.cmdline.includes("--hot") && p.cwd.includes("mini-services/keeper")),
     herald: procs.some((p) => p.cmdline.includes("bun") && p.cmdline.includes("--hot") && p.cwd.includes("mini-services/gate-agent")),
+    swarm: procs.some((p) => p.cmdline.includes("bun") && p.cmdline.includes("--hot") && p.cwd.includes("mini-services/swarm-agents")),
     nextRssMb: (() => {
       const p = procs.find((x) => x.cmdline.includes("next-server"));
       if (!p) return 0;
@@ -193,6 +215,7 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
   const anvil = raw?.members?.anvil;
   const runner = raw?.members?.runner;
   const heraldKeeper = raw?.members?.herald;
+  const swarmKeeper = raw?.members?.swarm;
   const mem = raw?.memory;
 
   // v36 — the herald's OWN status (:3006, loopback, numbers only). Best-effort:
@@ -204,6 +227,15 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
     herald = (await res.json()) as HeraldRaw;
   } catch {
     herald = null;
+  }
+
+  // v38 — the swarm host's OWN status (:3007). Best-effort, same doctrine.
+  let swarm: SwarmRaw | null = null;
+  try {
+    const res = await trustedFetch(SWARM_URL, { timeoutMs: 3_000 });
+    swarm = (await res.json()) as SwarmRaw;
+  } catch {
+    swarm = null;
   }
 
   const status: KeeperStatus = {
@@ -274,6 +306,20 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
               ? "תהליך חי במקום (קריאת /proc) — השומר יחיה אותו אם ימות"
               : `לא עונה — השומר מחיה אותו (צעד 6 · revive #${heraldKeeper?.revives ?? 0})`,
         how: "השומר בודק את :3006 כל 30ש' · החייה אחרי 3 סירובים (detached) · עולה לבד בכל בנייה (/start.sh)"
+      },
+      swarm: {
+        alive: swarmKeeper?.alive ?? (swarm?.ok ? true : local.swarm ? true : null),
+        lastOkAt: swarmKeeper?.lastOkAt ?? swarm?.llm?.lastOkAt ?? null,
+        detail: swarm?.ok
+          ? `נחיל-הריבונים חי · ${(swarm.agents ?? [])
+              .map((ag) => `${ag.hebrew ?? ag.name ?? "?"} — ${ag.work?.reports ?? ag.work?.patrols ?? 0} ${ag.name === "gold-scout" ? "דו\"חות בינה" : "סיורים"}${ag.work?.orders ? ` · ${ag.work.orders} פקודות` : ""}`)
+              .join(" · ")} · מנוע בינה ZAI: ${swarm.llm?.ok ?? 0} הצלחות${swarm.llm?.lastLatencyMs != null ? ` · ${swarm.llm.lastLatencyMs}ms` : ""}`
+          : swarmKeeper?.alive
+            ? "עונה ב-:3007 לפי השומר — הסטטוס הפרטי עוד לא נקרא"
+            : local.swarm
+              ? "תהליך חי במקום (קריאת /proc) — השומר יחיה אותו אם ימות"
+              : `לא עונה — השומר מחיה אותו (צעד 7 · revive #${swarmKeeper?.revives ?? 0})`,
+        how: "השומר בודק את :3007 כל 30ש' · החייה אחרי 3 סירובים (detached) · עולה לבד בכל בנייה (/start.sh) · מנוע הבינה ב-backend בלבד"
       }
     },
     memory: {

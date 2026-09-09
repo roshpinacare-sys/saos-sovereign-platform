@@ -82,3 +82,4 @@ mini-services/evm-mesh/runner.log
 # v36 — the gate agent (first external agent) runtime state + revive log
 mini-services/gate-agent/state/
 mini-services/gate-agent/herald.log
+mini-services/*/state/

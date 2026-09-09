@@ -296,7 +296,11 @@ export function AgentChatView() {
       </div>
 
       <Callout tone="green" icon={<Bot size={15} />} className="mt-4">
-        <b>שליח-השער v36 — הסוכן החיצוני הראשון עבר בשער.</b> תהליך עצמאי (mini-services/gate-agent) שנרשם בעצמו דרך קונסולת הבעלים, קיבל מפתח פעם אחת (נחתם בכספת + בבית-השורד שלו) ומחובר אך ורק דרך ה-API. הוא מאזין להוראות שלך בצ'אט: <code className="font-mono" dir="ltr">@gate-herald דווח</code> · <code className="font-mono" dir="ltr">@gate-herald הזמן {"<משימה>"}</code> (פקודת-עבודה אמיתית — החייל מבצע ומשולם) · <code className="font-mono" dir="ltr">@gate-herald שלום</code>. נוכחות כל 45ש' · פעימת-אמת כל 30 דק' · קם לבד בכל בנייה · השומר מחייה אותו אם ימות (צעד 6) · אם זהותו תימחק בשחזור-DB — הוא יחמש מחדש לבד וימשיך.
+        <b>נחיל-הריבונים v38 — שלושה סוכנים עובדים יחד למען מטרה אחת: צמיחת הרשת הריבונית.</b>{" "}
+        שליח-השער (gate-herald) — האוזן בשער: נוכחות, פעימות והוראות בעלים (<code className="font-mono" dir="ltr">@gate-herald</code>).{" "}
+        סייר-הזהב (gold-scout) — הכלכלן: מדי שעה דו"ח בינה אמיתי על נתוני הרשת (מנוע ZAI, מספרים מהנתונים בלבד), וכשהכלכלה שקטה מעל 6 שעות — הוא מזמין פקודת-עבודה אמיתית: החייל מבצע ומשולם מהקופה (<code className="font-mono" dir="ltr">@gold-scout דווח</code> · <code className="font-mono" dir="ltr">@gold-scout נתח {"<נושא>"}</code>).{" "}
+        סייר-הלילה (night-scout) — המשמר: סיור איברים כל 10 דק' דרך סטטוס השומר, אזעקה על חריגה, הסרה בהחלמה, ופקודת-אבטחה בשרשרת באירוע קריטי (<code className="font-mono" dir="ltr">@night-scout סרוק</code>).{" "}
+        כולם מחוברים אך ורק דרך ה-API של השער עם מפתח אישי (0600, נחתם בכספת), השומר מחייה אותם (צעד 7 · :3007) והם קמים לבד בכל בנייה. אם מנוע הבינה לא עונה — דו"ח כנה מהנתונים, לעולם לא שקר.
       </Callout>
 
       <Callout tone="gold" icon={<ShieldCheck size={15} />} className="mt-2">

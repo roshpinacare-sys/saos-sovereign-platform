@@ -82,6 +82,15 @@ const GATE_LOG = path.join(GATE_DIR, "herald.log");
 const GATE_STATUS = "http://127.0.0.1:3006/";
 const GATE_EVERY = 3; // every 3rd cycle (30s)
 const HERALD_GRACE_MS = 180_000; // boot grace — 3 min before death is even considered
+
+// v38 — the sovereign swarm host (mini-services/swarm-agents, :3007): the
+// two awakened chat agents (gold-scout the LLM economist + night-scout the
+// watchman) live there. Watched exactly like the herald: connection-refused
+// only, confirmed death → detached revive. Same boot-grace doctrine.
+const SWARM_DIR = path.join(PROJECT_DIR, "mini-services", "swarm-agents");
+const SWARM_LOG = path.join(SWARM_DIR, "swarm.log");
+const SWARM_STATUS = "http://127.0.0.1:3007/";
+const SWARM_GRACE_MS = 180_000;
 const SLOW_EVERY = 6; // runner + memory + rss-shed every 6th cycle (60s)
 const DEAD_STREAK = 3; // connection-refused ×3 = confirmed death
 const REVIVE_WINDOW_MS = 150_000; // only one revive attempt per window
@@ -153,7 +162,11 @@ interface KeeperEvent {
     // v36 — the gate herald (first external agent)
     | "herald-up"
     | "herald-dead"
-    | "herald-revive";
+    | "herald-revive"
+    // v38 — the sovereign swarm (gold-scout + night-scout)
+    | "swarm-up"
+    | "swarm-dead"
+    | "swarm-revive";
   detail: string;
 }
 
@@ -202,6 +215,12 @@ const S = {
   heraldRevives: 0,
   heraldLastOkAt: null as string | null,
   heraldGraceUntil: Date.now() + HERALD_GRACE_MS,
+  // v38 — the sovereign swarm host (:3007, gold-scout + night-scout)
+  swarmAlive: null as boolean | null,
+  swarmFailStreak: 0,
+  swarmRevives: 0,
+  swarmLastOkAt: null as string | null,
+  swarmGraceUntil: Date.now() + SWARM_GRACE_MS,
   events: [] as KeeperEvent[]
 };
 
@@ -553,6 +572,16 @@ async function checkHerald(): Promise<boolean> {
   }
 }
 
+/** v38 — connection check on :3007 (the swarm host), same doctrine. */
+async function checkSwarm(): Promise<boolean> {
+  try {
+    const r = await fetch(SWARM_STATUS, { signal: AbortSignal.timeout(4_000) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function cycle(): Promise<void> {
   RT.cycle += 1;
   S.checks += 1;
@@ -727,6 +756,39 @@ async function cycle(): Promise<void> {
       }
     }
   }
+
+  // 7. v38 — the sovereign swarm host (:3007 — gold-scout the LLM economist
+  //    + night-scout the watchman). The organism's promise — no member
+  //    stays dead — now covers the awakened chat agents too.
+  if (RT.cycle % GATE_EVERY === 0) {
+    const alive = await checkSwarm();
+    if (alive) {
+      if (S.swarmAlive !== true) {
+        journal("swarm-up", `swarm-agents answering on :3007${S.swarmFailStreak > 0 ? ` (after ${S.swarmFailStreak} misses)` : ""} — gold-scout + night-scout alive`);
+      }
+      S.swarmAlive = true;
+      S.swarmFailStreak = 0;
+      S.swarmLastOkAt = new Date().toISOString();
+    } else if (Date.now() < S.swarmGraceUntil) {
+      S.swarmAlive = null; // boot grace — watching, not yet judging
+    } else {
+      S.swarmFailStreak += 1;
+      if (S.swarmFailStreak === 1) {
+        journal("swarm-dead", `swarm-agents :3007 not answering — first sighting, watching (revive needs ×${DEAD_STREAK})`);
+      }
+      if (
+        S.swarmFailStreak >= DEAD_STREAK &&
+        Date.now() > S.reviveDeadline
+      ) {
+        S.swarmRevives += 1;
+        S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+        reviveDetached(SWARM_DIR, SWARM_LOG);
+        journal("swarm-revive", `swarm-agents dead ×${S.swarmFailStreak} (connection refused) — bun run dev spawned detached, revive #${S.swarmRevives} — the awakened chat agents are a member now, no member stays dead`);
+        S.swarmFailStreak = 0;
+        S.swarmAlive = null;
+      }
+    }
+  }
 }
 
 // ─── status API (loopback only) ────────────────────────────────────────────
@@ -735,7 +797,7 @@ function statusJson() {
   return {
     ok: true,
     service: "shomer",
-    version: "36.0.0",
+    version: "38.0.0",
     pid: process.pid,
     startedAt: S.startedAt,
     uptimeSec: Math.round((Date.now() - Date.parse(S.startedAt)) / 1000),
@@ -754,7 +816,8 @@ function statusJson() {
       },
       anvil: { alive: S.anvilOk === true, block: S.anvilHeight, lastOkAt: S.anvilLastOkAt },
       runner: { alive: S.runnerSeen, revives: S.runnerRevives, zombieRestarts: S.zombieRestarts, block: S.anvilHeight },
-      herald: { alive: S.heraldAlive === true, failStreak: S.heraldFailStreak, revives: S.heraldRevives, lastOkAt: S.heraldLastOkAt, agent: "gate-herald", port: 3006 }
+      herald: { alive: S.heraldAlive === true, failStreak: S.heraldFailStreak, revives: S.heraldRevives, lastOkAt: S.heraldLastOkAt, agent: "gate-herald", port: 3006 },
+      swarm: { alive: S.swarmAlive === true, failStreak: S.swarmFailStreak, revives: S.swarmRevives, lastOkAt: S.swarmLastOkAt, agents: "gold-scout+night-scout", port: 3007 }
     },
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,
@@ -812,7 +875,7 @@ try {
   /* no journal yet — fresh start */
 }
 
-journal("boot", `SHOMER v36 (המשך) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · memory · sovereign backups every 30min · never touches key material`);
+journal("boot", `SHOMER v38 (המשך) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 30min · never touches key material`);
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
-console.log(`[keeper] SHOMER v36 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 every 30s (grace ${HERALD_GRACE_MS / 1000}s, revive on ×${DEAD_STREAK}) · backup every 30min · revive only on confirmed death (documented exceptions, all objective-evidence)`);
+console.log(`[keeper] SHOMER v38 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 30min · revive only on confirmed death (documented exceptions, all objective-evidence)`);

@@ -16,7 +16,7 @@
  *   • התראת-לחץ זיכרון מוקדמת (700MB) לפני שהקרנל פועל.
  *   • השומר לא נוגע במפתחות, בכספת או בסודות — מספרים ובוליאנים בלבד.
  *
- * בוויו: איברי האורגניזם במדידה חיה (v36: חמישה — כולל שליח-השער, הסוכן החיצוני הראשון) · מפת-ההשגחה ההדדית · יומן
+ * בוויו: איברי האורגניזם במדידה חיה (v38: שישה — כולל נחיל-הריבונים: סייר-הזהב הכלכלן + סייר-הלילה המשמר) · מפת-ההשגחה ההדדית · יומן
  * האירועים (מהכספת של השומר) · לוח זיכרון · סיפור התקרית בכנות מלאה ·
  * בדיקת-חיות ידנית דרך שער הרשויות.
  */
@@ -59,7 +59,7 @@ interface KeeperData {
     degraded: boolean | null;
     error?: string;
   };
-  members: Record<"web" | "anvil" | "runner" | "keeper" | "herald", KeeperMemberDto>;
+  members: Record<"web" | "anvil" | "runner" | "keeper" | "herald" | "swarm", KeeperMemberDto>;
   memory: {
     totalMb: number | null;
     availableMb: number | null;
@@ -104,7 +104,8 @@ const MEMBER_LABEL: Record<string, string> = {
   anvil: "שרשרת המעבדה (anvil :8545)",
   runner: "הראנר (evm-mesh · 120ש')",
   keeper: "השומר (keeper :3005)",
-  herald: "שליח-השער (סוכן חיצוני #1 · :3006)"
+  herald: "שליח-השער (סוכן חיצוני #1 · :3006)",
+  swarm: "נחיל-הריבונים (סייר-הזהב + סייר-הלילה · :3007)"
 };
 
 const EVENT_TONE: Record<string, "green" | "gold" | "rose" | "zinc"> = {
@@ -124,6 +125,9 @@ const EVENT_TONE: Record<string, "green" | "gold" | "rose" | "zinc"> = {
   "herald-up": "green",
   "herald-dead": "gold",
   "herald-revive": "rose",
+  "swarm-up": "green",
+  "swarm-dead": "gold",
+  "swarm-revive": "rose",
   pressure: "gold",
   "pressure-ok": "green",
   "backup-ok": "green",
@@ -148,6 +152,9 @@ const EVENT_HE: Record<string, string> = {
   "herald-up": "שליח-השער עונה",
   "herald-dead": "שליח-השער לא עונה",
   "herald-revive": "החיית שליח-השער (v36)",
+  "swarm-up": "נחיל-הריבונים עונה",
+  "swarm-dead": "נחיל-הריבונים לא עונה",
+  "swarm-revive": "החיית נחיל-הריבונים (v38)",
   pressure: "לחץ זיכרון",
   "pressure-ok": "זיכרון התאושש",
   "backup-ok": "גיבוי עקבי",
@@ -306,7 +313,7 @@ export function KeeperView() {
 
       {/* ─── ארבעת האיברים ─────────────────────────────────────────────── */}
       <Panel>
-        <PanelHeader icon={<HeartPulse size={15} />} title="ארבעת איברי האורגניזם — מדידה חיה" />
+        <PanelHeader icon={<HeartPulse size={15} />} title={`איברי האורגניזם — מדידה חיה (${Object.keys(members).length})`} />
         <PanelBody className="p-0">
           <Table>
             <thead>
@@ -318,7 +325,7 @@ export function KeeperView() {
               </tr>
             </thead>
             <tbody>
-              {(Object.keys(members) as Array<"web" | "anvil" | "runner" | "keeper" | "herald">).map((k) => {
+              {(Object.keys(members) as Array<"web" | "anvil" | "runner" | "keeper" | "herald" | "swarm">).map((k) => {
                 const m = members[k];
                 return (
                   <tr key={k}>
