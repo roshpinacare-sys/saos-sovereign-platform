@@ -25,7 +25,10 @@ export async function GET(req: Request) {
       const asset = quoteAsset.trim().toUpperCase();
       const dir = url.searchParams.get("dir") === "sell" ? "sell" : "buy";
       const amount = Number(url.searchParams.get("amount") ?? "0");
-      const okAsset = asset === "WTRX" || asset === "WSOL" || asset === "WETH";
+      // v29 חיבור — המז'ורים שנמצאו מצטרפים לרשימת השער (majors בלבד, תמיד)
+      const okAsset =
+        asset === "WTRX" || asset === "WSOL" || asset === "WETH" ||
+        asset === "WBNB" || asset === "WRXP";
       const quote = okAsset
         ? await exchangeQuote(asset as ExchangeAssetSymbol, dir, amount)
         : {
@@ -34,7 +37,7 @@ export async function GET(req: Request) {
             amountOut: "0",
             effectivePrice: "0",
             devPct: 0,
-            error: "נכס שער חייב להיות WTRX | WSOL | WETH (רק מול הגדולים)"
+            error: "נכס שער חייב להיות WTRX | WSOL | WETH | WBNB | WRXP (רק מול הגדולים)"
           };
       return NextResponse.json({ ...status, quote });
     }

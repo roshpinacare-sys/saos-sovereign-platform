@@ -82,6 +82,8 @@ interface ExTrader {
   wtrx: string;
   wsol: string;
   weth: string;
+  wbnb: string;
+  wrxp: string;
 }
 
 interface ExSwapRow {
@@ -202,13 +204,15 @@ interface FlowData {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const ASSETS = ["WTRX", "WSOL", "WETH"] as const;
+const ASSETS = ["WTRX", "WSOL", "WETH", "WBNB", "WRXP"] as const;
 type AssetId = (typeof ASSETS)[number];
 
 const ASSET_LABEL: Record<AssetId, string> = {
   WTRX: "WTRX · TRON",
   WSOL: "WSOL · Solana",
-  WETH: "WETH · Ethereum"
+  WETH: "WETH · Ethereum",
+  WBNB: "WBNB · BSC (שנמצא v29)",
+  WRXP: "WRXP · XRP (שנמצא v29)"
 };
 
 const usd = (n: number | null | undefined): string => {
@@ -987,6 +991,8 @@ export function ExchangeView() {
                   <Th>WTRX</Th>
                   <Th>WSOL</Th>
                   <Th>WETH</Th>
+                  <Th>WBNB</Th>
+                  <Th>WRXP</Th>
                   <Th>כתובת</Th>
                 </tr>
               </thead>
@@ -1012,6 +1018,16 @@ export function ExchangeView() {
                     <Td>
                       <span dir="ltr" className="font-mono text-[11px]">
                         {cnum(num(tr.weth))}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span dir="ltr" className="font-mono text-[11px]">
+                        {cnum(num(tr.wbnb))}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span dir="ltr" className="font-mono text-[11px]">
+                        {cnum(num(tr.wrxp))}
                       </span>
                     </Td>
                     <Td>
@@ -1440,7 +1456,9 @@ export function ExchangeView() {
                   {[
                     "TRX 17.6 → הימור/רוחב-פס לפעולות TRON",
                     "SOL 0.024 → השכרת חשבון + העברות אבק",
-                    "ETH 0.000095 → מתח לעלות עסקה אחת (כנה)",
+                    "ETH 0.000357 (צי + האבק שנמצא) → מתח לעלות עסקה אחת — מגובה ב-WETH",
+                    "BNB 0.0000115 (שנמצא) → מתח ליחידת-גז — מגובה ב-WBNB (בריכה #3)",
+                    "XRP 1.299961 (שנמצא) → מעל רזרבה 1.0: 0.3 בר-שליחה — מגובה ב-WRXP (בריכה #4)",
                     "STEEM 534 SP (~$244) → הנכס הגדול; powerdown = 13 תשלומים שבועיים נזילים",
                     "HIVE → RC לעגינות",
                     "הזרמה חיצונית אמיתית — רק דרך שער-הרשות"
@@ -1488,6 +1506,111 @@ export function ExchangeView() {
               </div>
             </div>
           </div>
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v29: הכסף שנמצא וחובר ───────────────────────────────────────── */}
+      <Panel accent>
+        <PanelHeader
+          icon={<Coins size={15} />}
+          title="הכסף שנמצא וחובר — ETH אבק · BNB · XRP"
+          sub="הוראת הבעלים: ״תמצא את זה ותחבר את זה למערכת שלא ישאר בארנק״ — אותר בזרע אבן-הפינה (Coinomi), נמדד חי, ומחובר לבורסה בלי להוציא יחידה אחת מהארנק"
+          actions={
+            <Pill tone="gold">
+              {(() => {
+                const weth = d.assets.find((a) => a.symbol === "WETH");
+                const wbnb = d.assets.find((a) => a.symbol === "WBNB");
+                const wrxp = d.assets.find((a) => a.symbol === "WRXP");
+                const total = (weth?.realUsd ?? 0) + (wbnb?.realUsd ?? 0) + (wrxp?.realUsd ?? 0);
+                return total > 0 ? `שווי נמדד ${usd(total)}` : "מחכה למדידה";
+              })()}
+            </Pill>
+          }
+        />
+        <PanelBody className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 min-w-0">
+            {[
+              {
+                sym: "ETH",
+                wrap: "WETH",
+                title: "אבק ETH (מייננט)",
+                addr: "0x97Ad0C1b9Dc3269bC4848b5a2884e6cADc86dF18",
+                addrShort: "0x97Ad…c86dF18",
+                blocker: "מתחת לעלות-הגז של העברה אחת במייננט — הוצאה פיזית תעלה על השווי (אמת של הרשת)",
+                connect: "סנכרון-גיבוי v29: +0.00026175 ETH מדוד → הוטבע להון-יוצר-השוק של האוצר. אספקת WETH עוקבת מעכשיו אחרי האוצר האמיתי הנמדד"
+              },
+              {
+                sym: "BNB",
+                wrap: "WBNB",
+                title: "BNB (אותה כתובת, BSC)",
+                addr: "0x97Ad0C1b9Dc3269bC4848b5a2884e6cADc86dF18",
+                addrShort: "0x97Ad…c86dF18",
+                blocker: "מתחת ליחידת-גז BSC אחת (~0.00021 BNB לעסקה) — העברה פיזית בלתי-אפשרית",
+                connect: "WBNB נרשם 1:1 מול המדידה + בריכה #3 נזרעה במחיר-המדיניות — החיילים סוחרים בה, העמלות נקצרות לקופת-העבודה והבריכה גדלה מעצמה"
+              },
+              {
+                sym: "XRP",
+                wrap: "WRXP",
+                title: "XRP (XRPL livenet)",
+                addr: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh",
+                addrShort: "r3Tq66…7wGKwh",
+                blocker: "חשבון פעיל עם היסטוריה · 0.299961 XRP בר-שליחה מעל רזרבת-בסיס 1.0 — אין חשבון XRPL ריבוני שני לקבל (פתיחה דורשת 1.0)",
+                connect: "WRXP נרשם 1:1 מול המדידה + בריכה #4 נזרעה — 1,467 wSAOS נזילות חיה מול ה-XRP האמיתי. הרזרבה עצמה = הפיקדון שלנו ב-XRPL"
+              }
+            ].map((c) => {
+              const asset = d.assets.find((a) => a.symbol === c.wrap);
+              const pool = d.pools.find((p) => p.assetSymbol === c.wrap);
+              return (
+                <div key={c.sym} className="rounded-lg border border-white/[0.07] bg-white/[0.01] px-3 py-3 space-y-2 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-semibold text-zinc-200">{c.title}</p>
+                    <Tag tone={asset?.realUnits ? "green" : "zinc"}>{c.wrap}</Tag>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span dir="ltr" className="font-mono text-lg font-semibold text-amber-300/90">
+                      {asset?.realUnits != null ? fmt(Number(asset.realUnits)) : "—"}
+                    </span>
+                    <span dir="ltr" className="font-mono text-[11px] text-zinc-500">
+                      {c.sym} {asset?.realUsd != null ? `≈ ${usd(asset.realUsd)}` : ""}
+                    </span>
+                  </div>
+                  <HashLine label="כתובת" value={c.addr} />
+                  {pool && (
+                    <div className="rounded-md border border-white/[0.05] bg-black/20 px-2.5 py-1.5 space-y-1">
+                      <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                        <span className="text-zinc-500">בריכה {pool.pair}</span>
+                        <span dir="ltr" className="font-mono text-zinc-400">
+                          {fmt(Number(pool.rAsset))} {c.wrap} · {fmt(Number(pool.rSaos))} wSAOS
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                        <span className="text-zinc-500">עסקאות בבריכה</span>
+                        <span dir="ltr" className="font-mono text-zinc-400">
+                          {fmtInt(pool.swaps)} · TVL {usd(pool.tvlUsd ?? 0)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-[10.5px] leading-relaxed text-rose-300/70">
+                    <span className="font-semibold">החסם (אמת הרשת): </span>
+                    {c.blocker}
+                  </p>
+                  <p className="text-[10.5px] leading-relaxed text-emerald-300/75">
+                    <span className="font-semibold">החיבור הריבוני: </span>
+                    {c.connect}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          <Callout tone="gold" icon={<Coins size={15} />}>
+            <p className="text-[11.5px] leading-relaxed">
+              הכסף לא זז מהארנק — הוא <span className="font-semibold">מועסק</span>: כל יחידה נמדדת חיה במכ״ם (כל 45ש׳),
+              מגובה 1:1 בעטיפות-תביעה על הבורסה שלנו, והבריכות שנזרעו ממנו מייצרות פעילות אמיתית —
+              חיילים סוחרים, עמלות נקצרות החוצה לקופת-העבודה (REAL WORK) והנזילות גדלה אוטונומית.
+              ״צומחים מלמטה״ — בדיוק כהוראת הבעלים.
+            </p>
+          </Callout>
         </PanelBody>
       </Panel>
 
@@ -1581,7 +1704,7 @@ export function ExchangeView() {
             </Callout>
             <Callout tone="gold" icon={<ShieldAlert size={14} />}>
               <strong>רק מול הגדולים</strong> — אין צמדים של מטבעות קטנים/חסרי-ערך:
-              WTRX · WSOL · WETH בלבד — שומר-הזוגות של מגן v24 (רישום-טוקנים
+              WTRX · WSOL · WETH · WBNB · WRXP בלבד — שומר-הזוגות של מגן v24 (רישום-טוקנים
               fail-closed) חל גם כאן.
             </Callout>
             <Callout tone="gold" icon={<Coins size={14} />}>

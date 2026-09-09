@@ -96,7 +96,7 @@ async function priceOracle(): Promise<Record<string, { usd: number | null; sourc
   const out: Record<string, { usd: number | null; source: string }> = {};
 
   // Binance public ticker — one call for the liquid majors
-  const symbols = ["TRXUSDT", "SOLUSDT", "HIVEUSDT", "STEEMUSDT", "ETHUSDT", "BNBUSDT"];
+  const symbols = ["TRXUSDT", "SOLUSDT", "HIVEUSDT", "STEEMUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT"];
   const bn = await fetchJson<Array<{ symbol: string; price: string }>>(
     `https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(JSON.stringify(symbols))}`
   );
@@ -111,6 +111,7 @@ async function priceOracle(): Promise<Record<string, { usd: number | null; sourc
   out.STEEM = fromBinance("STEEMUSDT");
   out.ETH = fromBinance("ETHUSDT");
   out.BNB = fromBinance("BNBUSDT");
+  out.XRP = fromBinance("XRPUSDT");
 
   // CoinGecko — the only public spot for BLURT (rate-limited: honest null)
   const cg = await fetchJson<{ blurt?: { usd?: number } }>(
@@ -228,6 +229,7 @@ assertTrustedEndpoints(
     "https://bsc-rpc.publicnode.com",
     "https://api.mainnet-beta.solana.com",
     "https://api.trongrid.io",
+    "https://xrplcluster.com/",
     WALLET_REGISTRY_URL
   ],
   "liquidity-radar"
@@ -254,6 +256,56 @@ async function solBalance(addr: string): Promise<number | null> {
     return lamports / 1e9;
   } catch {
     return null;
+  }
+}
+
+// ─── v29 חיבור: XRPL (XRP Ledger) — הכסף שנמצא ──────────────────────────
+// הבעלים: "יש שם קצת xrp" — מסילת-מדידה חיה לשרשרת XRP עצמה.
+// קלאסטר ציבורי על 443 (שרתי ripple עצמם על 51234 — שער-הפישינג חוסם
+// פורטים לא-סטנדרטיים בכוונה; xrplcluster.com = קלאסטר XRPL Labs מוכר).
+
+const XRPL_RPC = "https://xrplcluster.com/";
+
+interface XrpAccount {
+  balance: number | null;
+  reserve: number | null; // רזרבת-בסיס XRPL ב-XRP (נמדדת מ-server_state)
+  spendable: number | null; // balance - reserve (לפני דמי עסקה)
+}
+
+async function xrpAccountInfo(addr: string): Promise<XrpAccount> {
+  const empty: XrpAccount = { balance: null, reserve: null, spendable: null };
+  try {
+    const [acct, state] = await Promise.all([
+      fetchJson<{ result?: { status?: string; account_data?: { Balance?: string }; error?: string } }>(
+        XRPL_RPC,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ method: "account_info", params: [{ account: addr, ledger_index: "validated" }] })
+        },
+        12000
+      ),
+      fetchJson<{ result?: { state?: { validated_ledger?: { reserve_base_xrp?: number } } } }>(
+        XRPL_RPC,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ method: "server_state" })
+        },
+        12000
+      )
+    ]);
+    const reserve = state?.result?.state?.validated_ledger?.reserve_base_xrp ?? null;
+    if (acct?.result?.status === "success" && acct.result.account_data?.Balance) {
+      const bal = Number(acct.result.account_data.Balance) / 1e6;
+      return { balance: bal, reserve, spendable: reserve != null ? bal - reserve : null };
+    }
+    if (acct?.result?.error === "actNotFound") {
+      return { balance: 0, reserve, spendable: 0 };
+    }
+    return empty;
+  } catch {
+    return empty;
   }
 }
 
@@ -430,6 +482,19 @@ async function labFunds(): Promise<{
 let cache: { at: number; value: LiquidityRadar } | null = null;
 let inflight: Promise<LiquidityRadar> | null = null;
 
+// ─── v29 חיבור: הכסף שנמצא בארנק אבן-הפינה (Coinomi, הזרע ה-24-מילים) ───
+// הבעלים: "יש כתובת איתריום שם עם קצת אבק ויש עליה גם קצת bnb ויש שם קצת xrp —
+//          תמצא את זה ותחבר את זה למערכת שלא ישאר בארנק".
+// אותר בגילוי v29 (state/local, לא בריפו): Coinomi נוגזרת במסלול הישן
+// m/44'/60'/0'/0 (4 רמות) ל-EVM ו-m/44'/144'/0'/0/0 ל-XRP. הכתובות בלבד —
+// הזרע חתום בכספת אבן-הפינה (v22) ואינו מודפס לעולם. אומתו חיות במדידה:
+// ETH 0.000265 + BNB 0.0000115 + XRP 1.299961 (בדוק מול השרשרות עצמן).
+const CORNERSTONE_FOUND = {
+  evm: "0x97Ad0C1b9Dc3269bC4848b5a2884e6cADc86dF18", // m/44'/60'/0'/0 — ETH mainnet + BSC
+  xrp: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh" // m/44'/144'/0'/0/0 — XRPL livenet
+} as const;
+const CORNERSTONE_EVM_LABEL = "ארנק אבן-הפינה Coinomi (m/44'/60'/0'/0) — הכסף שנמצא v29";
+
 async function measure(): Promise<LiquidityRadar> {
   const measuredAt = new Date().toISOString();
   const [prices, registry, evidence, lab, hive, steem, blurt] = await Promise.all([
@@ -546,6 +611,75 @@ async function measure(): Promise<LiquidityRadar> {
       status: sol === null ? "degraded" : "awaiting-keys",
       note: "הכתובת שוחזרה מהרישום הציבורי; מפתח בכספת שנשרפה",
       explorer: `https://explorer.solana.com/address/${headcorner.sol}`
+    });
+  }
+
+  // v29 חיבור — הכסף שנמצא בארנק אבן-הפינה (Coinomi). שלוש השורות שהבעלים
+  // ביקש לחבר: אבק ETH + BNB (אותה כתובת EVM, שתי רשתות) + XRP (XRPL).
+  // המפתח חתום בכספת אבן-הפינה (v22) — החשבון "live" (יכול לחתום), אבל
+  // הפעלה חיצונה = שער הרשות בלבד. החיבור הריבוני: גיבוי חי לבורסה (WRXP/WBNB).
+  {
+    const [foundEth, foundBnb] = await Promise.all([
+      evmBalance(CORNERSTONE_FOUND.evm, "ethereum"),
+      evmBalance(CORNERSTONE_FOUND.evm, "bsc")
+    ]);
+    assets.push({
+      id: "evm-headcorner-found-ethereum",
+      domain: "ETHEREUM",
+      symbol: "ETH",
+      holder: "headcorner",
+      label: `${CORNERSTONE_EVM_LABEL} — אבק ETH`,
+      address: CORNERSTONE_FOUND.evm,
+      balance: (foundEth ?? 0).toFixed(9),
+      balanceNum: foundEth ?? 0,
+      usd: mkUsd("ETH", foundEth ?? 0),
+      priceUsd: prices.ETH?.usd ?? null,
+      priceSource: prices.ETH?.source ?? "—",
+      status: foundEth === null ? "degraded" : "live",
+      note:
+        foundEth !== null && foundEth > 0
+          ? "מפתח בכספת אבן-הפינה — יכול לחתום · מתחת לעלות גז במייננט → ההפעלה הריבונית: גיבוי-עודף ל-WETH בבורסה (סנכרון v29)"
+          : "0 במדידה חיה — אבק שהוצא/לא הגיע",
+      explorer: `${EVM_NETS.ethereum.explorer}${CORNERSTONE_FOUND.evm}`
+    });
+    assets.push({
+      id: "evm-headcorner-found-bsc",
+      domain: "BSC",
+      symbol: "BNB",
+      holder: "headcorner",
+      label: `${CORNERSTONE_EVM_LABEL} — BNB (אותה כתובת, BSC)`,
+      address: CORNERSTONE_FOUND.evm,
+      balance: (foundBnb ?? 0).toFixed(12),
+      balanceNum: foundBnb ?? 0,
+      usd: mkUsd("BNB", foundBnb ?? 0),
+      priceUsd: prices.BNB?.usd ?? null,
+      priceSource: prices.BNB?.source ?? "—",
+      status: foundBnb === null ? "degraded" : "live",
+      note:
+        foundBnb !== null && foundBnb > 0
+          ? "מפתח בכספת אבן-הפינה · מתחת ליחידת-גז BSC אחת → ההפעלה הריבונית: עטיפת-תביעה WBNB בבורסה (1:1 מול המדידה)"
+          : "0 במדידה חיה",
+      explorer: `${EVM_NETS.bsc.explorer}${CORNERSTONE_FOUND.evm}`
+    });
+    const xrp = await xrpAccountInfo(CORNERSTONE_FOUND.xrp);
+    assets.push({
+      id: "xrp-headcorner-found",
+      domain: "XRPL",
+      symbol: "XRP",
+      holder: "headcorner",
+      label: "ארנק אבן-הפינה Coinomi (m/44'/144') — ה-XRP שנמצא v29",
+      address: CORNERSTONE_FOUND.xrp,
+      balance: (xrp.balance ?? 0).toFixed(6),
+      balanceNum: xrp.balance ?? 0,
+      usd: mkUsd("XRP", xrp.balance ?? 0),
+      priceUsd: prices.XRP?.usd ?? null,
+      priceSource: prices.XRP?.source ?? "—",
+      status: xrp.balance === null ? "degraded" : "live",
+      note:
+        xrp.balance !== null && xrp.balance > 0
+          ? `חשבון פעיל בעל היסטוריה · מפתח בכספת אבן-הפינה · בר-שליחה ${(xrp.spendable ?? 0).toFixed(4)} XRP (מעל רזרבת-בסיס ${xrp.reserve ?? "—"}) → ההפעלה הריבונית: עטיפת-תביעה WRXP בבורסה`
+          : "0 במדידה חיה",
+      explorer: `https://livenet.xrpl.org/accounts/${CORNERSTONE_FOUND.xrp}`
     });
   }
 

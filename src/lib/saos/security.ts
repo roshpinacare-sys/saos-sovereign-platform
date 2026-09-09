@@ -68,6 +68,7 @@ export const TRUSTED_HOSTS: TrustedHost[] = [
   { host: "api.hive.blog", org: "HIVE (רשמי)", tier: "official", role: "יתרות RC" },
   { host: "rpc.blurt.world", org: "BLURT (רשמי)", tier: "official", role: "יתרות BLURT" },
   { host: "rpc.blurt.live", org: "BLURT (רשמי)", tier: "official", role: "יתרות BLURT (רוטציה)" },
+  { host: "xrplcluster.com", org: "XRPL Labs · קלאסטר ציבורי XRPL", tier: "official", role: "יתרות XRP / רזרבה / היסטוריה (443)" },
   { host: "127.0.0.1", org: "מעבדה מקומית", tier: "official", role: "anvil :8545 · שרת :3000 (פנימי)" },
   // — תשתית ציבורית-גדולה וידועה —
   { host: "ethereum-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC ETH (רוטציה)" },
@@ -101,7 +102,8 @@ export const DISPLAY_HOSTS: string[] = [
   "hiveblocks.com",
   "hiveblockexplorer.com",
   "blurt.blog",
-  "github.com"
+  "github.com",
+  "livenet.xrpl.org"
 ];
 const DISPLAY_SET = new Set(DISPLAY_HOSTS);
 

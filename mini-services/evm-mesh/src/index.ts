@@ -38,7 +38,8 @@ import {
   fetchJson,
   MESH_RPC,
   MESH_CHAIN_ID,
-  STATE_PATH
+  STATE_PATH,
+  SAOS_M_USD_POLICY
 } from "./deploy";
 
 const ARTIFACT_PATH = path.resolve(import.meta.dir, "..", "..", "..", "src", "lib", "saos", "generated", "SAOSMesh.json");
@@ -515,6 +516,116 @@ async function autoCycle(): Promise<void> {
  *   ו. "לסדר את הבריכות": כל 6 הזוגות הידועים יהיו גרידים חיים + מימון
  *      קרן-הרווח של המיקרו-גריד (50 SAOS-M כשירדה מתחת ל-10).
  */
+/**
+ * 4.10 v29 — FOUND-MONEY CONNECT (חיבור): הכסף שהבעלים מצא בארנק אבן-הפינה
+ * (אבק ETH + BNB על אותה כתובת Coinomi + XRP ב-XRPL) מחובר לבורסה החיה —
+ * בלי ריג'נסיס, בלי להוציא אף יחידה אמיתית מהארנק:
+ *   א. רישום WBNB + WRXP על הבורסה הקיימת (registerAsset — owner-only).
+ *   ב. הטבעת אספקת-גיבוי 1:1 מול מדידת-מכ"ם חיה + זריעת בריכות WBNB/wSAOS
+ *      ו-WRXP/wSAOS במחיר-המדיניות ($0.001): 80% לבריכה, 20% הון-יוצר-שוק.
+ *   ג. סנכרון-גיבוי WETH: האספקה עוקבת אחרי האוצר האמיתי הנמדד — דלתא
+ *      חיובית → mint להון-יוצר-השוק של האוצר; שלילית → burn best-effort.
+ * אידמפוטנטי לחלוטין: DupAsset נחסם בשרשרת, בריכה קיימת לא נזרעת שוב,
+ * דלתא 0 = אין פעולה. הריאליזציה: הנכסים האמיתיים נשארים בארנק (מתחת
+ * לעלות-גז / רזרבת XRPL) — ההפעלה הריבונית היא עטיפת-התביעה החיה.
+ */
+async function foundMoneyConnect(
+  provider: ethers.JsonRpcProvider,
+  exchange: ethers.Contract,
+  treasuryAddr: string
+): Promise<void> {
+  try {
+    const hq = (await provider.getSigner(0)) as ethers.Signer;
+    const hqAddr = await hq.getAddress();
+    const xc = exchange.connect(hq) as typeof exchange;
+
+    // א. מדידה חיה מהמכ"ם (flow) — שורות headcorner לפי הכתובות שנמצאו
+    let realBnb = 0, realXrp = 0, realEth = 0, xrpUsd = 0, bnbUsd = 0;
+    try {
+      const flow = await fetchJson("http://127.0.0.1:3000/api/saos/flow", 25000);
+      const rows = (((flow?.radar as { assets?: unknown[] } | undefined)?.assets) ?? []) as Array<{
+        symbol?: string; holder?: string; address?: string;
+        balanceNum?: number; priceUsd?: number | null;
+      }>;
+      for (const r of rows) {
+        if (r.holder !== "headcorner" || typeof r.address !== "string") continue;
+        const units = typeof r.balanceNum === "number" ? r.balanceNum : 0;
+        const usd = typeof r.priceUsd === "number" ? r.priceUsd : 0;
+        if (r.symbol === "BNB" && r.address.toLowerCase().startsWith("0x97ad")) { realBnb = units; bnbUsd = usd; }
+        if (r.symbol === "XRP" && r.address.startsWith("r3Tq66")) { realXrp = units; xrpUsd = usd; }
+        if (r.symbol === "ETH" && r.address.toLowerCase().startsWith("0x")) realEth += units; // 0x2767 (צי) + 0x97Ad (אבן-הפינה)
+      }
+    } catch {
+      return; // אין מכ"ם — דילוג כנה, המחזור הבא ינסה
+    }
+
+    // ב. נכסים חדשים — WBNB + WRXP (רק אם יש מדידה > 0; הרישום חד-פעמי)
+    const wsaosId = Number(await xc.assetIdOf("WSAOS"));
+    const specs = [
+      { symbol: "WBNB", units: realBnb, usd: bnbUsd, note: "BNB עטוף — מגובה 1:1 ב-BNB האמיתי שנמצא (Coinomi m/44'/60'/0'/0)" },
+      { symbol: "WRXP", units: realXrp, usd: xrpUsd, note: "XRP עטוף — מגובה 1:1 ב-XRP האמיתי שנמצא (Coinomi m/44'/144', XRPL)" }
+    ] as const;
+    for (const spec of specs) {
+      if (!(spec.units > 0) || !(spec.usd > 0)) continue;
+      let id: number;
+      try {
+        id = Number(await xc.assetIdOf(spec.symbol)); // כבר רשום — רק סנכרון
+      } catch {
+        // רישום חדש + הטבעה + בריכה + זריעה (חד-פעמי)
+        const tx0 = await xc.registerAsset(spec.symbol, spec.note);
+        await tx0.wait();
+        console.log(`[evm-mesh] חיבור v29: נכס ${spec.symbol} נרשם — "${spec.note}"`);
+        id = Number(await xc.assetIdOf(spec.symbol));
+        const totalWei = ethers.parseEther(String(spec.units));
+        const poolAsset = (totalWei * 80n) / 100n;
+        const treasuryAsset = totalWei - poolAsset;
+        const perSaos = BigInt(Math.round((spec.usd / SAOS_M_USD_POLICY) * 1e6));
+        const poolSaos = (poolAsset * perSaos) / 1_000_000n;
+        const tx1 = await xc.mintAsset(id, hqAddr, totalWei, `${spec.units} ${spec.symbol} אמיתיים (מכ"ם v29)`);
+        await tx1.wait();
+        const tx2 = await xc.transfer(id, treasuryAddr, treasuryAsset);
+        await tx2.wait();
+        const tx3 = await xc.createPool(id, wsaosId);
+        await tx3.wait();
+        const poolId = Number(await xc.poolCount()) - 1;
+        const tx4 = await xc.addLiquidity(poolId, poolAsset, poolSaos);
+        await tx4.wait();
+        console.log(
+          `[evm-mesh] חיבור v29: בריכה ${spec.symbol}/wSAOS #${poolId} נזרעה — ${ethers.formatEther(poolAsset)} ${spec.symbol} · ${ethers.formatEther(poolSaos)} wSAOS (מחיר מדיניות $0.001)`
+        );
+        continue;
+      }
+
+      // סנכרון-גיבוי לנכס קיים: האספקה עוקבת אחרי המדידה החיה (mint לדלתא)
+      const a = (await xc.assets(BigInt(id))) as unknown as { totalMinted: bigint };
+      const totalWei = ethers.parseEther(String(spec.units));
+      const delta = totalWei - a.totalMinted;
+      if (delta > ethers.parseEther("0.000000001")) {
+        const tx = await xc.mintAsset(id, treasuryAddr, delta, `סנכרון גיבוי v29: +${ethers.formatEther(delta)} ${spec.symbol} במדידה`);
+        await tx.wait();
+        console.log(`[evm-mesh] חיבור v29: סנכרון ${spec.symbol} +${ethers.formatEther(delta)} → הון-יוצר-שוק באוצר`);
+      }
+    }
+
+    // ג. סנכרון-גיבוי WETH — אבק ה-ETH שנמצא מצטרף לגיבוי (מנגנון v28-next)
+    if (realEth > 0) {
+      const wethId = Number(await xc.assetIdOf("WETH"));
+      const a = (await xc.assets(BigInt(wethId))) as unknown as { totalMinted: bigint };
+      const totalWei = ethers.parseEther(String(realEth));
+      const delta = totalWei - a.totalMinted;
+      if (delta > ethers.parseEther("0.000000001")) {
+        const tx = await xc.mintAsset(wethId, treasuryAddr, delta, `סנכרון גיבוי v29: +${ethers.formatEther(delta)} ETH במדידה (אבק אבן-הפינה)`);
+        await tx.wait();
+        console.log(`[evm-mesh] חיבור v29: סנכרון WETH +${ethers.formatEther(delta)} → הון-יוצר-שוק באוצר`);
+      }
+    }
+  } catch (e) {
+    console.log(
+      `[evm-mesh] חיבור v29: דילוג כנה — ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`
+    );
+  }
+}
+
 async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
   const state = readState();
   if (!state?.ok || !state.contracts?.SAOSExchange) return;
@@ -532,6 +643,10 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
   const microgrid = new ethers.Contract(state.contracts.SAOSMicrogrid, mAbi, hq);
   const wsaosId = Number(await exchange.assetIdOf("WSAOS"));
 
+  // 4.10 v29 — FOUND-MONEY CONNECT (חיבור): WBNB + WRXP + סנכרון WETH —
+  // הכסף שנמצא מחובר לבורסה החיה לפני המסחר של המחזור הזה (אידמפוטנטי).
+  await foundMoneyConnect(provider, exchange, treasuryAddr);
+
   // א. מחירי אורקל חיים — מכ"ם הפלטפורמה (Binance). אין → ארב' מדולג כנה.
   let oracle: Record<string, number> = {};
   try {
@@ -548,7 +663,13 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
       );
       return a && typeof a.priceUsd === "number" && a.priceUsd > 0 ? a.priceUsd : 0;
     };
-    oracle = { WTRX: pick("TRX", "TG6Srs"), WSOL: pick("SOL", "9knfnF"), WETH: pick("ETH", "0x2767") };
+    oracle = {
+      WTRX: pick("TRX", "TG6Srs"),
+      WSOL: pick("SOL", "9knfnF"),
+      WETH: pick("ETH", "0x2767") || pick("ETH", "0x97Ad"),
+      WBNB: pick("BNB", "0x97Ad"),
+      WRXP: pick("XRP", "r3Tq66")
+    };
   } catch {
     /* אורקל best-effort — החיילים סוחרים גם בלי ארב' */
   }
@@ -884,7 +1005,7 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v28: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
+  console.log("[evm-mesh] auto-runner v29: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
 }
 
 void main().catch((e) => {

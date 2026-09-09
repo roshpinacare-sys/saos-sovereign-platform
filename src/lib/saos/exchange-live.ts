@@ -145,6 +145,8 @@ export interface ExchangeTraderRow {
   wtrx: string;
   wsol: string;
   weth: string;
+  wbnb: string;
+  wrxp: string;
 }
 
 export interface ExchangeSwapRow {
@@ -218,7 +220,7 @@ export interface ExchangeActionResult {
   error?: string;
 }
 
-export type ExchangeAssetSymbol = "WTRX" | "WSOL" | "WETH";
+export type ExchangeAssetSymbol = "WTRX" | "WSOL" | "WETH" | "WBNB" | "WRXP";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -253,7 +255,8 @@ interface PoolStruct {
   swaps: bigint;
 }
 
-/** מכ"ם-הנזילות: השורות האמיתיות של headcorner (TRX/SOL/ETH) — או null כנה. */
+/** מכ"ם-הנזילות: שורות headcorner (TRX/SOL/ETH/BNB/XRP) — מסוכמות per-עטיפה,
+ *  כי אותו סמל יכול להימדד בכמה כתובות אוצר (צי + אבן-הפינה) — v29 חיבור. */
 interface RadarRow {
   units: number | null;
   usd: number | null;
@@ -265,16 +268,18 @@ async function fetchRadarRows(): Promise<Record<string, RadarRow>> {
   const radar = await liquidityRadar().catch(() => null);
   const out: Record<string, RadarRow> = {};
   if (!radar?.ok) return out;
-  // הנכסים האמיתיים של האורגניזם: אוצר headcorner — WTRX/WSOL/WETH
-  const bySymbol: Record<string, string> = { TRX: "WTRX", SOL: "WSOL", ETH: "WETH" };
+  // הנכסים האמיתיים של האורגניזם — v29: גם BNB וגם XRP שנמצאו (majors בלבד)
+  const bySymbol: Record<string, string> = { TRX: "WTRX", SOL: "WSOL", ETH: "WETH", BNB: "WBNB", XRP: "WRXP" };
   for (const a of radar.assets) {
     const wrap = bySymbol[a.symbol];
     if (!wrap || a.holder !== "headcorner") continue;
+    const units = typeof a.balanceNum === "number" ? a.balanceNum : 0;
+    const row = out[wrap] ?? { units: 0, usd: 0, priceUsd: a.priceUsd ?? null, priceSource: a.priceSource ?? null };
     out[wrap] = {
-      units: typeof a.balanceNum === "number" ? a.balanceNum : null,
-      usd: a.usd ?? null,
-      priceUsd: a.priceUsd ?? null,
-      priceSource: a.priceSource ?? null
+      units: (row.units ?? 0) + units, // סכימת כל כתובות האוצר לאותו סמל
+      usd: (row.usd ?? 0) + (a.usd ?? 0),
+      priceUsd: a.priceUsd ?? row.priceUsd,
+      priceSource: a.priceSource ?? row.priceSource
     };
   }
   return out;
@@ -362,18 +367,31 @@ async function buildStatus(): Promise<ExchangeStatus> {
     const wtrxId = idOf("WTRX") ?? 1;
     const wsolId = idOf("WSOL") ?? 2;
     const wethId = idOf("WETH") ?? 3;
+    const wbnbId = idOf("WBNB");
+    const wrxpId = idOf("WRXP");
     for (const idx of signerIdx) {
       const signer = await provider.getSigner(idx);
       const addr = ethers.getAddress(await signer.getAddress());
       const label = idx === 0 ? "HQ — הבורסה" : idx === 9 ? "אוצר-הבורסה" : `חייל-${idx}`;
       labelOf[addr.toLowerCase()] = label;
-      const [wsaos, wtrx, wsol, weth] = await Promise.all([
+      const [wsaos, wtrx, wsol, weth, wbnb, wrxp] = await Promise.all([
         xc.balanceOf(wsaosId, addr) as Promise<bigint>,
         xc.balanceOf(wtrxId, addr) as Promise<bigint>,
         xc.balanceOf(wsolId, addr) as Promise<bigint>,
-        xc.balanceOf(wethId, addr) as Promise<bigint>
+        xc.balanceOf(wethId, addr) as Promise<bigint>,
+        wbnbId != null ? (xc.balanceOf(wbnbId, addr) as Promise<bigint>) : Promise.resolve(0n),
+        wrxpId != null ? (xc.balanceOf(wrxpId, addr) as Promise<bigint>) : Promise.resolve(0n)
       ]);
-      traders.push({ address: addr, label, wsaos: fmtAmt(wsaos), wtrx: fmtAmt(wtrx), wsol: fmtAmt(wsol), weth: fmtAmt(weth) });
+      traders.push({
+        address: addr,
+        label,
+        wsaos: fmtAmt(wsaos),
+        wtrx: fmtAmt(wtrx),
+        wsol: fmtAmt(wsol),
+        weth: fmtAmt(weth),
+        wbnb: fmtAmt(wbnb),
+        wrxp: fmtAmt(wrxp)
+      });
     }
     const treasury = ethers.getAddress(treasuryAddr);
     labelOf[treasury.toLowerCase()] = labelOf[treasury.toLowerCase()] ?? "אוצר-הבורסה";
@@ -753,8 +771,8 @@ async function doSwap(
   const asset = (body.asset ?? "").trim().toUpperCase();
   const dir = body.dir === "sell" ? "sell" : body.dir === "buy" ? "buy" : null;
   const amount = Number(body.amount ?? 0);
-  if (asset !== "WTRX" && asset !== "WSOL" && asset !== "WETH") {
-    return { ok: false, action: "swap", error: "נכס חייב להיות אחד המז'ורים: WTRX | WSOL | WETH (רק מול הגדולים)" };
+  if (asset !== "WTRX" && asset !== "WSOL" && asset !== "WETH" && asset !== "WBNB" && asset !== "WRXP") {
+    return { ok: false, action: "swap", error: "נכס חייב להיות אחד המז'ורים: WTRX | WSOL | WETH | WBNB | WRXP (רק מול הגדולים)" };
   }
   if (dir === null) {
     return { ok: false, action: "swap", error: "כיוון חייב להיות buy או sell" };

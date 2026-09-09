@@ -75,3 +75,6 @@ mini-services/keeper/state/
 mini-services/evm-mesh/state/
 mini-services/keeper/keeper.log
 mini-services/evm-mesh/runner.log
+
+# v29 — machine-local discovery scratch (never committed)
+/state/
