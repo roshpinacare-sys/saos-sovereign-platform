@@ -182,7 +182,7 @@ async function main() {
   bundle.files[regKey] = JSON.stringify(reg, null, 2);
 
   // 5. re-seal with the same pass (fresh salt+iv) + round-trip verify
-  const meta = JSON.parse(await readFile(META, "utf8")) as { pass: string; kdf: string; enc: string; format: string };
+  const meta = JSON.parse(await readFile(META, "utf8")) as { pass: string; kdf: string; enc: string; format: string; count?: number };
   const resealed = sealBundle(bundle.files, meta.pass);
   await writeFile(ENC, resealed, "utf8");
   meta.count = Object.keys(bundle.files).length;

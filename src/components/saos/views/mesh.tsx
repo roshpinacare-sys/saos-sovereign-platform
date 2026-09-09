@@ -281,7 +281,7 @@ export function ViewMesh() {
               className="flex-1 h-11 rounded-lg border border-white/[0.1] bg-zinc-950/60 px-3.5 text-sm text-zinc-100 placeholder:text-zinc-600 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/40"
               aria-label="כוונת ריצת הרשת"
             />
-            <Btn variant="gold" size="lg" onClick={runNow} disabled={running || !live} className="min-w-[190px]">
+            <Btn variant="primary" size="md" onClick={runNow} disabled={running || !live} className="min-w-[190px]">
               {running ? (
                 <>
                   <span className="w-4 h-4 rounded-full border-2 border-amber-300/30 border-t-amber-300 animate-spin" aria-hidden />

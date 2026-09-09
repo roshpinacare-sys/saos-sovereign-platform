@@ -59,8 +59,8 @@ function tronAddressFromPriv(privHex: string): string {
 function steemPubFromWif(wif: string): string {
   // WIF: base58check(sha256d) → 0x80 + 32B priv (+0x01) ; pub: graphene ripemd160 checksum
   const raw = bs58.decode(wif)
-  const payload = raw.subarray(0, raw.length - 4)
-  if (!raw.subarray(raw.length - 4).equals(SHA256(SHA256(payload)).subarray(0, 4))) {
+  const payload = Buffer.from(raw.subarray(0, raw.length - 4))
+  if (!Buffer.from(raw.subarray(raw.length - 4)).equals(Buffer.from(SHA256(SHA256(payload)).subarray(0, 4)))) {
     throw new Error("WIF sha256d checksum mismatch")
   }
   if (payload[0] !== 0x80) throw new Error("unexpected WIF version")
@@ -212,7 +212,7 @@ async function main() {
 
   const checks: Array<{ name: string; ok: boolean; detail: string }> = []
   const fail = (name: string, detail: string) => { checks.push({ name, ok: false, detail }); console.log(`  ✗ ${name}: ${detail}`) }
-  const pass = (name: string, detail: string) => { checks.push({ name, ok: true, detail }); console.log(`  ✓ ${name}`) }
+  const pass = (name: string, detail: string = "") => { checks.push({ name, ok: true, detail }); console.log(`  ✓ ${name}`) }
 
   if (!exp.phrase24) { fail("פרשור 24", "לא נמצא בייצוא"); process.exit(1) }
   if (!exp.phrase12) { fail("פרשור 12", "לא נמצא בייצוא"); process.exit(1) }

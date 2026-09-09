@@ -191,7 +191,7 @@ export function ViewSovereignKey() {
 
       {/* custody chain */}
       <Panel className="mb-4">
-        <PanelHeader icon={<KeyRound size={15} />} title="שרשרת המשמורת — מפתח אחד פותח הכל" hint="סוד הכספת בידי הבעלים בלבד" />
+        <PanelHeader icon={<KeyRound size={15} />} title="שרשרת המשמורת — מפתח אחד פותח הכל" sub="סוד הכספת בידי הבעלים בלבד" />
         <PanelBody>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             {d.custody.chain.map((step, i) => (
@@ -218,7 +218,7 @@ export function ViewSovereignKey() {
         <PanelHeader
           icon={<Landmark size={15} />}
           title="כתובות החייל — כך משתמשים במפתח"
-          hint="כל כתובת = תפקיד ברשת; המפתח חתום, הכתובות פומביות"
+          sub="כל כתובת = תפקיד ברשת; המפתח חתום, הכתובות פומביות"
         />
         <PanelBody>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -234,7 +234,7 @@ export function ViewSovereignKey() {
         <PanelHeader
           icon={<Coins size={15} />}
           title="הנזילות הפרטית זורמת — אוצר headcorner"
-          hint={d.treasury.activated ? `${fmt(d.treasury.balanceTrx)} TRX באוצר (מדידה חיה)` : "אוצר לא מופעל"}
+          sub={d.treasury.activated ? `${fmt(d.treasury.balanceTrx)} TRX באוצר (מדידה חיה)` : "אוצר לא מופעל"}
         />
         <PanelBody>
           {d.treasury.address && (
@@ -284,7 +284,7 @@ export function ViewSovereignKey() {
         <PanelHeader
           icon={<BadgeCheck size={15} />}
           title="גיוס פומבי — Enlist ב-SAOSRelay · Ethereum mainnet"
-          hint={d.enlist?.confirmed ? "אירוע נצחי על השרשרת הציבורית" : "טרם נחתם"}
+          sub={d.enlist?.confirmed ? "אירוע נצחי על השרשרת הציבורית" : "טרם נחתם"}
         />
         <PanelBody>
           {d.enlist ? (
@@ -368,11 +368,11 @@ function CornerstonePanel() {
   const signed = c.enlist != null;
 
   return (
-    <Panel className="mb-4" tone="gilded">
+    <Panel className="mb-4" accent>
       <PanelHeader
         icon={<Gem size={15} />}
         title="אבן הפינה — הזרע התפעולי של הרשת"
-        hint="24 מילים · Coinomi · הבעלים: 'כל הסוכנים יוכלו לבצע דרך הזרע'"
+        sub="24 מילים · Coinomi · הבעלים: 'כל הסוכנים יוכלו לבצע דרך הזרע'"
         tag={
           signed ? (
             <Pill tone="green">מעוגן ומבצע</Pill>

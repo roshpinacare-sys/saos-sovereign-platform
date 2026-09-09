@@ -37,6 +37,7 @@ import { readSealInventory, readSovereignWallets, withRoleWif, withVaultMember, 
 import { ANCHORED_EVM_ADDRESS } from "./anchor-evm";
 import { ANCHORED_SOL_ADDRESS } from "./anchor-svm";
 import { saosLedger } from "./saos-mint";
+import { ethers } from "ethers";
 import { assertTrustedEndpoints } from "./security";
 
 // ─── arming policy (spec-frozen constants — request can never touch) ───────
@@ -99,7 +100,7 @@ assertTrustedEndpoints(
 );
 
 
-async function jsonRpc<T>(url: string, method: string, params: unknown[]): Promise<T | null> {
+async function jsonRpc<T>(url: string, method: string, params: unknown): Promise<T | null> {
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -368,7 +369,7 @@ export interface ArmOutcome {
   armed: ArmResultRow[];
   failed: ArmResultRow[];
   skipped: ArmResultRow[];
-  reserveAfter?: Record<string, number>;
+  reserveAfter?: Record<string, number | string>;
   error?: string;
 }
 
@@ -447,7 +448,7 @@ export async function armSteemFleet(): Promise<ArmOutcome> {
 
   // honest read-back: soldiers' VESTS + liquid after the arming
   const after = await jsonRpc<unknown[]>(STEEM_RPC, "condenser_api.get_accounts", [["headcorner", ...soldiers]]);
-  let reserveAfter: Record<string, number> | undefined;
+  let reserveAfter: Record<string, number | string> | undefined;
   if (after) {
     const hcAfter = after[0] as { balance: string; vesting_shares: string } | undefined;
     if (hcAfter) {
@@ -487,7 +488,7 @@ export async function armEvmFleet(): Promise<ArmOutcome> {
   const armed: ArmResultRow[] = [];
   const failed: ArmResultRow[] = [];
   const skipped: ArmResultRow[] = [];
-  let reserveAfter: Record<string, number> | undefined;
+  let reserveAfter: Record<string, number | string> | undefined;
 
   // the whole signing session happens inside the envelope
   const { ethers } = await import("ethers");
@@ -551,7 +552,7 @@ export async function armEvmFleet(): Promise<ArmOutcome> {
             chainId: 1
           });
           // inclusion proof — receipt poll
-          let receipt = null;
+          let receipt: ethers.TransactionReceipt | null = null;
           for (let i = 0; i < 18 && !receipt; i++) {
             receipt = await provider.getTransactionReceipt(tx.hash).catch(() => null);
             if (!receipt) await new Promise((r) => setTimeout(r, 2500));
@@ -609,7 +610,7 @@ export async function armSolFleet(): Promise<ArmOutcome> {
   const armed: ArmResultRow[] = [];
   const failed: ArmResultRow[] = [];
   const skipped: ArmResultRow[] = [];
-  let reserveAfter: Record<string, number> | undefined;
+  let reserveAfter: Record<string, number | string> | undefined;
 
   await withVaultMember("keys/wallets-seed.json", async (seedContent) => {
     const seedDoc = JSON.parse(seedContent) as { seed?: string };

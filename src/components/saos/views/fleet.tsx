@@ -37,6 +37,7 @@ import {
   PanelBody,
   PanelHeader,
   Skeleton,
+  SkeletonPanel,
   Table,
   Tag,
   Td,
@@ -253,7 +254,7 @@ export function ViewFleet() {
         />
         <PanelBody>
           {mint.loading && !mint.data ? (
-            <Skeleton lines={4} />
+            <SkeletonPanel lines={4} />
           ) : mint.error && !mint.data ? (
             <ErrorNotice message={`יומן ההטבעה לא נטען: ${mint.error}`} onRetry={mint.refresh} />
           ) : (
@@ -370,7 +371,7 @@ export function ViewFleet() {
         />
         <PanelBody>
           {fleet.loading && !fleet.data ? (
-            <Skeleton lines={5} />
+            <SkeletonPanel lines={5} />
           ) : (
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
               {/* STEEM */}
@@ -547,7 +548,7 @@ export function ViewFleet() {
         />
         <PanelBody>
           {fleet.loading && !fleet.data ? (
-            <Skeleton lines={6} />
+            <SkeletonPanel lines={6} />
           ) : soldiers.length === 0 ? (
             <EmptyBlock
               icon={<Lock size={18} />}

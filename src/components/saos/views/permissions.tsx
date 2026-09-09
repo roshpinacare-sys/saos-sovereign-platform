@@ -238,7 +238,7 @@ export function PermissionsView() {
         <PanelHeader
           icon={<Scale size={15} />}
           title="המטריצה — מי רשאי לעשות מה"
-          right={
+          actions={
             <span className="flex items-center gap-2">
               <Pill tone={d.stats.redaction.rawSites === 0 ? "green" : "rose"}>
                 יומן אדום: {d.stats.redaction.rawSites === 0 ? "0 אתרי-כתיבה גולמיים" : `${d.stats.redaction.rawSites} גולמיים!`}
@@ -311,7 +311,7 @@ export function PermissionsView() {
           <PanelHeader
             icon={<ShieldCheck size={15} />}
             title="בדיקת השער — וקטורים חיים"
-            right={
+            actions={
               <Pill tone={(testData?.ok ?? st.selfTest.passed === st.selfTest.total) ? "green" : "rose"}>
                 {(testData?.passed ?? st.selfTest.passed)}/{(testData?.total ?? st.selfTest.total)} עברו
               </Pill>
@@ -374,7 +374,7 @@ export function PermissionsView() {
           <PanelHeader
             icon={<ScrollText size={15} />}
             title="השובל האדום — החלטות השער"
-            right={<Pill tone="zinc">{d.audit.length} אחרונות</Pill>}
+            actions={<Pill tone="zinc">{d.audit.length} אחרונות</Pill>}
           />
           <PanelBody className="p-0">
             <div className="max-h-96 overflow-y-auto">
@@ -428,7 +428,7 @@ export function PermissionsView() {
             <PanelHeader
               icon={<Users size={15} />}
               title="הצי המוסמך — 12 החיילים הדטרמיניסטיים"
-              right={<Pill tone="gold">פריחה בסבב</Pill>}
+              actions={<Pill tone="gold">פריחה בסבב</Pill>}
             />
             <PanelBody>
               <div className="flex flex-wrap gap-1.5">
@@ -449,7 +449,7 @@ export function PermissionsView() {
             <PanelHeader
               icon={<Landmark size={15} />}
               title="יעדי הזרימה המותרים — רשימה לבנה"
-              right={<Pill tone="green">{d.flowDestinations.length} יעדים</Pill>}
+              actions={<Pill tone="green">{d.flowDestinations.length} יעדים</Pill>}
             />
             <PanelBody>
               {d.flowDestinations.map((t) => (

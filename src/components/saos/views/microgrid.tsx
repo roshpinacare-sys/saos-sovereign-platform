@@ -209,8 +209,8 @@ export function MicrogridView() {
         <PanelHeader
           icon={<Zap size={16} className="text-amber-400" />}
           title="מיקרו-גריד — GRID-98 על השרשרת"
-          desc="המנוע ההיסטורי כחוזה תשיעי (mesh link #6): אורקל מחירי-DEX אמיתיים · סולם 1.2% · שוליים 40bps · רווח מונוטוני שנשטף לקופת העבודה"
-          side={
+          sub="המנוע ההיסטורי כחוזה תשיעי (mesh link #6): אורקל מחירי-DEX אמיתיים · סולם 1.2% · שוליים 40bps · רווח מונוטוני שנשטף לקופת העבודה"
+          actions={
             <span className="flex items-center gap-2">
               {live && <LiveDot tone="green" />}
               <span className="text-[10px] text-zinc-500" dir="ltr">
@@ -248,7 +248,7 @@ export function MicrogridView() {
         <PanelHeader
           icon={<Play size={16} />}
           title="קונסולת מפקדה — מחזור ידני"
-          desc="אורקל (מחיר DEX טרי) → טיק כל הגרידים בעסקה אחת → שטיפת רווח לקופת העבודה · הרץ האוטומטי עושה זאת כל 120ש'"
+          sub="אורקל (מחיר DEX טרי) → טיק כל הגרידים בעסקה אחת → שטיפת רווח לקופת העבודה · הרץ האוטומטי עושה זאת כל 120ש'"
         />
         <PanelBody>
           <div className="flex flex-wrap items-center gap-3">
@@ -316,8 +316,8 @@ export function MicrogridView() {
         <PanelHeader
           icon={<Zap size={16} />}
           title="הגרידים החיים"
-          desc="סולם 1.2% לרמה · מלאי מלא בזריעה · הסמן זז עם המחיר האמיתי — מעבר למעלה = מכר (רווח), למטה = קנה בחזרה"
-          side={<span className="text-[10px] text-zinc-500">{live ? `${realGrids.length} גרידי-שוק · ${testGrids.length} בדיקות` : "…"}</span>}
+          sub="סולם 1.2% לרמה · מלאי מלא בזריעה · הסמן זז עם המחיר האמיתי — מעבר למעלה = מכר (רווח), למטה = קנה בחזרה"
+          actions={<span className="text-[10px] text-zinc-500">{live ? `${realGrids.length} גרידי-שוק · ${testGrids.length} בדיקות` : "…"}</span>}
         />
         <PanelBody>
           {loading && !live && <SkeletonPanel lines={4} />}
@@ -382,8 +382,8 @@ export function MicrogridView() {
         <PanelHeader
           icon={<Repeat size={16} />}
           title="יומן מילויים — על השרשרת"
-          desc="כל מילוי הוא אירוע GridFill בלתי-ניתן-לשינוי: רמה · כיוון · רווח · מחיר האורקל · מספר סדרתי"
-          side={<span className="text-[10px] text-zinc-500">600 הבלוקים האחרונים</span>}
+          sub="כל מילוי הוא אירוע GridFill בלתי-ניתן-לשינוי: רמה · כיוון · רווח · מחיר האורקל · מספר סדרתי"
+          actions={<span className="text-[10px] text-zinc-500">600 הבלוקים האחרונים</span>}
         />
         <PanelBody>
           {live && live.recentFills.length === 0 && (
@@ -435,8 +435,8 @@ export function MicrogridView() {
         <PanelHeader
           icon={<Waves size={16} />}
           title="עומק DEX חי — מקור האורקל"
-          desc="מטבעות-שוק אמיתיים בקריאה-בלבד: Uniswap V2+V3 (ETH) · PancakeSwap + SushiSwap (BSC) · ספרד-ונצוּאות · סימולציית החלקה"
-          side={
+          sub="מטבעות-שוק אמיתיים בקריאה-בלבד: Uniswap V2+V3 (ETH) · PancakeSwap + SushiSwap (BSC) · ספרד-ונצוּאות · סימולציית החלקה"
+          actions={
             <span className="flex items-center gap-2">
               {dexBoard.data?.ok && <LiveDot tone="green" />}
               <span className="text-[10px] text-zinc-500">{dexBoard.data ? `measured ${timeAgo(dexBoard.data.measuredAt)}` : "…"}</span>
@@ -549,7 +549,7 @@ export function MicrogridView() {
 
       {/* ── truth boundary ───────────────────────────────────────────────── */}
       <Panel>
-        <PanelHeader icon={<ShieldAlert size={16} />} title="גבול-האמת" desc="מה אמיתי, מה מעבדה, ומה דרוש לרווח אמיתי" />
+        <PanelHeader icon={<ShieldAlert size={16} />} title="גבול-האמת" sub="מה אמיתי, מה מעבדה, ומה דרוש לרווח אמיתי" />
         <PanelBody>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Callout tone="green" icon={<Waves size={14} />}>

@@ -168,7 +168,7 @@ async function measure(): Promise<SmartVaultStatus> {
   }
   const keys: SmartKeyView[] = rows;
   const agents = await db.agentIdentity.findMany({ orderBy: { createdAt: "desc" } });
-  const agentViews = [];
+  const agentViews: { name: string; role: string; active: boolean; lastSeenAt: string | null; messages: number }[] = [];
   for (const a of agents) {
     const messages = await db.agentMessage.count({ where: { author: a.name } });
     agentViews.push({ name: a.name, role: a.role, active: a.active, lastSeenAt: a.lastSeenAt?.toISOString() ?? null, messages });

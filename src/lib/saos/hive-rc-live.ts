@@ -57,7 +57,7 @@ let cache: { at: number; value: HiveRcLive } | null = null;
 let inflight: Promise<HiveRcLive> | null = null;
 
 /** Shared JSON-RPC over https for HIVE nodes (read-only, rotated). */
-export function hiveRpc<T>(endpoint: string, method: string, params: unknown[], timeoutMs = 12000): Promise<T> {
+export function hiveRpc<T>(endpoint: string, method: string, params: unknown, timeoutMs = 12000): Promise<T> {
   const u = new URL(endpoint);
   const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
   return new Promise<T>((resolve, reject) => {

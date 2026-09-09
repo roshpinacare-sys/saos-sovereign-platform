@@ -72,7 +72,7 @@ assertTrustedEndpoints(
 
 // ─── the compiled artifact (committed — the runtime never compiles) ────────
 
-const ABI = artifact.abi as unknown[];
+const ABI = artifact.abi as unknown as ethers.InterfaceAbi;
 export const RELAY_BYTECODE: string = artifact.bytecode;
 export const RELAY_SOURCE: string = artifact.source;
 export const RELAY_VERSION: string = artifact.version;

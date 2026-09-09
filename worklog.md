@@ -1123,3 +1123,28 @@ Stage Summary:
 - השומר v38: 7 איברים במשמר (ווב · anvil · רץ · שומר · שליח · נחיל · זיכרון) — "אף איבר לא נשאר מת" מכסה גם את הנחיל.
 - הוכחות חיות: דו"חות בינה #1/#2 פורסמו · הוראות בעלים נענו בשידור · סיורים שקטים · צילומים v38-agentchat-desktop/keeper-6organs/mobile-375.
 - מגבלות שנותרו: headcorner (בעלים, ~08/10) · 4 STEEM legacy + 0.5 TRX · חוב-טיפוס legacy ~284 (ממופה) · שרשרת מאמתת-יחידה.
+
+---
+Task ID: 35
+Agent: Z.ai Code (ראשי)
+Task: הוראת הבעלים — "תבחן מה עשית תייעל תשפר תבחן מה צריך תנסה תבדוק תראה תשכלל תתקן תעזור ודחוף לריפו" — ביקורת מה שנעשה (v36–v38), אופטימיזציה, ותיקון. v39.0.0 חוב-אפס (ZERO TYPE DEBT).
+
+Work Log:
+- ביקורת מה נעשה: בדיקת בריאות מלאה — 5/5 איברים חיים (שומר 231+ בדיקות, 0 failStreak), הנחיל מייצר עבודה ריבונית (דו"חות LLM, 6 סיורים שקטים, 0 כשלי auth), שרשרת בלוק 6246, dev.log נקי, MAGEN clean (highCount=0).
+- הממצא המרכזי: 298 שגיאות tsc שנשארו מ-v37 הסתירו באגי-תצוגה אמיתיים — משפחת "props מושלכים" לא הייתה רק חוב-טיפוס אלא UI שמציג פחות מהמיועד בשקט.
+- המהלך הגדול (שורה אחת): tsconfig target ES2017→ES2020 — 123 שגיאות BigInt חוסלו (הקוד והריצה השתמשו ב-BigInt כבר מזמן; היעד הישן הכריז עליהן כשגיאות בזמן שהרשת רצה). 298→175 בשורה אחת.
+- רכיבים (ui.tsx): PanelHeader קיבל tag (ReactNode) — תג-זהב לצד הכותרת שכעת באמת מוצג (הושלך מ-v31!); SkeletonPanel קיבל rows (כינוי legacy); Input קיבל id/min/max/step/inputMode; Td/Th קיבלו dir/colSpan (+title ב-Td) — **dir="ltr" על מספרים ו-txid בפריסת RTL הושלך בשקט עד עכשיו**; Tag קיבל dir.
+- קריאות שתוקנו בוויות: flow (Panel tone→accent, Btn tone→variant, Kpi sub→hint ×6, action→actions, engines accent) · fleet (Skeleton lines→SkeletonPanel) · microgrid+network360 (desc→sub, side→actions) · sovereign-key (hint→sub ב-PanelHeader, sub→hint ב-Kpi, tone→accent) · permissions+security (right→actions ×9) · mesh (variant gold→primary, size lg→md) · smartlink (tone amber→gold) · research (null-guard ב-callback).
+- ממשקים שהושלמו מול ה-API האמיתי: SealResponse + autoAnchor/receipt (ה-API מחזיר מ-v37 — הוויו קרא שדות לא-מוגדרים) · BloomResult + gasUsed · SeedMemberPublic + present · SovereignWalletPublic + evmNets/evmPath/btc.
+- lib: withVaultMember חתימה (content)=>T | Promise<T> — 29 שגיאות חוסלו (כל הקריאות סינכרוניות, עבדו בריצה בזכות auto-wrap של async) · ABI typing InterfaceAbi ב-7 קבצים (roses/cornerstone/mesh-client/liquidity-radar/microgrid-live/relay-contract/flow-map) · getFunction("dispatch") המוקלד במקום קריאה דינמית (roses+cornerstone) · jsonRpc/hiveRpc params: unknown (STEEM rc_api מקבל אובייקט params — עבד בריצה, הטיפוס הכריז מערך בלבד) · reserveAfter Record<string, number|string> · receipt: TransactionReceipt | null · agentViews typed · process.env.HOME במקום process.home (לא בטיפוסי Node) · MeshOrderView status מוקלד · rearm vision-cast מתועד (ה-behavior המוכח v31 נשמר זהה).
+- scripts: v31-restore-vault (pass detail אופציונלי ×10, Buffer.from ל-WIF checksum) · anchor-sovereign-mnemonic (count? במטא).
+- התוצאה: **tsc 298 → 0** (אפס. מ-496 בתחילת v37). lint נקי · MAGEN clean (highCount=0, סריקה חיה נכפתה ואומתה).
+- E2E בדפדפן (דסקטופ+מובייל): 10 התצוגות שנגעו נבדקו — לוח בקרה (2 תגי-זהב חיים) · נזילות וזרימה (**8 תגים שהושלכו עד עכשיו מוצגים** + KPI hints חיים "8 מרחבים" + 69 אלמנטים dir=ltr) · מיקרו-גריד · רשת-360 · המפתח הריבוני (תג אחד) · איטום ועגינה · החיבור החכם (14 מפתחות, מחוברים) · רשות (10,962 תווים) · מגן (10,890) · צ'אט הסוכנים (נחיל + סיירים חיים) · שומר 6/6 איברים · **0 שגיאות קונסולה בכל הניווט** · מובייל 375px מדויק (scrollWidth=375).
+- בריאות סופית: שומר 337 בדיקות 5/5 חיים ללא לחץ זיכרון · נחיל gold-scout 2 דו"חות LLM + night-scout 6 סיורים · Fast-Refresh בלבד בקונסולה (אפס שגיאות).
+- commit + push ל-origin/main (v39.0.0).
+
+Stage Summary:
+- v39.0.0 חוב-אפס: כל חוב-הטיפוס של הפלטפורמה חוסל (tsc 0 מתוך 496 בתחילת v37) — וחשוב מזה: מה שנחשב "חוב" התגלה כבאגים אמיתיים: תגי-זהב שלא הוצגו מעולם, dir=ltr שהושלך על מספרים בפריסת RTL, sub/hint שנעלמו, ממשקים שקראו שדות לא-מוגדרים מ-API חי.
+- הפלטפורמה כעת מוקלדת מקצה-לקצה — ה-UI מציג בדיוק את מה שהקוד מתכוון אליו, וכל סטייה עתידית מהטיפוס תיתפס ב-build ולא בייצור.
+- הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v39.0.0 (קומיט זה).
+- מגבלות שנותרו: headcorner (פעולת הבעלים, חלון עד ~08/10) · 4 STEEM legacy + 0.5 TRX · שרשרת מאמתת-יחידה (בתכנון הסנדבוקס) · שירותים חיים ב-hot-reload — אימות build מלא (next build) מוגבל לסביבת הפיתוח.

@@ -212,7 +212,7 @@ export async function solReadiness(): Promise<SolReadiness> {
       at
     };
   } catch (e) {
-    if (connection) connection.destroy?.();
+    
     return {
       ok: false,
       address: null,

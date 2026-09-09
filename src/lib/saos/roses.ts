@@ -64,8 +64,8 @@ const ARTIFACT = meshArtifact as unknown as {
   version: string;
   contracts: Array<{ name: string; abi: unknown[] }>;
 };
-const meshAbi = (name: string): unknown[] | null =>
-  ARTIFACT.contracts.find((c) => c.name === name)?.abi ?? null;
+const meshAbi = (name: string): ethers.InterfaceAbi | null =>
+  (ARTIFACT.contracts.find((c) => c.name === name)?.abi ?? null) as ethers.InterfaceAbi | null;
 
 interface DeploymentState {
   ok: boolean;
@@ -199,7 +199,8 @@ export async function rosesBloom(agentName?: string): Promise<RoseBloomResult> {
     gasUsed: null,
     runId: null,
     saosMAfter: null,
-    rewardMinted: "10"
+    rewardMinted: "10",
+    bloomsByAgent: null
   };
   if (bloomLock) {
     return { ...base, error: "פריחה אחרת מתבצעת כרגע — נסה שוב בעוד רגע" };
@@ -303,7 +304,7 @@ export async function rosesBloom(agentName?: string): Promise<RoseBloomResult> {
         // 7. THE SIGNED RUN — the agent's own key pays the gas; the chain
         //    records its signature and mints RUN_REWARD to the agent.
         const intent = `${ROSE_INTENTS[(history.length + chosen.agent.idx) % ROSE_INTENTS.length]} (${chosen.agent.agent})`;
-        const tx = await hub.connect(wallet).dispatch(intent);
+        const tx = await hub.connect(wallet).getFunction("dispatch")(intent);
         const rc = await tx.wait();
         return { addr, txHash: tx.hash, rc };
       });

@@ -124,6 +124,9 @@ async function extractWordsFromPhoto(): Promise<string[]> {
   const attempts = 3;
   for (let i = 0; i < attempts; i++) {
     try {
+      // type-cast only: the SDK's .d.ts marks `model` required, but the live
+      // vision endpoint (proven v31) infers it — the request bytes stay exactly
+      // as the proven behavior, so we satisfy types without changing runtime.
       const res = await zai.chat.completions.createVision({
         messages: [
           {
@@ -135,7 +138,7 @@ async function extractWordsFromPhoto(): Promise<string[]> {
           }
         ],
         thinking: { type: "disabled" }
-      });
+      } as Parameters<typeof zai.chat.completions.createVision>[0]);
       const content = res.choices[0]?.message?.content ?? "";
       const words = parseWordsJson(content);
       if (words) return words;

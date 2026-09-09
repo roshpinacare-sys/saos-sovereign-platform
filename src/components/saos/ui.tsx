@@ -63,11 +63,14 @@ export function PanelHeader({
   icon,
   title,
   sub,
+  tag,
   actions
 }: {
   icon?: ReactNode;
   title: string;
   sub?: string;
+  /** badge next to the title — string or element */
+  tag?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -79,7 +82,14 @@ export function PanelHeader({
           </span>
         )}
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-zinc-100 tracking-tight truncate">{title}</h2>
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="text-sm font-semibold text-zinc-100 tracking-tight truncate">{title}</h2>
+            {tag && (
+              <span className="shrink-0 inline-flex items-center rounded-md border border-amber-400/25 bg-amber-400/10 px-1.5 py-px text-[10px] font-medium text-amber-300/90" dir="auto">
+                {tag}
+              </span>
+            )}
+          </div>
           {sub && <p className="text-[11px] text-zinc-500 mt-0.5 truncate">{sub}</p>}
         </div>
       </div>
@@ -209,14 +219,17 @@ export function Pill({
 export function Tag({
   tone = "zinc",
   className,
+  dir,
   children
 }: {
   tone?: PillTone;
   className?: string;
+  dir?: "ltr" | "rtl";
   children: ReactNode;
 }) {
   return (
     <span
+      dir={dir}
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap",
         pillTones[tone],
@@ -288,9 +301,21 @@ export function Table({ children, className }: { children: ReactNode; className?
   );
 }
 
-export function Th({ children, className }: { children?: ReactNode; className?: string }) {
+export function Th({
+  children,
+  className,
+  dir,
+  colSpan
+}: {
+  children?: ReactNode;
+  className?: string;
+  dir?: "ltr" | "rtl";
+  colSpan?: number;
+}) {
   return (
     <th
+      dir={dir}
+      colSpan={colSpan}
       className={cn(
         "text-right font-medium text-[11px] text-zinc-500 px-3 py-2 border-b border-white/[0.06] whitespace-nowrap",
         className
@@ -301,9 +326,26 @@ export function Th({ children, className }: { children?: ReactNode; className?: 
   );
 }
 
-export function Td({ children, className }: { children?: ReactNode; className?: string }) {
+export function Td({
+  children,
+  className,
+  dir,
+  title,
+  colSpan
+}: {
+  children?: ReactNode;
+  className?: string;
+  dir?: "ltr" | "rtl";
+  title?: string;
+  colSpan?: number;
+}) {
   return (
-    <td className={cn("px-3 py-2.5 text-zinc-300 align-middle border-b border-white/[0.04]", className)}>
+    <td
+      dir={dir}
+      title={title}
+      colSpan={colSpan}
+      className={cn("px-3 py-2.5 text-zinc-300 align-middle border-b border-white/[0.04]", className)}
+    >
       {children}
     </td>
   );
@@ -399,12 +441,22 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("rounded-lg animate-shimmer", className)} />;
 }
 
-export function SkeletonPanel({ lines = 4, className }: { lines?: number; className?: string }) {
+export function SkeletonPanel({
+  lines = 4,
+  rows,
+  className
+}: {
+  lines?: number;
+  /** legacy alias — same as lines */
+  rows?: number;
+  className?: string;
+}) {
+  const count = rows ?? lines;
   return (
     <Panel className={className}>
       <PanelBody className="space-y-3">
         <Skeleton className="h-4 w-1/3" />
-        {Array.from({ length: lines }).map((_, i) => (
+        {Array.from({ length: count }).map((_, i) => (
           <Skeleton key={i} className={cn("h-3", i % 2 === 0 ? "w-full" : "w-2/3")} />
         ))}
       </PanelBody>
@@ -504,6 +556,11 @@ export function Input({
   type = "text",
   dir,
   invalid = false,
+  id,
+  min,
+  max,
+  step,
+  inputMode,
   className
 }: {
   value: string;
@@ -513,6 +570,11 @@ export function Input({
   type?: "text" | "number";
   dir?: "ltr" | "rtl";
   invalid?: boolean;
+  id?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  inputMode?: "text" | "decimal" | "numeric";
   className?: string;
 }) {
   return (
@@ -520,8 +582,13 @@ export function Input({
       type={type}
       value={value}
       dir={dir}
+      id={id}
       placeholder={placeholder}
       maxLength={maxLength}
+      min={min}
+      max={max}
+      step={step}
+      inputMode={inputMode}
       aria-invalid={invalid || undefined}
       onChange={(e) => onChange(e.target.value)}
       className={cn(

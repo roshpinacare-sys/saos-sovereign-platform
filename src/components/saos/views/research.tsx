@@ -70,7 +70,7 @@ export function ViewResearch() {
                 <div className="relative">
                   {data.data.synthesis.roadmap.map((step, i) => {
                     const done = i === 0; // שלב 1 — מגדל-פיקוח חי — ממומש ומאומת
-                    const last = i === data.data.synthesis.roadmap.length - 1;
+                    const last = i === (data.data?.synthesis.roadmap.length ?? 0) - 1;
                     return (
                       <div key={i} className="relative flex gap-3.5 pb-4">
                         {!last && (

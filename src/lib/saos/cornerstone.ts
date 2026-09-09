@@ -183,6 +183,7 @@ function readSeedWords(): { words: string[]; phrase: string } {
 // ─── sealed-member metadata (NO secrets cross this boundary) ───────────────
 
 interface SeedMemberPublic {
+  present: boolean;
   label: string | null;
   words: number | null;
   source: string | null;
@@ -206,6 +207,7 @@ async function readSeedMember(): Promise<SeedMemberPublic | null> {
         sealedAt?: string;
       };
       return {
+        present: true,
         label: j.label ?? null,
         words: j.words ?? null,
         source: j.source ?? null,
@@ -300,8 +302,8 @@ function readMeshState(): DeploymentState | null {
   }
 }
 
-const meshAbi = (name: string): unknown[] | null =>
-  ARTIFACT.contracts.find((c) => c.name === name)?.abi ?? null;
+const meshAbi = (name: string): ethers.InterfaceAbi | null =>
+  (ARTIFACT.contracts.find((c) => c.name === name)?.abi ?? null) as ethers.InterfaceAbi | null;
 
 // ─── enlist proof (DB rows whose txids were verified on-chain) ─────────────
 
@@ -869,7 +871,7 @@ export async function cornerstoneEnlist(): Promise<CornerstoneEnlistResult> {
 
       // 5. THE SIGNED RUN — the cornerstone dispatches a mesh cycle itself.
       //    Its private key pays the gas; the chain records its signature.
-      const tx = await hub.connect(wallet).dispatch("אבן הפינה: שורש-הזרע מגייס את עצמו לרשת (v22)");
+      const tx = await hub.connect(wallet).getFunction("dispatch")("אבן הפינה: שורש-הזרע מגייס את עצמו לרשת (v22)");
       const rc = await tx.wait();
       return { addr, txHash: tx.hash, rc };
     });

@@ -72,12 +72,12 @@ function getProvider(): ethers.JsonRpcProvider {
   return G.__microgridProvider;
 }
 
-function microgridAbi(): unknown[] | null {
-  return ARTIFACT.contracts.find((c) => c.name === "SAOSMicrogrid")?.abi ?? null;
+function microgridAbi(): ethers.InterfaceAbi | null {
+  return (ARTIFACT.contracts.find((c) => c.name === "SAOSMicrogrid")?.abi ?? null) as ethers.InterfaceAbi | null;
 }
 
-function ledgerAbi(): unknown[] | null {
-  return ARTIFACT.contracts.find((c) => c.name === "SAOSLedger")?.abi ?? null;
+function ledgerAbi(): ethers.InterfaceAbi | null {
+  return (ARTIFACT.contracts.find((c) => c.name === "SAOSLedger")?.abi ?? null) as ethers.InterfaceAbi | null;
 }
 
 function microgridContract(state: DeploymentState, runner?: ethers.Provider | ethers.Signer): ethers.Contract | null {

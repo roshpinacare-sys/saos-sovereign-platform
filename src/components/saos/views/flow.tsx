@@ -173,7 +173,7 @@ function RearmConsole() {
   const flows = data.evidence;
 
   return (
-    <Panel tone="gilded">
+    <Panel accent>
       <PanelHeader icon={<KeyRound size={16} />} title="חימוש-מחדש ריבוני — הפתרון למה שמגביל" tag={armed ? <Pill tone="green">כספת חמושה</Pill> : <Pill tone="amber">מוכן לחימוש</Pill>} />
       <PanelBody>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -206,7 +206,7 @@ function RearmConsole() {
               הפעולה: קריאת-תמונה (VLM אחורי) → ביקורת BIP39 → התאמה מלאה מול כתובות-הראיות → איטום. אי-התאמה = אפס פעולה.
               המילים לעולם לא מופיעות בתשובה, ביומן או בקובץ מחוץ למעטפת.
             </p>
-            <Btn tone="primary" onClick={arm} disabled={busy || !data.canRearm}>
+            <Btn variant="primary" onClick={arm} disabled={busy || !data.canRearm}>
               {busy ? (
                 <>
                   <Gauge className="ml-2 h-4 w-4 animate-spin" /> מחמש…
@@ -266,12 +266,12 @@ export function FlowView() {
     <div className="space-y-4">
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi icon={<Droplets size={14} />} label="שווי-נזילות USD" value={`$${fmt(radar.totals.usdKnown)}`} sub={`${radar.totals.assetsTracked} נכסים · 8 מרחבים`} />
-        <Kpi icon={<Workflow size={14} />} label="זרימות חיות" value={String(liveFlows)} sub={`${flows.length} זרימות במפה`} />
-        <Kpi icon={<Lock size={14} />} label="חסומות" value={String(blockedFlows)} sub="ממתינות לחימוש" />
-        <Kpi icon={<Coins size={14} />} label="לכידת-מיקרו-גריד" value={capture.microgrid.capturePct !== null ? `${capture.microgrid.capturePct.toFixed(0)}%` : "—"} sub={`${capture.microgrid.swept} / ${capture.microgrid.realized} SAOS-M`} />
-        <Kpi icon={<Sparkles size={14} />} label="REAL WORK" value={String(capture.realWork.deliverables)} sub={`${capture.realWork.anchored} מעוגנות · קופה ${fmt(Number(capture.realWork.payroll))}`} />
-        <Kpi icon={<Gauge size={14} />} label="ספרד DEX שיא" value={capture.dex && capture.dex.spreadPct !== null ? `${capture.dex.spreadPct.toFixed(3)}%` : "—"} sub={capture.dex ? `${capture.dex.pair} · ${capture.dex.venues.length} ונצוּאות` : "אין מדידה"} />
+        <Kpi icon={<Droplets size={14} />} label="שווי-נזילות USD" value={`$${fmt(radar.totals.usdKnown)}`} hint={`${radar.totals.assetsTracked} נכסים · 8 מרחבים`} />
+        <Kpi icon={<Workflow size={14} />} label="זרימות חיות" value={String(liveFlows)} hint={`${flows.length} זרימות במפה`} />
+        <Kpi icon={<Lock size={14} />} label="חסומות" value={String(blockedFlows)} hint="ממתינות לחימוש" />
+        <Kpi icon={<Coins size={14} />} label="לכידת-מיקרו-גריד" value={capture.microgrid.capturePct !== null ? `${capture.microgrid.capturePct.toFixed(0)}%` : "—"} hint={`${capture.microgrid.swept} / ${capture.microgrid.realized} SAOS-M`} />
+        <Kpi icon={<Sparkles size={14} />} label="REAL WORK" value={String(capture.realWork.deliverables)} hint={`${capture.realWork.anchored} מעוגנות · קופה ${fmt(Number(capture.realWork.payroll))}`} />
+        <Kpi icon={<Gauge size={14} />} label="ספרד DEX שיא" value={capture.dex && capture.dex.spreadPct !== null ? `${capture.dex.spreadPct.toFixed(3)}%` : "—"} hint={capture.dex ? `${capture.dex.pair} · ${capture.dex.venues.length} ונצוּאות` : "אין מדידה"} />
       </div>
 
       {/* the re-arm console */}
@@ -283,7 +283,7 @@ export function FlowView() {
           icon={<Droplets size={16} />}
           title={`מכ"ם הנזילות — ${radar.totals.assetsTracked} נכסים במדידה חיה`}
           tag={<LiveDot />}
-          action={<Btn tone="ghost" onClick={refresh}>רענן</Btn>}
+          actions={<Btn variant="ghost" onClick={refresh}>רענן</Btn>}
         />
         <PanelBody>
           <div className="-mx-2 overflow-x-auto px-2">
@@ -380,7 +380,7 @@ export function FlowView() {
       {/* engines */}
       <div className="grid gap-3 lg:grid-cols-3">
         {engines.map((e) => (
-          <Panel key={e.id} tone={e.state === "live" ? "default" : "muted"}>
+          <Panel key={e.id} accent={e.state === "live"}>
             <PanelHeader
               icon={e.id === "grid" ? <Coins size={16} /> : e.id === "realwork" ? <Sparkles size={16} /> : <Gauge size={16} />}
               title={e.name}

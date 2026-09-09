@@ -43,6 +43,8 @@ import { cn } from "../ui";
 interface SealResponse {
   seal: { height: number; root: string; stateRoot: string; leaves: number; gasUsed: number };
   anchors: { network: string; status: string; gate: string }[];
+  autoAnchor?: "pending" | "done";
+  receipt?: string;
 }
 
 const SEAL_STEPS = [

@@ -237,7 +237,7 @@ export function SecurityView() {
           <PanelHeader
             icon={<Radar size={15} />}
             title="סורק-הדימומים"
-            right={
+            actions={
               <Pill tone={d.highCount === 0 ? "green" : "rose"}>
                 {allFindings.length === 0 ? "אפס ממצאים" : `${allFindings.length} ממצאים`}
               </Pill>
@@ -372,7 +372,7 @@ export function SecurityView() {
         <PanelHeader
           icon={<Landmark size={15} />}
           title="הרישום המהימן — כל מארח שהרשת רשאית לגעת בו"
-          right={<Pill tone="zinc">{d.trusted.length} מארחים</Pill>}
+          actions={<Pill tone="zinc">{d.trusted.length} מארחים</Pill>}
         />
         <PanelBody>
           <div className="max-h-80 overflow-y-auto -mx-1 px-1">
@@ -414,7 +414,7 @@ export function SecurityView() {
           <PanelHeader
             icon={<Coins size={15} />}
             title="שומר-הטוקנים — הידועים בלבד"
-            right={<Pill tone={d.gates.tokens.verified === d.gates.tokens.total ? "green" : "rose"}>{d.gates.tokens.verified}/{d.gates.tokens.total} checksum ✓</Pill>}
+            actions={<Pill tone={d.gates.tokens.verified === d.gates.tokens.total ? "green" : "rose"}>{d.gates.tokens.verified}/{d.gates.tokens.total} checksum ✓</Pill>}
           />
           <PanelBody>
             <div className="max-h-72 overflow-y-auto -mx-1 px-1">
@@ -453,7 +453,7 @@ export function SecurityView() {
           <PanelHeader
             icon={<Eye size={15} />}
             title="ביקורת יציאות — הקוד מול הרישום"
-            right={<Pill tone={unregisteredHosts.length === 0 ? "green" : "rose"}>{d.outbound.hosts.length} מארחים בקוד</Pill>}
+            actions={<Pill tone={unregisteredHosts.length === 0 ? "green" : "rose"}>{d.outbound.hosts.length} מארחים בקוד</Pill>}
           />
           <PanelBody>
             {unregisteredHosts.length === 0 ? (

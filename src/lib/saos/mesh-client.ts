@@ -36,7 +36,7 @@ const STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state"
 interface ArtifactContract {
   name: string;
   source: string;
-  abi: unknown[];
+  abi: ethers.InterfaceAbi;
   bytecode: string;
   bytecodeBytes: number;
 }
@@ -106,8 +106,8 @@ function ifaceOf(name: string): ethers.Interface | null {
   return f;
 }
 
-function abiOf(name: string): unknown[] | null {
-  return ARTIFACT.contracts.find((x) => x.name === name)?.abi ?? null;
+function abiOf(name: string): ethers.InterfaceAbi | null {
+  return (ARTIFACT.contracts.find((x) => x.name === name)?.abi ?? null) as ethers.InterfaceAbi | null;
 }
 
 function contract(name: string, state: DeploymentState, runner?: ethers.Provider | ethers.Signer): ethers.Contract | null {
@@ -751,12 +751,13 @@ export async function meshBoard(): Promise<MeshBoardData> {
     const orders: MeshOrderView[] = orderRows
       .map((r, k) => {
         const [mission, difficulty, reward, status, soldier, runId, postedAt, deliveredAt, paid] = r;
+        const st: MeshOrderView["status"] = Number(status) === 1 ? "delivered" : "open";
         return {
           id: from + k,
           mission: String(mission),
           difficulty: Number(difficulty),
           reward: ethers.formatEther(BigInt(reward)),
-          status: Number(status) === 1 ? "delivered" : "open",
+          status: st,
           soldier: String(soldier) !== ethers.ZeroAddress ? String(soldier) : null,
           runId: BigInt(runId) > 0n ? Number(runId) : null,
           postedAt: Number(postedAt) * 1000,

@@ -123,6 +123,7 @@ interface BloomResult {
   registerTx: string | null;
   dispatchTx: string | null;
   block: number | null;
+  gasUsed: string | null;
   runId: number | null;
   saosMAfter: string | null;
   rewardMinted: string;

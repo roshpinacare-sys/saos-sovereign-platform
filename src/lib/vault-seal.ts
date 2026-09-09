@@ -32,7 +32,7 @@ const MAGIC = "SAOS-FLEET-VAULT-1";
  * missing home; every write mirrors to all of them.
  */
 const HOME_A = path.join(process.cwd(), "agent", "keys");
-const HOME_B = path.join(process.home ?? process.env.HOME ?? "/home/z", "saos-vault", "agent-keys");
+const HOME_B = path.join(process.env.HOME ?? "/home/z", "saos-vault", "agent-keys");
 const HOME_C = path.join(process.cwd(), "upload", ".agent-keys");
 const KEYS_DIRS = [HOME_A, HOME_B, HOME_C];
 
@@ -421,14 +421,14 @@ export async function withRoleWif<T>(
 
 export async function withVaultMember<T>(
   member: string,
-  fn: (content: string) => Promise<T>
+  fn: (content: string) => T | Promise<T>
 ): Promise<T> {
   const bundle = await openSeal();
   const content = bundle.files[member];
   if (typeof content !== "string" || content.length === 0) {
     throw new Error(`vault: member "${member}" absent from envelope (fail-closed)`);
   }
-  return fn(content);
+  return await fn(content);
 }
 
 /** Public mirror of the sovereign wallet registry inside the seal (no secrets). */
@@ -437,6 +437,8 @@ export interface SovereignWalletPublic {
   agent: string;
   evm: string | null;
   evmPath: string | null;
+  /** extra EVM network addresses registered for the same agent (e.g. BSC) */
+  evmNets: string[];
   tron: string | null;
   sol: string | null;
   btc: string | null;
@@ -453,11 +455,15 @@ export async function readSovereignWallets(): Promise<SovereignWalletPublic[]> {
       const tron = (a.tron ?? {}) as Record<string, unknown>;
       const sol = (a.sol ?? {}) as Record<string, unknown>;
       const btc = (a.btc ?? {}) as Record<string, unknown>;
+      const evmNets = Array.isArray(a.evmNets)
+        ? a.evmNets.filter((n): n is string => typeof n === "string")
+        : [];
       return {
         idx: typeof a.idx === "number" ? a.idx : 0,
         agent: String(a.agent ?? ""),
         evm: typeof evm.address === "string" ? evm.address : null,
         evmPath: typeof evm.path === "string" ? evm.path : null,
+        evmNets,
         tron: typeof tron.address === "string" ? tron.address : null,
         sol: typeof sol.address === "string" ? sol.address : null,
         btc: typeof btc.address === "string" ? btc.address : null

@@ -449,7 +449,7 @@ async function labFunds(): Promise<{
     }
     const artifact = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), "src", "lib", "saos", "generated", "SAOSMesh.json"), "utf8")
-    ) as { contracts: Array<{ name: string; abi: unknown[] }> };
+    ) as { contracts: Array<{ name: string; abi: ethers.InterfaceAbi }> };
     const ledgerAbi = artifact.contracts.find((c) => c.name === "SAOSLedger")?.abi ?? [];
     const mgAbi = artifact.contracts.find((c) => c.name === "SAOSMicrogrid")?.abi ?? [];
     const p = new ethers.JsonRpcProvider("http://127.0.0.1:8545", 31337, { batchMaxCount: 1 });

@@ -207,7 +207,7 @@ export async function verifyInLiveHistory(
       );
       if (process.env.SAOS_DEBUG_HISTORY === "1") {
         console.log(
-          `[live-history] poll=${i} ep=${ep} entries=${hist?.length ?? 0} first=${(hist?.[0] as unknown as [])?.[0]} last=${(hist?.[hist.length - 1] as unknown as [])?.[0]} txid-match=${hist?.some((raw) => entryOf(raw)?.trx_id === opts.txid) ?? false}`
+          `[live-history] poll=${i} ep=${ep} entries=${hist?.length ?? 0} first=${(hist?.[0] as unknown as unknown[])?.[0]} last=${(hist?.[hist.length - 1] as unknown as unknown[])?.[0]} txid-match=${hist?.some((raw) => entryOf(raw)?.trx_id === opts.txid) ?? false}`
         );
       }
       for (const raw of hist) {

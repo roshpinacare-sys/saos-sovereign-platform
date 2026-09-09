@@ -206,7 +206,7 @@ export function SmartLinkView() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <Kpi label="מפתחות במלאי" value={fmtInt(d.stats.total)} icon={<KeyRound size={15} />} hint={`${d.stats.connected} מחוברים · ${d.stats.legacy} מדור-קודם`} tone="gold" />
-        <Kpi label="בתי הכספת" value={`${homesOk}/${d.homes.length}`} icon={<HardDrive size={15} />} hint="כל פתיחה מרפאת · כל כתיבה משוקפת" tone={homesOk === d.homes.length ? "green" : "amber"} />
+        <Kpi label="בתי הכספת" value={`${homesOk}/${d.homes.length}`} icon={<HardDrive size={15} />} hint="כל פתיחה מרפאת · כל כתיבה משוקפת" tone={homesOk === d.homes.length ? "green" : "gold"} />
         <Kpi label="סוכנים בצ'אט" value={fmtInt(d.agents.length)} icon={<FolderLock size={15} />} hint={`${d.messageCount} הודעות`} />
         <Kpi label="מצב הכספת" value={d.seal.present ? "חתומה ✓" : "חסרה"} icon={<Lock size={15} />} hint={d.seal.state === "sealed" ? "SAOS-FLEET-VAULT-1 · AES-256-GCM" : d.seal.note} tone={d.seal.present ? "green" : "rose"} />
       </div>

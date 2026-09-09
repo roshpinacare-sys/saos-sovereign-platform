@@ -99,7 +99,7 @@ async function microgridTotals(): Promise<{
     if (!state.ok || !state.contracts?.SAOSMicrogrid) throw new Error("no mesh");
     const artifact = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), "src", "lib", "saos", "generated", "SAOSMesh.json"), "utf8")
-    ) as { contracts: Array<{ name: string; abi: unknown[] }> };
+    ) as { contracts: Array<{ name: string; abi: ethers.InterfaceAbi }> };
     const abi = artifact.contracts.find((c) => c.name === "SAOSMicrogrid")?.abi ?? [];
     const p = new ethers.JsonRpcProvider("http://127.0.0.1:8545", 31337, { batchMaxCount: 1 });
     const mg = new ethers.Contract(state.contracts.SAOSMicrogrid, abi, p);

@@ -72,8 +72,8 @@ export function Network360View() {
         <PanelHeader
           icon={<Boxes size={16} />}
           title="רשת-360 — מפת האורגניזם"
-          desc="כל 11 הריפואים של הרשת במדידה חיה מול GitHub · הישגים מאומתים-שרשרת · הצעדים הקריטיים הבאים"
-          side={
+          sub="כל 11 הריפואים של הרשת במדידה חיה מול GitHub · הישגים מאומתים-שרשרת · הצעדים הקריטיים הבאים"
+          actions={
             <span className="flex items-center gap-2">
               {live?.githubLive && <LiveDot tone="green" />}
               <span className="text-[10px] text-zinc-500" dir="ltr">
@@ -110,7 +110,7 @@ export function Network360View() {
         <PanelHeader
           icon={<Github size={16} />}
           title="מפת האחזקות — 11 ריפואים"
-          desc="מקור: ביקורות-הרשת הצולבות (SETTLE-6 · task-21) · דחיקת-אחרונה חיה מ-GitHub API"
+          sub="מקור: ביקורות-הרשת הצולבות (SETTLE-6 · task-21) · דחיקת-אחרונה חיה מ-GitHub API"
         />
         <PanelBody className="p-0">
           <Table>
@@ -180,7 +180,7 @@ export function Network360View() {
           <PanelHeader
             icon={<CheckCircle2 size={16} />}
             title="מה הושג — מאומת מהשרשרת"
-            desc="כל מספר כאן נמדד חי, לא מתועד-בלבד"
+            sub="כל מספר כאן נמדד חי, לא מתועד-בלבד"
           />
           <PanelBody className="space-y-2.5">
             {a && (
@@ -225,7 +225,7 @@ export function Network360View() {
           <PanelHeader
             icon={<TrendingUp size={16} />}
             title="DEX חי + מיקרו-גריד (GRID-98 על השרשרת)"
-            desc="זרועות-ההכנסה של הרשת — מחירים אמיתיים נמדדים + מנוע הגריד החי (החוזה התשיעי)"
+            sub="זרועות-ההכנסה של הרשת — מחירים אמיתיים נמדדים + מנוע הגריד החי (החוזה התשיעי)"
           />
           <PanelBody className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
@@ -267,7 +267,7 @@ export function Network360View() {
         <PanelHeader
           icon={<ListOrdered size={16} />}
           title="הצעדים הקריטיים הבאים — מפת ההחלטות"
-          desc="דירוג לפי פתיחת-שערים: מה חוסם הכי הרבה, קודם"
+          sub="דירוג לפי פתיחת-שערים: מה חוסם הכי הרבה, קודם"
         />
         <PanelBody className="p-0">
           <Table>

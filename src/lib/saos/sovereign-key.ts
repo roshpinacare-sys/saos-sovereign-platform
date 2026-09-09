@@ -244,7 +244,7 @@ async function measure(): Promise<SovereignKeyStatus> {
   let me = wallets.find((w) => w.agent.toLowerCase() === AGENT);
   const treasuryWallet = wallets.find((w) => w.agent.toLowerCase() === TREASURY_AGENT);
   if (!me && enlistRow?.identity) {
-    me = { agent: AGENT, idx: -1, evm: enlistRow.identity, evmNets: [], tron: flowRows.rows[0]?.from ?? null, sol: null };
+    me = { agent: AGENT, idx: -1, evm: enlistRow.identity, evmPath: null, evmNets: [], tron: flowRows.rows[0]?.from ?? null, sol: null, btc: null };
   }
   // v22 — the flow-row treasury (the FUNDED private-liquidity wallet, verified
   // on-chain) outranks the registry's headcorner entry: the cornerstone root
