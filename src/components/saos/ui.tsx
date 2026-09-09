@@ -687,11 +687,13 @@ export function Timeline({
 export function Callout({
   tone = "gold",
   icon,
-  children
+  children,
+  className = ""
 }: {
   tone?: "gold" | "green" | "rose" | "zinc";
   icon?: ReactNode;
   children: ReactNode;
+  className?: string;
 }) {
   const tones = {
     gold: "border-amber-400/25 bg-amber-400/[0.05] text-amber-200/90",
@@ -700,7 +702,7 @@ export function Callout({
     zinc: "border-white/[0.08] bg-white/[0.02] text-zinc-400"
   };
   return (
-    <div className={cn("rounded-lg border px-3.5 py-2.5 flex items-start gap-2.5", tones[tone])}>
+    <div className={cn("rounded-lg border px-3.5 py-2.5 flex items-start gap-2.5", tones[tone], className)}>
       {icon && <span className="shrink-0 mt-0.5">{icon}</span>}
       <div className="min-w-0 text-[11.5px] leading-relaxed">{children}</div>
     </div>

@@ -16,7 +16,7 @@
  *   • התראת-לחץ זיכרון מוקדמת (700MB) לפני שהקרנל פועל.
  *   • השומר לא נוגע במפתחות, בכספת או בסודות — מספרים ובוליאנים בלבד.
  *
- * בוויו: ארבעת איברי האורגניזם במדידה חיה · מפת-ההשגחה ההדדית · יומן
+ * בוויו: איברי האורגניזם במדידה חיה (v36: חמישה — כולל שליח-השער, הסוכן החיצוני הראשון) · מפת-ההשגחה ההדדית · יומן
  * האירועים (מהכספת של השומר) · לוח זיכרון · סיפור התקרית בכנות מלאה ·
  * בדיקת-חיות ידנית דרך שער הרשויות.
  */
@@ -59,7 +59,7 @@ interface KeeperData {
     degraded: boolean | null;
     error?: string;
   };
-  members: Record<"web" | "anvil" | "runner" | "keeper", KeeperMemberDto>;
+  members: Record<"web" | "anvil" | "runner" | "keeper" | "herald", KeeperMemberDto>;
   memory: {
     totalMb: number | null;
     availableMb: number | null;
@@ -103,7 +103,8 @@ const MEMBER_LABEL: Record<string, string> = {
   web: "שכבת-הווב (next-server :3000)",
   anvil: "שרשרת המעבדה (anvil :8545)",
   runner: "הראנר (evm-mesh · 120ש')",
-  keeper: "השומר (keeper :3005)"
+  keeper: "השומר (keeper :3005)",
+  herald: "שליח-השער (סוכן חיצוני #1 · :3006)"
 };
 
 const EVENT_TONE: Record<string, "green" | "gold" | "rose" | "zinc"> = {
@@ -120,6 +121,9 @@ const EVENT_TONE: Record<string, "green" | "gold" | "rose" | "zinc"> = {
   "anvil-up": "green",
   "anvil-down": "gold",
   "runner-revive": "gold",
+  "herald-up": "green",
+  "herald-dead": "gold",
+  "herald-revive": "rose",
   pressure: "gold",
   "pressure-ok": "green",
   "backup-ok": "green",
@@ -141,6 +145,9 @@ const EVENT_HE: Record<string, string> = {
   "anvil-up": "anvil עלה",
   "anvil-down": "anvil לא עונה",
   "runner-revive": "החיית ראנר",
+  "herald-up": "שליח-השער עונה",
+  "herald-dead": "שליח-השער לא עונה",
+  "herald-revive": "החיית שליח-השער (v36)",
   pressure: "לחץ זיכרון",
   "pressure-ok": "זיכרון התאושש",
   "backup-ok": "גיבוי עקבי",
@@ -196,6 +203,7 @@ export function KeeperView() {
 
   const members = d.members;
   const aliveCount = Object.values(members).filter((m) => m.alive === true).length;
+  const memberCount = Object.keys(members).length;
   const memOk = d.memory.pressure === false;
 
   return (
@@ -205,8 +213,8 @@ export function KeeperView() {
         sub="הגבול המדוד של המכונה הוא הזיכרון (OOM הרג את הווב ב-1.79GB) — התשובה הריבונית היא אורגניזם: מיחזור-עדין לפני הקרנל (RSS 1500MB), החייאה אוטומטית אחרי מוות מאומת, וגיבויים עקביים כל 30 דק' — האמת (DB+שרשרת) שורדת הכל. השומר לעולם לא נוגע במפתחות."
         actions={
           <>
-            <Pill tone={aliveCount === 4 ? "green" : "gold"}>
-              {aliveCount}/4 איברים חיים
+            <Pill tone={aliveCount === memberCount ? "green" : "gold"}>
+              {aliveCount}/{memberCount} איברים חיים
             </Pill>
             <Pill tone={d.keeper.reachable ? "green" : "gold"}>
               {d.keeper.reachable ? `שומר ב-:3005 · ${fmtInt(d.keeper.checks ?? 0)} בדיקות` : "שומר לא נענה"}
@@ -236,10 +244,10 @@ export function KeeperView() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Kpi
           label="איברים חיים"
-          value={`${aliveCount}/4`}
-          tone={aliveCount === 4 ? "green" : "gold"}
+          value={`${aliveCount}/${memberCount}`}
+          tone={aliveCount === memberCount ? "green" : "gold"}
           icon={<Activity size={16} />}
-          hint="ווב · anvil · ראנר · שומר — מדידת /proc + שומר"
+          hint="ווב · anvil · ראנר · שומר · שליח-השער"
         />
         <Kpi
           label="בדיקות חיות"
@@ -310,7 +318,7 @@ export function KeeperView() {
               </tr>
             </thead>
             <tbody>
-              {(Object.keys(members) as Array<"web" | "anvil" | "runner" | "keeper">).map((k) => {
+              {(Object.keys(members) as Array<"web" | "anvil" | "runner" | "keeper" | "herald">).map((k) => {
                 const m = members[k];
                 return (
                   <tr key={k}>

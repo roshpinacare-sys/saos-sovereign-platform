@@ -72,6 +72,16 @@ const JOURNAL_MAX_BYTES = 5 * 1024 * 1024; // rotate at 5 MB — hygiene, not de
 
 const CHECK_MS = 10_000; // web tier
 const ANVIL_EVERY = 3; // every 3rd cycle (30s)
+
+// v36 — the gate herald (the first external agent, mini-services/gate-agent).
+// Watched like any organ: connection-refused only, confirmed death → detached
+// revive. A boot grace window absorbs the /start.sh ordering (the keeper may
+// start before the herald) — no false death, no false revive.
+const GATE_DIR = path.join(PROJECT_DIR, "mini-services", "gate-agent");
+const GATE_LOG = path.join(GATE_DIR, "herald.log");
+const GATE_STATUS = "http://127.0.0.1:3006/";
+const GATE_EVERY = 3; // every 3rd cycle (30s)
+const HERALD_GRACE_MS = 180_000; // boot grace — 3 min before death is even considered
 const SLOW_EVERY = 6; // runner + memory + rss-shed every 6th cycle (60s)
 const DEAD_STREAK = 3; // connection-refused ×3 = confirmed death
 const REVIVE_WINDOW_MS = 150_000; // only one revive attempt per window
@@ -139,7 +149,11 @@ interface KeeperEvent {
     | "probe"
     | "web-recycle"
     | "backup-ok"
-    | "backup-miss";
+    | "backup-miss"
+    // v36 — the gate herald (first external agent)
+    | "herald-up"
+    | "herald-dead"
+    | "herald-revive";
   detail: string;
 }
 
@@ -182,6 +196,12 @@ const S = {
   panics: 0,
   lastPanicAt: null as string | null,
   lastPageHttp: null as number | null,
+  // v36 — the gate herald (first external agent at the gate)
+  heraldAlive: null as boolean | null,
+  heraldFailStreak: 0,
+  heraldRevives: 0,
+  heraldLastOkAt: null as string | null,
+  heraldGraceUntil: Date.now() + HERALD_GRACE_MS,
   events: [] as KeeperEvent[]
 };
 
@@ -519,6 +539,20 @@ async function checkAnvil(): Promise<boolean> {
   }
 }
 
+// ─── v36 — the gate herald check (the first external agent) ───────────────
+
+/** Connection check on :3006 — same doctrine as the web tier: refused =
+ *  dead, timeout = degraded (never killed). Confirmed death (×3, past the
+ *  boot grace) → detached revive via bun run dev in its own dir. */
+async function checkHerald(): Promise<boolean> {
+  try {
+    const r = await fetch(GATE_STATUS, { signal: AbortSignal.timeout(4_000) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function cycle(): Promise<void> {
   RT.cycle += 1;
   S.checks += 1;
@@ -660,6 +694,39 @@ async function cycle(): Promise<void> {
   if (RT.cycle % SLOW_EVERY === 0) {
     rotateDevLog();
   }
+
+  // 6. v36 — the gate herald (the first external agent at the gate).
+  //    Watched like any organ: the organism's promise — no member stays
+  //    dead — now covers the agent that arrived from OUTSIDE.
+  if (RT.cycle % GATE_EVERY === 0) {
+    const alive = await checkHerald();
+    if (alive) {
+      if (S.heraldAlive !== true) {
+        journal("herald-up", `gate-herald answering on :3006${S.heraldFailStreak > 0 ? ` (after ${S.heraldFailStreak} misses)` : ""}`);
+      }
+      S.heraldAlive = true;
+      S.heraldFailStreak = 0;
+      S.heraldLastOkAt = new Date().toISOString();
+    } else if (Date.now() < S.heraldGraceUntil) {
+      S.heraldAlive = null; // boot grace — watching, not yet judging
+    } else {
+      S.heraldFailStreak += 1;
+      if (S.heraldFailStreak === 1) {
+        journal("herald-dead", `gate-herald :3006 not answering — first sighting, watching (revive needs ×${DEAD_STREAK})`);
+      }
+      if (
+        S.heraldFailStreak >= DEAD_STREAK &&
+        Date.now() > S.reviveDeadline
+      ) {
+        S.heraldRevives += 1;
+        S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+        reviveDetached(GATE_DIR, GATE_LOG);
+        journal("herald-revive", `gate-herald dead ×${S.heraldFailStreak} (connection refused) — bun run dev spawned detached, revive #${S.heraldRevives} — the organism's promise now covers the first EXTERNAL agent too`);
+        S.heraldFailStreak = 0;
+        S.heraldAlive = null;
+      }
+    }
+  }
 }
 
 // ─── status API (loopback only) ────────────────────────────────────────────
@@ -668,7 +735,7 @@ function statusJson() {
   return {
     ok: true,
     service: "shomer",
-    version: "27.0.0",
+    version: "36.0.0",
     pid: process.pid,
     startedAt: S.startedAt,
     uptimeSec: Math.round((Date.now() - Date.parse(S.startedAt)) / 1000),
@@ -686,7 +753,8 @@ function statusJson() {
         recovering: Date.now() < S.reviveDeadline
       },
       anvil: { alive: S.anvilOk === true, block: S.anvilHeight, lastOkAt: S.anvilLastOkAt },
-      runner: { alive: S.runnerSeen, revives: S.runnerRevives, zombieRestarts: S.zombieRestarts, block: S.anvilHeight }
+      runner: { alive: S.runnerSeen, revives: S.runnerRevives, zombieRestarts: S.zombieRestarts, block: S.anvilHeight },
+      herald: { alive: S.heraldAlive === true, failStreak: S.heraldFailStreak, revives: S.heraldRevives, lastOkAt: S.heraldLastOkAt, agent: "gate-herald", port: 3006 }
     },
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,
@@ -744,7 +812,7 @@ try {
   /* no journal yet — fresh start */
 }
 
-journal("boot", `SHOMER v28 (המשך) up on :${PORT} — watching web :3000 (API + the PAGE itself — the v28 page-500 cure) · anvil :8545 · mesh runner · memory (warning ${PRESSURE_MB}MB · recycle ${RSS_SHED_MB}MB) · sovereign backups every 30min · never touches key material`);
+journal("boot", `SHOMER v36 (המשך) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · memory · sovereign backups every 30min · never touches key material`);
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
-console.log(`[keeper] SHOMER v28 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · page-500 detector every 30s (streak ×${PAGE_500_STREAK} + source-stable ${SRC_STABLE_MS / 1000}s → purge cure) · anvil every 30s · runner+memory every 60s · pre-OOM recycle at ${RSS_SHED_MB}MB (kernel kills at 1790) · backup every 30min · revive only on confirmed death (documented exceptions, all objective-evidence)`);
+console.log(`[keeper] SHOMER v36 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 every 30s (grace ${HERALD_GRACE_MS / 1000}s, revive on ×${DEAD_STREAK}) · backup every 30min · revive only on confirmed death (documented exceptions, all objective-evidence)`);

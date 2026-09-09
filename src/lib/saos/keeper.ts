@@ -6,8 +6,8 @@
  * (connection-refused only — it NEVER kills a live-but-slow member and
  * NEVER touches key material). This module is the platform's READ of that
  * keeper: status through the v24 phishing gate (127.0.0.1 is a registered
- * lab host), a 30s cache, plus a local /proc cross-check of the four
- * members (web · anvil · runner · keeper) so the view can show a
+ * lab host), a 30s cache, plus a local /proc cross-check of the five
+ * members (web · anvil · runner · keeper · herald) so the view can show a
  * measured map even between keeper cycles.
  *
  * Born from a measured incident (the honest story, shown in the view):
@@ -30,6 +30,7 @@ import { trustedFetch } from "./security";
 import { backupsStatus, type BackupsStatus } from "./backups";
 
 const KEEPER_URL = "http://127.0.0.1:3005/";
+const HERALD_URL = "http://127.0.0.1:3006/";
 const CACHE_TTL_MS = 30_000;
 
 export interface KeeperMember {
@@ -56,7 +57,7 @@ export interface KeeperStatus {
     degraded: boolean | null;
     error?: string;
   };
-  members: Record<"web" | "anvil" | "runner" | "keeper", KeeperMember>;
+  members: Record<"web" | "anvil" | "runner" | "keeper" | "herald", KeeperMember>;
   memory: {
     totalMb: number | null;
     availableMb: number | null;
@@ -100,6 +101,7 @@ interface KeeperRaw {
     web?: { alive?: boolean; lastOkAt?: string | null; lastHttp?: number | null; degraded?: boolean; failStreak?: number; revives?: number; lastReviveAt?: string | null; recovering?: boolean };
     anvil?: { alive?: boolean; block?: number | null; lastOkAt?: string | null };
     runner?: { alive?: boolean; revives?: number; zombieRestarts?: number; block?: number | null };
+    herald?: { alive?: boolean; failStreak?: number; revives?: number; lastOkAt?: string | null; agent?: string; port?: number };
   };
   memory?: { totalMb?: number; availableMb?: number; nextRssMb?: number; pressure?: boolean };
   pressureThresholdMb?: number;
@@ -108,6 +110,16 @@ interface KeeperRaw {
   panic?: { streak?: number; cures?: number; lastAt?: string | null; lastPageHttp?: number | null };
   backups?: { ok?: number; miss?: number; lastAt?: string | null };
   events?: Array<{ t: string; kind: string; detail: string }>;
+}
+
+/** v36 — the herald's OWN status (its private :3006 endpoint — numbers
+ *  and booleans only, never the key). Best-effort read. */
+interface HeraldRaw {
+  ok?: boolean;
+  service?: string;
+  agent?: { name?: string; role?: string; armedAt?: string | null; reArms?: number };
+  presence?: { gateUp?: boolean; lastFeedAt?: string | null; gateLatencyMs?: number | null; polls?: number };
+  stats?: { polls?: number; orders?: number; directives?: number; heartbeats?: number; authFails?: number; uptimeSec?: number };
 }
 
 // ─── local /proc cross-check (facts only) ──────────────────────────────────
@@ -137,13 +149,14 @@ function procScan(): Array<{ pid: number; cmdline: string; cwd: string }> {
   return out;
 }
 
-export function localMemberScan(): { web: boolean; anvil: boolean; runner: boolean; keeper: boolean; nextRssMb: number } {
+export function localMemberScan(): { web: boolean; anvil: boolean; runner: boolean; keeper: boolean; herald: boolean; nextRssMb: number } {
   const procs = procScan();
   return {
     web: procs.some((p) => p.cmdline.includes("next-server")),
     anvil: procs.some((p) => p.cmdline.includes("anvil")),
     runner: procs.some((p) => p.cmdline.includes("bun") && p.cmdline.includes("--hot") && p.cwd.includes("mini-services/evm-mesh")),
     keeper: procs.some((p) => p.cmdline.includes("bun") && p.cmdline.includes("--hot") && p.cwd.includes("mini-services/keeper")),
+    herald: procs.some((p) => p.cmdline.includes("bun") && p.cmdline.includes("--hot") && p.cwd.includes("mini-services/gate-agent")),
     nextRssMb: (() => {
       const p = procs.find((x) => x.cmdline.includes("next-server"));
       if (!p) return 0;
@@ -179,7 +192,19 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
   const web = raw?.members?.web;
   const anvil = raw?.members?.anvil;
   const runner = raw?.members?.runner;
+  const heraldKeeper = raw?.members?.herald;
   const mem = raw?.memory;
+
+  // v36 — the herald's OWN status (:3006, loopback, numbers only). Best-effort:
+  // the member map never crashes on one member being unreachable — the
+  // /proc cross-check and the keeper's verdict cover the gap.
+  let herald: HeraldRaw | null = null;
+  try {
+    const res = await trustedFetch(HERALD_URL, { timeoutMs: 3_000 });
+    herald = (await res.json()) as HeraldRaw;
+  } catch {
+    herald = null;
+  }
 
   const status: KeeperStatus = {
     // ok = THE MEASUREMENT succeeded (we measured, honestly — even when
@@ -189,7 +214,7 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
     // the moment the keeper is dead is exactly the moment this view must
     // stay honest and alive.
     ok: true,
-    version: "27.0.0",
+    version: "36.0.0",
     measuredAt,
     keeper: {
       reachable: !!raw?.ok,
@@ -237,6 +262,18 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
             ? "תהליך חי במקום אך לא עונה — נצפה"
             : `לא נענה (${err ?? "לא ידוע"}) — הראנר מחיה אותו (צעד 4.8)`,
         how: "הראנר בודק בכל מחזור · מחיה אחרי 2 סירובים"
+      },
+      herald: {
+        alive: heraldKeeper?.alive ?? (herald?.ok ? true : local.herald ? true : null),
+        lastOkAt: heraldKeeper?.lastOkAt ?? herald?.presence?.lastFeedAt ?? null,
+        detail: herald?.ok
+          ? `שליח-השער חי · הסוכן החיצוני הראשון בשער · ${Math.round((herald.stats?.uptimeSec ?? 0) / 60)} דק' חי · ${herald.stats?.polls ?? 0} סקירות · ${herald.stats?.orders ?? 0} פקודות-עבודה · ${herald.stats?.directives ?? 0} הוראות בעלים · שער ${herald.presence?.gateLatencyMs ?? "?"}ms${herald.agent?.reArms ? ` · ${herald.agent.reArms} חימושים-מחדש` : ""}`
+          : heraldKeeper?.alive
+            ? "עונה ב-:3006 לפי השומר — הסטטוס הפרטי עוד לא נקרא"
+            : local.herald
+              ? "תהליך חי במקום (קריאת /proc) — השומר יחיה אותו אם ימות"
+              : `לא עונה — השומר מחיה אותו (צעד 6 · revive #${heraldKeeper?.revives ?? 0})`,
+        how: "השומר בודק את :3006 כל 30ש' · החייה אחרי 3 סירובים (detached) · עולה לבד בכל בנייה (/start.sh)"
       }
     },
     memory: {
@@ -275,8 +312,10 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
       { from: "השומר", to: "הראנר", what: "סריקת /proc כל 60ש' · החייה אם נעלם" },
       { from: "הראנר", to: "השומר", what: "בדיקת :3005 בכל מחזור · החייה אחרי 2 סירובים (צעד 4.8)" },
       { from: "הראנר", to: "anvil", what: "watchdog קיים (respawn + regenesis) — נשמר מ-v20" },
+      { from: "השומר", to: "שליח-השער", what: "בדיקת :3006 כל 30ש' · החייה אחרי 3 סירובים — האורגניזם מרחיב את ההבטחה לסוכן שהגיע מבחוץ (v36)" },
       { from: "השומר", to: "הזיכרון", what: "מדידת לחץ כל 60ש' · התראה ב-700MB · מיחזור-עדין ב-RSS 1500MB — לפני שהקרנל הורג ב-1790" },
-      { from: "השומר", to: "האמת (DB+שרשרת)", what: "צילום עקבי כל 30 דק' (VACUUM INTO · סבב 48+7) — השומר לא רק מחיה, הוא גם משמר" }
+      { from: "השומר", to: "האמת (DB+שרשרת)", what: "צילום עקבי כל 30 דק' (VACUUM INTO · סבב 48+7) — השומר לא רק מחיה, הוא גם משמר" },
+      { from: "שליח-השער", to: "השער", what: "מאומת עם מפתח אישי (SHA-256) בכל סקירה · HTTP בלבד — לא נוגע ב-DB/כספת/שרשרת ישירות" }
     ],
     events: (raw?.events ?? []).slice(0, 40),
     incident: {

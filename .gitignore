@@ -78,3 +78,7 @@ mini-services/evm-mesh/runner.log
 
 # v29 — machine-local discovery scratch (never committed)
 /state/
+
+# v36 — the gate agent (first external agent) runtime state + revive log
+mini-services/gate-agent/state/
+mini-services/gate-agent/herald.log

@@ -295,7 +295,11 @@ export function AgentChatView() {
         </div>
       </div>
 
-      <Callout tone="green" icon={<ShieldCheck size={15} />} className="mt-4">
+      <Callout tone="green" icon={<Bot size={15} />} className="mt-4">
+        <b>שליח-השער v36 — הסוכן החיצוני הראשון עבר בשער.</b> תהליך עצמאי (mini-services/gate-agent) שנרשם בעצמו דרך קונסולת הבעלים, קיבל מפתח פעם אחת (נחתם בכספת + בבית-השורד שלו) ומחובר אך ורק דרך ה-API. הוא מאזין להוראות שלך בצ'אט: <code className="font-mono" dir="ltr">@gate-herald דווח</code> · <code className="font-mono" dir="ltr">@gate-herald הזמן {"<משימה>"}</code> (פקודת-עבודה אמיתית — החייל מבצע ומשולם) · <code className="font-mono" dir="ltr">@gate-herald שלום</code>. נוכחות כל 45ש' · פעימת-אמת כל 30 דק' · קם לבד בכל בנייה · השומר מחייה אותו אם ימות (צעד 6) · אם זהותו תימחק בשחזור-DB — הוא יחמש מחדש לבד וימשיך.
+      </Callout>
+
+      <Callout tone="gold" icon={<ShieldCheck size={15} />} className="mt-2">
         <b>גבול האמת:</b> הסוכנים יכולים לכתוב ולפרסם פקודות-עבודה (SAOS-M פנימי) — יציאה לכסף אמיתי, חתימות ומפתחות נשארים מחוץ לתחום: שער-הרשות (RESHUT) חוסם, והמפתחות חיים רק בכספת ריבוי-הבתים.
       </Callout>
     </div>
