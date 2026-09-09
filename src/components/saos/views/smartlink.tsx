@@ -21,7 +21,7 @@ import { useState } from "react";
 import {
   KeyRound, ShieldCheck, HardDriveDownload, HardDrive, FolderLock,
   Import, Download, Fingerprint, RefreshCcw, CheckCircle2, AlertTriangle,
-  Trash2, Eye, EyeOff, Lock, History
+  Trash2, Eye, EyeOff, Lock, History, Database
 } from "lucide-react";
 import { useLive, timeAgo, postJson, fmtInt, short } from "../lib";
 import {
@@ -205,7 +205,7 @@ export function SmartLinkView() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <Kpi label="מפתחות במלאי" value={fmtInt(d.stats.total)} icon={<KeyRound size={15} />} hint={`${d.stats.connected + d.stats.current} מחוברים · ${d.stats.legacy} מדור-קודם`} tone="gold" />
+        <Kpi label="מפתחות במלאי" value={fmtInt(d.stats.total)} icon={<KeyRound size={15} />} hint={`${d.stats.connected} מחוברים · ${d.stats.legacy} מדור-קודם`} tone="gold" />
         <Kpi label="בתי הכספת" value={`${homesOk}/${d.homes.length}`} icon={<HardDrive size={15} />} hint="כל פתיחה מרפאת · כל כתיבה משוקפת" tone={homesOk === d.homes.length ? "green" : "amber"} />
         <Kpi label="סוכנים בצ'אט" value={fmtInt(d.agents.length)} icon={<FolderLock size={15} />} hint={`${d.messageCount} הודעות`} />
         <Kpi label="מצב הכספת" value={d.seal.present ? "חתומה ✓" : "חסרה"} icon={<Lock size={15} />} hint={d.seal.state === "sealed" ? "SAOS-FLEET-VAULT-1 · AES-256-GCM" : d.seal.note} tone={d.seal.present ? "green" : "rose"} />
@@ -217,8 +217,14 @@ export function SmartLinkView() {
         </Callout>
       )}
 
+      {d.dbRestored && (
+        <Callout tone="green" icon={<Database size={15} />}>
+          <b>שחזור ה-DB v34 (בוצע):</b> {new Date(d.dbRestored.at).toLocaleString("he-IL")} — מסד-הנתונים אויר בבניית-הסנדבוקס ושוחזר כולו מהמראה שבבית-השורד ({fmtInt(d.dbRestored.bytes)}B, היסטוריה מלאה: צ'אט · פקודות-עבודה · יומן). הצילום העקבי (VACUUM INTO) משוקף ל-upload/.db-mirror כל 30 דק' — ההיסטוריה כבר לא אובדת בבנייה.
+        </Callout>
+      )}
+
       <Callout tone="gold" icon={<HardDrive size={15} />}>
-        <b>השיעור של 09/09 נסגר — פעמיים:</b> הכספת חיה בשלושה בתים (תיקיית-הריצה · בית מחוץ-לריפו · בית נסתר בהעלאות — שרד את שלוש הבניות מחדש של היום). v33: ה-DB התרוקן בבנייה השלישית — המלאי <b>משוחזר מהכספת אוטומטית</b> (מטא-דאטה בלבד, החומר חתום), ומצב שרשרת-המעבדה משוקף לבית נוסף ששורד בנייה מחדש — אין עוד ריג'נסיס. חומר-מפתח לעולם לא בריפו.
+        <b>אוטרקיה v34 — שלוש התלויות של הבנייה השלישית נסגרו:</b> הכספת בשלושה בתים (v31) · מצב שרשרת-המעבדה + כתובות הפריסה + <b>בינארי ה-anvil עצמו</b> משוקפים ל-bid ששורד כל בנייה (v34 — הבינארי נמחק בבנייה השלישית וגרם ל-31 החייאות לשווא; כעת הוא מחלים אופליין, בלי foundryup ובלי רשת) · וצילום ה-DB העקבי חי באותו בית — DB שאויר משוחזר לבד כולל ההיסטוריה. המערכת כבר לא תלויה בדבר שגר מחוץ לבתים ששורדים.
       </Callout>
 
       <div className="grid lg:grid-cols-3 gap-4 mt-4">

@@ -1419,6 +1419,8 @@ export interface SmartVaultData {
   stats: { total: number; connected: number; legacy: number; unverified: number; imported: number };
   /** v33 — last auto-restore outcome (null = not attempted/already stocked) */
   autoRestore: { keys: number; agents: number; reason: string } | null;
+  /** v34 אוטרקיה — DB self-heal from the survivable-home mirror (null = never needed) */
+  dbRestored: { at: string; bytes: number } | null;
   measuredAt: string;
   error?: string;
 }

@@ -59,6 +59,19 @@ const ANVIL_STATE = path.resolve(import.meta.dir, "..", "state", "anvil-state.js
 const MIRROR_STATE = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".mesh-state", "anvil-state.json");
 const STATE_DUMP_SECONDS = 30;
 const STATE_MIRROR_MS = 5 * 60_000;
+// v34 אוטרקיה — THE BINARY LIVES IN THE SURVIVABLE HOME TOO. The 3rd rebuild
+// of 09/09 wiped /home/z/.foundry (anvil ENOENT) while upload/ survived: the
+// runner crash-looped for 30 minutes and 31 keeper revives could not fix a
+// MISSING BINARY (the honest boundary of v33). The answer: a mirror of the
+// anvil binary inside upload/.mesh-state/bin — boot self-heals ENOENT from
+// it (offline, no foundryup, no network). Same for deployment.json (the
+// contract-mesh addresses): without it a resumed chain would point at no
+// mesh → pointless redeploy. The mirror arms itself on boot when sizes
+// differ (foundryup upgrades included).
+const MIRROR_DIR = path.dirname(MIRROR_STATE);
+const MIRROR_BIN = path.join(MIRROR_DIR, "bin", "anvil");
+const MIRROR_DEPLOYMENT = path.join(MIRROR_DIR, "deployment.json");
+const DEPLOYMENT_STATE = path.resolve(import.meta.dir, "..", "state", "deployment.json");
 
 function stateFileExists(): boolean {
   try {
@@ -92,6 +105,83 @@ function mirrorChainState(): void {
   } catch {
     // state not dumped yet / disk issue — honest skip, next tick retries
   }
+  // v34 — the deployment.json (contract addresses) rides in the same
+  // survivable home: a chain resumed from the state mirror with a MISSING
+  // deployment would redeploy for nothing (new addresses, same chain).
+  try {
+    const st = fs.statSync(DEPLOYMENT_STATE);
+    if (st.size > 0) {
+      const dstTmp = `${MIRROR_DEPLOYMENT}.tmp`;
+      fs.copyFileSync(DEPLOYMENT_STATE, dstTmp);
+      fs.renameSync(dstTmp, MIRROR_DEPLOYMENT);
+    }
+  } catch {
+    // deployment not written yet (pre-first-deploy) — honest skip
+  }
+}
+
+/** v34 אוטרקיה — anvil binary self-sufficiency: heal ANVIL_BIN from the
+ *  survivable mirror when the off-repo home was wiped (ENOENT — the exact
+ *  root cause of the 09/09 crash-loop), and ARM the mirror when it is
+ *  absent or its size differs (a foundryup upgrade changes the size). */
+function ensureAnvilBinary(): void {
+  try {
+    fs.statSync(ANVIL_BIN);
+  } catch {
+    try {
+      const st = fs.statSync(MIRROR_BIN);
+      if (st.size > 1_000_000) {
+        fs.mkdirSync(path.dirname(ANVIL_BIN), { recursive: true });
+        fs.copyFileSync(MIRROR_BIN, ANVIL_BIN);
+        fs.chmodSync(ANVIL_BIN, 0o755);
+        console.log(`[evm-mesh] v34 binary self-heal: anvil ENOENT — restored ${(st.size / 1048576).toFixed(1)}MB from the survivable home (offline, no foundryup)`);
+        return;
+      }
+    } catch {
+      // no mirror either — spawn will fail honestly (v33 boundary, now rarer)
+    }
+    return;
+  }
+  // the binary answers — keep the mirror armed (size-compare: cheap stat,
+  // no 55MB re-hash on every boot; upgrades change the size)
+  try {
+    const live = fs.statSync(ANVIL_BIN);
+    let mirrored = 0;
+    try {
+      mirrored = fs.statSync(MIRROR_BIN).size;
+    } catch {
+      mirrored = -1;
+    }
+    if (mirrored !== live.size) {
+      fs.mkdirSync(path.dirname(MIRROR_BIN), { recursive: true });
+      const tmp = `${MIRROR_BIN}.tmp`;
+      fs.copyFileSync(ANVIL_BIN, tmp);
+      fs.renameSync(tmp, MIRROR_BIN);
+      console.log(`[evm-mesh] v34 binary mirror armed: ${(live.size / 1048576).toFixed(1)}MB → ${MIRROR_BIN} (the home that survives every rebuild)`);
+    }
+  } catch {
+    // stat race — next boot retries
+  }
+}
+
+/** v34 — deployment.json self-heal from the survivable home (rebuild wiped
+ *  the gitignored state dir: chain-state restores via stateFileExists, the
+ *  contract addresses restore here — same chain, SAME mesh, no redeploy). */
+function selfHealDeployment(): void {
+  try {
+    fs.statSync(DEPLOYMENT_STATE);
+  } catch {
+    try {
+      const st = fs.statSync(MIRROR_DEPLOYMENT);
+      if (st.size > 0) {
+        fs.mkdirSync(path.dirname(DEPLOYMENT_STATE), { recursive: true });
+        fs.copyFileSync(MIRROR_DEPLOYMENT, DEPLOYMENT_STATE);
+        console.log(`[evm-mesh] v34 deployment self-heal: contract-mesh addresses restored from the survivable home (${(st.size / 1024).toFixed(0)}KB) — same chain, same mesh, no redeploy`);
+      }
+    } catch {
+      // no mirror — an honest first deploy will write it fresh
+    }
+  }
 }
 
 // ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
@@ -115,6 +205,7 @@ const RT: MeshRuntime = { anvil: null, timers: [], artifactMtime: 0, busy: false
 G.__meshRuntime = RT;
 
 function spawnAnvil(): ReturnType<typeof Bun.spawn> {
+  ensureAnvilBinary(); // v34 — ENOENT heals offline from the survivable home
   const args = ["--port", String(PORT), "--chain-id", String(MESH_CHAIN_ID), "--dump-state", ANVIL_STATE, "--state-interval", String(STATE_DUMP_SECONDS)];
   const resume = stateFileExists();
   if (resume) args.unshift("--load-state", ANVIL_STATE);
@@ -1085,6 +1176,7 @@ async function watchdog(): Promise<void> {
       // corrupted snapshot — burn it and boot fresh (honest regenesis)
       await burnAndRegenesis();
     }
+    selfHealDeployment(); // v34 — addresses may have been wiped with the state
     if (!(await meshAlive())) await deployMesh();
     runTick = 0;
   } catch (e) {
@@ -1119,6 +1211,13 @@ async function artifactWatcher(): Promise<void> {
 
 async function main(): Promise<void> {
   RT.artifactMtime = 0;
+  // v34 אוטרקיה — binary self-sufficiency FIRST (arm the mirror / heal
+  // ENOENT) so every boot path below spawns a real binary.
+  ensureAnvilBinary();
+  // v34 — the contract-mesh addresses heal from the survivable home BEFORE
+  // the meshAlive() decision (a resumed chain + missing deployment would
+  // redeploy for nothing).
+  selfHealDeployment();
   // v20.1 ADOPT — an anvil from a previous run may still hold :8545 with
   // the persisted chain alive (orphaned child). Spawning a second anvil
   // hits EADDRINUSE and the runner crash-loops forever while the chain

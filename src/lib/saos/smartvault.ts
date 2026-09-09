@@ -38,6 +38,7 @@ import {
   type VaultHomeHealth
 } from "@/lib/vault-seal";
 import { logOp } from "./oplog";
+import { restoreDatabaseIfWiped } from "./backups";
 
 const SHA256 = (b: Buffer) => createHash("sha256").update(b).digest();
 const RIPEMD160 = (b: Buffer) => createHash("ripemd160").update(b).digest();
@@ -76,6 +77,9 @@ export interface SmartVaultStatus {
   stats: { total: number; connected: number; legacy: number; unverified: number; imported: number };
   /** v33 — last auto-restore outcome (null = not attempted/already stocked) */
   autoRestore: { keys: number; agents: number; reason: string } | null;
+  /** v34 אוטרקיה — DB self-heal from the survivable-home mirror (null = never
+   *  needed / no mirror); history survives a sandbox rebuild */
+  dbRestored: { at: string; bytes: number } | null;
   measuredAt: string;
   error?: string;
 }
@@ -108,6 +112,31 @@ async function measure(): Promise<SmartVaultStatus> {
   const measuredAt = new Date().toISOString();
   const seal = await sealAvailability();
   const homes = await vaultHomesHealth();
+  // v34 אוטרקיה — the DB HISTORY heals from the survivable home BEFORE any
+  // query runs: a wiped/empty-shell DB + a present mirror → the restored
+  // file + a fresh Prisma connection (chat, work orders, journals back).
+  // The v33 vault restore stays as the fallback when NO mirror exists.
+  let dbRestored: { at: string; bytes: number } | null = null;
+  try {
+    const healed = await restoreDatabaseIfWiped();
+    if (healed.restored) dbRestored = { at: measuredAt, bytes: 0 };
+  } catch {
+    // honest: the heal never breaks the status rail
+  }
+  if (!dbRestored) {
+    // surface the persistent opLog event — the DB restore is a DB-life event
+    // and the view keeps showing it (same pattern as the v33 tombstone)
+    try {
+      const ts = await db.opLog.findFirst({ where: { op: "db.autorestore" }, orderBy: { createdAt: "desc" } });
+      if (ts) {
+        let d: { bytes?: number } = {};
+        try { d = JSON.parse(ts.detail ?? "{}") as { bytes?: number }; } catch { /* non-JSON detail */ }
+        dbRestored = { at: ts.createdAt.toISOString(), bytes: d.bytes ?? 0 };
+      }
+    } catch {
+      // oplog read failed — honest null
+    }
+  }
   // v33 שחזור — the DB is a REBUILDABLE CACHE of the vault (the 3rd sandbox
   // rebuild of 09/09 wiped it while the vault survived in its homes). An
   // EMPTY inventory + a present seal + no prior restore = rebuild now.
@@ -161,6 +190,7 @@ async function measure(): Promise<SmartVaultStatus> {
     messageCount,
     stats,
     autoRestore,
+    dbRestored,
     measuredAt
   };
 }

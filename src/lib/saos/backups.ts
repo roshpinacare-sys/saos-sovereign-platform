@@ -41,6 +41,17 @@ const ROOT = process.cwd();
 const BACKUP_DIR = path.join(ROOT, "db", "backups");
 const DB_FILE = path.join(ROOT, "db", "custom.db");
 const CHAIN_STATE_DIR = path.join(ROOT, "mini-services", "evm-mesh", "state");
+// v34 אוטרקיה — THE DB MIRROR LIVES IN THE SURVIVABLE HOME. The v27
+// snapshots already rotate in db/backups — but that home is WIPED by a
+// sandbox rebuild (the 3rd rebuild of 09/09 took the DB AND every snapshot
+// with it; only the metadata cache was rebuilt by v33, the history was
+// lost). upload/ survived EVERY rebuild so far (the vault's anchor home):
+// the newest consistent snapshot now also lives there, and a wiped DB
+// self-heals from it at the next measure() — history included.
+const MIRROR_DIR = path.join(ROOT, "upload", ".db-mirror");
+const MIRROR_DB = path.join(MIRROR_DIR, "custom.db");
+const SQLITE_HEADER = Buffer.from("SQLite format 3\0", "utf8");
+const MIN_SANE_DB_BYTES = 4096;
 
 const KEEP_DB = 48; // 48 × 30min ≈ 24h of DB truth
 const KEEP_CHAIN = 7; // 7 daily chain snapshots
@@ -58,6 +69,8 @@ export interface BackupsStatus {
   dir: string;
   db: { count: number; keep: number; lastAt: string | null; lastBytes: number };
   chain: { count: number; keep: number; lastAt: string | null; lastBytes: number };
+  /** v34 — the survivable-home mirror (upload/.db-mirror): present/bytes/age */
+  mirror: { present: boolean; bytes: number; at: string | null };
   totalBytes: number;
   lastSnapshotAt: string | null;
   restore: string;
@@ -115,6 +128,61 @@ function listDir(p: string): BackupEntry[] {
       .sort((a, b) => b.name.localeCompare(a.name));
   } catch {
     return [];
+  }
+}
+
+/** v34 — is this file a sane SQLite DB (header + minimal size)? */
+function isSaneSqlite(p: string): boolean {
+  try {
+    const st = fs.statSync(p);
+    if (st.size < MIN_SANE_DB_BYTES) return false;
+    const fd = fs.openSync(p, "r");
+    try {
+      const head = Buffer.alloc(16);
+      fs.readSync(fd, head, 0, 16, 0);
+      return head.subarray(0, 16).equals(SQLITE_HEADER);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
+/** v34 אוטרקיה — self-heal a WIPED database from the survivable-home mirror.
+ *  Runs at the top of every measure()/snapshotNow(): if db/custom.db is
+ *  gone / an empty shell (the exact signature of a sandbox rebuild) and the
+ *  upload/.db-mirror snapshot is present and sane — copy it back (atomic
+ *  tmp+rename) and RECONNECT the live Prisma client ($disconnect — the
+ *  next query opens the restored file, never the dead old inode). History
+ *  (chat, work orders, journals) survives the rebuild; the v33 vault
+ *  restore stays as the fallback when NO mirror exists. Never overwrites
+ *  a healthy DB. Journaled as an opLog event ("db.autorestore") — the UI
+ *  surfaces it like the vault tombstone. */
+export async function restoreDatabaseIfWiped(): Promise<{ restored: boolean; note: string }> {
+  try {
+    const healthy = isSaneSqlite(DB_FILE);
+    if (healthy) return { restored: false, note: "כשיר" };
+    if (!isSaneSqlite(MIRROR_DB)) {
+      return { restored: false, note: "ה-DB ריק/חסר ואין מראה כשירה — נופל חזרה לשחזור-הכספת (v33)" };
+    }
+    const bytes = fs.statSync(MIRROR_DB).size;
+    fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+    const tmp = `${DB_FILE}.restore-tmp`;
+    fs.copyFileSync(MIRROR_DB, tmp);
+    fs.renameSync(tmp, DB_FILE);
+    // the open Prisma pool may still hold the DEAD old inode — close it so
+    // the next query opens the restored file (lazy reconnect on demand)
+    try {
+      await db.$disconnect();
+    } catch {
+      /* never connected — fine */
+    }
+    const note = `ה-DB אויר בבניית-הסנדבוקס — שוחזר מהמראה שבבית השורד (${(bytes / 1024).toFixed(0)}KB, כולל ההיסטוריה)`;
+    void logOp("db.autorestore", { ok: true, bytes, at: new Date().toISOString(), note }).catch(() => undefined);
+    return { restored: true, note };
+  } catch (e) {
+    return { restored: false, note: `בדיקת המראה נכשלה: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}` };
   }
 }
 
@@ -196,6 +264,14 @@ export function backupsStatus(force = false): BackupsStatus {
       lastAt: chains[0]?.at ?? null,
       lastBytes: 0
     },
+    mirror: (() => {
+      try {
+        const st = fs.statSync(MIRROR_DB);
+        return { present: st.size >= MIN_SANE_DB_BYTES, bytes: st.size, at: st.mtime.toISOString() };
+      } catch {
+        return { present: false, bytes: 0, at: null };
+      }
+    })(),
     totalBytes,
     lastSnapshotAt,
     restore: "scripts/restore-backup.sh",
@@ -210,6 +286,15 @@ export function backupsStatus(force = false): BackupsStatus {
 let lastSnapshotAttempt = 0;
 
 export async function snapshotNow(trigger: string): Promise<SnapshotResult> {
+  // v34 אוטרקיה — never snapshot (and never MIRROR) an empty shell: a
+  // rebuild-wiped DB heals from the survivable home FIRST, so the snapshot
+  // below is always the real truth and the mirror can never regress.
+  try {
+    const healed = await restoreDatabaseIfWiped();
+    if (healed.restored) console.log(`[backup] v34 db self-heal: ${healed.note}`);
+  } catch {
+    /* honest — the snapshot itself reports failures as data */
+  }
   const now = Date.now();
   if (now - lastSnapshotAttempt < MIN_INTERVAL_MS) {
     return {
@@ -234,6 +319,28 @@ export async function snapshotNow(trigger: string): Promise<SnapshotResult> {
     dbBytes = fs.statSync(dbFile).size;
   } catch (e) {
     dbError = e instanceof Error ? e.message : "VACUUM INTO failed";
+  }
+
+  // v34 אוטרקיה — MIRROR the snapshot to the survivable home. Sanity gate:
+  // a real platform DB carries the schema (≥ 10 tables) — an empty shell
+  // (fresh push, no data) is never mirrored, so the mirror can only ever
+  // hold genuine truth.
+  let mirrored = false;
+  if (dbError === null && dbBytes >= MIN_SANE_DB_BYTES) {
+    try {
+      const tables = await db.$queryRawUnsafe<{ n: number }[]>(
+        "SELECT count(*) AS n FROM sqlite_master WHERE type='table'"
+      );
+      if (Number(tables[0]?.n ?? 0) >= 10) {
+        ensureDir(MIRROR_DIR);
+        const tmp = `${MIRROR_DB}.tmp`;
+        fs.copyFileSync(dbFile, tmp);
+        fs.renameSync(tmp, MIRROR_DB);
+        mirrored = true;
+      }
+    } catch {
+      /* mirror failure never fails the snapshot itself — db/backups still holds it */
+    }
   }
 
   // 2. chain — once per calendar day (38MB each; 7 days of chain truth)
@@ -269,7 +376,7 @@ export async function snapshotNow(trigger: string): Promise<SnapshotResult> {
         chainDir: chainDone ? path.basename(chainDir) : undefined,
         dbBytes,
         chainBytes: chainDone ? chainBytes : 0,
-        note: `צילום עקבי (VACUUM INTO) · ${(dbBytes / 1024).toFixed(0)}KB${chainDone ? ` + שרשרת ${(chainBytes / 1048576).toFixed(1)}MB` : ""}${removedDb || removedChain ? ` · סבב הרכה: ${removedDb + removedChain} קבצים ישנים` : ""}`,
+        note: `צילום עקבי (VACUUM INTO) · ${(dbBytes / 1024).toFixed(0)}KB${chainDone ? ` + שרשרת ${(chainBytes / 1048576).toFixed(1)}MB` : ""}${mirrored ? " · מראה בבית-השורד ✓ (upload/.db-mirror)" : ""}${removedDb || removedChain ? ` · סבב הרכה: ${removedDb + removedChain} קבצים ישנים` : ""}`,
         status
       };
 
