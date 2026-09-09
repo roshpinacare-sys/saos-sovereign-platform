@@ -291,3 +291,54 @@ model PhysicalMove {
   @@index([kind, status])
   @@index([createdAt])
 }
+
+// ─── v31: SMART LINK (החיבור החכם) — multi-home vault inventory + agents gateway ──
+// SmartKey rows are METADATA ONLY (names, networks, public addresses,
+// verification status). The actual key material lives exclusively inside
+// the encrypted multi-home vault (agent/keys + /home/z/saos-vault +
+// upload hidden home) — never in the DB, never in the repo.
+
+model SmartKey {
+  id             String    @id @default(cuid())
+  keyId          String    @unique // stable slug inside the vault bundle
+  materialRef    String? // vault member path holding the key material (never the material itself)
+  name           String // display name (Hebrew ok)
+  kind           String // steem-wif | hive-wif | evm-priv | tron-priv | sol-priv | xrp-priv | mnemonic | seed-hex | github-token | agent-token | other
+  network        String // STEEM | HIVE | ETHEREUM | BSC | TRON | SOLANA | XRPL | GITHUB | MULTI
+  role           String? // owner | active | posting | memo | sovereign | cornerstone | fleet | treasury | agent
+  address        String? // derived public identity (account / address / handle)
+  status         String    @default("imported") // imported | connected | current | legacy | mismatch | revoked | unverified
+  note           String?
+  lastVerifiedAt DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([network, status])
+}
+
+model AgentIdentity {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  role      String   @default("worker") // worker | observer | commander
+  keyHash   String // sha256(apiKey) — verify fast without opening the vault
+  active    Boolean  @default(true)
+  lastSeenAt DateTime?
+  createdAt DateTime @default(now())
+  messages  AgentMessage[]
+}
+
+model AgentMessage {
+  id        String   @id @default(cuid())
+  author    String // agent name | "owner" | "system"
+  authorRole String  @default("worker")
+  kind      String   @default("say") // say | report | order | system | join
+  content   String
+  meta      String? // JSON extras (order result, verify detail...)
+  createdAt DateTime @default(now())
+  agent     AgentIdentity? @relation(fields: [agentId], references: [id])
+  agentId   String?
+
+  @@index([createdAt])
+  @@index([author])
+}

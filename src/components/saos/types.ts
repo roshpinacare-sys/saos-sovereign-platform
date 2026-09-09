@@ -1383,3 +1383,57 @@ export interface CornerstoneData {
   measuredAt: string;
   error?: string;
 }
+
+// ─── v31 — SMART LINK (החיבור החכם) + AGENTS GATEWAY (שער סוכנים) ──────────
+
+export interface VaultHomeView {
+  home: string;
+  kind: "runtime" | "off-repo" | "upload-hidden";
+  present: boolean;
+  bytes: number;
+  mode: string | null;
+}
+
+export interface SmartKeyRowView {
+  keyId: string;
+  name: string;
+  kind: string;
+  network: string;
+  role: string | null;
+  address: string | null;
+  status: string;
+  note: string | null;
+  lastVerifiedAt: string | null;
+  lastError: string | null;
+  materialRef: string | null;
+  createdAt: string;
+}
+
+export interface SmartVaultData {
+  ok: boolean;
+  seal: { present: boolean; state: string; note: string };
+  homes: VaultHomeView[];
+  keys: SmartKeyRowView[];
+  agents: { name: string; role: string; active: boolean; lastSeenAt: string | null; messages: number }[];
+  messageCount: number;
+  stats: { total: number; connected: number; legacy: number; unverified: number; imported: number };
+  measuredAt: string;
+  error?: string;
+}
+
+export interface ChatMessageView {
+  id: string;
+  author: string;
+  authorRole: string;
+  kind: string;
+  content: string;
+  meta: string | null;
+  createdAt: string;
+}
+
+export interface AgentChatData {
+  ok: boolean;
+  agents: { name: string; role: string; active: boolean; lastSeenAt: string | null; createdAt: string }[];
+  messages: ChatMessageView[];
+  error?: string;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v29 — חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה — מחובר לבורסה החיה: WBNB + WRXP 1:1 · בריכות חדשות · סנכרון WETH · מסילת XRPL) + בורסה ריבונית על SAOS-NET —
+ * SAOS Sovereign Platform v31 — חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה — מחובר לבורסה החיה: WBNB + WRXP 1:1 · בריכות חדשות · סנכרון WETH · מסילת XRPL) + בורסה ריבונית על SAOS-NET —
  * צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה ·
  * עמלה 20bps — 10 לאוצר 10 לצמיחה · קציר נזילות לאוצר · חיילים סוחרים ·
  * ראוטר לדקסים המובילים · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי) +
@@ -11,7 +11,9 @@
  * (מכ"ם-נזילות חי: 8 מרחבים · USD · מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני — התמונה של
  * הבעלים נקראת בקצה-האחורי, מאומתת מול ראיות-השרשרת, נאטמת כספת
  * חדשה; מיקרו-גריד עם חוסן-ריאנקור אוטומטי) מעל לוח העבודה.
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 21 עמודים. קיצורי-מקלדת Alt+1..9.
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 23 עמודים. קיצורי-מקלדת Alt+1..9.
+ * v31 חיבור-חכם (SMART LINK): הכספת חיה בשלושה בתים (ריצה · מחוץ-לריפו · נסתר) — כל פתיחה מרפאת,
+ * כל כתיבה משוקפת; מלאי-מפתחות מאומת-חי; ייבוא-חכם בזיהוי-אוטומטי; צ'אט-סוכנים דרך API.
  */
 
 import { useEffect, useState } from "react";
@@ -32,6 +34,8 @@ import { ViewMesh } from "@/components/saos/views/mesh";
 import { ViewWorkboard } from "@/components/saos/views/workboard";
 import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
+import { SmartLinkView } from "@/components/saos/views/smartlink";
+import { AgentChatView } from "@/components/saos/views/agentchat";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
 import { MicrogridView } from "@/components/saos/views/microgrid";
@@ -55,6 +59,8 @@ const TITLES: Record<ViewId, string> = {
   workboard: "פקודות עבודה",
   fleet: "חימוש הצי",
   "sovereign-key": "המפתח הריבוני",
+  smartlink: "החיבור החכם — כספת ריבוי-בתים",
+  agentchat: "צ'אט הסוכנים — שער API",
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
   microgrid: "מיקרו-גריד",
@@ -104,6 +110,8 @@ export default function Home() {
         {view === "workboard" && <ViewWorkboard />}
         {view === "fleet" && <ViewFleet />}
         {view === "sovereign-key" && <ViewSovereignKey />}
+        {view === "smartlink" && <SmartLinkView />}
+        {view === "agentchat" && <AgentChatView />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}
         {view === "microgrid" && <MicrogridView />}

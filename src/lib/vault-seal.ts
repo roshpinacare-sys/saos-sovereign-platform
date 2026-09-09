@@ -22,26 +22,61 @@ import path from "path";
 
 const MAGIC = "SAOS-FLEET-VAULT-1";
 
-/** Candidate locations for agent/keys (cwd differs between dev/next). */
-const KEYS_DIRS = [
-  path.join(process.cwd(), "agent", "keys"),
-  path.join(process.cwd(), "..", "agent", "keys")
-];
+/**
+ * v31 SMART LINK — MULTI-HOME keys dirs.
+ * The 2026-09-09 lesson: a single gitignored home inside the repo folder
+ * dies with every sandbox rebuild. The vault now lives in THREE homes —
+ * (1) the runtime dir (gitignored), (2) an OFF-REPO home that survives
+ * repo re-clones, (3) a hidden home inside upload/ (the folder that
+ * empirically survived every past rebuild). Every open self-heals any
+ * missing home; every write mirrors to all of them.
+ */
+const HOME_A = path.join(process.cwd(), "agent", "keys");
+const HOME_B = path.join(process.home ?? process.env.HOME ?? "/home/z", "saos-vault", "agent-keys");
+const HOME_C = path.join(process.cwd(), "upload", ".agent-keys");
+const KEYS_DIRS = [HOME_A, HOME_B, HOME_C];
 
 let cachedDir: string | null = null;
 
-async function vaultPaths(): Promise<{ enc: string; meta: string }> {
-  if (cachedDir) return { enc: path.join(cachedDir, "fleet_keys.enc"), meta: path.join(cachedDir, "fleet_keys.meta.json") };
+/** Copies enc+meta from `from` to every other home that lacks them (self-heal). */
+async function selfHealHomes(from: string): Promise<string[]> {
+  const healed: string[] = [];
+  const fs = await import("fs");
+  const enc = fs.readFileSync(path.join(from, "fleet_keys.enc"));
+  const meta = fs.readFileSync(path.join(from, "fleet_keys.meta.json"));
+  for (const dir of KEYS_DIRS) {
+    if (dir === from) continue;
+    try {
+      fs.accessSync(path.join(dir, "fleet_keys.enc"));
+    } catch {
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "fleet_keys.enc"), enc, { mode: 0o600 });
+        fs.writeFileSync(path.join(dir, "fleet_keys.meta.json"), meta, { mode: 0o600 });
+        fs.chmodSync(path.join(dir, "fleet_keys.enc"), 0o600);
+        fs.chmodSync(path.join(dir, "fleet_keys.meta.json"), 0o600);
+        healed.push(dir);
+      } catch {
+        // home unwritable — honest skip (health endpoint reports it)
+      }
+    }
+  }
+  return healed;
+}
+
+async function vaultPaths(): Promise<{ enc: string; meta: string; healed: string[] }> {
+  if (cachedDir) return { enc: path.join(cachedDir, "fleet_keys.enc"), meta: path.join(cachedDir, "fleet_keys.meta.json"), healed: [] };
   for (const dir of KEYS_DIRS) {
     try {
       await access(path.join(dir, "fleet_keys.enc"));
       cachedDir = dir;
-      return { enc: path.join(dir, "fleet_keys.enc"), meta: path.join(dir, "fleet_keys.meta.json") };
+      const healed = await selfHealHomes(dir); // v31: never lose a home again
+      return { enc: path.join(dir, "fleet_keys.enc"), meta: path.join(dir, "fleet_keys.meta.json"), healed };
     } catch {
       // try next candidate
     }
   }
-  return { enc: path.join(KEYS_DIRS[0], "fleet_keys.enc"), meta: path.join(KEYS_DIRS[0], "fleet_keys.meta.json") };
+  return { enc: path.join(KEYS_DIRS[0], "fleet_keys.enc"), meta: path.join(KEYS_DIRS[0], "fleet_keys.meta.json"), healed: [] };
 }
 
 interface SealedBundle {
@@ -266,6 +301,21 @@ export async function appendVaultMember(memberPath: string, content: string): Pr
   fs.chmodSync(enc, 0o600);
   fs.chmodSync(meta, 0o600);
   cachedDir = null; // re-resolve on next open (path unchanged, but honest)
+  // v31 SMART LINK: mirror the fresh envelope to EVERY home — the write
+  // path gets the same redundancy as the read path. A home that cannot
+  // be written is skipped honestly (reported by vault health).
+  for (const dir of KEYS_DIRS) {
+    if (path.dirname(enc) === dir) continue;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "fleet_keys.enc"), sealed, { mode: 0o600 });
+      fs.writeFileSync(path.join(dir, "fleet_keys.meta.json"), JSON.stringify({ pass }, null, 2), { mode: 0o600 });
+      fs.chmodSync(path.join(dir, "fleet_keys.enc"), 0o600);
+      fs.chmodSync(path.join(dir, "fleet_keys.meta.json"), 0o600);
+    } catch {
+      // honest skip
+    }
+  }
 }
 
 /** Probes seal existence without opening it. */
@@ -277,6 +327,30 @@ export async function sealExists(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ─── v31 SMART LINK — multi-home health (for the UI truth panel) ───────────
+
+export interface VaultHomeHealth {
+  home: string;
+  kind: "runtime" | "off-repo" | "upload-hidden";
+  present: boolean;
+  bytes: number;
+  mode: string | null;
+}
+
+/** Reports every home's state WITHOUT opening the seal (no secrets). */
+export async function vaultHomesHealth(): Promise<VaultHomeHealth[]> {
+  const fs = await import("fs");
+  const kinds = ["runtime", "off-repo", "upload-hidden"] as const;
+  return KEYS_DIRS.map((dir, i) => {
+    try {
+      const st = fs.statSync(path.join(dir, "fleet_keys.enc"));
+      return { home: dir, kind: kinds[i], present: true, bytes: st.size, mode: (st.mode & 0o777).toString(8) };
+    } catch {
+      return { home: dir, kind: kinds[i], present: false, bytes: 0, mode: null };
+    }
+  });
 }
 
 // ─── Signing session (STAGE 2 → LIVE) ─────────────────────────────────────

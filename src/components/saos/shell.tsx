@@ -7,14 +7,14 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flower2, GitBranch, Globe2, HardHat, HeartPulse, KeyRound, RadioTower, RefreshCcw, Scale, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flower2, GitBranch, Globe2, HardHat, HeartPulse, KeyRound, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "research";
+export type ViewId = "overview" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -128,6 +128,22 @@ export const VIEWS: ViewDef[] = [
     short: "המפתח",
     desc: "המפתח של הבעלים — חתום בכספת, זורם לנזילות הפרטית, מגויס ב-mainnet",
     icon: <KeyRound size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "smartlink",
+    label: "החיבור החכם",
+    short: "חיבור",
+    desc: "הכספת ריבוי-הבתים + מלאי המפתחות שלך — ייבוא חכם ואימות חי מול השרשרות",
+    icon: <Link2 size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "agentchat",
+    label: "צ'אט הסוכנים",
+    short: "צ'אט",
+    desc: "צרף סוכנים כמוני דרך API — כותבים לנו ומבצעים פקודות-עבודה",
+    icon: <MessagesSquare size={16} />,
     group: "תפעול"
   },
 
