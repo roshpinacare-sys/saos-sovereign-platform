@@ -15,19 +15,63 @@ function shortTx(txid: string | null): string {
 
 export async function GET() {
   try {
+    // v26 — ALL independent probes and DB reads run in PARALLEL. The old
+    // code awaited hive → tron slots → tron probe → steem history in a
+    // tower: a cold cache summed four network round-trips (measured: up
+    // to ~12s). Now the wall-clock is the SLOWEST rail, not the sum —
+    // the two dependent steps (tron probe needs its slot addresses) run
+    // as a chained promise inside the same parallel batch.
+    const dbAnchors = db.anchorTx.findFirst({
+      where: { kind: "weave", network: "ETHEREUM", txid: { not: null }, status: "anchored" },
+      orderBy: { createdAt: "desc" },
+      select: { txid: true, createdAt: true, meta: true }
+    });
+    const dbSol = db.anchorTx.findFirst({
+      where: { kind: "weave", network: "SOLANA", txid: { not: null }, status: "anchored" },
+      orderBy: { createdAt: "desc" },
+      select: { txid: true, createdAt: true, meta: true }
+    });
+    const dbStats = Promise.all([
+      db.sealRecord.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: { anchors: true, _count: { select: { leaves: true } } }
+      }),
+      db.evidenceReceipt.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
+      db.opLog.count(),
+      db.sealRecord.count(),
+      db.evidenceReceipt.count(),
+      db.sealRecord.aggregate({ _sum: { gasUsed: true, leavesCount: true } }),
+      db.sealRecord.findFirst({ orderBy: { height: "desc" }, select: { height: true, createdAt: true } })
+    ]);
+
+    const probes = (async () => {
+      const hiveRc = await probeHiveRc(hiveAnchorAccount());
+      const tronSlots = await db.vaultSlot.findMany({
+        where: { network: "TRON", address: { not: null } },
+        select: { address: true }
+      });
+      const tronLive = await probeTronVault(tronSlots.map((s) => s.address as string));
+      return { hiveRc, tronLive };
+    })();
+
+    const [hiveRc, tronLive, steemChain, evmAnchor, solAnchor, stats] = await Promise.all([
+      probes.then((p) => p.hiveRc),
+      probes.then((p) => p.tronLive),
+      probeSteemWeaveHistory(),
+      dbAnchors,
+      dbSol,
+      dbStats
+    ]);
+    const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = stats;
+
     // v9 — LIVE resource gates: the HIVE RC is MEASURED against the public
     // chain (60s cache) and the TRON vault state is probed read-only. On
     // any probe failure we fall back to the static env values and say so —
     // never a fabricated "live" number.
-    const hiveRc = await probeHiveRc(hiveAnchorAccount());
     const rcPct = hiveRc.ok ? hiveRc.rcPct : Number(process.env.HIVE_RC_PCT ?? 0.6);
     const rcSource: "live" | "env" = hiveRc.ok ? "live" : "env";
 
-    const tronSlots = await db.vaultSlot.findMany({
-      where: { network: "TRON", address: { not: null } },
-      select: { address: true }
-    });
-    const tronLive = await probeTronVault(tronSlots.map((s) => s.address as string));
     const tronEnergy = tronLive.ok
       ? tronLive.totalEnergy > 0
         ? tronLive.totalEnergy
@@ -42,18 +86,6 @@ export async function GET() {
     // A live mainnet anchor (txid from the node, confirmed) ⇒ "anchored";
     // a funded sovereign wallet ⇒ "pending" (human-gated: real money);
     // anything else ⇒ "probe" (read-only rail, no signing path yet).
-    const [evmAnchor, solAnchor] = await Promise.all([
-      db.anchorTx.findFirst({
-        where: { kind: "weave", network: "ETHEREUM", txid: { not: null }, status: "anchored" },
-        orderBy: { createdAt: "desc" },
-        select: { txid: true, createdAt: true, meta: true }
-      }),
-      db.anchorTx.findFirst({
-        where: { kind: "weave", network: "SOLANA", txid: { not: null }, status: "anchored" },
-        orderBy: { createdAt: "desc" },
-        select: { txid: true, createdAt: true, meta: true }
-      })
-    ]);
     matrix.push(
       {
         network: "ETHEREUM",
@@ -81,7 +113,6 @@ export async function GET() {
     // row now reads THE CHAIN (bounded history scan) instead of a
     // restorable DB table — sandbox resets can no longer un-anchor the
     // truth.
-    const steemChain = await probeSteemWeaveHistory();
     if (steemChain.ok) {
       const steemRow = matrix.find((m) => m.network === "STEEM");
       if (steemRow) {
@@ -95,20 +126,6 @@ export async function GET() {
         }
       }
     }
-
-    const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = await Promise.all([
-      db.sealRecord.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 8,
-        include: { anchors: true, _count: { select: { leaves: true } } }
-      }),
-      db.evidenceReceipt.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
-      db.opLog.count(),
-      db.sealRecord.count(),
-      db.evidenceReceipt.count(),
-      db.sealRecord.aggregate({ _sum: { gasUsed: true, leavesCount: true } }),
-      db.sealRecord.findFirst({ orderBy: { height: "desc" }, select: { height: true, createdAt: true } })
-    ]);
 
     return NextResponse.json({
       ok: true,

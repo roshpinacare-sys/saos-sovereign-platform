@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v25 — RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות · שובל-ביקורת אדום מעודכ · מגן אוטומטי) (מכ"ם-נזילות חי: 8 מרחבים · USD ·
- * מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני — התמונה של
+ * SAOS Sovereign Platform v26 — SHOMER (שומר: החייאה עצמית — הקרנל הרג את הווב ב-OOM והשומר מחזיר אותו לבד;
+ * השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil · צבירי-מאזנים מבוזרים + מקביליות — /fleet מ-9.5ש' לשנייה, /status מ-12ש' למקסימום-פס; הרשות ממשיכה
+ * (מכ"ם-נזילות חי: 8 מרחבים · USD · מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני — התמונה של
  * הבעלים נקראת בקצה-האחורי, מאומתת מול ראיות-השרשרת, נאטמת כספת
  * חדשה; מיקרו-גריד עם חוסן-ריאנקור אוטומטי) מעל לוח העבודה.
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 16 עמודים. קיצורי-מקלדת Alt+1..9.
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 20 עמודים. קיצורי-מקלדת Alt+1..9.
  */
 
 import { useEffect, useState } from "react";
@@ -17,6 +18,7 @@ import { ViewOverview } from "@/components/saos/views/overview";
 import { Network360View } from "@/components/saos/views/network360";
 import { SecurityView } from "@/components/saos/views/security";
 import { PermissionsView } from "@/components/saos/views/permissions";
+import { KeeperView } from "@/components/saos/views/keeper";
 import { ViewNetworks } from "@/components/saos/views/networks";
 import { ViewAgents } from "@/components/saos/views/agents";
 import { ViewSeals } from "@/components/saos/views/seals";
@@ -38,6 +40,7 @@ const TITLES: Record<ViewId, string> = {
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
   reshut: "רשות — מטריצת הסמכויות",
+  keeper: "שומר — החייאה עצמית",
   networks: "רשתות חיות",
   agents: "מעקב סוכנים",
   seals: "איטום ועגינה",
@@ -85,6 +88,7 @@ export default function Home() {
         {view === "network360" && <Network360View />}
         {view === "security" && <SecurityView />}
         {view === "reshut" && <PermissionsView />}
+        {view === "keeper" && <KeeperView />}
         {view === "networks" && <ViewNetworks status={status} />}
         {view === "agents" && <ViewAgents />}
         {view === "seals" && <ViewSeals status={status} />}

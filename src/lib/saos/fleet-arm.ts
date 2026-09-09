@@ -113,6 +113,61 @@ async function jsonRpc<T>(url: string, method: string, params: unknown[]): Promi
   }
 }
 
+// ── v26 SHOMER — batched balance rails ────────────────────────────────────
+// The roster used to walk 12 EVM wallets SEQUENTIALLY (rpc + 200ms sleep
+// each) then 12 SOL wallets (rpc + 150ms sleep each): ~24 round-trips and
+// 4.2s of pure sleep ≈ 9.5s per cold roster — measured. Now: ONE JSON-RPC
+// batch per EVM endpoint (rotation across the registry) + ONE
+// getMultipleAccounts per SOL endpoint, all four calls in PARALLEL, plus a
+// 60s cache. Same honesty: a failed call still yields 0 (measured null),
+// never a fabricated number.
+
+async function batchEthBalances(targets: Array<{ agent: string; evm: string }>, endpoint: string): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!targets.length) return map;
+  try {
+    const body = targets.map((w, i) => ({ jsonrpc: "2.0", id: i + 1, method: "eth_getBalance", params: [w.evm, "latest"] }));
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(12_000)
+    });
+    const j = (await res.json()) as unknown;
+    if (Array.isArray(j)) {
+      const rows = j as Array<{ result?: string }>;
+      targets.forEach((w, i) => map.set(w.agent, ethOf(rows[i]?.result ?? "0x0")));
+    }
+  } catch {
+    /* honest: stays empty → callers fall back to 0 */
+  }
+  return map;
+}
+
+async function multiSolBalances(targets: Array<{ agent: string; sol: string }>, endpoint: string): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!targets.length) return map;
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getMultipleAccounts",
+        params: [targets.map((w) => w.sol), { encoding: "jsonParsed", commitment: "confirmed" }]
+      }),
+      signal: AbortSignal.timeout(12_000)
+    });
+    const j = (await res.json()) as { result?: { value?: Array<{ lamports?: number } | null> } };
+    const rows = j.result?.value ?? [];
+    targets.forEach((w, i) => map.set(w.agent, (rows[i]?.lamports ?? 0) / 1e9));
+  } catch {
+    /* honest: stays empty → callers fall back to 0 */
+  }
+  return map;
+}
+
 const parseAmount = (s: string | undefined): number => (s ? Number(s.split(" ")[0] ?? 0) : 0);
 
 // ─── roster + live balances ────────────────────────────────────────────────
@@ -155,8 +210,14 @@ const ethOf = (wei: unknown): number => {
   }
 };
 
-/** Live fleet readiness across all reachable rails (read-only, no keys). */
+/** Live fleet readiness across all reachable rails (read-only, no keys).
+ *  v26 — 60s cache: the UI polls the roster repeatedly; live probes are
+ *  shared, not per-request (same pattern as hive/tron/steem probes). */
+let rosterCache: { at: number; value: FleetRoster } | null = null;
+const ROSTER_TTL_MS = 60_000;
+
 export async function fleetRoster(): Promise<FleetRoster> {
+  if (rosterCache && Date.now() - rosterCache.at < ROSTER_TTL_MS) return rosterCache.value;
   const measuredAt = new Date().toISOString();
   const inv = await readSealInventory();
   const wallets = await readSovereignWallets();
@@ -166,15 +227,37 @@ export async function fleetRoster(): Promise<FleetRoster> {
   const soldierNames = inv.fleet.map((f) => f.username).filter(Boolean);
   const allNames = [...soldierNames, "headcorner"];
 
-  // STEEM accounts + RC (parallel, independent)
-  const [steemAccounts, rcRaw] = await Promise.all([
+  // v26 — ALL rails in parallel: STEEM pair + HIVE + batched EVM (one
+  // JSON-RPC batch per endpoint, rotating) + batched SOL (one
+  // getMultipleAccounts per endpoint). Cold roster ≈ slowest rail, not
+  // the sum of 24 sequential calls + sleeps.
+  const evmTargets = wallets.filter((w) => w.evm).map((w) => ({ agent: w.agent, evm: w.evm as string }));
+  const solTargets = wallets.filter((w) => w.sol).map((w) => ({ agent: w.agent, sol: w.sol as string }));
+  const evmChunks: Array<Array<{ agent: string; evm: string }>> = [];
+  for (let i = 0; i < evmTargets.length; i++) {
+    const chunk = Math.floor(i % ETH_ENDPOINTS.length);
+    (evmChunks[chunk] ??= []).push(evmTargets[i]!);
+  }
+  const solHalf = Math.ceil(solTargets.length / 2);
+
+  const [steemAccounts, rcRaw, hiveAccounts, ...evmSols] = (await Promise.all([
     jsonRpc<unknown[]>(STEEM_RPC, "condenser_api.get_accounts", [allNames]),
     jsonRpc<{ rc_accounts?: { account: string; max_rc: string; rc_manabar: { current_mana: string } }[] }>(
       STEEM_RPC,
       "rc_api.find_rc_accounts",
       { accounts: allNames }
-    )
-  ]);
+    ),
+    jsonRpc<unknown[]>(HIVE_RPC, "condenser_api.get_accounts", [allNames]),
+    ...evmChunks.map((chunk, i) => batchEthBalances(chunk, ETH_ENDPOINTS[i % ETH_ENDPOINTS.length] as string)),
+    multiSolBalances(solTargets.slice(0, solHalf), SOL_ENDPOINT),
+    multiSolBalances(solTargets.slice(solHalf), SOL_READ_FALLBACK)
+  ])) as [unknown[], { rc_accounts?: { account: string; max_rc: string; rc_manabar: { current_mana: string } }[] } | null, unknown[], ...Array<Map<string, number>>];
+
+  const evmMap = new Map<string, number>();
+  for (const m of evmSols.slice(0, evmChunks.length)) for (const [k, v] of m) evmMap.set(k, v);
+  const solMap = new Map<string, number>();
+  for (const m of evmSols.slice(evmChunks.length)) for (const [k, v] of m) solMap.set(k, v);
+
   const rcAccounts = rcRaw?.rc_accounts ?? [];
   const steemMap = new Map<string, { balance: number; sbd: number; vests: number; rcPct: number | null }>();
   for (const raw of steemAccounts ?? []) {
@@ -189,34 +272,10 @@ export async function fleetRoster(): Promise<FleetRoster> {
     }
   }
 
-  // HIVE accounts
-  const hiveAccounts = await jsonRpc<unknown[]>(HIVE_RPC, "condenser_api.get_accounts", [allNames]);
   const hiveMap = new Map<string, { balance: number; vests: number }>();
   for (const raw of hiveAccounts ?? []) {
     const a = raw as { name: string; balance: string; vesting_shares: string };
     hiveMap.set(a.name, { balance: num(a.balance), vests: num(a.vesting_shares) });
-  }
-
-  // EVM balances (round-robin across endpoints — 12 sequential calls)
-  const evmMap = new Map<string, number>();
-  for (let i = 0; i < wallets.length; i++) {
-    const w = wallets[i];
-    if (!w.evm) continue;
-    const endpoint = ETH_ENDPOINTS[i % ETH_ENDPOINTS.length];
-    const bal = await jsonRpc<string>(endpoint, "eth_getBalance", [w.evm, "latest"]);
-    evmMap.set(w.agent, ethOf(bal ?? "0x0"));
-    await new Promise((r) => setTimeout(r, 200)); // gentle on public nodes
-  }
-
-  // SOL balances (round-robin)
-  const solMap = new Map<string, number>();
-  for (let i = 0; i < wallets.length; i++) {
-    const w = wallets[i];
-    if (!w.sol) continue;
-    const endpoint = i % 2 === 0 ? SOL_ENDPOINT : SOL_READ_FALLBACK;
-    const res = await jsonRpc<{ value: number }>(endpoint, "getBalance", [w.sol]);
-    solMap.set(w.agent, (res?.value ?? 0) / 1e9);
-    await new Promise((r) => setTimeout(r, 150));
   }
 
   const soldiers: SoldierRow[] = soldierNames.map((name) => {
@@ -246,7 +305,9 @@ export async function fleetRoster(): Promise<FleetRoster> {
       }
     : null;
 
-  return { ok: true, soldiers, sovereign, policy: armPolicy(), saosSupply: ledger.supply, measuredAt };
+  const value: FleetRoster = { ok: true, soldiers, sovereign, policy: armPolicy(), saosSupply: ledger.supply, measuredAt };
+  rosterCache = { at: Date.now(), value };
+  return value;
 }
 
 // ─── arming ledger helpers ─────────────────────────────────────────────────

@@ -7,14 +7,14 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, Boxes, Crosshair, Droplets, ExternalLink, Flower2, GitBranch, Globe2, HardHat, KeyRound, RadioTower, RefreshCcw, Scale, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
+import { Anchor, Boxes, Crosshair, Droplets, ExternalLink, Flower2, GitBranch, Globe2, HardHat, HeartPulse, KeyRound, RadioTower, RefreshCcw, Scale, ShieldCheck, Users, Waypoints, Zap } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "network360" | "security" | "reshut" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "microgrid" | "flow" | "roses" | "economy" | "research";
+export type ViewId = "overview" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "proofs" | "energy" | "microgrid" | "flow" | "roses" | "economy" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -56,6 +56,14 @@ export const VIEWS: ViewDef[] = [
     short: "רשות",
     desc: "אין חתימה בלי רשות — מי מוסמך, דרך איזה מפתח, עם אילו מגבלות · שובל-ביקורת אדום · בדיקת-שער חיה",
     icon: <Scale size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "keeper",
+    label: "שומר — החייאה עצמית",
+    short: "שומר",
+    desc: "האורגניזם מחיה את עצמו — שמירה הדדית על הווב, השרשרת, הראנר והשומר · לחץ זיכרון בהתראה מוקדמת",
+    icon: <HeartPulse size={16} />,
     group: "תפעול"
   },
   {
@@ -220,7 +228,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v25.0 RESHUT</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v26.0 SHOMER</p>
           </div>
         </div>
 
@@ -376,7 +384,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v25.0.0 — RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה אחת לשעה מה-runner) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+              SAOS Sovereign Platform v26.0.0 — SHOMER (שומר: החייאה עצמית — הקרנל הרג את הווב ב-OOM והשומר מחזיר אותו לבד; השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil, לחץ-זיכרון בהתראה מוקדמת, צבירי-מאזנים + מקבליות — /fleet מ-9.5ש' לשנייה) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה אחת לשעה מה-runner) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a

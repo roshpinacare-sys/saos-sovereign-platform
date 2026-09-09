@@ -179,6 +179,17 @@ async function postRealWorkOrder(job: { mission: string; difficulty: number; rew
 }
 
 let runTick = 0;
+let keeperFails = 0; // v26 — mutual-watch fail streak for the keeper :3005
+
+// v26.1 — CYCLE WATCHDOG: the runner froze twice tonight on a dead
+// keep-alive RPC socket (an in-flight ethers request that anvil never
+// answered — promise pending forever, cycle #1 frozen mid-identity-sync,
+// blocks stuck, process "alive" but dead). A cycle is bounded by design
+// (worst case: 100s LLM + 90s bloom + 110s scan + contract waits ≈ 5 min);
+// a cycle that exceeds this bound is a freeze BY DEFINITION — the runner
+// says so loudly and self-terminates; the keeper (≤60s) revives it fresh.
+// A sick cell dies visibly; the organism grows a new one.
+const CYCLE_MAX_MS = 5 * 60_000;
 
 async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
   hub: ethers.Contract;
@@ -212,8 +223,14 @@ async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
 async function autoCycle(): Promise<void> {
   if (RT.busy) return;
   RT.busy = true;
+  const cycleWatchdog = setTimeout(() => {
+    console.log(
+      `[evm-mesh] CYCLE WATCHDOG: cycle exceeded ${Math.round(CYCLE_MAX_MS / 60_000)}min (frozen RPC socket / hung await) — self-terminating; the keeper revives a fresh runner. runTick=${runTick} block≈stuck`
+    );
+    process.exit(1);
+  }, CYCLE_MAX_MS);
+  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
   try {
-    const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
     const c = await meshContracts(provider);
     if (!c) throw new Error("mesh not deployed");
 
@@ -372,6 +389,33 @@ async function autoCycle(): Promise<void> {
       /* web tier down / timeout — honest skip, next cycle tries again */
     }
 
+    // 4.8 v26 — KEEPER MUTUAL REVIVE: the keeper (mini-services/keeper,
+    //      :3005) watches the web tier + this runner + anvil + machine
+    //      memory and revives any confirmed-dead member. This step is the
+    //      other half of the loop: if the KEEPER itself dies, the runner
+    //      revives it the same way (connection-refused ×2 = confirmed
+    //      death — a timeout is watched, never killed). No member of the
+    //      organism can stay dead: web ⇄ keeper ⇄ runner ⇄ anvil.
+    try {
+      const k = await fetch("http://127.0.0.1:3005/", { signal: AbortSignal.timeout(3_000) });
+      if (k.ok) keeperFails = 0;
+      else keeperFails += 1;
+    } catch {
+      keeperFails += 1;
+    }
+    if (keeperFails >= 2) {
+      keeperFails = 0;
+      try {
+        Bun.spawn(
+          ["bash", "-c", "cd /home/z/my-project/mini-services/keeper && exec bun run dev >> keeper.log 2>&1"],
+          { detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }
+        );
+        console.log("[evm-mesh] keeper :3005 refused ×2 — revived detached (step 4.8, mutual watch)");
+      } catch {
+        /* spawn failed — next cycle retries */
+      }
+    }
+
     // 5. every 3rd cycle: a zero-fee value movement (ללא עמלה — forever 0)
     if (runTick % 3 === 2) {
       try {
@@ -394,6 +438,15 @@ async function autoCycle(): Promise<void> {
   } catch (e) {
     console.log(`[evm-mesh] auto-cycle skipped: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`);
   } finally {
+    clearTimeout(cycleWatchdog);
+    // v26.1 — socket-leak fix: every cycle used to LEAK its provider (and
+    // its keep-alive connection to anvil). Over hours this accumulates
+    // dead sockets — one of which froze the runner mid-await tonight.
+    try {
+      provider.destroy();
+    } catch {
+      /* already dead */
+    }
     RT.busy = false;
   }
 }
@@ -527,7 +580,7 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v25: HQ posts REAL WORK every 120s (LLM + anchor) · microgrid oracle + tick + sweep each cycle · ROSE BLOOM each cycle (agent-signed via seed, RESHUT-gated) · MAGEN auto-scan hourly (step 4.7) · zero-fee transfer every 3rd cycle");
+  console.log("[evm-mesh] auto-runner v26: REAL WORK every 120s (LLM + anchor) · microgrid oracle + tick + sweep · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
 }
 
 void main().catch((e) => {
