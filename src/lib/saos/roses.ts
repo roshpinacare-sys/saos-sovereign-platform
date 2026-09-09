@@ -601,7 +601,7 @@ function buildFrontier(
       "שורש EVM m/44'/60' — 12 זהויות נגזרות",
       "חתימת mainnet חיה + ארביטראז' DEX בין בורסות",
       "0.002 ETH דלק (~$6) לחתימה ראשונה",
-      `זהות-הראיות ${bal("evm-sovereign-user-ethereum")} ETH · אבן-הפינה ${eth ?? "—"} ETH`
+      `זהות-הראיות ${bal("evm-sovereign-user-ethereum-7b7869")} ETH · אבן-הפינה ${eth ?? "—"} ETH`
     ),
     arm(
       "bsc",

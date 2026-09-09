@@ -34,7 +34,10 @@ export const FLEET_AGENTS: readonly string[] = [
 
 /** The treasury destination whitelist for value movements (public address). */
 export const FLOW_DESTINATIONS: readonly string[] = [
-  "TG6SrsXLgkXtqQPj2oCe21VfnwtqfnwGEh" // headcorner TRON treasury — activated, 18.704223 TRX flowed
+  "TG6SrsXLgkXtqQPj2oCe21VfnwtqfnwGEh", // headcorner TRON treasury — activated, 18.704223 TRX flowed
+  // v30 תזוזה — יעדי הסוויפ הריבוניים (תנועה פנימית בין כתובות האורגניזם בלבד):
+  "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", // סוכן אבן-הפינה (m/44'/60'/0'/0/0) — בית האוצר אחרי התזוזה
+  "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh" // פעימת XRPL — תשלום עצמי (self-payment), הכסף נשאר ריבוני
 ];
 
 // ─── Policy registry ────────────────────────────────────────────────────────

@@ -187,7 +187,7 @@ async function postRealWorkOrder(job: { mission: string; difficulty: number; rew
         reward: Number(ethers.formatEther(job.reward)),
         realWork: true
       }),
-      signal: AbortSignal.timeout(100_000)
+      signal: AbortSignal.timeout(60_000) // v30 — 100→60ש': מחזור-120ש' לא מחכה ל-LLM שנתקע; ה-fallback היבש הכן קיים
     });
     if (!res.ok) return false;
     const out = (await res.json()) as { ok?: boolean; error?: string };
@@ -225,7 +225,11 @@ const fmtAmt = (v: bigint): string => {
 // a cycle that exceeds this bound is a freeze BY DEFINITION — the runner
 // says so loudly and self-terminates; the keeper (≤60s) revives it fresh.
 // A sick cell dies visibly; the organism grows a new one.
-const CYCLE_MAX_MS = 5 * 60_000;
+// v30 — האורגניזם גדל והמחזור התמלא: REAL WORK (≤60ש') + מיקרו-גריד + שושנים
+// + מגן + בורסה (חיבור+תזוזה+מסחר+ארב'+קציר) — מחזור מלא נמדד ~4-4.5 דקות.
+// התקרה עולה 5→8 דקות: תליית-שקע אמיתית עדיין נתפסת, אבל מחזור בריא לא
+// מפיל את עצמו (נלמד חי: self-terminate חוזר ב-runTick=0).
+const CYCLE_MAX_MS = 8 * 60_000;
 
 async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
   hub: ethers.Contract;
@@ -529,6 +533,13 @@ async function autoCycle(): Promise<void> {
  * דלתא 0 = אין פעולה. הריאליזציה: הנכסים האמיתיים נשארים בארנק (מתחת
  * לעלות-גז / רזרבת XRPL) — ההפעלה הריבונית היא עטיפת-התביעה החיה.
  */
+
+/** v30 — המרת מדידות float ל-wei בלי underflow: חיבור מספרים
+ *  בנקודה-צפה מייצר >18 ספרות עשרוניות (0.00034550888168315505) —
+ *  parseEther נופל. עוגלים ל-18 (הדיוק של 1 wei). באג שנתפס חי בלוג. */
+function unitsToWei(units: number): bigint {
+  return ethers.parseEther(units.toFixed(18));
+}
 async function foundMoneyConnect(
   provider: ethers.JsonRpcProvider,
   exchange: ethers.Contract,
@@ -551,9 +562,11 @@ async function foundMoneyConnect(
         if (r.holder !== "headcorner" || typeof r.address !== "string") continue;
         const units = typeof r.balanceNum === "number" ? r.balanceNum : 0;
         const usd = typeof r.priceUsd === "number" ? r.priceUsd : 0;
-        if (r.symbol === "BNB" && r.address.toLowerCase().startsWith("0x97ad")) { realBnb = units; bnbUsd = usd; }
+        // v30 תזוזה — סכימת כל כתובות האוצר (הכסף זז ל-0x01Bd; המסנן
+        // הישן 0x97ad השאיר את ה-BNB מחוץ לאחר הסוויפ — באג שנתפס חי).
+        if (r.symbol === "BNB" && r.address.toLowerCase().startsWith("0x")) { realBnb += units; bnbUsd = usd; }
         if (r.symbol === "XRP" && r.address.startsWith("r3Tq66")) { realXrp = units; xrpUsd = usd; }
-        if (r.symbol === "ETH" && r.address.toLowerCase().startsWith("0x")) realEth += units; // 0x2767 (צי) + 0x97Ad (אבן-הפינה)
+        if (r.symbol === "ETH" && r.address.toLowerCase().startsWith("0x")) realEth += units; // 0x2767 (צי) + 0x01Bd (בית) + 0x97Ad (שארית)
       }
     } catch {
       return; // אין מכ"ם — דילוג כנה, המחזור הבא ינסה
@@ -576,7 +589,7 @@ async function foundMoneyConnect(
         await tx0.wait();
         console.log(`[evm-mesh] חיבור v29: נכס ${spec.symbol} נרשם — "${spec.note}"`);
         id = Number(await xc.assetIdOf(spec.symbol));
-        const totalWei = ethers.parseEther(String(spec.units));
+        const totalWei = unitsToWei(spec.units);
         const poolAsset = (totalWei * 80n) / 100n;
         const treasuryAsset = totalWei - poolAsset;
         const perSaos = BigInt(Math.round((spec.usd / SAOS_M_USD_POLICY) * 1e6));
@@ -598,12 +611,22 @@ async function foundMoneyConnect(
 
       // סנכרון-גיבוי לנכס קיים: האספקה עוקבת אחרי המדידה החיה (mint לדלתא)
       const a = (await xc.assets(BigInt(id))) as unknown as { totalMinted: bigint };
-      const totalWei = ethers.parseEther(String(spec.units));
+      const totalWei = unitsToWei(spec.units);
       const delta = totalWei - a.totalMinted;
       if (delta > ethers.parseEther("0.000000001")) {
         const tx = await xc.mintAsset(id, treasuryAddr, delta, `סנכרון גיבוי v29: +${ethers.formatEther(delta)} ${spec.symbol} במדידה`);
         await tx.wait();
         console.log(`[evm-mesh] חיבור v29: סנכרון ${spec.symbol} +${ethers.formatEther(delta)} → הון-יוצר-שוק באוצר`);
+      } else if (delta < -ethers.parseEther("0.000000001")) {
+        // v30 תזוזה — דלתא שלילית (דמי-שריפה בפעימת XRPL / גז): burn
+        const burnWei = -delta;
+        const held = (await xc.balanceOf(BigInt(id), treasuryAddr)) as bigint;
+        const burnable = burnWei > held ? held : burnWei;
+        if (burnable > 0n) {
+          const tx = await xc.burnAsset(id, treasuryAddr, burnable, `סנכרון גיבוי v30: ${ethers.formatEther(burnable)} ${spec.symbol} נשרף (דמי תזוזה)`);
+          await tx.wait();
+          console.log(`[evm-mesh] תזוזה v30: סנכרון ${spec.symbol} -${ethers.formatEther(burnable)} (נשרף — הגיבוי עוקב)`);
+        }
       }
     }
 
@@ -611,18 +634,93 @@ async function foundMoneyConnect(
     if (realEth > 0) {
       const wethId = Number(await xc.assetIdOf("WETH"));
       const a = (await xc.assets(BigInt(wethId))) as unknown as { totalMinted: bigint };
-      const totalWei = ethers.parseEther(String(realEth));
+      const totalWei = unitsToWei(realEth);
       const delta = totalWei - a.totalMinted;
       if (delta > ethers.parseEther("0.000000001")) {
         const tx = await xc.mintAsset(wethId, treasuryAddr, delta, `סנכרון גיבוי v29: +${ethers.formatEther(delta)} ETH במדידה (אבק אבן-הפינה)`);
         await tx.wait();
         console.log(`[evm-mesh] חיבור v29: סנכרון WETH +${ethers.formatEther(delta)} → הון-יוצר-שוק באוצר`);
+      } else if (delta < -ethers.parseEther("0.000000001")) {
+        // v30 תזוזה — סנכרון שלילי: הכסף זז/נשרף בגז אמיתי → האספקה העטופה
+        // נשרפת מהון-יוצר-השוק של האוצר (מוגבל ליתרה שבאמת שם — אמת גלויה).
+        const burnWei = -delta;
+        const held = (await xc.balanceOf(BigInt(wethId), treasuryAddr)) as bigint;
+        const burnable = burnWei > held ? held : burnWei;
+        if (burnable > 0n) {
+          const tx = await xc.burnAsset(wethId, treasuryAddr, burnable, `סנכרון גיבוי v30: ${ethers.formatEther(burnable)} ETH יצא/נשרף (גז התזוזה)`);
+          await tx.wait();
+          console.log(`[evm-mesh] תזוזה v30: סנכרון WETH -${ethers.formatEther(burnable)} (נשרף — הגיבוי עוקב אחרי האמת שבשרשרת)`);
+        }
       }
     }
   } catch (e) {
     console.log(
       `[evm-mesh] חיבור v29: דילוג כנה — ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`
     );
+  }
+}
+
+// ─── 4.11 v30 — PHYSICAL MOVE CYCLE (תזוזה): הכסף זז פיזית ───────────────────
+
+/**
+ * הוראת הבעלים: "הוא חייב לזוז פיזית". הכסף שנמצא (אבק ETH + BNB על
+ * 0x97Ad · XRP על r3Tq66) זז בעסקאות אמיתיות בשרשרות האמיתיות — החתימה
+ * והשידור מתבצעים בשכבת-הווב (הכספת + שער-הפישינג שם); הראנר מזמין:
+ *   א. sweep-eth — רק כשמדידה חיה אומרת שיש מה להזיז (canMove).
+ *   ב. sweep-bsc — באותו תנאי.
+ *   ג. heartbeat-xrp — כל מחזור עשירי: החשבון חותם תשלום-עצמי אמיתי
+ *      בספר XRPL (דמי-שריפה 12 drops בלבד; רזרבה נמדדת חיה).
+ * לולאת-בקרה כפולה: ה-API עצמו מודד שוב לפני חתימה — הראנר מזמין,
+ * השכבה מחליטה לפי האמת שנמדדת בשני הצדדים.
+ */
+async function postPlatform(path: string, body: Record<string, unknown>, timeoutMs = 180_000): Promise<Record<string, unknown> | null> {
+  try {
+    // v24 מגן (runner): loopback בלבד — כמו fetchJson
+    const u = new URL(`http://127.0.0.1:3000${path}`);
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), timeoutMs);
+    const res = await fetch(u, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctl.signal
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function physicalMoveCycle(): Promise<void> {
+  try {
+    const st = await fetchJson("http://127.0.0.1:3000/api/saos/physical-move", 30_000);
+    if (!st) return; // אין מצב — דילוג כנה, המחזור הבא יזמין
+    const eth = st.ethereum as { canMove?: boolean } | undefined;
+    const bsc = st.bsc as { canMove?: boolean } | undefined;
+    const xrp = st.xrp as { ok?: boolean } | undefined;
+
+    if (eth?.canMove) {
+      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-eth" }, 200_000);
+      console.log(
+        `[evm-mesh] תזוזה v30: sweep-eth → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} ETH` : String(r?.reason ?? "דילוג כנה")}`
+      );
+    }
+    if (bsc?.canMove) {
+      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-bsc" }, 90_000);
+      console.log(
+        `[evm-mesh] תזוזה v30: sweep-bsc → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} BNB` : String(r?.reason ?? "דילוג כנה")}`
+      );
+    }
+    if (xrp?.ok && runTick % 10 === 9) {
+      const r = await postPlatform("/api/saos/physical-move", { action: "heartbeat-xrp" }, 60_000);
+      console.log(
+        `[evm-mesh] תזוזה v30: פעימת XRPL → ${r?.moved ? `חתומה בספר! tx ${String(r.txid).slice(0, 16)}…` : String(r?.reason ?? "דילוג כנה")}`
+      );
+    }
+  } catch {
+    /* דילוג כנה — המחזור הבא */
   }
 }
 
@@ -646,6 +744,11 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
   // 4.10 v29 — FOUND-MONEY CONNECT (חיבור): WBNB + WRXP + סנכרון WETH —
   // הכסף שנמצא מחובר לבורסה החיה לפני המסחר של המחזור הזה (אידמפוטנטי).
   await foundMoneyConnect(provider, exchange, treasuryAddr);
+
+  // 4.11 v30 — PHYSICAL MOVE CYCLE (תזוזה): הכסף זז פיזית — sweep-eth /
+  // sweep-bsc כשיש מה להזיז + פעימת XRPL כל מחזור עשירי (חתימת הכספת
+  // בשכבת-הווב; הראנר מזמין דרך ה-API המגודר — אותה החלטה, אותה שרשרת).
+  await physicalMoveCycle();
 
   // א. מחירי אורקל חיים — מכ"ם הפלטפורמה (Binance). אין → ארב' מדולג כנה.
   let oracle: Record<string, number> = {};
@@ -1001,11 +1104,15 @@ async function main(): Promise<void> {
     await deployMesh();
   }
   RT.artifactMtime = fs.statSync(ARTIFACT_PATH).mtimeMs;
+  // v30 — המחזור הראשון מיידי בהפעלה (במקום 120ש' מתות): אחרי כל החייאה
+  // של השומר לספר-הזמנים יש יותר אוויר מתחת לתקרת-5-הדקות של ה-cycle
+  // watchdog (המחזורים התארכו ב-v30: פיזי-זוזה+מיזוג+LLM — נלמד חי).
+  void autoCycle();
   RT.timers.push(setInterval(() => void autoCycle(), 120_000));
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v29: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
+  console.log("[evm-mesh] auto-runner v30: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה + burn לדלתא שלילית) · PHYSICAL MOVE 4.11 (תזוזה v30: הכסף זז פיזית — sweep-eth/sweep-bsc לבית-האוצר 0x01Bd · פעימת XRPL חתומה כל מחזור עשירי) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
 }
 
 void main().catch((e) => {

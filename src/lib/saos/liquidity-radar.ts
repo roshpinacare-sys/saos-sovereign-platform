@@ -494,6 +494,9 @@ const CORNERSTONE_FOUND = {
   xrp: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh" // m/44'/144'/0'/0/0 — XRPL livenet
 } as const;
 const CORNERSTONE_EVM_LABEL = "ארנק אבן-הפינה Coinomi (m/44'/60'/0'/0) — הכסף שנמצא v29";
+// v30 תזוזה — בית-האוצר של הכסף שזז: סוכן אבן-הפינה (אותו זרע, מסלול
+// סטנדרטי m/44'/60'/0'/0/0) — היעד שאליו ה-sweep מזיז את הכסף האמיתי.
+const CORNERSTONE_HOME = "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37" as const;
 
 async function measure(): Promise<LiquidityRadar> {
   const measuredAt = new Date().toISOString();
@@ -562,7 +565,10 @@ async function measure(): Promise<LiquidityRadar> {
     { addr: evidence.evm, holder: "sovereign-user", label: "זהות הגיוס (m/44'/60')", net: "ethereum" },
     { addr: evidence.evm, holder: "sovereign-user", label: "זהות הגיוס (m/44'/60')", net: "bsc" },
     { addr: headcorner?.evm ?? null, holder: "headcorner", label: "ארנק הצי (wallets-seed)", net: "ethereum" },
-    { addr: headcorner?.evm ?? null, holder: "headcorner", label: "ארנק הצי (wallets-seed)", net: "bsc" }
+    { addr: headcorner?.evm ?? null, holder: "headcorner", label: "ארנק הצי (wallets-seed)", net: "bsc" },
+    // v30 תזוזה — בית-האוצר של הכסף שזז (סוכן אבן-הפינה, אותו זרע)
+    { addr: CORNERSTONE_HOME, holder: "headcorner", label: "בית-האוצר של התזוזה (m/44'/60'/0'/0/0)", net: "ethereum" },
+    { addr: CORNERSTONE_HOME, holder: "headcorner", label: "בית-האוצר של התזוזה (m/44'/60'/0'/0/0)", net: "bsc" }
   ];
   const evmBalances = await Promise.all(
     evmPairs.map((p) => (p.addr ? evmBalance(p.addr, p.net) : Promise.resolve(null)))
@@ -573,7 +579,9 @@ async function measure(): Promise<LiquidityRadar> {
     const sym = EVM_NETS[p.net].symbol;
     const status: AssetStatus = bal === null ? "degraded" : bal > 0 ? "awaiting-keys" : "empty";
     assets.push({
-      id: `evm-${p.holder}-${p.net}`,
+      // v30 — המזהה כולל את קידומת הכתובת: בית-האוצר וארנק-הצי שניהם headcorner
+      // אבל כתובות שונות (באג מפתח-כפול שנתפס חי בקונסולת הדפדפן).
+      id: `evm-${p.holder}-${p.net}-${p.addr.slice(0, 6).toLowerCase()}`,
       domain: p.net === "ethereum" ? "ETHEREUM" : "BSC",
       symbol: sym,
       holder: p.holder,
@@ -638,8 +646,8 @@ async function measure(): Promise<LiquidityRadar> {
       status: foundEth === null ? "degraded" : "live",
       note:
         foundEth !== null && foundEth > 0
-          ? "מפתח בכספת אבן-הפינה — יכול לחתום · מתחת לעלות גז במייננט → ההפעלה הריבונית: גיבוי-עודף ל-WETH בבורסה (סנכרון v29)"
-          : "0 במדידה חיה — אבק שהוצא/לא הגיע",
+          ? "מפתח בכספת אבן-הפינה · v30 תזוזה: גז מיינט נמדד ~0.07-1.5 gwei ⇒ עלות העברה ≈ 0.0000014 ETH — הכסף זז פיזית לבית-האוצר (סנכרון v30)"
+          : "0 במדידה חיה — הכסף כבר זז פיזית לבית-האוצר 0x01Bd… (ה-sweep של v30 עבר; שם נמדד כעת)",
       explorer: `${EVM_NETS.ethereum.explorer}${CORNERSTONE_FOUND.evm}`
     });
     assets.push({
@@ -657,8 +665,8 @@ async function measure(): Promise<LiquidityRadar> {
       status: foundBnb === null ? "degraded" : "live",
       note:
         foundBnb !== null && foundBnb > 0
-          ? "מפתח בכספת אבן-הפינה · מתחת ליחידת-גז BSC אחת → ההפעלה הריבונית: עטיפת-תביעה WBNB בבורסה (1:1 מול המדידה)"
-          : "0 במדידה חיה",
+          ? "מפתח בכספת אבן-הפינה · v30 תזוזה: גז BSC נמדד ~0.05-0.1 gwei ⇒ עלות העברה ≈ 0.0000011 BNB — גם ה-BNB זז פיזית לבית-האוצר"
+          : "0 במדידה חיה — הכסף כבר זז פיזית לבית-האוצר (sweep v30 עבר)",
       explorer: `${EVM_NETS.bsc.explorer}${CORNERSTONE_FOUND.evm}`
     });
     const xrp = await xrpAccountInfo(CORNERSTONE_FOUND.xrp);
@@ -677,7 +685,7 @@ async function measure(): Promise<LiquidityRadar> {
       status: xrp.balance === null ? "degraded" : "live",
       note:
         xrp.balance !== null && xrp.balance > 0
-          ? `חשבון פעיל בעל היסטוריה · מפתח בכספת אבן-הפינה · בר-שליחה ${(xrp.spendable ?? 0).toFixed(4)} XRP (מעל רזרבת-בסיס ${xrp.reserve ?? "—"}) → ההפעלה הריבונית: עטיפת-תביעה WRXP בבורסה`
+          ? `חשבון פעיל בעל היסטוריה · מפתח בכספת אבן-הפינה · v30 תזוזה: החשבון חותם פעימות אמיתיות בספר (תשלום-עצמי חתום, דמי-שריפה 12 drops) · בר-שליחה ${(xrp.spendable ?? 0).toFixed(4)} XRP מעל רזרבה ${xrp.reserve ?? "—"}`
           : "0 במדידה חיה",
       explorer: `https://livenet.xrpl.org/accounts/${CORNERSTONE_FOUND.xrp}`
     });

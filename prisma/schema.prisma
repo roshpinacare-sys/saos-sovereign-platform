@@ -269,3 +269,25 @@ model FleetArmOp {
   @@index([rail, status])
   @@index([agent])
 }
+
+// ─── v30: תזוזה פיזית (physical move journal) ──────────────────────────────
+// הוראת הבעלים: "הוא חייב לזוז פיזית" — הכסף שנמצא (אבק ETH + BNB על
+// 0x97Ad Coinomi + XRP על r3Tq66) זז באמת: sweep-eth / sweep-bsc / פעימת
+// XRPL. כל תנועה אמיתית משאירה שורה כנה — txid, כמות, דמי-שריפה, מצב.
+
+model PhysicalMove {
+  id        Int      @id @default(autoincrement())
+  kind      String   // sweep-eth | sweep-bsc | xrp-heartbeat
+  network   String   // ETHEREUM | BSC | XRPL
+  txid      String   @unique
+  from      String
+  to        String
+  amount    String   // canonical units moved ("0.000263 ETH")
+  fee       String   // canonical units burned ("0.0000018 ETH" | "12 drops")
+  status    String   // submitted | confirmed | failed
+  meta      String?  // JSON: explorer, ledger, engineResult, note
+  createdAt DateTime @default(now())
+
+  @@index([kind, status])
+  @@index([createdAt])
+}

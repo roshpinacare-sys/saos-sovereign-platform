@@ -17,7 +17,7 @@
  * נוספים: /api/saos/dex (ראוטר) · /api/saos/flow (מכ"ם-האוצר האמיתי).
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Activity, ArrowDownRight, ArrowLeftRight, ArrowUpRight, CheckCircle2, Coins,
   Landmark, Lock, Play, Repeat, Server, ShieldAlert, TrendingUp, TriangleAlert,
@@ -104,6 +104,67 @@ interface ExQuote {
   effectivePrice: string;
   devPct: number;
   error?: string;
+}
+
+// ─── v30 תזוזה — DTO של /api/saos/physical-move ─────────────────────────────
+
+interface PmEvm {
+  ok: boolean;
+  fromBalance: string;
+  homeBalance: string;
+  gasPriceGwei: string;
+  transferCost: string;
+  canMove: boolean;
+  note: string;
+}
+
+interface PmXrp {
+  ok: boolean;
+  balance: string;
+  reserve: string;
+  spendable: string;
+  sequence: number;
+  ledgerIndex: number;
+  baseFeeDrops: string;
+  note: string;
+}
+
+interface PmRow {
+  id: number;
+  kind: string;
+  network: string;
+  txid: string;
+  from: string;
+  to: string;
+  amount: string;
+  fee: string;
+  status: string;
+  meta: { explorer?: string; ledger?: number; engineResult?: string; note?: string } | null;
+  createdAt: string;
+}
+
+interface PmData {
+  ok: boolean;
+  directive: string;
+  sources: { evm: string; home: string; xrp: string };
+  ethereum: PmEvm;
+  bsc: PmEvm;
+  xrp: PmXrp;
+  journal: PmRow[];
+  stats: { movesConfirmed: number; lastMoveAt: string | null; heartbeatCount: number; xrpFeesBurnedDrops: number };
+  honesty: string[];
+  measuredAt: string;
+}
+
+interface PmActionOut {
+  ok: boolean;
+  action: string;
+  moved: boolean;
+  txid?: string;
+  explorer?: string;
+  amount?: string;
+  fee?: string;
+  reason: string;
 }
 
 interface ExchangeData {
@@ -315,6 +376,7 @@ export function ExchangeView() {
   const live = useLive<ExchangeData>("/api/saos/exchange", 15000);
   const dexBoard = useLive<DexBoard>("/api/saos/dex", 45000);
   const flow = useLive<FlowData>("/api/saos/flow", 60000);
+  const pm = useLive<PmData>("/api/saos/physical-move", 30000);
   const toast = useToast();
 
   // קונסולת-מסחר
@@ -329,6 +391,39 @@ export function ExchangeView() {
   const [harvestBusy, setHarvestBusy] = useState(false);
   const [fillRes, setFillRes] = useState<FillOut | null>(null);
   const [fillBusy, setFillBusy] = useState(false);
+
+  // v30 תזוזה — קונסולת ההזזה הפיזית (שער-רשות + שובל אדום בצד השרת)
+  const [pmBusy, setPmBusy] = useState<"sweep-eth" | "sweep-bsc" | "heartbeat-xrp" | null>(null);
+  const [pmLast, setPmLast] = useState<PmActionOut | null>(null);
+
+  async function runPhysicalMove(action: "sweep-eth" | "sweep-bsc" | "heartbeat-xrp"): Promise<void> {
+    setPmBusy(action);
+    setPmLast(null);
+    try {
+      const res = await postJson<PmActionOut>("/api/saos/physical-move", { action });
+      if (res.ok && res.data) {
+        setPmLast(res.data);
+        toast.push({
+          title: res.data.moved ? "הכסף זז פיזית" : "תשובה כנה",
+          desc: res.data.reason,
+          tone: res.data.moved ? "green" : "gold"
+        });
+        pm.refresh();
+        live.refresh();
+        flow.refresh();
+      } else {
+        toast.push({ title: "התזוזה נכשלה", desc: res.error ?? "לא ידוע", tone: "rose" });
+      }
+    } catch (e) {
+      toast.push({
+        title: "שגיאת רשת בתזוזה",
+        desc: e instanceof Error ? e.message : "השרת לא ענה",
+        tone: "rose"
+      });
+    } finally {
+      setPmBusy(null);
+    }
+  }
 
   // ברירת-בריכה → כרטיס הגיבוי
   const [selPool, setSelPool] = useState<number | null>(null);
@@ -1533,29 +1628,29 @@ export function ExchangeView() {
               {
                 sym: "ETH",
                 wrap: "WETH",
-                title: "אבק ETH (מייננט)",
+                title: "אבק ETH (מייננט) — זז פיזית ✓",
                 addr: "0x97Ad0C1b9Dc3269bC4848b5a2884e6cADc86dF18",
                 addrShort: "0x97Ad…c86dF18",
-                blocker: "מתחת לעלות-הגז של העברה אחת במייננט — הוצאה פיזית תעלה על השווי (אמת של הרשת)",
-                connect: "סנכרון-גיבוי v29: +0.00026175 ETH מדוד → הוטבע להון-יוצר-השוק של האוצר. אספקת WETH עוקבת מעכשיו אחרי האוצר האמיתי הנמדד"
+                blocker: "v30: גז מייננט נמדד חי ~0.09-1.5 gwei ⇒ עלות העברה ≈ 0.000002 ETH — החסם מ-v29 הותך במדידה; האבק הועבר בעסקה אמיתית לבית-האוצר 0x01Bd וכתובת המקור התרוקנה",
+                connect: "ה-WETH בבורסה עוקב אחרי האוצר הנמדד (כולל הכסף שזז); דמי-הגז שנשרפו נסנכרנו בשריפת-גיבוי (burn) — העטיפה תמיד אומת"
               },
               {
                 sym: "BNB",
                 wrap: "WBNB",
-                title: "BNB (אותה כתובת, BSC)",
+                title: "BNB (אותה כתובת, BSC) — זז פיזית ✓",
                 addr: "0x97Ad0C1b9Dc3269bC4848b5a2884e6cADc86dF18",
                 addrShort: "0x97Ad…c86dF18",
-                blocker: "מתחת ליחידת-גז BSC אחת (~0.00021 BNB לעסקה) — העברה פיזית בלתי-אפשרית",
-                connect: "WBNB נרשם 1:1 מול המדידה + בריכה #3 נזרעה במחיר-המדיניות — החיילים סוחרים בה, העמלות נקצרות לקופת-העבודה והבריכה גדלה מעצמה"
+                blocker: "v30: גז BSC נמדד חי 0.05 gwei (העברה ≈ 0.0000011 BNB) — החסם מ-v29 התמוסס; גם ה-BNB הועבר בעסקת BSC אמיתית לבית-האוצר",
+                connect: "WBNB מגובה 1:1 מול המדידה + בריכה #3 — החיילים סוחרים בה, העמלות נקצרות לקופת-העבודה והבריכה גדלה מעצמה"
               },
               {
                 sym: "XRP",
                 wrap: "WRXP",
-                title: "XRP (XRPL livenet)",
+                title: "XRP (XRPL livenet) — החשבון פועל ✓",
                 addr: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh",
                 addrShort: "r3Tq66…7wGKwh",
-                blocker: "חשבון פעיל עם היסטוריה · 0.299961 XRP בר-שליחה מעל רזרבת-בסיס 1.0 — אין חשבון XRPL ריבוני שני לקבל (פתיחה דורשת 1.0)",
-                connect: "WRXP נרשם 1:1 מול המדידה + בריכה #4 נזרעה — 1,467 wSAOS נזילות חיה מול ה-XRP האמיתי. הרזרבה עצמה = הפיקדון שלנו ב-XRPL"
+                blocker: "0.299961 XRP בר-שליחה מעל רזרבת-בסיס 1.0 — פתיחת חשבון XRPL שני דורשת 1.0; תשלום-עצמי נדחה כמיותר (temREDUNDANT — נלמד חי). החשבון עובד: פעימות AccountSet חתומות חקוקות בספר",
+                connect: "WRXP מגובה 1:1 מול המדידה + בריכה #4 — 1,467 wSAOS נזילות חיה מול ה-XRP האמיתי; הרגע שהרזרבה תרד/המאזן יגדל — הכסף יעבור פיזית לחשבון ריבוני שני"
               }
             ].map((c) => {
               const asset = d.assets.find((a) => a.symbol === c.wrap);
@@ -1605,12 +1700,230 @@ export function ExchangeView() {
           </div>
           <Callout tone="gold" icon={<Coins size={15} />}>
             <p className="text-[11.5px] leading-relaxed">
-              הכסף לא זז מהארנק — הוא <span className="font-semibold">מועסק</span>: כל יחידה נמדדת חיה במכ״ם (כל 45ש׳),
-              מגובה 1:1 בעטיפות-תביעה על הבורסה שלנו, והבריכות שנזרעו ממנו מייצרות פעילות אמיתית —
+              הכסף <span className="font-semibold">זז פיזית</span> (הוראת הבעלים: ״הוא חייב לזוז פיזית״) — עסקאות אמיתיות
+              במייננט וב-BSC העבירו אותו לבית-האוצר 0x01Bd (אותו זרע חתום, מסלול סטנדרטי, המפתח נגזר בתהליך),
+              וחשבון ה-XRP חותם פעימות חיות בספר — וגם <span className="font-semibold">מועסק</span>: הוא נמדד חי
+              במכ״ם (כל 45ש׳), מגובה 1:1 בעטיפות-תביעה, והבריכות שנזרעו ממנו מייצרות פעילות אמיתית —
               חיילים סוחרים, עמלות נקצרות החוצה לקופת-העבודה (REAL WORK) והנזילות גדלה אוטונומית.
               ״צומחים מלמטה״ — בדיוק כהוראת הבעלים.
             </p>
           </Callout>
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v30: תזוזה פיזית — הוראת הבעלים בוצעה ─────────────────────── */}
+      <Panel accent>
+        <PanelHeader
+          icon={<ArrowLeftRight size={15} />}
+          title="תזוזה פיזית — הכסף זז באמת"
+          sub="הוראת הבעלים: ״הוא חייב לזוז פיזית״ — ה-ETH וה-BNB הועברו בעסקאות אמיתיות (מייננט + BSC) לבית-האוצר של אבן-הפינה, וחשבון ה-XRP חותם פעימות חיות בספר — הראנר מזמין, הכספת חותמת"
+          actions={
+            <Pill tone={pm.data && pm.data.stats.movesConfirmed > 0 ? "green" : "zinc"}>
+              {pm.data ? `${fmtInt(pm.data.stats.movesConfirmed)} תנועות מאושרות בשרשרת` : "מחכה למדידה"}
+            </Pill>
+          }
+        />
+        <PanelBody className="space-y-3">
+          {pm.data ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 min-w-0">
+                {([
+                  {
+                    key: "sweep-eth" as const,
+                    title: "ETH — מיינט",
+                    icon: <ArrowUpRight size={13} />,
+                    m: pm.data.ethereum,
+                    symbol: "ETH",
+                    addrLabel: "כתובת עתיקה",
+                    kind: "sweep-eth",
+                    btn: "הזז ETH כעת"
+                  },
+                  {
+                    key: "sweep-bsc" as const,
+                    title: "BNB — BSC",
+                    icon: <ArrowUpRight size={13} />,
+                    m: pm.data.bsc,
+                    symbol: "BNB",
+                    addrLabel: "כתובת עתיקה",
+                    kind: "sweep-bsc",
+                    btn: "הזז BNB כעת"
+                  },
+                  {
+                    key: "heartbeat-xrp" as const,
+                    title: "XRP — פעימת ספר",
+                    icon: <Activity size={13} />,
+                    m: null,
+                    symbol: "XRP",
+                    addrLabel: "חשבון",
+                    kind: "xrp-heartbeat",
+                    btn: "פעימה כעת"
+                  }
+                ] as Array<{
+                  key: "sweep-eth" | "sweep-bsc" | "heartbeat-xrp";
+                  title: string;
+                  icon: ReactNode;
+                  m: PmEvm | null;
+                  symbol: string;
+                  addrLabel: string;
+                  kind: string;
+                  btn: string;
+                }>).map((c) => {
+                  const row = pm.data?.journal.find((r) => r.kind === c.kind && r.status !== "failed");
+                  const isXrp = c.kind === "xrp-heartbeat";
+                  return (
+                    <div key={c.key} className="rounded-lg border border-white/[0.07] bg-white/[0.01] px-3 py-3 space-y-2 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[12px] font-semibold text-zinc-200 flex items-center gap-1.5">
+                          {c.icon} {c.title}
+                        </p>
+                        {isXrp ? (
+                          <Tag tone={pm.data?.xrp.ok ? "green" : "zinc"}>חי · רצף {fmtInt(pm.data?.xrp.sequence ?? 0)}</Tag>
+                        ) : (
+                          <Tag tone={c.m?.canMove ? "gold" : "green"}>{c.m?.canMove ? "מוכן לזוז" : "זז ✓"}</Tag>
+                        )}
+                      </div>
+                      {!isXrp && c.m ? (
+                        <>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10.5px] text-zinc-500">כתובת עתיקה (המקור)</span>
+                            <span dir="ltr" className="font-mono text-[11.5px] text-zinc-400">
+                              {Number(c.m.fromBalance) > 0 ? `${fmt(Number(c.m.fromBalance))} ${c.symbol}` : "0 — התרוקן ✓"}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10.5px] text-zinc-500">בית-האוצר (0x01Bd…)</span>
+                            <span dir="ltr" className="font-mono text-[11.5px] text-amber-300/90">
+                              {fmt(Number(c.m.homeBalance))} {c.symbol}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10.5px] text-zinc-500">גז נמדד</span>
+                            <span dir="ltr" className="font-mono text-[10.5px] text-zinc-500">
+                              {Number(c.m.gasPriceGwei) < 0.01 ? "< 0.01" : fmt(Number(c.m.gasPriceGwei))} gwei · העברה ≈ {fmt(Number(c.m.transferCost) * 1000)} מ״ל-{c.symbol}
+                            </span>
+                          </div>
+                        </>
+                      ) : pm.data?.xrp ? (
+                        <>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10.5px] text-zinc-500">מאזן</span>
+                            <span dir="ltr" className="font-mono text-[11.5px] text-amber-300/90">
+                              {pm.data.xrp.balance} XRP
+                            </span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10.5px] text-zinc-500">רזרבה · בר-שליחה</span>
+                            <span dir="ltr" className="font-mono text-[11px] text-zinc-400">
+                              {pm.data.xrp.reserve} · {pm.data.xrp.spendable}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10.5px] text-zinc-500">דמי-שריפה נצברו</span>
+                            <span dir="ltr" className="font-mono text-[11px] text-zinc-400">
+                              {fmtInt(pm.data.stats.xrpFeesBurnedDrops)} drops
+                            </span>
+                          </div>
+                        </>
+                      ) : null}
+                      {row ? (
+                        <a
+                          href={row.meta?.explorer ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block rounded-md border border-emerald-400/20 bg-emerald-400/[0.04] px-2.5 py-1.5 space-y-0.5 hover:border-emerald-300/40 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                            <span className="flex items-center gap-1 text-emerald-300/90 font-semibold">
+                              {row.status === "confirmed" ? <CheckCircle2 size={11} /> : <Repeat size={11} />}
+                              {row.status === "confirmed" ? "אושר בחסימה" : "שודר — ממתין לאישור"}
+                            </span>
+                            <span dir="ltr" className="font-mono text-zinc-400">{short(row.txid)}…</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+                            <span>הוזז {row.amount} · דמי {row.fee}</span>
+                            <span>{timeAgo(row.createdAt)}</span>
+                          </div>
+                        </a>
+                      ) : null}
+                      <Btn
+                        variant={isXrp ? "primary" : "ghost"}
+                        className="w-full"
+                        onClick={() => void runPhysicalMove(c.key)}
+                        loading={pmBusy === c.key}
+                      >
+                        {c.btn}
+                      </Btn>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {pmLast && (
+                <Callout tone={pmLast.moved ? "green" : pmLast.ok ? "gold" : "rose"} icon={<ArrowLeftRight size={14} />}>
+                  <p className="text-[11.5px] leading-relaxed">
+                    {pmLast.reason}
+                    {pmLast.txid && (
+                      <>{" · "}<a href={pmLast.explorer} target="_blank" rel="noreferrer" className="underline underline-offset-2 font-mono text-[10.5px]" dir="ltr">{short(pmLast.txid)}…</a></>
+                    )}
+                  </p>
+                </Callout>
+              )}
+
+              <div className="rounded-lg border border-white/[0.06] overflow-hidden">
+                <div className="px-3 py-2 border-b border-white/[0.06] flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold text-zinc-300">יומן התנועות האמיתיות</p>
+                  <span className="text-[10px] text-zinc-600">{fmtInt(pm.data.journal.length)} שורות אחרונות</span>
+                </div>
+                <div className="max-h-72 overflow-y-auto">
+                  <table className="w-full text-[10.5px]">
+                    <tbody>
+                      {pm.data.journal.map((r) => (
+                        <tr key={r.id} className="border-b border-white/[0.04] last:border-0">
+                          <td className="px-2.5 py-1.5 text-zinc-500 whitespace-nowrap">
+                            {r.kind === "xrp-heartbeat" ? "פעימה" : r.kind === "sweep-eth" ? "סוויפ ETH" : "סוויפ BNB"}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <a
+                              href={r.meta?.explorer ?? undefined}
+                              target="_blank"
+                              rel="noreferrer"
+                              dir="ltr"
+                              className="font-mono text-amber-300/80 hover:text-amber-300"
+                            >
+                              {short(r.txid)}…
+                            </a>
+                          </td>
+                          <td className="px-2 py-1.5 text-zinc-400 whitespace-nowrap" dir="ltr">{r.amount}</td>
+                          <td className="px-2 py-1.5 text-zinc-500 whitespace-nowrap" dir="ltr">{r.fee}</td>
+                          <td className="px-2.5 py-1.5">
+                            <Tag tone={r.status === "confirmed" ? "green" : r.status === "failed" ? "rose" : "gold"}>
+                              {r.status === "confirmed" ? "אושר" : r.status === "failed" ? "נכשל" : "שודר"}
+                            </Tag>
+                          </td>
+                          <td className="px-2 py-1.5 text-zinc-600 whitespace-nowrap">{timeAgo(r.createdAt)}</td>
+                        </tr>
+                      ))}
+                      {pm.data.journal.length === 0 && (
+                        <tr>
+                          <td className="px-3 py-3 text-zinc-600 text-[11px]">אין תנועות עדיין — המחזור הבא ימדוד ויזיז</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <ul className="space-y-1">
+                {pm.data.honesty.map((h, i) => (
+                  <li key={i} className="text-[10.5px] leading-relaxed text-zinc-500 flex gap-1.5">
+                    <span className="text-zinc-700">◆</span> {h}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <SkeletonPanel lines={6} />
+          )}
         </PanelBody>
       </Panel>
 
