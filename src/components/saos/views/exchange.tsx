@@ -143,6 +143,14 @@ interface PmRow {
   createdAt: string;
 }
 
+interface PmLegacyChain {
+  ok: boolean;
+  balance: string;
+  homeBalance: string;
+  canMove: boolean;
+  note: string;
+}
+
 interface PmData {
   ok: boolean;
   directive: string;
@@ -150,6 +158,14 @@ interface PmData {
   ethereum: PmEvm;
   bsc: PmEvm;
   xrp: PmXrp;
+  legacy: {
+    note: string;
+    evm: PmLegacyChain;
+    trx: PmLegacyChain;
+    sol: PmLegacyChain;
+    sources: { evm: string; tron: string; sol: string };
+    homes: { evm: string; tron: string; sol: string };
+  };
   journal: PmRow[];
   stats: { movesConfirmed: number; lastMoveAt: string | null; heartbeatCount: number; xrpFeesBurnedDrops: number };
   honesty: string[];
@@ -392,11 +408,15 @@ export function ExchangeView() {
   const [fillRes, setFillRes] = useState<FillOut | null>(null);
   const [fillBusy, setFillBusy] = useState(false);
 
-  // v30 תזוזה — קונסולת ההזזה הפיזית (שער-רשות + שובל אדום בצד השרת)
-  const [pmBusy, setPmBusy] = useState<"sweep-eth" | "sweep-bsc" | "heartbeat-xrp" | null>(null);
+  // v30/v32 תזוזה — קונסולת ההזזה הפיזית (שער-רשות + שובל אדום בצד השרת)
+  const [pmBusy, setPmBusy] = useState<
+    "sweep-eth" | "sweep-bsc" | "heartbeat-xrp" | "sweep-legacy-eth" | "sweep-legacy-trx" | "sweep-legacy-sol" | null
+  >(null);
   const [pmLast, setPmLast] = useState<PmActionOut | null>(null);
 
-  async function runPhysicalMove(action: "sweep-eth" | "sweep-bsc" | "heartbeat-xrp"): Promise<void> {
+  async function runPhysicalMove(
+    action: "sweep-eth" | "sweep-bsc" | "heartbeat-xrp" | "sweep-legacy-eth" | "sweep-legacy-trx" | "sweep-legacy-sol"
+  ): Promise<void> {
     setPmBusy(action);
     setPmLast(null);
     try {
@@ -1715,8 +1735,8 @@ export function ExchangeView() {
       <Panel accent>
         <PanelHeader
           icon={<ArrowLeftRight size={15} />}
-          title="תזוזה פיזית — הכסף זז באמת"
-          sub="הוראת הבעלים: ״הוא חייב לזוז פיזית״ — ה-ETH וה-BNB הועברו בעסקאות אמיתיות (מייננט + BSC) לבית-האוצר של אבן-הפינה, וחשבון ה-XRP חותם פעימות חיות בספר — הראנר מזמין, הכספת חותמת"
+          title="תזוזה פיזית — הכסף זז באמת (v32: גם הארנקים הישנים)"
+          sub="הוראת הבעלים: ״הוא חייב לזוז פיזית״ — ה-ETH וה-BNB הועברו בעסקאות אמיתיות (מייננט + BSC) לבית-האוצר של אבן-הפינה, חשבון ה-XRP חותם פעימות חיות בספר — ועכשיו v32: המפתחות ששרדו בכספת (TRX 17.6 · SOL 0.024 · ETH ישן) זזים גם הם לבתי-האוצר"
           actions={
             <Pill tone={pm.data && pm.data.stats.movesConfirmed > 0 ? "green" : "zinc"}>
               {pm.data ? `${fmtInt(pm.data.stats.movesConfirmed)} תנועות מאושרות בשרשרת` : "מחכה למדידה"}
@@ -1858,6 +1878,109 @@ export function ExchangeView() {
                 })}
               </div>
 
+              {/* ─── v32: הארנקים הישנים — המפתחות ששרדו זזים גם הם ────────── */}
+              <div className="rounded-lg border border-amber-300/10 bg-amber-300/[0.02] px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-[11px] font-semibold text-amber-200/90">הארנקים הישנים — המפתחות ששרדו (v31) זזים לבתי-האוצר</p>
+                  <span className="text-[9.5px] text-zinc-600">v32 המשך · אותו זרע אבן-הפינה</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 min-w-0">
+                  {([
+                    {
+                      key: "sweep-legacy-eth" as const,
+                      title: "ETH ישן — מייננט",
+                      m: pm.data.legacy.evm,
+                      symbol: "ETH",
+                      fromLabel: "ארנק-הצי 0x2767",
+                      toLabel: "בית-האוצר 0x01Bd",
+                      btn: "הזז ETH ישן כעת"
+                    },
+                    {
+                      key: "sweep-legacy-trx" as const,
+                      title: "TRX — TRON",
+                      m: pm.data.legacy.trx,
+                      symbol: "TRX",
+                      fromLabel: "ארנק-הצי TG6Srs",
+                      toLabel: "בית-אוצר TMXHfFQd",
+                      btn: "הזז TRX כעת"
+                    },
+                    {
+                      key: "sweep-legacy-sol" as const,
+                      title: "SOL — Solana",
+                      m: pm.data.legacy.sol,
+                      symbol: "SOL",
+                      fromLabel: "ארנק-הצי 9knfn",
+                      toLabel: "בית-אוצר A2Y1d3",
+                      btn: "הזז SOL כעת"
+                    }
+                  ] as Array<{
+                    key: "sweep-legacy-eth" | "sweep-legacy-trx" | "sweep-legacy-sol";
+                    title: string;
+                    m: PmLegacyChain;
+                    symbol: string;
+                    fromLabel: string;
+                    toLabel: string;
+                    btn: string;
+                  }>).map((c) => {
+                    const row = pm.data?.journal.find((r) => r.kind === c.key && r.status !== "failed");
+                    return (
+                      <div key={c.key} className="rounded-lg border border-white/[0.07] bg-white/[0.01] px-3 py-3 space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[12px] font-semibold text-zinc-200 flex items-center gap-1.5">
+                            <ArrowUpRight size={13} /> {c.title}
+                          </p>
+                          <Tag tone={c.m.canMove ? "gold" : "green"}>
+                            {c.m.canMove ? "מוכן לזוז" : "זז ✓"}
+                          </Tag>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-[10.5px] text-zinc-500">{c.fromLabel}</span>
+                          <span dir="ltr" className="font-mono text-[11.5px] text-zinc-400">
+                            {Number(c.m.balance) > 0 ? `${fmt(Number(c.m.balance))} ${c.symbol}` : "0 — התרוקן ✓"}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-[10.5px] text-zinc-500">{c.toLabel}</span>
+                          <span dir="ltr" className="font-mono text-[11.5px] text-amber-300/90">
+                            {fmt(Number(c.m.homeBalance))} {c.symbol}
+                          </span>
+                        </div>
+                        {row ? (
+                          <a
+                            href={row.meta?.explorer ?? undefined}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block rounded-md border border-emerald-400/20 bg-emerald-400/[0.04] px-2.5 py-1.5 space-y-0.5 hover:border-emerald-300/40 transition-colors"
+                          >
+                            <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                              <span className="flex items-center gap-1 text-emerald-300/90 font-semibold">
+                                {row.status === "confirmed" ? <CheckCircle2 size={11} /> : <Repeat size={11} />}
+                                {row.status === "confirmed" ? "אושר בחסימה" : "שודר — ממתין לאישור"}
+                              </span>
+                              <span dir="ltr" className="font-mono text-zinc-400">{short(row.txid)}…</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+                              <span>הוזז {row.amount} · דמי {row.fee}</span>
+                              <span>{timeAgo(row.createdAt)}</span>
+                            </div>
+                          </a>
+                        ) : (
+                          <p className="text-[10px] text-zinc-600 leading-relaxed">{c.m.note}</p>
+                        )}
+                        <Btn
+                          variant="ghost"
+                          className="w-full"
+                          onClick={() => void runPhysicalMove(c.key)}
+                          loading={pmBusy === c.key}
+                        >
+                          {c.btn}
+                        </Btn>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {pmLast && (
                 <Callout tone={pmLast.moved ? "green" : pmLast.ok ? "gold" : "rose"} icon={<ArrowLeftRight size={14} />}>
                   <p className="text-[11.5px] leading-relaxed">
@@ -1880,7 +2003,19 @@ export function ExchangeView() {
                       {pm.data.journal.map((r) => (
                         <tr key={r.id} className="border-b border-white/[0.04] last:border-0">
                           <td className="px-2.5 py-1.5 text-zinc-500 whitespace-nowrap">
-                            {r.kind === "xrp-heartbeat" ? "פעימה" : r.kind === "sweep-eth" ? "סוויפ ETH" : "סוויפ BNB"}
+                            {r.kind === "xrp-heartbeat"
+                              ? "פעימה"
+                              : r.kind === "sweep-eth"
+                                ? "סוויפ ETH"
+                                : r.kind === "sweep-bsc"
+                                  ? "סוויפ BNB"
+                                  : r.kind === "sweep-legacy-eth"
+                                    ? "סוויפ ETH ישן"
+                                    : r.kind === "sweep-legacy-trx"
+                                      ? "סוויפ TRX"
+                                      : r.kind === "sweep-legacy-sol"
+                                        ? "סוויפ SOL"
+                                        : r.kind}
                           </td>
                           <td className="px-2 py-1.5">
                             <a

@@ -700,6 +700,9 @@ async function physicalMoveCycle(): Promise<void> {
     const eth = st.ethereum as { canMove?: boolean } | undefined;
     const bsc = st.bsc as { canMove?: boolean } | undefined;
     const xrp = st.xrp as { ok?: boolean } | undefined;
+    const legacy = st.legacy as
+      | { evm?: { canMove?: boolean }; trx?: { canMove?: boolean }; sol?: { canMove?: boolean } }
+      | undefined;
 
     if (eth?.canMove) {
       const r = await postPlatform("/api/saos/physical-move", { action: "sweep-eth" }, 200_000);
@@ -711,6 +714,26 @@ async function physicalMoveCycle(): Promise<void> {
       const r = await postPlatform("/api/saos/physical-move", { action: "sweep-bsc" }, 90_000);
       console.log(
         `[evm-mesh] תזוזה v30: sweep-bsc → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} BNB` : String(r?.reason ?? "דילוג כנה")}`
+      );
+    }
+    // v32 המשך — הארנקים הישנים (המפתחות ששרדו בכספת, תגלית v31):
+    // ETH ישן 0x2767 → בית-האוצר · TRX TG6Srs → TMXHfFQd · SOL 9knfn → A2Y1d3
+    if (legacy?.evm?.canMove) {
+      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-legacy-eth" }, 200_000);
+      console.log(
+        `[evm-mesh] תזוזה v32: sweep-legacy-eth → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} ETH` : String(r?.reason ?? "דילוג כנה")}`
+      );
+    }
+    if (legacy?.trx?.canMove) {
+      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-legacy-trx" }, 120_000);
+      console.log(
+        `[evm-mesh] תזוזה v32: sweep-legacy-trx → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} TRX` : String(r?.reason ?? "דילוג כנה")}`
+      );
+    }
+    if (legacy?.sol?.canMove) {
+      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-legacy-sol" }, 120_000);
+      console.log(
+        `[evm-mesh] תזוזה v32: sweep-legacy-sol → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} SOL` : String(r?.reason ?? "דילוג כנה")}`
       );
     }
     if (xrp?.ok && runTick % 10 === 9) {
@@ -1119,3 +1142,5 @@ void main().catch((e) => {
   console.error("[evm-mesh] FATAL", e);
   process.exit(1);
 });
+
+// v32 touch — reload heal

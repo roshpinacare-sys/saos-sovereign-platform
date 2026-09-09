@@ -70,6 +70,12 @@ export interface KeeperStatus {
     lastAt: string | null;
     rssShedStreak: number | null;
   };
+  panic: {
+    streak: number;
+    cures: number;
+    lastAt: string | null;
+    lastPageHttp: number | null;
+  };
   backups: BackupsStatus | null;
   keeperBackups: { ok: number | null; miss: number | null; lastAt: string | null };
   mutualWatch: Array<{ from: string; to: string; what: string }>;
@@ -99,6 +105,7 @@ interface KeeperRaw {
   pressureThresholdMb?: number;
   rssShedMb?: number;
   recycle?: { count?: number; lastAt?: string | null; rssShedStreak?: number };
+  panic?: { streak?: number; cures?: number; lastAt?: string | null; lastPageHttp?: number | null };
   backups?: { ok?: number; miss?: number; lastAt?: string | null };
   events?: Array<{ t: string; kind: string; detail: string }>;
 }
@@ -244,6 +251,12 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
       count: raw?.recycle?.count ?? 0,
       lastAt: raw?.recycle?.lastAt ?? null,
       rssShedStreak: raw?.recycle?.rssShedStreak ?? null
+    },
+    panic: {
+      streak: raw?.panic?.streak ?? 0,
+      cures: raw?.panic?.cures ?? 0,
+      lastAt: raw?.panic?.lastAt ?? null,
+      lastPageHttp: raw?.panic?.lastPageHttp ?? null
     },
     backups: (() => {
       try {

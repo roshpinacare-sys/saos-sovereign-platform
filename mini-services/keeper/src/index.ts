@@ -90,6 +90,18 @@ const BACKUP_EVERY = 180; // every 180th cycle = 30 min
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
 const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
 
+// v28 — page-500 detector (the documented frontier). Turbopack cache panic
+// (3 live incidents: v29, v30, v31) leaves the PROCESS alive and the API
+// layer answering 200 while the user-visible PAGE "/" returns 5xx. Objective
+// evidence: the page itself 5xx on two consecutive probes 30s apart, while
+// the source tree has not changed in 3 minutes (a compile error from a live
+// edit has a touched source — a poisoned cache does not). Cure = the proven
+// sovereign move: SIGTERM tree → rm -rf .next → detached respawn.
+const PAGE_URL = "http://127.0.0.1:3000/";
+const PAGE_EVERY = 3; // every 3rd cycle = 30s
+const PAGE_500_STREAK = 2; // two consecutive 5xx = objective
+const SRC_STABLE_MS = 180_000; // source untouched for 3 min
+
 // ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
 
 interface KeeperRuntime {
@@ -116,6 +128,8 @@ interface KeeperEvent {
     | "web-dead"
     | "web-revive"
     | "web-recovered"
+    | "page-500"
+    | "web-panic"
     | "anvil-down"
     | "anvil-up"
     | "runner-revive"
@@ -162,7 +176,12 @@ const S = {
   rssShedStreak: 0,
   recycles: 0,
   lastRecycleAt: null as string | null,
-  backups: { ok: 0, miss: 0, lastAt: null as string | null, lastNote: "" as string },
+  backups: { ok: 0, miss: 0, lastAt: null as string | null, lastNote: "" },
+  // v28 — page-500 (Turbopack panic) detection
+  page500Streak: 0,
+  panics: 0,
+  lastPanicAt: null as string | null,
+  lastPageHttp: null as number | null,
   events: [] as KeeperEvent[]
 };
 
@@ -402,6 +421,85 @@ async function checkWeb(): Promise<{ alive: boolean; kind: "ok" | "degraded" | "
   }
 }
 
+// ─── v28 — page-500: the user-visible truth, not just the API ────────────────
+
+/** Probes the PAGE "/" — the thing the owner actually sees. The API health
+ *  endpoint can answer 200 while the page is 500 (the measured Turbopack
+ *  panic pattern) — process-liveness is not page-liveness. */
+async function checkPage(): Promise<{ http: number | null }> {
+  try {
+    const r = await fetch(PAGE_URL, { signal: AbortSignal.timeout(8_000), redirect: "manual" });
+    return { http: r.status };
+  } catch {
+    return { http: null };
+  }
+}
+
+/** Has any source file changed recently? A compile error born from a LIVE
+ *  edit heals itself (fix or revert); a poisoned cache does not. Only an
+ *  UNTOUCHED tree returning 500 deserves the cure. Bounded: src/ + services. */
+function srcRecentlyTouched(): boolean {
+  try {
+    const cutoff = Date.now() - SRC_STABLE_MS;
+    for (const root of [path.join(PROJECT_DIR, "src"), path.join(PROJECT_DIR, "mini-services")]) {
+      let entries: string[] = [];
+      try {
+        entries = fs.readdirSync(root, { recursive: true }) as string[];
+      } catch {
+        continue;
+      }
+      for (const rel of entries) {
+        const full = path.join(root, rel);
+        try {
+          if (fs.statSync(full).mtimeMs > cutoff) return true;
+        } catch {
+          /* raced away */
+        }
+      }
+    }
+    return false;
+  } catch {
+    return true; // cannot prove stability — do NOT cure (fail-safe)
+  }
+}
+
+/** The v28 cure — the documented sovereign move from three live incidents
+ *  (v29/v30/v31): SIGTERM the web tree, PURGE the poisoned .next cache,
+ *  respawn detached. The second documented kill exception, on objective
+ *  evidence: the page itself returns 5xx on a live, answering process. */
+function cureWebPanic(): void {
+  S.panics += 1;
+  S.lastPanicAt = new Date().toISOString();
+  S.page500Streak = 0;
+  S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+  journal(
+    "web-panic",
+    `page-500 on a live, answering process ×${PAGE_500_STREAK} (Turbopack cache panic — 3 live incidents) — cure #${S.panics}: SIGTERM tree → purge .next → detached respawn`
+  );
+  const procs = scanProcs().filter(
+    (p) =>
+      p.cwd === PROJECT_DIR &&
+      (p.cmdline.includes("next-server") || p.cmdline.includes("next dev") || (p.cmdline.includes("bun") && p.cmdline.includes("run dev")))
+  );
+  for (const p of procs) {
+    try {
+      process.kill(p.pid, "SIGTERM");
+    } catch {
+      /* already gone */
+    }
+  }
+  setTimeout(() => {
+    try {
+      fs.rmSync(path.join(PROJECT_DIR, ".next"), { recursive: true, force: true });
+      journal("web-panic", `.next purged (the proven cure — v29/v30/v31: 200 in ~20-25s after respawn)`);
+    } catch (e) {
+      journal("web-dead", `purge .next failed: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`);
+    }
+    reviveDetached(PROJECT_DIR, path.join(PROJECT_DIR, "dev.log"));
+    journal("web-revive", `web-panic cure #${S.panics}: respawned detached`);
+  }, 4_000).unref?.();
+}
+
 async function checkAnvil(): Promise<boolean> {
   try {
     const r = await fetch(ANVIL_RPC, {
@@ -452,6 +550,31 @@ async function cycle(): Promise<void> {
       reviveWeb();
       S.recoveredLogged = false;
     }
+  }
+
+  // 1.5 v28 — החזית שתועדה שלוש פעמים: התהליך חי, ה-API עונה — אבל העמוד
+  //     עצמו 500 (פאניקת Turbopack / .next מורעל). האמת למשתמש היא העמוד.
+  //     הוכחה אובייקטיבית בלבד: 5xx ×2 קריאות רצופות (30ש' ביניהן) על
+  //     עץ-מקור שלא שונה 3 דקות — אז התרופה המתועדת: טיהור + הרצה.
+  if (web.alive && web.kind === "ok" && RT.cycle % PAGE_EVERY === 0) {
+    const page = await checkPage();
+    S.lastPageHttp = page.http;
+    if (page.http !== null && page.http >= 500) {
+      S.page500Streak += 1;
+      if (S.page500Streak === 1) {
+        journal("page-500", `the PAGE itself answered HTTP ${page.http} while the API layer is 200 — first sighting, watching (cure needs ×${PAGE_500_STREAK} + untouched source)`);
+      }
+      if (
+        S.page500Streak >= PAGE_500_STREAK &&
+        !srcRecentlyTouched() &&
+        Date.now() > S.reviveDeadline
+      ) {
+        cureWebPanic();
+      }
+    } else if (page.http === 200) {
+      S.page500Streak = 0;
+    }
+    // http null (טיימאאוט) — דרך ה-degraded הקיימת מנהלת; המונה נשאר.
   }
 
   // 2. lab chain (every 30s) — anvil is also watched by the mesh runner's
@@ -569,6 +692,7 @@ function statusJson() {
     pressureThresholdMb: PRESSURE_MB,
     rssShedMb: RSS_SHED_MB,
     recycle: { count: S.recycles, lastAt: S.lastRecycleAt, rssShedStreak: S.rssShedStreak },
+    panic: { streak: S.page500Streak, cures: S.panics, lastAt: S.lastPanicAt, lastPageHttp: S.lastPageHttp },
     backups: { ok: S.backups.ok, miss: S.backups.miss, lastAt: S.backups.lastAt },
     events: S.events.slice(-60).reverse(),
     journalFile: "mini-services/keeper/state/journal.jsonl"
@@ -620,7 +744,7 @@ try {
   /* no journal yet — fresh start */
 }
 
-journal("boot", `SHOMER v27 (אחיזה) up on :${PORT} — watching web :3000 · anvil :8545 · mesh runner · memory (warning ${PRESSURE_MB}MB · recycle ${RSS_SHED_MB}MB) · sovereign backups every 30min · never touches key material`);
+journal("boot", `SHOMER v28 (המשך) up on :${PORT} — watching web :3000 (API + the PAGE itself — the v28 page-500 cure) · anvil :8545 · mesh runner · memory (warning ${PRESSURE_MB}MB · recycle ${RSS_SHED_MB}MB) · sovereign backups every 30min · never touches key material`);
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
-console.log(`[keeper] SHOMER v27 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · pre-OOM recycle at ${RSS_SHED_MB}MB (kernel kills at 1790) · backup every 30min · revive only on confirmed death (three documented exceptions, all objective-evidence)`);
+console.log(`[keeper] SHOMER v28 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · page-500 detector every 30s (streak ×${PAGE_500_STREAK} + source-stable ${SRC_STABLE_MS / 1000}s → purge cure) · anvil every 30s · runner+memory every 60s · pre-OOM recycle at ${RSS_SHED_MB}MB (kernel kills at 1790) · backup every 30min · revive only on confirmed death (documented exceptions, all objective-evidence)`);

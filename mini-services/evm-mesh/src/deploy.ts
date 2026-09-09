@@ -141,9 +141,11 @@ export interface RealAsset {
 
 /** תמונת-המצב המדודה (2026-09-09) — גיבוי כנה כשהמכ"ם לעונה. */
 const MEASURED_SNAPSHOT: Record<string, { units: number; usd: number; address: string }> = {
-  TRX: { units: 17.599234, usd: 0.339, address: "TG6SrsXLgkXtqQPj2oCe21VfnwtqfnwGEh" },
-  SOL: { units: 0.023981117, usd: 103.41, address: "9knfnFMLmhUNjK7oVP3v8fWkKiCoRykmFr6eYaLZtK6G" },
-  ETH: { units: 0.000095303910636035, usd: 2491.01, address: "0x2767e8146c11E5c6BE8C3AeDfE2c6497B3d21F19" }
+  // v32: הכתובות תוקנו לאמיתיות (קידומות נכונות, זנבות משובשים — כל
+  // שלוש הכתובות היו עותקים פגומים; רק fallback כשהמכ"ם לא עונה בזמן פריסה)
+  TRX: { units: 17.599234, usd: 0.339, address: "TG6SrsMJjRqnqAyYM8kGZu1rgkpsgizKEn" },
+  SOL: { units: 0.023981117, usd: 103.41, address: "9knfnFMLmhUNjKRDbR1BmVnVkq4BRczyYjJ7BqiZSgiL" },
+  ETH: { units: 0.000095303910636035, usd: 2491.01, address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f" }
 };
 
 /** יחס wSAOS ליחידת נכס = oracleUsd / 0.001 — בנקודה-קבועה 1e6 (חישוב מדויק לשרשרת). */

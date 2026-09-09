@@ -8,15 +8,18 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/saos/physical-move — v30 תזוזה (TIZUZA): המצב החי של הכסף
- * שנמצא שזז פיזית: מדידות גז/יתרות חיות (ETH מיינט + BSC + XRPL),
- * יומן תנועות אמיתיות (txid לכל תזוזה), סטטיסטיקות פעימה וגבול-אמת.
+ * GET /api/saos/physical-move — v32 המשך: המצב החי של הכסף שזז פיזית:
+ * מדידות גז/יתרות חיות (ETH מיינט + BSC + XRPL + הארנקים הישנים
+ * TRX/SOL/ETH), יומן תנועות אמיתיות (txid לכל תזוזה), סטטיסטיקות וגבול-אמת.
  *
  * POST /api/saos/physical-move — פעולות HQ מאחורי שער-הרשות
  * (flow-liquidity + רשימת-אוצר לבנה + שובל אדום):
- *   { action: "sweep-eth" }      → הזזת אבק ה-ETH מהכתובת הישנה לבית-האוצר
- *   { action: "sweep-bsc" }      → הזזת ה-BNB (BSC) לבית-האוצר
- *   { action: "heartbeat-xrp" }  → פעימה חתומה בספר XRPL
+ *   { action: "sweep-eth" }           → הזזת אבק ה-ETH (Coinomi ישן) לבית-האוצר
+ *   { action: "sweep-bsc" }           → הזזת ה-BNB (BSC) לבית-האוצר
+ *   { action: "heartbeat-xrp" }       → פעימה חתומה בספר XRPL
+ *   { action: "sweep-legacy-eth" }    → v32: ETH של ארנק-הצי 0x2767 → 0x01Bd
+ *   { action: "sweep-legacy-trx" }    → v32: TRX מ-TG6Srs → TMXHfFQd (TRON)
+ *   { action: "sweep-legacy-sol" }    → v32: SOL מ-9knfn → A2Y1d3 (Solana)
  */
 export async function GET() {
   try {

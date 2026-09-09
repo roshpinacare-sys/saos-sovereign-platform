@@ -73,6 +73,12 @@ interface KeeperData {
     lastAt: string | null;
     rssShedStreak: number | null;
   };
+  panic: {
+    streak: number;
+    cures: number;
+    lastAt: string | null;
+    lastPageHttp: number | null;
+  };
   backups:
     | {
         ok: boolean;
@@ -108,6 +114,8 @@ const EVENT_TONE: Record<string, "green" | "gold" | "rose" | "zinc"> = {
   "web-dead": "rose",
   "web-revive": "rose",
   "web-recovered": "green",
+  "page-500": "gold",
+  "web-panic": "rose",
   "web-recycle": "gold",
   "anvil-up": "green",
   "anvil-down": "gold",
@@ -127,6 +135,8 @@ const EVENT_HE: Record<string, string> = {
   "web-dead": "מוות מאומת",
   "web-revive": "החייאה",
   "web-recovered": "חזרה לחיים",
+  "page-500": "העמוד עצמו 500 (נצפה)",
+  "web-panic": "פאניקת-מטמון — הטיהור בוצע",
   "web-recycle": "מיחזור-עדין (לפני OOM)",
   "anvil-up": "anvil עלה",
   "anvil-down": "anvil לא עונה",
@@ -265,6 +275,17 @@ export function KeeperView() {
           tone={d.backups && d.backups.db.count > 0 ? "green" : "gold"}
           icon={<DatabaseBackup size={16} />}
           hint={d.backups?.db.lastAt ? `אחרון ${timeAgo(d.backups.db.lastAt)} · צילום עקבי VACUUM INTO` : "הצילום הראשון 30ש' אחרי עליית השומר"}
+        />
+        <Kpi
+          label="גלאי עמוד-500"
+          value={d.panic ? (d.panic.cures > 0 ? `טופל ×${d.panic.cures}` : "פטרול") : "—"}
+          tone={d.panic && d.panic.cures > 0 ? "gold" : "green"}
+          icon={<Activity size={16} />}
+          hint={
+            d.panic
+              ? `העמוד עצמו נבדק כל 30ש' · סטריק ${d.panic.streak} · HTTP אחרון ${d.panic.lastPageHttp ?? "—"}${d.panic.lastAt ? ` · טיפול אחרון ${timeAgo(d.panic.lastAt)}` : ""}`
+              : "v28 — החזית שתועדה 3 פעמים נסגרה"
+          }
         />
         <Kpi
           label="שגרת הראנר"
