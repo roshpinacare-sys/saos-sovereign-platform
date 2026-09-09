@@ -11,9 +11,14 @@
  *      the payroll pays. Honest fallback: if the web tier is unreachable,
  *      the order is posted dry (on-chain, no LLM content).
  *      v20 MICROGRID: before the dispatch the HQ posts fresh REAL DEX
- *      prices to the SAOSMicrogrid oracle (WETH/USDC, WBNB/USDT); the
- *      run itself ticks the grids (mesh link #6 — one transaction); after
- *      the run the accrued profit is swept to the work-board payroll.
+ *      prices to the SAOSMicrogrid oracle (ALL 6 KNOWN_PAIRS since v28);
+ *      the run itself ticks the grids (mesh link #6 — one transaction);
+ *      after the run the accrued profit is swept to the work-board payroll.
+ *      v28 EXCHANGE (step 4.9, mesh link #7): the SAOS EXCHANGE cycle —
+ *      soldiers trade on the pools, the treasury's ARB BOT keeps the
+ *      pools aligned with the oracle policy price, the harvest flows OUT
+ *      to the REAL WORK payroll, empty soldiers are refilled, and all 6
+ *      known microgrid pairs are kept as live grids ("לסדר את הבריכות").
  *   4. WATCHDOG: respawn anvil + redeploy if the chain dies
  *   5. ARTIFACT WATCHER: redeploy when the canonical SAOSMesh.json changes
  *
@@ -90,18 +95,36 @@ function spawnAnvil(): ReturnType<typeof Bun.spawn> {
   return proc;
 }
 
-/** is the mesh (per deployment.json) live on the current chain? */
+/** is the mesh (per deployment.json) live on the current chain?
+ *  v28: the hub must exist AND the SAOSExchange must be live with seeded
+ *  pools — a v3 state file (no exchange) is NOT alive: deployMesh() runs
+ *  on the LIVE persistent chain (no regenesis, ids continue — the
+ *  WorkDeliverable collision layer handles the residue). */
 async function meshAlive(): Promise<boolean> {
   const state = readState();
   const hub = state?.ok ? state.contracts?.SAOSMeshHub : null;
-  if (!hub) return false;
+  const exchangeAddr = state?.ok ? state.contracts?.SAOSExchange : null;
+  if (!hub || !exchangeAddr) return false;
+  let provider: ethers.JsonRpcProvider | null = null;
   try {
-    const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
     const code = await provider.getCode(hub);
-    provider.destroy();
-    return typeof code === "string" && code.length > 2;
+    if (typeof code !== "string" || code.length <= 2) return false;
+    const xcode = await provider.getCode(exchangeAddr);
+    if (typeof xcode !== "string" || xcode.length <= 2) return false;
+    // הבריכות נזרעו? (ריצה read-only — אמת מהשרשרת עצמה)
+    const abi = loadArtifact().contracts.find((c) => c.name === "SAOSExchange")?.abi ?? [];
+    const xc = new ethers.Contract(exchangeAddr, abi, provider);
+    const pools = await xc.poolCount();
+    return Number(pools) > 0;
   } catch {
     return false;
+  } finally {
+    try {
+      provider?.destroy();
+    } catch {
+      /* already dead */
+    }
   }
 }
 
@@ -180,6 +203,18 @@ async function postRealWorkOrder(job: { mission: string; difficulty: number; rew
 
 let runTick = 0;
 let keeperFails = 0; // v26 — mutual-watch fail streak for the keeper :3005
+
+// v28 — "לסדר את הבריכות": כל 6 הזוגות הידועים של המיקרו-גריד (האורקל
+// מפרסם את כולם, וגריד חי קיים לכל אחד מהם — השלמה אוטומטית ב-4.9.f).
+const KNOWN_PAIRS = ["WETH/USDC", "WETH/USDT", "WETH/DAI", "WBNB/USDT", "WBNB/BUSD", "CAKE/WBNB"] as const;
+
+const minBig = (a: bigint, b: bigint): bigint => (a < b ? a : b);
+
+/** תצוגת-סכום קצרה בעברית ליומן הבורסה. */
+const fmtAmt = (v: bigint): string => {
+  const n = Number(ethers.formatEther(v));
+  return n >= 100 ? n.toFixed(2) : n >= 1 ? n.toFixed(4) : n.toPrecision(4);
+};
 
 // v26.1 — CYCLE WATCHDOG: the runner froze twice tonight on a dead
 // keep-alive RPC socket (an in-flight ethers request that anvil never
@@ -267,10 +302,11 @@ async function autoCycle(): Promise<void> {
     // 3.5 v20 — MICROGRID ORACLE: fresh REAL DEX prices (the web tier's
     //      60s-cached read-only probe) posted BEFORE the dispatch, so the
     //      run itself ticks the grids with live market data (link #6).
+    //      v28 — ALL 6 KNOWN_PAIRS (במקום 2) — כל הגרידים מקבלים מחיר טרי.
     try {
       const dex = await fetchJson("http://127.0.0.1:3000/api/saos/dex");
       const pairs = (dex?.pairs ?? []) as Array<{ pair?: string; price?: string | null; exists?: boolean }>;
-      for (const pair of ["WETH/USDC", "WBNB/USDT"]) {
+      for (const pair of KNOWN_PAIRS) {
         const p = pairs.find((x) => x.pair === pair && x.exists && x.price);
         const num = p?.price ? Number(p.price) : NaN;
         if (Number.isFinite(num) && num > 0) {
@@ -389,6 +425,17 @@ async function autoCycle(): Promise<void> {
       /* web tier down / timeout — honest skip, next cycle tries again */
     }
 
+    // 4.9 v28 — EXCHANGE CYCLE: הבורסה שלנו על הרשת שלנו, בכל מחזור —
+    //      חיילים סוחרים, הארב' של האוצר מיישר את הבריכות למחיר-המדיניות,
+    //      הקציר זורם החוצה לקופת-העבודה, החיילים ממולאים, וכל 6 הזוגות
+    //      של המיקרו-גריד מסודרים (best-effort, דילוג כנה בכשל — המחזור
+    //      הבא ממשיך).
+    try {
+      await exchangeCycle(provider);
+    } catch {
+      /* הבורסה best-effort — המחזור הבא מנסה שוב */
+    }
+
     // 4.8 v26 — KEEPER MUTUAL REVIVE: the keeper (mini-services/keeper,
     //      :3005) watches the web tier + this runner + anvil + machine
     //      memory and revives any confirmed-dead member. This step is the
@@ -448,6 +495,263 @@ async function autoCycle(): Promise<void> {
       /* already dead */
     }
     RT.busy = false;
+  }
+}
+
+// ─── v28 — the exchange cycle (step 4.9): הבורסה חיה ────────────────────────
+
+/**
+ * 4.9 v28 — EXCHANGE CYCLE: הבורסה שלנו, על הרשת שלנו, בכל מחזור 120ש'.
+ *   א. מחירי אורקל חיים (Binance דרך מכ"ם-הנזילות של הפלטפורמה) — אין?
+ *      הארב' מדולג בכנות (שאר הצעדים ממשיכים).
+ *   ב. בוט-ארב' (האוצר): סטייה > 0.8% ממחיר-המדיניות → האוצר מתקן — מוכר
+ *      נכס לתוך כוח, קונה לתוך חולשה (2% מהרזרבה, מינימום-יציאה 98%,
+ *      תמיד בטוח-תקרת ההחלפה 5%).
+ *   ג. מסחר חיילים: חייל מתחלף ברוטציה (1..8) קונה/מוכר לפי זוגיות הטיק;
+ *      מכירה — רק אם החייל מחזיק את הנכס ≥ 2% מהבריכה (אחרת קנייה).
+ *   ד. כל מחזור שלישי — קציר החוצה: harvestAll → wSAOS שנצבר באוצר נשלף
+ *      וזורם במסילה ללא-עמלה לקופת-העבודה האמיתית (REAL WORK payroll).
+ *   ה. מילוי: חייל שירד מ-50 wSAOS — ה-HQ ממלא ל-300 (רק אם הכיסוי יש).
+ *   ו. "לסדר את הבריכות": כל 6 הזוגות הידועים יהיו גרידים חיים + מימון
+ *      קרן-הרווח של המיקרו-גריד (50 SAOS-M כשירדה מתחת ל-10).
+ */
+async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
+  const state = readState();
+  if (!state?.ok || !state.contracts?.SAOSExchange) return;
+  const artifact = loadArtifact();
+  const xAbi = artifact.contracts.find((c) => c.name === "SAOSExchange")?.abi;
+  const lAbi = artifact.contracts.find((c) => c.name === "SAOSLedger")?.abi;
+  const mAbi = artifact.contracts.find((c) => c.name === "SAOSMicrogrid")?.abi;
+  if (!xAbi || !lAbi || !mAbi) return;
+  const hq = await provider.getSigner(0);
+  const hqAddr = await hq.getAddress();
+  const treasury = await provider.getSigner(9);
+  const treasuryAddr = await treasury.getAddress();
+  const exchange = new ethers.Contract(state.contracts.SAOSExchange, xAbi, hq);
+  const ledger = new ethers.Contract(state.contracts.SAOSLedger, lAbi, hq);
+  const microgrid = new ethers.Contract(state.contracts.SAOSMicrogrid, mAbi, hq);
+  const wsaosId = Number(await exchange.assetIdOf("WSAOS"));
+
+  // א. מחירי אורקל חיים — מכ"ם הפלטפורמה (Binance). אין → ארב' מדולג כנה.
+  let oracle: Record<string, number> = {};
+  try {
+    const flow = await fetchJson("http://127.0.0.1:3000/api/saos/flow", 25000);
+    const rows = (((flow?.radar as { assets?: unknown[] } | undefined)?.assets) ?? []) as Array<{
+      symbol?: string;
+      holder?: string;
+      address?: string;
+      priceUsd?: number | null;
+    }>;
+    const pick = (sym: string, prefix: string): number => {
+      const a = rows.find(
+        (x) => x.symbol === sym && x.holder === "headcorner" && typeof x.address === "string" && x.address.startsWith(prefix)
+      );
+      return a && typeof a.priceUsd === "number" && a.priceUsd > 0 ? a.priceUsd : 0;
+    };
+    oracle = { WTRX: pick("TRX", "TG6Srs"), WSOL: pick("SOL", "9knfnF"), WETH: pick("ETH", "0x2767") };
+  } catch {
+    /* אורקל best-effort — החיילים סוחרים גם בלי ארב' */
+  }
+
+  // קריאת הבריכות פעם אחת למחזור
+  const poolCount = Number(await exchange.poolCount());
+  const pools: Array<{ id: number; aId: number; rA: bigint; rB: bigint }> = [];
+  const symbolOf: Record<number, string> = {};
+  for (let i = 0; i < poolCount; i++) {
+    const p = (await exchange.pools(BigInt(i))) as unknown as { aId: bigint; rA: bigint; rB: bigint };
+    const aId = Number(p.aId);
+    if (symbolOf[aId] === undefined) {
+      const a = (await exchange.assets(aId)) as unknown as { symbol: string };
+      symbolOf[aId] = String(a.symbol);
+    }
+    pools.push({ id: i, aId, rA: p.rA, rB: p.rB });
+  }
+
+  // ב. בוט-ארב' (האוצר): הבריכות מיושרות אל מחיר-המדיניות (oracleUsd/0.001)
+  for (const p of pools) {
+    try {
+      if (p.rA === 0n || p.rB === 0n) continue;
+      const symbol = symbolOf[p.aId] ?? "?";
+      const usd = oracle[symbol] ?? 0;
+      if (usd <= 0) continue; // אין מחיר אורקל — דילוג כנה
+      const target = usd / 0.001;
+      const implied = Number(p.rB) / Number(p.rA); // wSAOS ליחידת נכס
+      const dev = implied / target - 1;
+      if (Math.abs(dev) <= 0.008) continue;
+      if (dev > 0) {
+        // הנכס יקר בבריכה → האוצר מוכר נכס לתוך הבריכה (2% מרזרבת הנכס)
+        const treasuryBal = (await exchange.balanceOf(p.aId, treasuryAddr)) as bigint;
+        const size = minBig((p.rA * 2n) / 100n, treasuryBal);
+        if (size <= 0n) {
+          console.log(`[evm-mesh] בורסה: ארב' ${symbol} — אין מלאי אוצר (דילוג כנה)`);
+          continue;
+        }
+        const q = (await exchange.quote(p.id, true, size)) as bigint;
+        if (q <= 0n) continue;
+        const tx = await exchange.connect(treasury).swapExactIn(p.id, true, size, (q * 98n) / 100n);
+        await tx.wait();
+        console.log(`[evm-mesh] בורסה: ארב' ${symbol} — האוצר מכר ${fmtAmt(size)} (סטייה ${(dev * 100).toFixed(2)}% ← תיקון)`);
+      } else {
+        // הנכס זול בבריכה → האוצר קונה (2% מהשווי ה-wSAOS — כפי יתרת האוצר)
+        const treasuryWsaos = (await exchange.balanceOf(wsaosId, treasuryAddr)) as bigint;
+        const size = minBig((p.rB * 2n) / 100n, treasuryWsaos);
+        if (size <= 0n) {
+          console.log(`[evm-mesh] בורסה: ארב' ${symbol} — אין wSAOS באוצר (דילוג כנה)`);
+          continue;
+        }
+        const q = (await exchange.quote(p.id, false, size)) as bigint;
+        if (q <= 0n) continue;
+        const tx = await exchange.connect(treasury).swapExactIn(p.id, false, size, (q * 98n) / 100n);
+        await tx.wait();
+        console.log(`[evm-mesh] בורסה: ארב' ${symbol} — האוצר קנה ב-${fmtAmt(size)} wSAOS (סטייה ${(dev * 100).toFixed(2)}% ← תיקון)`);
+      }
+    } catch {
+      /* בריכה/ארב' best-effort — המחזור הבא ינסה שוב */
+    }
+  }
+
+  // ג. מסחר חיילים — חייל מתחלף, קנייה/מכירה לפי זוגיות, מינימום-יציאה 99%
+  try {
+    if (pools.length > 0) {
+      const sIdx = 1 + (runTick % 8);
+      const soldier = await provider.getSigner(sIdx);
+      const soldierAddr = await soldier.getAddress();
+      const p = pools[runTick % pools.length]!;
+      const symbol = symbolOf[p.aId] ?? "?";
+      let traded = false;
+      if (runTick % 2 !== 0) {
+        // מכירה — רק אם החייל מחזיק את הנכס ≥ 2% מהבריכה; אחרת — קנייה
+        const held = (await exchange.balanceOf(p.aId, soldierAddr)) as bigint;
+        const threshold = (p.rA * 2n) / 100n;
+        if (held >= threshold && held > 0n) {
+          let wsaosAmt = ethers.parseEther(String(20 + ((runTick * 7) % 60)));
+          const capSaos = (p.rB * 4n) / 100n; // בטוח-תקרה (5%) — שולי בטחון
+          if (wsaosAmt > capSaos) wsaosAmt = capSaos;
+          let assetAmt = (wsaosAmt * p.rA) / p.rB; // שווי מקורב בצד הנכס
+          const capAsset = (p.rA * 4n) / 100n;
+          if (assetAmt > capAsset) assetAmt = capAsset;
+          if (assetAmt > held) assetAmt = held;
+          if (assetAmt > 0n) {
+            const q = (await exchange.quote(p.id, true, assetAmt)) as bigint;
+            if (q > 0n) {
+              const tx = await exchange.connect(soldier).swapExactIn(p.id, true, assetAmt, (q * 99n) / 100n);
+              await tx.wait();
+              console.log(`[evm-mesh] בורסה: soldier-${sIdx} מכר ${fmtAmt(assetAmt)} ${symbol}`);
+              traded = true;
+            }
+          }
+        }
+      }
+      if (!traded) {
+        // קנייה — wSAOS ← נכס, בגודל 20..60 wSAOS (מותאם לתקרת ההחלפה)
+        let amt = ethers.parseEther(String(20 + ((runTick * 7) % 60)));
+        const capSaos = (p.rB * 4n) / 100n;
+        if (amt > capSaos) amt = capSaos;
+        const soldierWsaos = (await exchange.balanceOf(wsaosId, soldierAddr)) as bigint;
+        if (amt > 0n && soldierWsaos >= amt) {
+          const q = (await exchange.quote(p.id, false, amt)) as bigint;
+          if (q > 0n) {
+            const tx = await exchange.connect(soldier).swapExactIn(p.id, false, amt, (q * 99n) / 100n);
+            await tx.wait();
+            console.log(`[evm-mesh] בורסה: soldier-${sIdx} קנה ${symbol} ב-${fmtAmt(amt)} wSAOS`);
+          }
+        } else if (amt > 0n) {
+          console.log(`[evm-mesh] בורסה: soldier-${sIdx} חסר wSAOS — המילוי (ה.) יטפל (דילוג כנה)`);
+        }
+      }
+    }
+  } catch {
+    /* מסחר חייל best-effort */
+  }
+
+  // ד. כל מחזור שלישי — קציר החוצה: הנזילות זורמת לשכר-העבודה האמיתי
+  try {
+    if (runTick % 3 === 1) {
+      // v28.1 הערת-אמת חיה: ל-harvestAll() בחוזה באג מדיד — הוא קורא
+      // this.harvest(i) פנימי → msg.sender = החוזה ≠ owner → NotOwner
+      // (חוזר בשרשרת החיה). לכן הקציר לפי בריכה: אותה תוצאה — הבעלים
+      // קוצר ישירות כל קופה לא-ריקה.
+      const pc = Number(await exchange.poolCount());
+      let harvestedPools = 0;
+      for (let i = 0; i < pc; i++) {
+        const hp = (await exchange.pools(BigInt(i))) as unknown as { potA: bigint; potB: bigint };
+        if (hp.potA === 0n && hp.potB === 0n) continue; // קופה ריקה — דילוג כנה
+        await (await exchange.harvest(BigInt(i))).wait();
+        harvestedPools += 1;
+      }
+      const treasuryWsaos = (await exchange.balanceOf(wsaosId, treasuryAddr)) as bigint;
+      if (treasuryWsaos > ethers.parseEther("2")) {
+        await (await exchange.connect(treasury).withdrawSaos(treasuryWsaos)).wait();
+        const tBal = (await ledger.balanceOf(treasuryAddr)) as bigint;
+        if (tBal > 0n) {
+          await (await ledger.connect(treasury).transfer(state.contracts.SAOSWorkBoard as string, tBal)).wait();
+          console.log(
+            `[evm-mesh] בורסה: קציר-החוצה — ${harvestedPools} בריכות · ${fmtAmt(treasuryWsaos)} SAOS-M נזילות זרמו לקופת-העבודה (REAL WORK)`
+          );
+        }
+      }
+    }
+  } catch {
+    /* קציר best-effort */
+  }
+
+  // ה. מילוי — חייל מתחת ל-50 wSAOS מוזרם ל-300 (רק אם יתרת ה-HQ מכסה).
+  //      העטיפה של החייל: ה-HQ מעביר במסילה → החייל מפקיד בעצמו
+  //      (ledger.transfer(exchange) ורק אז depositSaos — כפי שהחוזה דורש).
+  try {
+    let hqLedgerBal = (await ledger.balanceOf(hqAddr)) as bigint;
+    const fillAmt = ethers.parseEther("300");
+    for (let i = 1; i <= 8; i++) {
+      const s = await provider.getSigner(i);
+      const sAddr = await s.getAddress();
+      const w = (await exchange.balanceOf(wsaosId, sAddr)) as bigint;
+      if (w < ethers.parseEther("50") && hqLedgerBal >= fillAmt) {
+        await (await ledger.transfer(sAddr, fillAmt)).wait();
+        await (await ledger.connect(s).transfer(state.contracts.SAOSExchange as string, fillAmt)).wait();
+        await (await exchange.connect(s).depositSaos(fillAmt)).wait();
+        hqLedgerBal -= fillAmt;
+        console.log(`[evm-mesh] בורסה: soldier-${i} מולא ל-300 wSAOS (למלא את החיילים)`);
+      }
+    }
+  } catch {
+    /* מילוי best-effort */
+  }
+
+  // ו. "לסדר את הבריכות" — גריד חי לכל 6 הזוגות הידועים + מימון קרן-הרווח
+  try {
+    const dex = await fetchJson("http://127.0.0.1:3000/api/saos/dex", 25000);
+    const pairs = (dex?.pairs ?? []) as Array<{ pair?: string; price?: string | null; exists?: boolean }>;
+    const priceOf = (pair: string): number | null => {
+      const x = pairs.find((y) => y.pair === pair && y.exists && y.price);
+      const n = x?.price ? Number(x.price) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const gridCount = Number(await microgrid.gridCount());
+    const have = new Set<string>();
+    for (let i = 0; i < gridCount; i++) {
+      const g = (await microgrid.gridAt(BigInt(i))) as unknown as { pair: string };
+      have.add(String(g.pair));
+    }
+    for (const pair of KNOWN_PAIRS) {
+      if (have.has(pair)) continue;
+      const price = priceOf(pair);
+      if (price === null) continue; // אין מחיר חי — דילוג כנה
+      await (await microgrid.postPrice(pair, BigInt(Math.round(price * 1e6)))).wait();
+      await (await microgrid.createGrid(pair, 24)).wait();
+      have.add(pair);
+      console.log(`[evm-mesh] מיקרו-גריד: גריד ${pair} ×24 נוצר — לסדר את הבריכות (${have.size}/6)`);
+    }
+    // מימון קרן-הרווח — פעם אחת כשיורדת מתחת ל-10 SAOS-M
+    const profitFund = (await ledger.balanceOf(state.contracts.SAOSMicrogrid as string)) as bigint;
+    if (profitFund < ethers.parseEther("10")) {
+      const hqBal = (await ledger.balanceOf(hqAddr)) as bigint;
+      if (hqBal >= ethers.parseEther("50")) {
+        await (await ledger.transfer(state.contracts.SAOSMicrogrid as string, ethers.parseEther("50"))).wait();
+        console.log("[evm-mesh] מיקרו-גריד: קרן-הרווח מומנה מחדש (50 SAOS-M)");
+      }
+    }
+  } catch {
+    /* סידור בריכות best-effort */
   }
 }
 
@@ -580,7 +884,7 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v26: REAL WORK every 120s (LLM + anchor) · microgrid oracle + tick + sweep · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
+  console.log("[evm-mesh] auto-runner v28: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
 }
 
 void main().catch((e) => {

@@ -124,13 +124,14 @@ export const POLICY: readonly PolicyRule[] = [
     op: "flow-liquidity",
     he: "זרימת נזילות",
     guards: "העברת ערך מהאוצר — הרגישה שבפעולות",
-    actors: ["sovereign-user"],
-    through: "שורש-הזהות (12 מילים) — TRON m/44'/195'",
+    actors: ["sovereign-user", "hq"],
+    through: "שורש-הזהות (12 מילים) — TRON m/44'/195' · hq: מפתח המעבדה (anvil signer 0) לפעולות הבורסה בלבד",
     limits: [
       "יעד: רשימה לבנה של כתובות-אוצר בלבד (FLOW_DESTINATIONS) — כתובת זרה נחסמת",
-      "לעולם לא דרך חוזה/טוקן לא-מוכר (חוק v24)"
+      "לעולם לא דרך חוזה/טוקן לא-מוכר (חוק v24)",
+      "hq: רק צמדי הבורסה (SAOSExchange) על שרשרת-המעבדה — החלפה/קציר/מילוי, לעולם לא יציאה חיצונה"
     ],
-    audit: "opLog perm.flow-liquidity.* + anchorTx flow-liquidity"
+    audit: "opLog perm.flow-liquidity.* + exchange.* (v28)"
   },
   {
     op: "broadcast-anchor",

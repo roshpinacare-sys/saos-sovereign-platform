@@ -1,13 +1,17 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v27 — אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM
+ * SAOS Sovereign Platform v28 — בורסה (BIRSA: בורסה ריבונית על SAOS-NET —
+ * צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה ·
+ * עמלה 20bps — 10 לאוצר 10 לצמיחה · קציר נזילות לאוצר · חיילים סוחרים ·
+ * ראוטר לדקסים המובילים · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי) +
+ * אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM
  * ב-RSS 1500MB לפני שהקרנל הורג ב-1790 · גיבויים ריבוניים כל 30 דק' — DB עקבי (VACUUM INTO) + שרשרת יומית,
  * סבב 48+7 · דד-ליין 9ש' לפסי-הרשת ב-status; השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil ממשיכה; הרשות ממשיכה
  * (מכ"ם-נזילות חי: 8 מרחבים · USD · מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני — התמונה של
  * הבעלים נקראת בקצה-האחורי, מאומתת מול ראיות-השרשרת, נאטמת כספת
  * חדשה; מיקרו-גריד עם חוסן-ריאנקור אוטומטי) מעל לוח העבודה.
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 20 עמודים. קיצורי-מקלדת Alt+1..9.
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 21 עמודים. קיצורי-מקלדת Alt+1..9.
  */
 
 import { useEffect, useState } from "react";
@@ -31,6 +35,7 @@ import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
 import { MicrogridView } from "@/components/saos/views/microgrid";
+import { ExchangeView } from "@/components/saos/views/exchange";
 import { FlowView } from "@/components/saos/views/flow";
 import { RosesView } from "@/components/saos/views/roses";
 import { ViewEconomy } from "@/components/saos/views/economy";
@@ -53,6 +58,7 @@ const TITLES: Record<ViewId, string> = {
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
   microgrid: "מיקרו-גריד",
+  exchange: "בורסת SAOS",
   flow: "נזילות וזרימה",
   roses: "שושנים",
   economy: "כלכלה",
@@ -101,6 +107,7 @@ export default function Home() {
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}
         {view === "microgrid" && <MicrogridView />}
+        {view === "exchange" && <ExchangeView />}
         {view === "flow" && <FlowView />}
         {view === "roses" && <RosesView />}
         {view === "economy" && <ViewEconomy />}

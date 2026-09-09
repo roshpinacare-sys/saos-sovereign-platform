@@ -28,12 +28,25 @@ contract SAOSLedger {
     event RewardPaid(uint256 indexed runId, address indexed to, uint256 amount);
     event PayrollFunded(uint256 indexed runId, address indexed payroll, uint256 amount);
     event ZeroFeeTransfer(uint256 indexed seq, address indexed from, address indexed to, uint256 amount, uint256 fee);
+    event FloatMinted(address indexed to, uint256 amount, string reason);
 
     error NotOwner();
     error NotRelay();
     error InsufficientBalance();
 
     constructor() { owner = msg.sender; }
+
+    /// @dev v4 — הבורסה: sovereign exchange float. A policy mint (owner-only,
+    ///      journaled with its reason) that seeds the SAOS-NET exchange pools.
+    ///      Lab-internal value: SAOS-M stays מטבע-מעבדה — the float is
+    ///      LIQUIDITY, not circulation; every unit sits in pools/traders.
+    function sovereignMint(address to, uint256 amount, string calldata reason) external {
+        if (msg.sender != owner) revert NotOwner();
+        if (amount == 0) revert InsufficientBalance();
+        balanceOf[to] += amount;
+        totalSupply += amount;
+        emit FloatMinted(to, amount, reason);
+    }
 
     function wire(address relayAddr) external {
         if (msg.sender != owner) revert NotOwner();

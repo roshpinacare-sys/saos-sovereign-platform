@@ -17,6 +17,10 @@
  * v3 adds SAOSMicrogrid (GRID-98 on-chain): the historic micro-grid engine
  * — ladder 1.2%/level, 40bps edge gate, 0.25 SAOS-M level size, monotonic
  * treasury PnL, on-chain per-fill journal, profit swept to the payroll.
+ * v4 adds SAOSExchange (הבורסה): the sovereign on-chain exchange — majors-
+ * only pools (WTRX/WSOL/WETH against wSAOS), x·y=k with 20bps fee (10 pot
+ * + 10 autonomous growth), LP shares, quotes, harvest-to-treasury, and a
+ * sovereign exchange float mint on the ledger (owner-only, journaled).
  */
 
 import * as fs from "fs";
@@ -37,6 +41,7 @@ const DEPLOYABLE = [
   "SAOSBridge",
   "SAOSWorkBoard",
   "SAOSMicrogrid",
+  "SAOSExchange",
   "SAOSValueEngine"
 ];
 
@@ -88,10 +93,10 @@ for (const name of DEPLOYABLE) {
 
 const artifact = {
   name: "SAOSMesh",
-  version: "saos-mesh/v3",
+  version: "saos-mesh/v4",
   compiler: "solc ^0.8.24 (optimizer 200, cancun)",
   chain: "SAOS-EVM (sovereign laboratory chain, chainId 31337) — same EVM bytecode deploys on ETHEREUM + BSC",
-  linkOrder: ["SAOSIdentity", "SAOSLedger", "SAOSSolutions", "SAOSBridge", "SAOSWorkBoard", "SAOSMicrogrid"],
+  linkOrder: ["SAOSIdentity", "SAOSLedger", "SAOSSolutions", "SAOSBridge", "SAOSWorkBoard", "SAOSMicrogrid", "SAOSExchange"],
   contracts
 };
 
