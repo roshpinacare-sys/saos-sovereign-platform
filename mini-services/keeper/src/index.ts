@@ -1,5 +1,5 @@
 /**
- * mini-services/keeper/src/index.ts — SAOS SHOMER (שומר) v26.
+ * mini-services/keeper/src/index.ts — SAOS SHOMER (שומר) v27 אחיזה.
  *
  * The organism's self-healing layer. Born from a measured incident:
  * the kernel OOM-killed the next-server web tier (1.79 GB RSS on a 4 GB
@@ -23,6 +23,28 @@
  *     member survives even if the keeper dies.
  *   · mutual watch: the mesh runner (step 4.8) revives the keeper the same
  *     way if :3005 refuses — no single point of permanent death.
+ *
+ * v27 אחיזה — THREE new sovereign answers (all measured holes):
+ *   1. PRE-OOM GRACEFUL RECYCLE: dev-mode next-server grows toward the
+ *      kernel's measured kill threshold (1.79 GB). The OLD keeper only
+ *      WARNED at pressure — then the kernel killed the web tier on its
+ *      own random schedule and the revive restored it ~36s later. The
+ *      v27 answer: when RSS crosses 1500 MB on TWO consecutive 60s
+ *      readings (objective trajectory, 5 minutes before the measured
+ *      death line, web alive and answering), the keeper recycles the
+ *      tree GENTLY on its own terms — SIGTERM + detached respawn — a
+ *      planned 0-surprise event instead of an unplanned kernel kill.
+ *      This is the THIRD documented exception to "never kills" (after
+ *      the frozen-runner zombie rule) and the evidence standard is the
+ *      same: not "slow" (subjective) — a measured march to a measured
+ *      death threshold (objective).
+ *   2. SOVEREIGN BACKUPS: every 30 min the keeper triggers one consistent
+ *      DB snapshot over loopback (POST /api/saos/backup — SQLite VACUUM
+ *      INTO through the live client, rotation 48/24h + daily chain
+ *      snapshots rotation 7). One copy of the truth = no grip; the
+ *      keeper now preserves, not only heals. Journaled backup-ok / miss.
+ *   3. LOG HYGIENE: dev.log rotates at 20 MB (the OOM-revive appends to
+ *      it forever otherwise — unbounded growth is a slow hole).
  *
  * API (loopback 127.0.0.1:3005 only):
  *   GET  /      → full keeper status (events, checks, memory, members)
@@ -50,11 +72,23 @@ const JOURNAL_MAX_BYTES = 5 * 1024 * 1024; // rotate at 5 MB — hygiene, not de
 
 const CHECK_MS = 10_000; // web tier
 const ANVIL_EVERY = 3; // every 3rd cycle (30s)
-const SLOW_EVERY = 6; // runner + memory every 6th cycle (60s)
+const SLOW_EVERY = 6; // runner + memory + rss-shed every 6th cycle (60s)
 const DEAD_STREAK = 3; // connection-refused ×3 = confirmed death
 const REVIVE_WINDOW_MS = 150_000; // only one revive attempt per window
 const PRESSURE_MB = 700; // early warning before the kernel acts (measured: kill at ~free<500)
 const ZOMBIE_MS = 10 * 60_000; // 10 min without a new block on a live chain = 3+ full missed cycles
+
+// v27 אחיזה — pre-OOM graceful recycle. Measured facts: the kernel killed
+// the web tier at 1.79 GB RSS (dmesg). 1500 MB on two consecutive 60s
+// readings = a proven march toward that line with ~5 minutes of margin.
+// Recycling gently (SIGTERM + detached respawn) on OUR schedule beats the
+// kernel killing on ITS schedule: same fast recovery, zero surprise, full
+// journal trail — running confidence by design, not by luck.
+const RSS_SHED_MB = 1500;
+const RSS_SHED_READINGS = 2;
+const BACKUP_EVERY = 180; // every 180th cycle = 30 min
+const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
+const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
 
 // ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
 
@@ -88,8 +122,18 @@ interface KeeperEvent {
     | "runner-frozen"
     | "pressure"
     | "pressure-ok"
-    | "probe";
+    | "probe"
+    | "web-recycle"
+    | "backup-ok"
+    | "backup-miss";
   detail: string;
+}
+
+interface BackupResponse {
+  ok?: boolean;
+  kind?: string;
+  note?: string;
+  status?: { db?: { count?: number; lastAt?: string | null }; chain?: { count?: number } };
 }
 
 const S = {
@@ -114,6 +158,11 @@ const S = {
   mem: { totalMb: 0, availableMb: 0, nextRssMb: 0, pressure: false },
   recoveredLogged: false,
   memPressurePrev: false,
+  // v27 אחיזה
+  rssShedStreak: 0,
+  recycles: 0,
+  lastRecycleAt: null as string | null,
+  backups: { ok: 0, miss: 0, lastAt: null as string | null, lastNote: "" as string },
   events: [] as KeeperEvent[]
 };
 
@@ -230,6 +279,87 @@ function reviveRunner(): void {
   S.runnerRevives += 1;
   reviveDetached(MESH_DIR, RUNNER_LOG);
   journal("runner-revive", `mesh runner absent from /proc — bun run dev spawned detached, revive #${S.runnerRevives}`);
+}
+
+// ─── v27 אחיזה: pre-OOM graceful recycle + sovereign backups ───────────
+
+/** v27 — the PRE-OOM graceful recycle. The web tree (bun run dev →
+ *  next dev → next-server, all with cwd == PROJECT_DIR) is TERMINATED
+ *  gently and respawned detached. The kernel's OOM kill at 1.79 GB was
+ *  measured; this path acts at 1500 MB on two consecutive readings —
+ *  before the kernel, on our terms, with the full journal trail. */
+function recycleWeb(): void {
+  S.recycles += 1;
+  S.lastRecycleAt = new Date().toISOString();
+  S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS; // one action per window
+  S.failStreak = 0;
+  S.rssShedStreak = 0;
+  S.recoveredLogged = false;
+  journal(
+    "web-recycle",
+    `pre-OOM recycle #${S.recycles}: RSS ${S.mem.nextRssMb}MB ≥ ${RSS_SHED_MB}MB ×${RSS_SHED_READINGS} readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)`
+  );
+  const procs = scanProcs().filter(
+    (p) =>
+      p.cwd === PROJECT_DIR &&
+      (p.cmdline.includes("next-server") || p.cmdline.includes("next dev") || (p.cmdline.includes("bun") && p.cmdline.includes("run dev")))
+  );
+  for (const p of procs) {
+    try {
+      process.kill(p.pid, "SIGTERM");
+    } catch {
+      /* already gone */
+    }
+  }
+  setTimeout(() => {
+    reviveDetached(PROJECT_DIR, path.join(PROJECT_DIR, "dev.log"));
+    journal("web-revive", `recycled web tree respawned detached (recycle #${S.recycles})`);
+  }, 5_000).unref?.();
+}
+
+/** v27 — sovereign backup: one consistent DB snapshot (VACUUM INTO)
+ *  triggered over loopback on the web tier; rotation 48 db + 7 chain.
+ *  The keeper never touches the DB itself — the web tier owns the write,
+ *  the keeper owns the schedule. Journaled either way. */
+async function runBackup(): Promise<void> {
+  try {
+    const res = await fetch("http://127.0.0.1:3000/api/saos/backup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "snapshot", trigger: "keeper" }),
+      signal: AbortSignal.timeout(45_000)
+    });
+    const j = (await res.json()) as BackupResponse;
+    if (res.ok && j.ok) {
+      S.backups.ok += 1;
+      S.backups.lastAt = new Date().toISOString();
+      S.backups.lastNote = j.note ?? "";
+      journal(
+        "backup-ok",
+        `snapshot #${S.backups.ok} — ${j.note ?? j.kind ?? "ok"}${j.status?.db ? ` · ${j.status.db.count ?? "?"} db / ${j.status.chain?.count ?? "?"} chain בסבב` : ""}`
+      );
+    } else {
+      S.backups.miss += 1;
+      journal("backup-miss", `snapshot refused/failed #${S.backups.miss}: ${j.note ?? j.kind ?? String(res.status)}`);
+    }
+  } catch (e) {
+    S.backups.miss += 1;
+    journal("backup-miss", `snapshot unreachable #${S.backups.miss}: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"} — next window retries`);
+  }
+}
+
+/** v27 — log hygiene: dev.log grows forever (revive appends). Rotate at
+ *  20 MB, keep the previous as .old — bounded, truth preserved. */
+function rotateDevLog(): void {
+  try {
+    const devLog = path.join(PROJECT_DIR, "dev.log");
+    if (fs.existsSync(devLog) && fs.statSync(devLog).size > DEV_LOG_MAX_BYTES) {
+      fs.renameSync(devLog, `${devLog}.old`);
+      journal("boot", `dev.log rotated at 20MB — bounded growth, truth kept in dev.log.old`);
+    }
+  } catch {
+    /* hygiene must never break the watch loop */
+  }
 }
 
 /** v26.1 — the zombie case (measured): the runner PROCESS is alive but the
@@ -365,6 +495,10 @@ async function cycle(): Promise<void> {
 
   // 4. machine memory (every 60s) — early warning, journaled on transitions.
   //    Measured root cause of the web-tier death: OOM at ~1.79 GB RSS.
+  //    v27: the warning now has TEETH — two consecutive readings above
+  //    RSS_SHED_MB (1500) on an answering web tier = a proven march to
+  //    the kernel's measured kill line → graceful recycle (planned, on
+  //    our terms) instead of an unplanned kernel OOM kill.
   if (RT.cycle % SLOW_EVERY === 0) {
     const m = readMeminfo();
     const rss = nextServerRssMb();
@@ -379,6 +513,29 @@ async function cycle(): Promise<void> {
           : `memory recovered: ${m.availableMb}MB available · next-server RSS ${rss}MB`
       );
     }
+    const webAnswering = web.alive && !S.degraded;
+    if (rss >= RSS_SHED_MB && webAnswering) {
+      S.rssShedStreak += 1;
+      if (S.rssShedStreak >= RSS_SHED_READINGS && Date.now() > S.reviveDeadline) {
+        recycleWeb();
+      } else {
+        journal("pressure", `RSS ${rss}MB ≥ ${RSS_SHED_MB}MB (reading ${S.rssShedStreak}/${RSS_SHED_READINGS}) — recycle armed`);
+      }
+    } else if (rss > 0 && rss < RSS_SHED_MB - 200) {
+      S.rssShedStreak = 0;
+    }
+  }
+
+  // 5. v27 אחיזה — sovereign backups (every 30 min; first 30s after boot)
+  //    + dev.log hygiene on the same slow cadence. The snapshot itself is
+  //    taken by the web tier (VACUUM INTO, consistent); the keeper owns
+  //    the schedule and the journal. A miss is data, not an error: the
+  //    next window retries and the web revive owns recovery.
+  if (RT.cycle === BACKUP_FIRST_AT || (RT.cycle > BACKUP_FIRST_AT && (RT.cycle - BACKUP_FIRST_AT) % BACKUP_EVERY === 0)) {
+    await runBackup();
+  }
+  if (RT.cycle % SLOW_EVERY === 0) {
+    rotateDevLog();
   }
 }
 
@@ -388,7 +545,7 @@ function statusJson() {
   return {
     ok: true,
     service: "shomer",
-    version: "26.0.0",
+    version: "27.0.0",
     pid: process.pid,
     startedAt: S.startedAt,
     uptimeSec: Math.round((Date.now() - Date.parse(S.startedAt)) / 1000),
@@ -410,6 +567,9 @@ function statusJson() {
     },
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,
+    rssShedMb: RSS_SHED_MB,
+    recycle: { count: S.recycles, lastAt: S.lastRecycleAt, rssShedStreak: S.rssShedStreak },
+    backups: { ok: S.backups.ok, miss: S.backups.miss, lastAt: S.backups.lastAt },
     events: S.events.slice(-60).reverse(),
     journalFile: "mini-services/keeper/state/journal.jsonl"
   };
@@ -460,7 +620,7 @@ try {
   /* no journal yet — fresh start */
 }
 
-journal("boot", `SHOMER up on :${PORT} — watching web :3000 · anvil :8545 · mesh runner · memory (threshold ${PRESSURE_MB}MB)`);
+journal("boot", `SHOMER v27 (אחיזה) up on :${PORT} — watching web :3000 · anvil :8545 · mesh runner · memory (warning ${PRESSURE_MB}MB · recycle ${RSS_SHED_MB}MB) · sovereign backups every 30min · never touches key material`);
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
-console.log(`[keeper] SHOMER LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · revive only on confirmed death (never kills, never touches keys)`);
+console.log(`[keeper] SHOMER v27 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · pre-OOM recycle at ${RSS_SHED_MB}MB (kernel kills at 1790) · backup every 30min · revive only on confirmed death (three documented exceptions, all objective-evidence)`);

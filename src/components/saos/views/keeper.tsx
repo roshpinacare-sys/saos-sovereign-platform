@@ -24,7 +24,7 @@
 import { useState } from "react";
 import {
   HeartPulse, Server, Cpu, RefreshCcw, CheckCircle2, AlertTriangle,
-  ArrowLeftRight, Activity, MemoryStick, Eye, Clock
+  ArrowLeftRight, Activity, MemoryStick, Eye, Clock, DatabaseBackup, HardDriveDownload
 } from "lucide-react";
 import { useLive, timeAgo, postJson, fmtInt } from "../lib";
 import {
@@ -67,6 +67,26 @@ interface KeeperData {
     pressure: boolean | null;
     pressureThresholdMb: number | null;
   };
+  recycle: {
+    rssShedMb: number | null;
+    count: number;
+    lastAt: string | null;
+    rssShedStreak: number | null;
+  };
+  backups:
+    | {
+        ok: boolean;
+        dir: string;
+        db: { count: number; keep: number; lastAt: string | null; lastBytes: number };
+        chain: { count: number; keep: number; lastAt: string | null; lastBytes: number };
+        totalBytes: number;
+        lastSnapshotAt: string | null;
+        restore: string;
+        measuredAt: string;
+        error?: string;
+      }
+    | null;
+  keeperBackups: { ok: number | null; miss: number | null; lastAt: string | null };
   mutualWatch: Array<{ from: string; to: string; what: string }>;
   events: Array<{ t: string; kind: string; detail: string }>;
   incident: { what: string; evidence: string; answer: string };
@@ -88,11 +108,14 @@ const EVENT_TONE: Record<string, "green" | "gold" | "rose" | "zinc"> = {
   "web-dead": "rose",
   "web-revive": "rose",
   "web-recovered": "green",
+  "web-recycle": "gold",
   "anvil-up": "green",
   "anvil-down": "gold",
   "runner-revive": "gold",
   pressure: "gold",
   "pressure-ok": "green",
+  "backup-ok": "green",
+  "backup-miss": "gold",
   probe: "zinc"
 };
 
@@ -104,11 +127,14 @@ const EVENT_HE: Record<string, string> = {
   "web-dead": "מוות מאומת",
   "web-revive": "החייאה",
   "web-recovered": "חזרה לחיים",
+  "web-recycle": "מיחזור-עדין (לפני OOM)",
   "anvil-up": "anvil עלה",
   "anvil-down": "anvil לא עונה",
   "runner-revive": "החיית ראנר",
   pressure: "לחץ זיכרון",
   "pressure-ok": "זיכרון התאושש",
+  "backup-ok": "גיבוי עקבי",
+  "backup-miss": "גיבוי הוחמץ",
   probe: "בדיקה ידנית"
 };
 
@@ -165,8 +191,8 @@ export function KeeperView() {
   return (
     <div className="space-y-4">
       <PageHead
-        title="שומר — האורגניזם מחיה את עצמו"
-        sub="הגבול המדוד של המכונה הוא הזיכרון (OOM הרג את הווב) — התשובה הריבונית היא החייאה עצמית: השומר שומר על הווב, הראנר שומר על השומר, אף איבר לא נשאר מת. השומר לעולם לא הורג (רק מחיה) ולעולם לא נוגע במפתחות."
+        title="שומר — האורגניזם מחיה ומשמר את עצמו"
+        sub="הגבול המדוד של המכונה הוא הזיכרון (OOM הרג את הווב ב-1.79GB) — התשובה הריבונית היא אורגניזם: מיחזור-עדין לפני הקרנל (RSS 1500MB), החייאה אוטומטית אחרי מוות מאומת, וגיבויים עקביים כל 30 דק' — האמת (DB+שרשרת) שורדת הכל. השומר לעולם לא נוגע במפתחות."
         actions={
           <>
             <Pill tone={aliveCount === 4 ? "green" : "gold"}>
@@ -229,9 +255,16 @@ export function KeeperView() {
         <Kpi
           label="RSS הווב"
           value={d.memory.nextRssMb !== null ? `${d.memory.nextRssMb} MB` : "—"}
-          tone={d.memory.nextRssMb !== null && d.memory.nextRssMb < 1500 ? "green" : "gold"}
+          tone={d.memory.nextRssMb !== null && d.memory.nextRssMb < (d.recycle.rssShedMb ?? 1500) ? "green" : "gold"}
           icon={<Server size={16} />}
-          hint="צריכת הזיכרון של next-server — מדוד מ-/proc"
+          hint={`מדוד מ-/proc · מיחזור-עדין ב-${d.recycle.rssShedMb ?? 1500}MB (הקרנל הורג ב-1790)`}
+        />
+        <Kpi
+          label="גיבויים (DB)"
+          value={d.backups ? `${d.backups.db.count}/${d.backups.db.keep}` : "—"}
+          tone={d.backups && d.backups.db.count > 0 ? "green" : "gold"}
+          icon={<DatabaseBackup size={16} />}
+          hint={d.backups?.db.lastAt ? `אחרון ${timeAgo(d.backups.db.lastAt)} · צילום עקבי VACUUM INTO` : "הצילום הראשון 30ש' אחרי עליית השומר"}
         />
         <Kpi
           label="שגרת הראנר"
@@ -344,9 +377,57 @@ export function KeeperView() {
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed text-zinc-500 pt-1 border-t border-zinc-800">
-                כנות מלאה: המכונה היא בת 4GB. כשהזיכרון הפנוי יורד מתחת לסף, השומר כותב אירוע-התראה ליומן — לפני
-                שהקרנל פועל. אם הקרנל בכל זאת יהרוג תהליך, השומר מחיה אותו תוך ~30 שניות. התשובה לגבול אינה
-                חומרה — אלא חוסן.
+                כנות מלאה: המכונה היא בת 4GB. v27 — ללחץ יש עכשיו שיניים: שתי קריאות רצופות מעל RSS {(d.recycle.rssShedMb ?? 1500)}MB
+                (מסלול מדוד אל קו ההרג של הקרנל ב-1.79GB) = מיחזור-עדין — SIGTERM + הרצה מחדש detached, מתוכנן
+                ומתועד במקום הרג אקראי של הקרנל. {d.recycle.count > 0 ? `בוצעו עד כה ${d.recycle.count} מיחזורים (אחרון ${d.recycle.lastAt ? timeAgo(d.recycle.lastAt) : "—"})` : "טרם בוצע מיחזור — הווב חי בשוליים הבטוחים"}.
+              </p>
+            </div>
+          </PanelBody>
+        </Panel>
+
+        {/* ─── גיבויים ריבוניים (v27 אחיזה) ──────────────────────────── */}
+        <Panel>
+          <PanelHeader icon={<DatabaseBackup size={15} />} title="גיבויים ריבוניים — האמת שורדת הכל (v27)" />
+          <PanelBody>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-zinc-400">צילומי DB (VACUUM INTO עקבי)</span>
+                <span className="font-mono">
+                  {d.backups ? `${d.backups.db.count}/${d.backups.db.keep}` : "—"}
+                  {d.backups?.db.lastAt ? ` · אחרון ${timeAgo(d.backups.db.lastAt)}` : ""}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-zinc-400">צילומי שרשרת (יומיים · anvil-state + חוזים)</span>
+                <span className="font-mono">
+                  {d.backups ? `${d.backups.chain.count}/${d.backups.chain.keep}` : "—"}
+                  {d.backups?.chain.lastAt ? ` · אחרון ${timeAgo(d.backups.chain.lastAt)}` : ""}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-zinc-400">נפח כולל בדיסק</span>
+                <span className="font-mono">
+                  {d.backups ? `${(d.backups.totalBytes / 1048576).toFixed(1)} MB` : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-zinc-400">הצלחות / החמצות (מסלול השומר)</span>
+                <span className="font-mono">
+                  {d.keeperBackups.ok ?? "—"} / {d.keeperBackups.miss ?? "—"}
+                  {d.keeperBackups.lastAt ? ` · אחרון ${timeAgo(d.keeperBackups.lastAt)}` : ""}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[12px]">
+                <span className="text-zinc-400 shrink-0">שחזור (פעולה ריבונית-אנושית)</span>
+                <span className="font-mono text-[11px] text-zinc-300 truncate" dir="ltr">
+                  {d.backups?.restore ?? "scripts/restore-backup.sh"}
+                </span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-zinc-500 pt-1 border-t border-zinc-800">
+                אחיזה = עותקים: הצילומים נלקחים דרך מנוע ה-SQLite החי (עקביים תמיד — לעולם לא העתקה קרועה של קובץ
+                בכתיבה), בסבב הרכה (48 DB ≈ 24 שעות + 7 ימי שרשרת), מופעלים ע"י השומר כל 30 דק' דרך שער הרשויות
+                ונרשמים ביומן האדום. שחזור הוא החלטת אדם: הסקריפט מסרב לרוץ כשהווב כותב (אלא אם נכפה) —
+                הבעלים הוא הריבון.
               </p>
             </div>
           </PanelBody>
@@ -413,14 +494,15 @@ export function KeeperView() {
 
       {/* ─── אמנת השומר ─────────────────────────────────────────────────── */}
       <Panel>
-        <PanelHeader icon={<CheckCircle2 size={15} />} title="אמנת השומר — ארבעה חוקים" />
+        <PanelHeader icon={<CheckCircle2 size={15} />} title="אמנת השומר — חמישה חוקים" />
         <PanelBody>
           <ul className="space-y-2">
             {[
-              "לעולם לא הורג: החייאה רק על סירוב-חיבור מאומת (×3) — איבר אטי הוא חי ונשמר, לא נהרס",
+              "לעולם לא הורג ללא ראיה: החייאה על סירוב-חיבור מאומת (×3) · שלוש חריגות מתועדות בלבד — ראנר קפוא (10 דק' בלי בלוק), ראנר-זומבי, ומיחזור-עדין לפני OOM (RSS 1500MB — לפני שהקרנל הורג ב-1790)",
               "לעולם לא נוגע במפתחות: השומר קורא /proc ושקעים מקומיים בלבד — לא כספת, לא env, לא טוקנים",
               "הכל מתועד: כל אירוע נכתב ליומן append-only (journal.jsonl) — מספרים ובוליאנים בלבד",
-              "השגחה הדדית: הראנר שומר על השומר כמו שהשומר שומר על הראנר — אין נקודת-כשל בודדת שנשארת מתה"
+              "השגחה הדדית: הראנר שומר על השומר כמו שהשומר שומר על הראנר — אין נקודת-כשל בודדת שנשארת מתה",
+              "האמת משומרת: צילום עקבי כל 30 דק' — DB + שרשרת + חוזים — השומר לא רק מחיה, הוא גם משמר"
             ].map((law, i) => (
               <li key={i} className="flex items-start gap-2 text-[11.5px] leading-relaxed text-zinc-300">
                 <CheckCircle2 size={13} className="shrink-0 mt-0.5 text-emerald-400" />

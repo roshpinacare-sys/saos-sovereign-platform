@@ -2,15 +2,31 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { anchoringMatrix } from "@/lib/saos/anchor-gates";
 import { HISTORIC_ANCHORS } from "@/lib/saos/historic";
-import { probeHiveRc, hiveAnchorAccount } from "@/lib/saos/hive-rc-live";
-import { probeTronVault } from "@/lib/saos/tron-live";
-import { probeSteemWeaveHistory } from "@/lib/saos/steem-history-live";
+import { probeHiveRc, hiveAnchorAccount, type HiveRcLive } from "@/lib/saos/hive-rc-live";
+import { probeTronVault, type TronLive } from "@/lib/saos/tron-live";
+import { probeSteemWeaveHistory, type SteemWeaveHistory } from "@/lib/saos/steem-history-live";
 
 export const dynamic = "force-dynamic";
 
 /** Short txid for display (never fabricates — truncation only). */
 function shortTx(txid: string | null): string {
   return txid ? `${txid.slice(0, 10)}…` : "—";
+}
+
+/** v27 אחיזה — the honest rail deadline. The probes carry 12–15s RPC
+ *  timeouts (measured: a slow public replica can ride the ceiling — an
+ *  11.3s /status was observed in dev.log). The view must never wait that
+ *  long: after 9s the rail resolves to its not-ok sentinel and the
+ *  honest env/static fallback engages — the SAME fallback a probe
+ *  failure already uses. The slow probe keeps running; its cache will
+ *  serve the next request. */
+const RAIL_DEADLINE_MS = 9_000;
+
+function railDeadline<T>(p: Promise<T>, sentinel: T): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((resolve) => setTimeout(() => resolve(sentinel), RAIL_DEADLINE_MS).unref?.())
+  ]);
 }
 
 export async function GET() {
@@ -55,10 +71,51 @@ export async function GET() {
       return { hiveRc, tronLive };
     })();
 
+    // v27 — sentinels: the honest "deadline passed" shapes (same fields a
+    // probe failure already returns; the env/static fallbacks in this route
+    // then engage — a slow rail is degraded, never fabricated, never fatal).
+    const now = new Date().toISOString();
+    const hiveSentinel: HiveRcLive = {
+      ok: false,
+      account: hiveAnchorAccount(),
+      exists: false,
+      rcPct: Number(process.env.HIVE_RC_PCT ?? 0.6),
+      currentMana: null,
+      maxRc: null,
+      vestingShares: null,
+      delegatedVesting: null,
+      receivedVesting: null,
+      hoursToLightFloor: null,
+      hoursToHeavyFloor: null,
+      apiNode: null,
+      measuredAt: now,
+      error: `דד-ליין ${RAIL_DEADLINE_MS / 1000}ש' — נפילה כנה לערכי env (הפרוב ממשיך ברקע וימלא את המטמון)`
+    };
+    const tronSentinel: TronLive = {
+      ok: false,
+      checked: 0,
+      funded: 0,
+      totalBalanceTrx: 0,
+      totalEnergy: 0,
+      energizeReady: false,
+      measuredAt: now,
+      addresses: [],
+      error: `דד-ליין ${RAIL_DEADLINE_MS / 1000}ש' — נפילה כנה לערכי env`
+    };
+    const steemSentinel: SteemWeaveHistory = {
+      ok: false,
+      account: "headcorner",
+      scanned: 0,
+      weaveCount: 0,
+      latest: null,
+      measuredAt: now,
+      error: `דד-ליין ${RAIL_DEADLINE_MS / 1000}ש' — שורת STEEM נשארת על המצב החי האחרון`
+    };
+
     const [hiveRc, tronLive, steemChain, evmAnchor, solAnchor, stats] = await Promise.all([
-      probes.then((p) => p.hiveRc),
-      probes.then((p) => p.tronLive),
-      probeSteemWeaveHistory(),
+      railDeadline(probes.then((p) => p.hiveRc), hiveSentinel),
+      railDeadline(probes.then((p) => p.tronLive), tronSentinel),
+      railDeadline(probeSteemWeaveHistory(), steemSentinel),
       dbAnchors,
       dbSol,
       dbStats

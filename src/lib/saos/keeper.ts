@@ -1,5 +1,5 @@
 /**
- * src/lib/saos/keeper.ts — SAOS SHOMER (שומר) v26 — platform side.
+ * src/lib/saos/keeper.ts — SAOS SHOMER (שומר) v27 אחיזה — platform side.
  *
  * The keeper is a SEPARATE bun mini-service (mini-services/keeper, :3005)
  * that watches the organism's members and revives any confirmed-dead one
@@ -16,11 +16,18 @@
  * noticed. The sovereign answer to "what still limits us" is not more
  * RAM — it is self-healing: no member of the organism can stay dead.
  *
+ * v27 אחיזה: the status now also carries the SOVEREIGN BACKUP state
+ * (db/backups — consistent VACUUM-INTO snapshots, rotation 48/24h +
+ * 7 daily chain snapshots, taken by the web tier on the keeper's 30-min
+ * schedule) and the PRE-OOM RECYCLE state (rss shed threshold, recycle
+ * count). Grip = data that survives + a tier that never dies.
+ *
  * No keys, no vault, no secrets — numbers and booleans only.
  */
 
 import * as fs from "fs";
 import { trustedFetch } from "./security";
+import { backupsStatus, type BackupsStatus } from "./backups";
 
 const KEEPER_URL = "http://127.0.0.1:3005/";
 const CACHE_TTL_MS = 30_000;
@@ -57,6 +64,14 @@ export interface KeeperStatus {
     pressure: boolean | null;
     pressureThresholdMb: number | null;
   };
+  recycle: {
+    rssShedMb: number | null;
+    count: number;
+    lastAt: string | null;
+    rssShedStreak: number | null;
+  };
+  backups: BackupsStatus | null;
+  keeperBackups: { ok: number | null; miss: number | null; lastAt: string | null };
   mutualWatch: Array<{ from: string; to: string; what: string }>;
   events: Array<{ t: string; kind: string; detail: string }>;
   incident: {
@@ -82,6 +97,9 @@ interface KeeperRaw {
   };
   memory?: { totalMb?: number; availableMb?: number; nextRssMb?: number; pressure?: boolean };
   pressureThresholdMb?: number;
+  rssShedMb?: number;
+  recycle?: { count?: number; lastAt?: string | null; rssShedStreak?: number };
+  backups?: { ok?: number; miss?: number; lastAt?: string | null };
   events?: Array<{ t: string; kind: string; detail: string }>;
 }
 
@@ -164,7 +182,7 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
     // the moment the keeper is dead is exactly the moment this view must
     // stay honest and alive.
     ok: true,
-    version: "26.0.0",
+    version: "27.0.0",
     measuredAt,
     keeper: {
       reachable: !!raw?.ok,
@@ -221,18 +239,37 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
       pressure: mem?.pressure ?? null,
       pressureThresholdMb: raw?.pressureThresholdMb ?? null
     },
+    recycle: {
+      rssShedMb: raw?.rssShedMb ?? 1500,
+      count: raw?.recycle?.count ?? 0,
+      lastAt: raw?.recycle?.lastAt ?? null,
+      rssShedStreak: raw?.recycle?.rssShedStreak ?? null
+    },
+    backups: (() => {
+      try {
+        return backupsStatus();
+      } catch {
+        return null;
+      }
+    })(),
+    keeperBackups: {
+      ok: raw?.backups?.ok ?? null,
+      miss: raw?.backups?.miss ?? null,
+      lastAt: raw?.backups?.lastAt ?? null
+    },
     mutualWatch: [
       { from: "השומר", to: "שכבת-הווב", what: "בדיקת-חיות כל 10ש' · החייאה אוטומטית אחרי 3 סירובים (detached)" },
       { from: "השומר", to: "הראנר", what: "סריקת /proc כל 60ש' · החייה אם נעלם" },
       { from: "הראנר", to: "השומר", what: "בדיקת :3005 בכל מחזור · החייה אחרי 2 סירובים (צעד 4.8)" },
       { from: "הראנר", to: "anvil", what: "watchdog קיים (respawn + regenesis) — נשמר מ-v20" },
-      { from: "השומר", to: "הזיכרון", what: "מדידת לחץ כל 60ש' · התראה מוקדמת לפני שהקרנל פועל" }
+      { from: "השומר", to: "הזיכרון", what: "מדידת לחץ כל 60ש' · התראה ב-700MB · מיחזור-עדין ב-RSS 1500MB — לפני שהקרנל הורג ב-1790" },
+      { from: "השומר", to: "האמת (DB+שרשרת)", what: "צילום עקבי כל 30 דק' (VACUUM INTO · סבב 48+7) — השומר לא רק מחיה, הוא גם משמר" }
     ],
     events: (raw?.events ?? []).slice(0, 40),
     incident: {
       what: "הקרנל הרג את שכבת-הווב (OOM): next-server תפח ל-1.79GB RSS מתוך 4GB המכונה — ואף אחד לא החזיר אותה",
       evidence: "dmesg: Out of memory: Killed process (next-server) · השרת נשאר מת עד הפעלה ידנית — מדוד",
-      answer: "הפתרון הריבוני אינו עוד זיכרון — אלא אורגניזם שמחיה את עצמו: השומר שומר, הראנר שומר על השומר, אף איבר לא נשאר מת"
+      answer: "הפתרון הריבוני אינו עוד זיכרון — אלא אורגניזם שמחיה את עצמו: השומר שומר, הראנר שומר על השומר, אף איבר לא נשאר מת. וב-v27: מיחזור-עדין לפני הקרנל (RSS 1500MB) + גיבויים עקביים כל 30 דק' — אחיזה באמת, לא רק בחיים"
     }
   };
   cache = { at: Date.now(), value: status };

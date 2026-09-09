@@ -777,3 +777,31 @@ Stage Summary:
 - שפת-הדיווח: עברית בלבד (הוראת הבעלים) — הדוח המסכם לבעלים נמסר בעברית מלאה.
 - הריפו: https://github.com/roshpinacare-sys/saos-sovereign-platform @ v26.0.0.
 - המשך: הרחבת השומר להחייאת anvil עצמאית (כיום הראנר מחזיק אותו) · דוח-בוקר יומי מסוכם לבעלים מהיומן (מוות/החייה/לחץ) · מדידת גרף-RSS לאורך-זמן לקביעת תקרת-מחזור-חיים מונעת-תחזוקה לשרת הווב.
+
+---
+Task ID: 21
+Agent: chief-architect (main)
+Task: v27 אחיזה — significant strengthening per owner directive: analyze ALL folders, find what the system still needs for more grip (אחיזה) and running confidence (בטחון ריצה), close the measured holes, push.
+
+Work Log:
+- Full-project audit: src (36 API routes + 42 lib modules + 20 views), mini-services (keeper :3005, evm-mesh runner :8545), prisma/db, scripts, state dirs, logs, git state (v26.0.0 clean/pushed).
+- Live-process audit: web :3000, keeper :3005, anvil :8545 alive; runner was found DEAD later (keeper revived it — see proof); memory: next-server 1370MB RSS / 4041MB machine, 1407MB available.
+- Measured hole #1 (running confidence): the v26 OOM answer was REACTIVE (kernel kills at 1.79GB → revive ~36s dark). v27 PRE-OOM GRACEFUL RECYCLE in the keeper: RSS ≥ 1500MB on TWO consecutive 60s readings on an answering web tier (objective march to the measured kill line) → SIGTERM the web tree (cwd==PROJECT_DIR) + detached respawn, journaled as web-recycle (the third documented exception to "never kills", same objective-evidence standard as the zombie rule). Pressure warning (700MB) unchanged.
+- Measured hole #2 (grip): the platform truth lived in exactly ONE copy each — db/custom.db (1.2MB: seals/receipts/opLog/deliverables/agents), anvil-state.json (38MB: persistent chain ids), deployment.json. A v19 sandbox restore already proved the DB can be lost. SOVEREIGN BACKUPS: new lib src/lib/saos/backups.ts — consistent DB snapshots via SQLite VACUUM INTO through the live Prisma client (NEVER a torn raw copy of a writing file) + daily chain snapshot (atomic tmp+rename copy), rotation 48 DB (≈24h) + 7 chain days, rate-limit 1/10min, every snapshot journaled in the red opLog (paths and byte counts only — no content, no keys).
+- New route /api/saos/backup: GET cached status (counts/last/bytes/restore path) · POST snapshot gated by guardPermission("measure") (fail-closed authority — a read-consistency op, no key material).
+- Keeper v27 (mini-services/keeper/src/index.ts): schedule ownership — triggers the snapshot over loopback every 30 min (first at 30s after boot), journals backup-ok / backup-miss (a miss is data; next window retries); dev.log hygiene (rotate at 20MB → .old); version 27.0.0; status now carries rssShedMb / recycle / backups.
+- Measured hole #3 (latency tail): /api/saos/status occasionally 11.3s (a slow public RPC replica riding the 12-15s probe timeout ceiling). v27 rail deadline: Promise.race per network rail at 9s → resolves to the honest not-ok sentinel (same shape a probe failure returns) → the EXISTING env/static fallback engages; the slow probe keeps running and fills its 60s cache for the next request. Never fabricated, never fatal.
+- Platform keeper lib (src/lib/saos/keeper.ts) v27: merges backupsStatus() + recycle + keeper backup counters into the status; mutual-watch map extended (memory recycle row + truth-preservation row); incident story updated.
+- Keeper view (src/components/saos/views/keeper.tsx): new KPI "גיבויים (DB)" (count/keep + last-at), new panel "גיבויים ריבוניים — האמת שורדת הכל" (DB snapshots, daily chain snapshots, disk bytes, ok/miss trail, restore path, honesty text: restore is a human sovereign act), memory panel now documents the recycle teeth, charter extended to five laws (incl. "האמת משומרת"), new event labels web-recycle / backup-ok / backup-miss.
+- scripts/restore-backup.sh: sovereign restore — --list / --db latest|name / --chain latest|name, REFUSES to run while the web tier answers on :3000 (unless --force), always preserves current state as *.pre-restore-<ts> before swapping; Hebrew guidance printed. bash -n verified + live --list run.
+- Restarts: keeper hot-reload had wedged during rapid multi-save (timers cleared, never re-pushed — checks=1 for 267s, root-caused from keeper.log transient syntax errors during MultiEdits); clean detached restart applied → cycles advancing every 10s, verified.
+- README v27 header + section title; page.tsx + shell footer version strings bumped to v27.0.0 אחיזה.
+
+Stage Summary:
+- LIVE PROOF (journal, append-only): 01:01:38 keeper v27 boot → 01:01:59 anvil-up block 3244 + backup-ok #1 (rate-limited honestly — manual snapshot minutes earlier; 1 db / 1 chain in rotation) → 01:02:28 runner-revive #1 (old runner had died on its own; the NEW keeper detected it absent from /proc at its first 60s scan and spawned it detached; runner adopted the live chain — "MESH RESUMED", zero regenesis, zero id regression).
+- Manual snapshot verified live: custom-20260909-005944.db (1220608 bytes, VACUUM INTO consistent) + chain-20260909/ (38855876 bytes) → 1/48 db + 1/7 chain, 40MB on disk (db/ is gitignored — machine-local like all runtime state).
+- /api/saos/status: 22-49ms warm; hive live ok; tron honest not-ok (real probe state); deadline now caps the slow tail at 9s with honest env fallback.
+- Browser-verified (agent-browser): keeper view renders the v27 header, backups KPI ("אחרון לפני 6 דק׳ · צילום עקבי VACUUM INTO"), the full sovereign-backups panel, the runner-revive event in the journal table; 0 console errors; mobile 375px + desktop 1280px; footer bottom-anchored.
+- bun run lint: clean. dev.log: 0 errors.
+- Artifacts: src/lib/saos/backups.ts (new) · src/app/api/saos/backup/route.ts (new) · scripts/restore-backup.sh (new) · mini-services/keeper/src/index.ts (v27) · src/lib/saos/keeper.ts (v27) · src/components/saos/views/keeper.tsx (v27 panel) · src/app/api/saos/status/route.ts (rail deadline) · README.md / page.tsx / shell.tsx (v27).
+- Next honest frontier (for the owner's next directive): backup snapshots are machine-local (sovereign on-box; an off-box copy would need a second sovereign location — currently the ONLY remaining single-copy-of-truth axis); TRON live probe currently not-ok (upstream, honest); HIVE RC regenerating.
