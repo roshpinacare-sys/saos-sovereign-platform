@@ -1310,6 +1310,8 @@ export interface SovereignEnlistView {
 export interface SovereignKeyData {
   ok: boolean;
   agent: string;
+  /** v19 — vault state: burned keys ⇒ evidence mode (DB + chain proofs) */
+  mode: "vault-live" | "evidence";
   anchored: SovereignSealMetaView;
   identities: SovereignIdentityView[];
   treasury: { agent: string; address: string | null; balanceTrx: number; activated: boolean };

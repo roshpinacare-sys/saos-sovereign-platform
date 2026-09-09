@@ -65,15 +65,15 @@ export async function POST(req: Request) {
   try {
     if (action === "arm-steem") {
       const outcome = await armSteemFleet();
-      return NextResponse.json({ ok: true, ...outcome });
+      return NextResponse.json({ ...outcome });
     }
     if (action === "arm-evm") {
       const outcome = await armEvmFleet();
-      return NextResponse.json({ ok: true, ...outcome });
+      return NextResponse.json({ ...outcome });
     }
     if (action === "arm-sol") {
       const outcome = await armSolFleet();
-      return NextResponse.json({ ok: true, ...outcome });
+      return NextResponse.json({ ...outcome });
     }
     return NextResponse.json(
       { ok: false, error: "action must be one of: arm-steem | arm-evm | arm-sol" },

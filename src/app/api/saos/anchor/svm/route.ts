@@ -114,8 +114,6 @@ export async function GET(req: Request) {
           }
         } catch {
           // honest — stays unconfirmed
-        } finally {
-          connection.destroy?.();
         }
       }
       const meta2 = { ...meta, confirmed, ...(slot ? { slot } : {}), recheckedAt: new Date().toISOString() };

@@ -93,7 +93,7 @@ export function ViewSovereignKey() {
     return (
       <>
         <PageHead title="המפתח הריבוני" sub="חייל טוב — מעוגן ל-headcorner עם הכל" />
-        <ErrorNotice>{live.error}</ErrorNotice>
+        <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
       </>
     );
   }
@@ -343,7 +343,7 @@ function CornerstonePanel() {
     setResult(null);
     try {
       const r = await postJson<CornerstoneActionState>("/api/saos/cornerstone", { action });
-      setResult(r);
+      setResult(r.data ?? { ok: false, error: r.error ?? "שגיאה" });
       refresh();
     } catch (e) {
       setResult({ ok: false, error: e instanceof Error ? e.message : "שגיאה" });
@@ -514,13 +514,13 @@ function CornerstonePanel() {
         {/* resilience console */}
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-800/60">
           {!sealed && (
-            <Btn tone="primary" onClick={() => run("seal")} disabled={busy !== ""}>
+            <Btn variant="primary" onClick={() => run("seal")} disabled={busy !== ""}>
               <Gem className="ml-2 h-4 w-4" />
               {busy === "seal" ? "מאטם…" : "אטום את הזרע"}
             </Btn>
           )}
           {sealed && !signed && (
-            <Btn tone="primary" onClick={() => run("enlist")} disabled={busy !== ""}>
+            <Btn variant="primary" onClick={() => run("enlist")} disabled={busy !== ""}>
               <BadgeCheck className="ml-2 h-4 w-4" />
               {busy === "enlist" ? "מגייס…" : "גייס את הזרע (חתימה חיה)"}
             </Btn>

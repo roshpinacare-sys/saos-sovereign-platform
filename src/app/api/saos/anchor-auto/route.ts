@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAutoAnchorEnabled, setAutoAnchorEnabled } from "@/lib/saos/auto-anchor";
 import { verifyInclusion } from "@/lib/saos/anchor-live";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
+import { logOp } from "@/lib/saos/oplog";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,7 @@ export async function POST(req: Request) {
           const receipt = await appendChainedReceipt(
             "anchor-reproof",
             { height, root, txid: row.txid, block: inclusion.block, account, confirmed: true },
-            { sealId: row.sealId }
+            { sealId: row.sealId ?? undefined }
           );
           await logOp(
             "anchor-reproof",

@@ -84,7 +84,7 @@ export function Network360View() {
         />
         <PanelBody>
           {error && !live && (
-            <ErrorNotice title="מדידת הרשת נכשלה" desc={error} />
+            <ErrorNotice message={`מדידת הרשת נכשלה${error ? ` — ${error}` : ""}`} />
           )}
           {loading && !live && <SkeletonPanel lines={6} />}
           {live && (
@@ -97,7 +97,7 @@ export function Network360View() {
                 <Kpi label="חוזי ה-mesh" value={a?.mesh.contracts ?? 0} icon={<Boxes size={15} />} hint="Hub → … → Value" />
                 <Kpi label="ספר-מטבעות (סוכנים)" value={a?.mintLedger.agents ?? 0} icon={<Gauge size={15} />} hint={a?.mintLedger.supply !== "—" ? `${a?.mintLedger.supply} SAOS-M` : "—"} />
               </div>
-              <Callout tone={live.vault.present ? "green" : "amber"} icon={<ShieldAlert size={14} />}>
+              <Callout tone={live.vault.present ? "green" : "gold"} icon={<ShieldAlert size={14} />}>
                 <strong>מצב הכספת: {live.vault.present ? "נוכחת" : "נשרפה (מצב-ראיות)"}</strong> — {live.vault.note}
               </Callout>
             </>

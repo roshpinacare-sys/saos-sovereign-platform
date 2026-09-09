@@ -46,7 +46,7 @@ export async function POST() {
         );
       }
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ...result });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "mint failed";
     // v19 — the mint derives its roster from the vault; with the keys

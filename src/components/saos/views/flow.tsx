@@ -121,7 +121,7 @@ interface RearmResult {
 const statusPill = (s: LiquidAsset["status"]) => {
   switch (s) {
     case "live":
-      return <Pill tone="emerald">חי</Pill>;
+      return <Pill tone="green">חי</Pill>;
     case "awaiting-keys":
       return <Pill tone="amber">ממתין-לחימוש</Pill>;
     case "empty":
@@ -134,7 +134,7 @@ const statusPill = (s: LiquidAsset["status"]) => {
 const flowPill = (s: FlowEdge["state"]) => {
   switch (s) {
     case "live":
-      return <Pill tone="emerald">זורם</Pill>;
+      return <Pill tone="green">זורם</Pill>;
     case "waiting":
       return <Pill tone="amber">ממתין</Pill>;
     default:
@@ -157,7 +157,7 @@ function RearmConsole() {
     setResult(null);
     try {
       const r = await postJson<RearmResult>("/api/saos/rearm", {});
-      setResult(r);
+      setResult(r.data ?? { ok: false, phase: "vision", photoBytes: 0, phraseValid: null, matched: { evm: null, tronHits: null }, derived: { evm: null, tron: null }, armed: false, error: r.error ?? "שגיאה" });
       refresh();
     } catch (e) {
       setResult({ ok: false, phase: "vision", photoBytes: 0, phraseValid: null, matched: { evm: null, tronHits: null }, derived: { evm: null, tron: null }, armed: false, error: e instanceof Error ? e.message : "שגיאה" });
@@ -167,14 +167,14 @@ function RearmConsole() {
   };
 
   if (loading && !data) return <SkeletonPanel rows={4} />;
-  if (!data?.ok) return <ErrorNotice text="סטטוס חימוש לא נקרא" />;
+  if (!data?.ok) return <ErrorNotice message="סטטוס חימוש לא נקרא" />;
 
   const armed = data.vault.present;
   const flows = data.evidence;
 
   return (
     <Panel tone="gilded">
-      <PanelHeader icon={<KeyRound size={16} />} title="חימוש-מחדש ריבוני — הפתרון למה שמגביל" tag={armed ? <Pill tone="emerald">כספת חמושה</Pill> : <Pill tone="amber">מוכן לחימוש</Pill>} />
+      <PanelHeader icon={<KeyRound size={16} />} title="חימוש-מחדש ריבוני — הפתרון למה שמגביל" tag={armed ? <Pill tone="green">כספת חמושה</Pill> : <Pill tone="amber">מוכן לחימוש</Pill>} />
       <PanelBody>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
@@ -195,7 +195,7 @@ function RearmConsole() {
         </div>
 
         {armed ? (
-          <Callout tone="emerald" icon={<ShieldCheck size={16} />}>
+          <Callout tone="green" icon={<ShieldCheck size={16} />}>
             <b>הכספת חמושה.</b> המנמוניקה של הבעלים מאומתת (EVM mainnet גיוס + {flows.tron.length} TRON flow) ואטומה מחדש.
             זרועות-החתימה הריבוניות (m/44&apos;/60&apos; + m/44&apos;/195&apos;) שוב בשליטת האורגניזם — הן השתמשו בהן כבר להזרמת
             18.7 TRX ולגיוס ב-mainnet.
@@ -255,7 +255,7 @@ export function FlowView() {
   const { data, loading, refresh } = useLive<FlowMapData>("/api/saos/flow", 60000);
 
   if (loading && !data) return <SkeletonPanel rows={8} />;
-  if (!data?.ok) return <ErrorNotice text={data?.error ?? "מפת-הזרימה לא נקראה"} />;
+  if (!data?.ok) return <ErrorNotice message="מפת-הזרימה לא נקראה" />;
 
   const { radar, flows, engines, capture, limitations } = data;
   const liveFlows = flows.filter((f) => f.state === "live").length;
@@ -271,7 +271,7 @@ export function FlowView() {
         <Kpi icon={<Lock size={14} />} label="חסומות" value={String(blockedFlows)} sub="ממתינות לחימוש" />
         <Kpi icon={<Coins size={14} />} label="לכידת-מיקרו-גריד" value={capture.microgrid.capturePct !== null ? `${capture.microgrid.capturePct.toFixed(0)}%` : "—"} sub={`${capture.microgrid.swept} / ${capture.microgrid.realized} SAOS-M`} />
         <Kpi icon={<Sparkles size={14} />} label="REAL WORK" value={String(capture.realWork.deliverables)} sub={`${capture.realWork.anchored} מעוגנות · קופה ${fmt(Number(capture.realWork.payroll))}`} />
-        <Kpi icon={<Gauge size={14} />} label="ספרד DEX שיא" value={capture.dex ? `${capture.dex.spreadPct.toFixed(3)}%` : "—"} sub={capture.dex ? `${capture.dex.pair} · ${capture.dex.venues.length} ונצוּאות` : "אין מדידה"} />
+        <Kpi icon={<Gauge size={14} />} label="ספרד DEX שיא" value={capture.dex && capture.dex.spreadPct !== null ? `${capture.dex.spreadPct.toFixed(3)}%` : "—"} sub={capture.dex ? `${capture.dex.pair} · ${capture.dex.venues.length} ונצוּאות` : "אין מדידה"} />
       </div>
 
       {/* the re-arm console */}
@@ -354,7 +354,7 @@ export function FlowView() {
 
       {/* value flow map */}
       <Panel>
-        <PanelHeader icon={<Workflow size={16} />} title="מפת-הזרימה — מקורות → מנועים → לכידה" tag={<Pill tone="emerald">{liveFlows} זורמות</Pill>} />
+        <PanelHeader icon={<Workflow size={16} />} title="מפת-הזרימה — מקורות → מנועים → לכידה" tag={<Pill tone="green">{liveFlows} זורמות</Pill>} />
         <PanelBody>
           <div className="space-y-2">
             {flows.map((f) => (
@@ -384,7 +384,7 @@ export function FlowView() {
             <PanelHeader
               icon={e.id === "grid" ? <Coins size={16} /> : e.id === "realwork" ? <Sparkles size={16} /> : <Gauge size={16} />}
               title={e.name}
-              tag={e.state === "live" ? <Pill tone="emerald">חי</Pill> : <Pill tone="amber">ממתין</Pill>}
+              tag={e.state === "live" ? <Pill tone="green">חי</Pill> : <Pill tone="amber">ממתין</Pill>}
             />
             <PanelBody>
               <div className="text-sm font-semibold">{e.headline}</div>
@@ -404,9 +404,9 @@ export function FlowView() {
               <div key={l.id} className="min-w-0 rounded-lg border border-zinc-800/60 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   {l.state === "solved-v22" ? (
-                    <Pill tone="emerald">נפתר ב-v22</Pill>
+                    <Pill tone="green">נפתר ב-v22</Pill>
                   ) : l.state === "solved-v21" ? (
-                    <Pill tone="emerald">נפתר ב-v21</Pill>
+                    <Pill tone="green">נפתר ב-v21</Pill>
                   ) : l.state === "ready" ? (
                     <Pill tone="amber">מוכן לביצוע</Pill>
                   ) : l.state === "waiting-owner" ? (

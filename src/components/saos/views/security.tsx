@@ -123,7 +123,7 @@ export function SecurityView() {
     }
   }
 
-  if (live.error && !d) return <ErrorNotice error={live.error} />;
+  if (live.error && !d) return <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />;
   if (!d) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

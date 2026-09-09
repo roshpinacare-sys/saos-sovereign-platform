@@ -6,6 +6,7 @@ import { canonicalDigest, canonicalize } from "@/lib/saos/canonical-json";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { anchoringMatrix } from "@/lib/saos/anchor-gates";
 import { fireAutoAnchorForNewSeal } from "@/lib/saos/auto-anchor";
+import { logOp } from "@/lib/saos/oplog";
 
 export const dynamic = "force-dynamic";
 

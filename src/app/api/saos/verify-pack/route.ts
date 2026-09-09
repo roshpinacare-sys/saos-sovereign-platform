@@ -102,7 +102,7 @@ export async function GET(req: Request) {
     const rootMatches = tree.root === seal.root;
 
     // prove + verify EVERY leaf — full independent verification
-    const proofs = [];
+    const proofs: Array<{ index: number; leaf: string; verified: boolean }> = [];
     for (let i = 0; i < tree.leaves.length; i++) {
       const p = await merkleProof(tree, i);
       const verified = await verifyMerkleProof(p);

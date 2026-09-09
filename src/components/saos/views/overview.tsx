@@ -414,7 +414,7 @@ export function ViewOverview({
             המפקדה מפרסמת, ריצת חייל מבצעת בעסקה אחת דרך שמונת החוזים, והקופה (10 SAOS-M בכל ריצה)
             משלמת ללא-עמלה. לחץ "עבודה" בתפריט.
           </Callout>
-          <Callout tone="amber" icon={<Network size={14} className="text-amber-300" />}>
+          <Callout tone="gold" icon={<Network size={14} className="text-amber-300" />}>
             <span className="font-bold">BSC נפתח — ממתין להקצאה:</span> המסילה השמינית חיה (בלוק · גז ·
             צמדי PancakeSwap) עם אותה כתובת ריבונית. החלפת ~1$ דרך גשר עולה יותר מ-1$ — המסלול הריבוני:
             הקצאת BNB קטנה ישירות לכתובת, ואז אותו קוד חוזה ייפרס גם שם (עלות ≈ 0.00005 BNB).

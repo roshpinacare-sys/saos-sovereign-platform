@@ -336,7 +336,7 @@ export function RosesView() {
           label="חזית פתוחה (לכידה חיה)"
           value={`${openness}%`}
           icon={<Radar size={15} />}
-          tone={openness >= 40 ? "green" : "amber"}
+          tone={openness >= 40 ? "green" : "gold"}
           hint={`${d.frontier.filter((a) => a.capture === "live").length}/${d.frontier.length} זרועות לוכדות-ערך כעת`}
         />
       </div>

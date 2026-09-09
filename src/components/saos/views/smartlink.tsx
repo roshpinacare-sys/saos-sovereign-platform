@@ -70,7 +70,7 @@ function KeyRow({ k, onVerify, onRemove, busy }: { k: SmartKeyRowView; onVerify:
         <div className="text-[10px] text-zinc-500 mt-0.5 truncate">{KIND_LABEL[k.kind] ?? k.kind} · {k.network}{k.role ? ` · ${k.role}` : ""}</div>
       </Td>
       <Td className="font-mono text-[11px] text-zinc-400" dir="ltr">
-        {k.address ? short(k.address, 10) : "—"}
+        {k.address ? short(k.address) : "—"}
       </Td>
       <Td><Pill tone={sp.tone}>{sp.label}</Pill></Td>
       <Td className="max-w-[280px]">
@@ -105,7 +105,7 @@ export function SmartLinkView() {
 
   const doImport = async () => {
     if (!name.trim() || !blob.trim()) {
-      toast.push("שם ומפתח נדרשים", "rose");
+      toast.push({ title: "שם ומפתח נדרשים", tone: "rose" });
       return;
     }
     setBusy("__import");
@@ -117,11 +117,11 @@ export function SmartLinkView() {
     });
     setBusy(null);
     if (res.ok && res.data?.ok) {
-      toast.push(`המפתח נכנס לכספת ✓ ${res.data.detected?.kind ?? ""}`, "green");
+      toast.push({ title: `המפתח נכנס לכספת ✓ ${res.data.detected?.kind ?? ""}`, tone: "green" });
       setName(""); setBlob(""); setNetwork("");
       live.refresh();
     } else {
-      toast.push(res.data?.error ?? res.error ?? "ייבוא נכשל", "rose");
+      toast.push({ title: res.data?.error ?? res.error ?? "ייבוא נכשל", tone: "rose" });
     }
   };
 
@@ -131,10 +131,10 @@ export function SmartLinkView() {
     setBusy(null);
     if (res.ok && res.data?.ok) {
       const r = res.data.result;
-      toast.push(r?.status === "current" || r?.status === "connected" ? `✓ ${r?.detail}` : r?.detail ?? "נבדק", r?.status === "current" || r?.status === "connected" ? "green" : "amber");
+      toast.push({ title: r?.status === "current" || r?.status === "connected" ? `✓ ${r?.detail}` : r?.detail ?? "נבדק", tone: r?.status === "current" || r?.status === "connected" ? "green" : "gold" });
       live.refresh();
     } else {
-      toast.push(res.data?.result?.detail ?? res.error ?? "בדיקה נכשלה", "rose");
+      toast.push({ title: res.data?.result?.detail ?? res.error ?? "בדיקה נכשלה", tone: "rose" });
     }
   };
 
@@ -144,10 +144,10 @@ export function SmartLinkView() {
     setVerifyAllBusy(false);
     if (res.ok) {
       const s = res.data?.summary;
-      toast.push(s ? `נבדקו ${s.total} — תקינים ${s.current + s.connected} · מדור-קודם ${s.legacy}` : "הבדיקה הושלמה", "green");
+      toast.push({ title: s ? `נבדקו ${s.total} — תקינים ${s.current + s.connected} · מדור-קודם ${s.legacy}` : "הבדיקה הושלמה", tone: "green" });
       live.refresh();
     } else {
-      toast.push(res.error ?? "בדיקה נכשלה", "rose");
+      toast.push({ title: res.error ?? "בדיקה נכשלה", tone: "rose" });
     }
   };
 
@@ -156,7 +156,7 @@ export function SmartLinkView() {
     const res = await postJson<{ ok: boolean }>("/api/saos/smartvault", { op: "remove", keyId });
     setBusy(null);
     if (res.ok) {
-      toast.push("הוסר מהמלאי (החבר החתום נשאר בכספת)", "amber");
+      toast.push({ title: "הוסר מהמלאי (החבר החתום נשאר בכספת)", tone: "gold" });
       live.refresh();
     }
   };
@@ -168,9 +168,9 @@ export function SmartLinkView() {
     if (res.ok && res.data?.members) {
       setExportData(res.data.members);
       setShowExport(true);
-      toast.push("ייצוא בעלים מוצג — העתק ושמור במקום בטוח, ואל תשאיר פתוח", "gold");
+      toast.push({ title: "ייצוא בעלים מוצג — העתק ושמור במקום בטוח, ואל תשאיר פתוח", tone: "gold" });
     } else {
-      toast.push(res.data?.error ?? res.error ?? "ייצוא נכשל", "rose");
+      toast.push({ title: res.data?.error ?? res.error ?? "ייצוא נכשל", tone: "rose" });
     }
   };
 

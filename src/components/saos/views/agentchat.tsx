@@ -89,13 +89,13 @@ export function AgentChatView() {
       setDraft("");
       live.refresh();
     } else {
-      toast.push(res.data?.error ?? res.error ?? "שליחה נכשלה", "rose");
+      toast.push({ title: res.data?.error ?? res.error ?? "שליחה נכשלה", tone: "rose" });
     }
   };
 
   const join = async () => {
     if (!agentName.trim()) {
-      toast.push("שם סוכן נדרש", "rose");
+      toast.push({ title: "שם סוכן נדרש", tone: "rose" });
       return;
     }
     setJoinBusy(true);
@@ -105,9 +105,9 @@ export function AgentChatView() {
       setIssued({ name: res.data.name ?? agentName, apiKey: res.data.apiKey });
       setAgentName("");
       live.refresh();
-      toast.push(`הסוכן "${res.data.name}" הצטרף — מפתח נופק פעם אחת`, "green");
+      toast.push({ title: `הסוכן "${res.data.name}" הצטרף — מפתח נופק פעם אחת`, tone: "green" });
     } else {
-      toast.push(res.data?.error ?? res.error ?? "הצטרפות נכשלה", "rose");
+      toast.push({ title: res.data?.error ?? res.error ?? "הצטרפות נכשלה", tone: "rose" });
     }
   };
 

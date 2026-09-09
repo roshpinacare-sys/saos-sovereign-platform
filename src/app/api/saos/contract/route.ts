@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
+import { logOp } from "@/lib/saos/oplog";
 import { readSovereignWallets, readSealInventory } from "@/lib/vault-seal";
 import {
   RELAY_SOURCE,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logOp } from "@/lib/saos/oplog";
-import { buildMerkleTree, merkleProof, verifyMerkleProof } from "@/lib/saos/merkle";
+import { buildMerkleTree, merkleProof, verifyMerkleProof, type MerkleProof } from "@/lib/saos/merkle";
 import { canonicalDigest, canonicalize } from "@/lib/saos/canonical-json";
 import { verifyChain } from "@/lib/saos/evidence";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
@@ -58,7 +58,7 @@ export async function GET(req: Request) {
     const rootMatches = tree.root === seal.root;
 
     // 2. FULL inclusion proofs for every leaf + independent verification
-    const proofs = [];
+    const proofs: Array<Omit<MerkleProof, "root"> & { verified: boolean }> = [];
     for (let i = 0; i < tree.leaves.length; i++) {
       const p = await merkleProof(tree, i);
       proofs.push({

@@ -133,9 +133,9 @@ export async function POST() {
       registered.push({
         network: row.network,
         slot: row.slot,
-        address: row.address,
-        fingerprint: row.fingerprint,
-        changed: !(before?.fingerprint === row.fingerprint)
+        address: v.address,
+        fingerprint: v.fingerprint,
+        changed: !(before?.fingerprint === v.fingerprint)
       });
     }
 

@@ -148,7 +148,7 @@ export async function POST(req: Request) {
   "anchor-live-hive",
   `height=${outcome.height} txid=${outcome.txid ?? "—"} confirmed=${outcome.confirmedByHistory} rc=${outcome.rcPctAtBroadcast}%`
 );
-      return NextResponse.json({ ok: true, ...outcome, anchorId: row.id, receipt: receipt.digest });
+      return NextResponse.json({ ...outcome, anchorId: row.id, receipt: receipt.digest });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "live hive broadcast failed";
       const row = await db.anchorTx.create({

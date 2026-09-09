@@ -220,7 +220,7 @@ export function MicrogridView() {
           }
         />
         <PanelBody>
-          {error && !live && <ErrorNotice title="קריאת המיקרו-גריד נכשלה" desc={error} />}
+          {error && !live && <ErrorNotice message={`קריאת המיקרו-גריד נכשלה${error ? ` — ${error}` : ""}`} />}
           {loading && !live && <SkeletonPanel lines={6} />}
           {live && (
             <>
@@ -229,7 +229,7 @@ export function MicrogridView() {
                 <Kpi label="מילויים (crossings)" value={live.grids.reduce((s, g) => s + g.crossings, 0)} tone="gold" icon={<Repeat size={15} />} hint={`seq ${t?.fillSeq ?? 0} ביומן`} />
                 <Kpi label="רווח מצטבר" value={Number(t?.realizedPnl ?? 0).toFixed(4)} suffix=" SAOS-M" tone="green" icon={<TrendingUp size={15} />} hint="מצטבר-מונוטוני (SELL)" />
                 <Kpi label="נשטף לקופת-עבודה" value={Number(t?.sweptPnl ?? 0).toFixed(4)} suffix=" SAOS-M" tone="gold" icon={<Landmark size={15} />} hint={`קרן: ${Number(t?.profitFund ?? 0).toFixed(2)} SAOS-M`} />
-                <Kpi label="WETH/USDC אורקל" value={v2Price ?? "—"} tone={dex?.ok ? "green" : "zinc"} icon={<Waves size={15} />} hint={dex?.v3.price ? `V3: ${dex.v3.price}` : "—"} />
+                <Kpi label="WETH/USDC אורקל" value={v2Price ?? "—"} tone={dex?.ok ? "green" : "default"} icon={<Waves size={15} />} hint={dex?.v3.price ? `V3: ${dex.v3.price}` : "—"} />
                 <Kpi label="טיקים (סה׳)" value={live.grids.reduce((s, g) => s + g.ticks, 0)} icon={<Gauge size={15} />} hint="כל ריצת-mesh מתקתקת" />
               </div>
               <Callout tone="gold" icon={<History size={14} />}>
@@ -252,7 +252,7 @@ export function MicrogridView() {
         />
         <PanelBody>
           <div className="flex flex-wrap items-center gap-3">
-            <Btn onClick={runCycle} busy={cycleBusy} tone="gold">
+            <Btn onClick={runCycle} loading={cycleBusy} variant="primary">
               {cycleBusy ? "מריץ מחזור…" : "הרץ מחזור (אורקל → טיק → שטיפה)"}
             </Btn>
             <span className="text-[11px] text-zinc-500">
@@ -290,13 +290,13 @@ export function MicrogridView() {
             <div className="flex flex-wrap items-end gap-2">
               <div className="flex flex-col gap-1">
                 <label className="text-[11px] text-zinc-500" htmlFor="mg-pair">זוג חדש (מהלוח החי)</label>
-                <Input id="mg-pair" value={newPair} onChange={(e) => setNewPair(e.target.value)} placeholder="WETH/USDT" className="w-36" dir="ltr" />
+                <Input id="mg-pair" value={newPair} onChange={(v) => setNewPair(v)} placeholder="WETH/USDT" className="w-36" dir="ltr" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-[11px] text-zinc-500" htmlFor="mg-levels">רמות</label>
-                <Input id="mg-levels" type="number" min={1} max={64} value={newLevels} onChange={(e) => setNewLevels(Number(e.target.value) || 24)} className="w-20" dir="ltr" />
+                <Input id="mg-levels" type="number" min={1} max={64} value={String(newLevels)} onChange={(v) => setNewLevels(Number(v) || 24)} className="w-20" dir="ltr" />
               </div>
-              <Btn onClick={runCreate} busy={createBusy} tone="outline">
+              <Btn onClick={runCreate} loading={createBusy} variant="secondary">
                 <span className="flex items-center gap-1.5"><PlusCircle size={14} /> צור גריד</span>
               </Btn>
               <span className="text-[11px] text-zinc-500">העוגן = מחיר חי שנמדד ברגע היצירה</span>
@@ -525,7 +525,7 @@ export function MicrogridView() {
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-semibold text-zinc-300">סימולציית החלקה — עסקת $10,000</div>
-                  <Btn onClick={runSim} busy={simBusy} tone="outline" className="text-[11px]">
+                  <Btn onClick={runSim} loading={simBusy} variant="secondary" className="text-[11px]">
                     {simBusy ? "מחשב…" : "הרץ"}
                   </Btn>
                 </div>
@@ -558,7 +558,7 @@ export function MicrogridView() {
             <Callout tone="gold" icon={<Zap size={14} />}>
               <strong>מנוע מעבדה</strong> — הסולם, השוליים והרווח: SAOS-M (מטבע-מעבדה, ערך פנימי). גריד SELFTEST מסומן — הוכחת-מכניקה בלבד. הרווח נשטף רק ככל שקרן-הרווח מכסה.
             </Callout>
-            <Callout tone="amber" icon={<Coins size={14} />}>
+            <Callout tone="gold" icon={<Coins size={14} />}>
               <strong>הדרך לרווח אמיתי</strong> — אותו בייטקוד (saos-mesh/v3) נפרס על BSC/ETH; מסחר אמיתי דורש מפתחות ריבוניים חדשים + החלטת סיכון מהבעלים (הצעד #1 ברשת-360).
             </Callout>
           </div>

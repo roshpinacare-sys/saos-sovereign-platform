@@ -96,11 +96,11 @@ export function ViewFleet() {
     setMintResult(null);
     try {
       const res = await postJson<MintResult>("/api/saos/mint", {});
-      setMintResult(res);
-      if (res.ok) {
+      setMintResult(res.data);
+      if (res.ok && res.data) {
         toast.push({
           title: "ה-mint הקטן נטבע",
-          desc: `SAOS-NET גובה ${res.seal?.height} · ${fmtInt(res.policy?.total ?? 0)} SAOS · העוגן ל-STEEM נורה אוטומטית`,
+          desc: `SAOS-NET גובה ${res.data.seal?.height} · ${fmtInt(res.data.policy?.total ?? 0)} SAOS · העוגן ל-STEEM נורה אוטומטית`,
           tone: "green"
         });
       } else {
@@ -120,11 +120,11 @@ export function ViewFleet() {
     setArmResult(null);
     try {
       const res = await postJson<ArmOutcome>("/api/saos/fleet", { action });
-      setArmResult(res);
-      if (res.ok) {
+      setArmResult(res.data);
+      if (res.ok && res.data) {
         toast.push({
           title: `${label} — הצי חומש`,
-          desc: `${res.armed?.length ?? 0} חיילים חומשו · ${res.skipped?.length ?? 0} דולגו`,
+          desc: `${res.data.armed?.length ?? 0} חיילים חומשו · ${res.data.skipped?.length ?? 0} דולגו`,
           tone: "green"
         });
       } else {
@@ -209,14 +209,14 @@ export function ViewFleet() {
           label="ספקת SAOS"
           value={fmtInt(mint.data?.supply ?? 0)}
           hint={mintPolicyData ? `mint קטן · ${fmtInt(mintPolicyData.total)} לפי מדיניות` : "טרם נטבע"}
-          tone={mint.data?.supply ? "gold" : "zinc"}
+          tone={mint.data?.supply ? "gold" : "default"}
         />
         <Kpi
           icon={<Users size={15} />}
           label="חיילים חמושים"
           value={`${ready}/${soldiers.length || 11}`}
           hint="SAOS/ETH/SOL/RC מעל סף"
-          tone={ready > 0 ? "green" : "zinc"}
+          tone={ready > 0 ? "green" : "default"}
         />
         <Kpi
           icon={<Wallet size={15} />}
@@ -286,7 +286,7 @@ export function ViewFleet() {
 
               {!lastMint && (
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  <Btn onClick={doMint} disabled={busy} variant="primary" size="lg">
+                  <Btn onClick={doMint} disabled={busy} variant="primary" size="md">
                     <Coins size={16} className="ms-1" />
                     {minting ? "טובע…" : "טבע את ה-mint הקטן"}
                   </Btn>
