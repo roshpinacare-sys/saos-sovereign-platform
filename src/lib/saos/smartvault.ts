@@ -38,7 +38,7 @@ import {
   type VaultHomeHealth
 } from "@/lib/vault-seal";
 import { logOp } from "./oplog";
-import { restoreDatabaseIfWiped } from "./backups";
+import { restoreDatabaseIfWiped, mirrorDatabaseFast } from "./backups";
 
 const SHA256 = (b: Buffer) => createHash("sha256").update(b).digest();
 const RIPEMD160 = (b: Buffer) => createHash("ripemd160").update(b).digest();
@@ -181,6 +181,17 @@ async function measure(): Promise<SmartVaultStatus> {
     unverified: keys.filter((k) => k.status === "unverified").length,
     imported: keys.filter((k) => k.status === "imported").length
   };
+  // v35 רציפות — the survivable-home DB mirror rides EVERY measure: the
+  // queries above may have written (chat, work orders, opLog), so the file
+  // mtime moved — mirrorDatabaseFast() stat-checks it and flows a fresh
+  // consistent snapshot to upload/.db-mirror within the same status call.
+  // Fire-and-forget with the in-process mutex + 45s rate limit inside —
+  // the status rail is never slowed, never broken by mirror trouble.
+  try {
+    void mirrorDatabaseFast().catch(() => undefined);
+  } catch {
+    // honest: never breaks the status rail
+  }
   return {
     ok: seal.present,
     seal,

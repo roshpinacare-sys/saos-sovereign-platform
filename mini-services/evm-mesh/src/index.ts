@@ -58,7 +58,16 @@ const ANVIL_STATE = path.resolve(import.meta.dir, "..", "state", "anvil-state.js
 // self-heals the primary from the mirror; a timer mirrors every 5 min.
 const MIRROR_STATE = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".mesh-state", "anvil-state.json");
 const STATE_DUMP_SECONDS = 30;
-const STATE_MIRROR_MS = 5 * 60_000;
+// v35 רציפות — the chain-state mirror tick dropped from 5 min to 60s.
+// anvil rewrites the dump every 30s while blocks flow, so a 60s tick with
+// copy-on-change keeps the survivable home ≤ ~90s behind the chain head
+// (was ≤5 min). The copy itself gained two v35 guards the blind v33/v34
+// copy never had: (1) change-detection (idle chain = zero disk traffic),
+// (2) JSON validation of the tmp BEFORE the atomic promote — anvil rewrites
+// the dump in place, so a blind copy could catch it MID-WRITE and mirror a
+// TORN file; a torn mirror would brick the v33 boot self-heal. A parse
+// failure now keeps the last good mirror and retries next tick.
+const STATE_MIRROR_MS = 60_000;
 // v34 אוטרקיה — THE BINARY LIVES IN THE SURVIVABLE HOME TOO. The 3rd rebuild
 // of 09/09 wiped /home/z/.foundry (anvil ENOENT) while upload/ survived: the
 // runner crash-looped for 30 minutes and 31 keeper revives could not fix a
@@ -94,13 +103,28 @@ function stateFileExists(): boolean {
   }
 }
 
-/** v33 — mirrors the chain state to the survivable home (copy-on-change). */
+/** v33 → v35 — mirrors the chain state to the survivable home.
+ *  v35: copy-on-change + validated + atomic (see STATE_MIRROR_MS note). */
+let lastStateMirrorSig = ""; // `${mtimeMs}:${size}` of the last mirrored dump
 function mirrorChainState(): void {
   try {
     const st = fs.statSync(ANVIL_STATE);
-    if (st.size > 0) {
+    const sig = `${st.mtimeMs}:${st.size}`;
+    if (st.size > 0 && sig !== lastStateMirrorSig) {
       fs.mkdirSync(path.dirname(MIRROR_STATE), { recursive: true });
-      fs.copyFileSync(ANVIL_STATE, MIRROR_STATE);
+      const dstTmp = `${MIRROR_STATE}.tmp`;
+      fs.copyFileSync(ANVIL_STATE, dstTmp);
+      // v35 validation — a torn (mid-dump) copy must never reach the home:
+      // parse the tmp, promote only a loadable state, else keep the last
+      // good mirror and let the next tick retry (anvil dumps every 30s).
+      try {
+        JSON.parse(fs.readFileSync(dstTmp, "utf8"));
+        fs.renameSync(dstTmp, MIRROR_STATE);
+        lastStateMirrorSig = sig;
+      } catch {
+        try { fs.unlinkSync(dstTmp); } catch { /* already gone */ }
+        console.log("[evm-mesh] v35 mirror guard: torn anvil-state dump caught — kept the last good mirror");
+      }
     }
   } catch {
     // state not dumped yet / disk issue — honest skip, next tick retries
@@ -1280,3 +1304,6 @@ void main().catch((e) => {
 });
 
 // v32 touch — reload heal
+
+// v35 hot-reload trigger
+// v35 reload-2

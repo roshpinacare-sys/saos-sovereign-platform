@@ -26,6 +26,12 @@
  *   · RESTORE is a human sovereign act: scripts/restore-backup.sh
  *     (refuses to run while the web tier is writing — unless forced).
  *
+ * v35 רציפות — the survivable-home mirror no longer waits for the 30-min
+ * cycle: mirrorDatabaseFast() runs on every measure() (keeper probes + user
+ * views), stat-checks the DB file's mtime and flows a fresh VACUUM INTO
+ * snapshot to upload/.db-mirror the moment writes land. Worst-case mirror
+ * lag: 30 minutes → under a minute. The deep cycle keeps the 24h history.
+ *
  * Discipline (unchanged, v24 MAGEN):
  *   · no keys, no vault, no mnemonics — file paths and byte counts only
  *   · failure is DATA: {ok:false} with the honest error
@@ -57,6 +63,10 @@ const KEEP_DB = 48; // 48 × 30min ≈ 24h of DB truth
 const KEEP_CHAIN = 7; // 7 daily chain snapshots
 const MIN_INTERVAL_MS = 10 * 60_000; // hard rate limit (the keeper asks every 30min)
 const STATUS_CACHE_MS = 30_000;
+// v35 רציפות — the fast mirror's own spacing: the keeper probes status
+// every ~30s, so 45s between fast mirrors keeps the survivable-home copy
+// ≤ ~60-75s behind the truth while never stacking VACUUMs on busy pages.
+const FAST_MIRROR_MIN_MS = 45_000;
 
 export interface BackupEntry {
   name: string;
@@ -183,6 +193,57 @@ export async function restoreDatabaseIfWiped(): Promise<{ restored: boolean; not
     return { restored: true, note };
   } catch (e) {
     return { restored: false, note: `בדיקת המראה נכשלה: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}` };
+  }
+}
+
+/** v35 רציפות — THE FAST DB MIRROR: change-driven, not cycle-driven.
+ *  The v34 honest boundary was "the mirror lags ≤30 min (the keeper's
+ *  snapshot cycle)" — a rebuild in that window loses everything written
+ *  since the last snapshot. The truth is only ~500KB and VACUUM INTO
+ *  takes ~20ms, so the mirror no longer waits for the cycle: every
+ *  measure() (the keeper probes status every 30s, user views land on the
+ *  same rail) checks the DB file's mtime — a CHANGE means writes landed,
+ *  so a fresh consistent snapshot flows to the survivable home right
+ *  away. Worst-case lag collapses from 30 minutes to under a minute.
+ *  Guard rails: in-process mutex (concurrent measures never stack
+ *  VACUUMs), 45s rate limit, the same ≥10-tables sanity gate as the
+ *  deep cycle (an empty shell is never mirrored), atomic tmp+rename
+ *  (a reader never sees a half-written mirror), failure = honest skip
+ *  (SQLITE_BUSY retries on the next window). The deep 30-min cycle
+ *  stays — it owns the 24h rotation history in db/backups; this fast
+ *  path only keeps the ONE survivable-home copy fresh. */
+let fastMirrorBusy = false;
+let fastMirrorLastAt = 0;
+let fastMirrorLastMtime = 0;
+
+export async function mirrorDatabaseFast(): Promise<{ mirrored: boolean; note: string }> {
+  if (fastMirrorBusy) return { mirrored: false, note: "busy" };
+  if (Date.now() - fastMirrorLastAt < FAST_MIRROR_MIN_MS) return { mirrored: false, note: "rate" };
+  fastMirrorBusy = true;
+  try {
+    const st = fs.statSync(DB_FILE);
+    if (st.mtimeMs === fastMirrorLastMtime) return { mirrored: false, note: "unchanged" };
+    // same sanity gate as the deep cycle — a shell never reaches the home
+    const tables = await db.$queryRawUnsafe<{ n: number }[]>(
+      "SELECT count(*) AS n FROM sqlite_master WHERE type='table'"
+    );
+    if (Number(tables[0]?.n ?? 0) < 10) return { mirrored: false, note: "shell" };
+    const tmp = `${MIRROR_DB}.fast-tmp`;
+    try { fs.unlinkSync(tmp); } catch { /* not there — fine */ }
+    await db.$executeRawUnsafe(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
+    if (!isSaneSqlite(tmp)) {
+      try { fs.unlinkSync(tmp); } catch { /* already gone */ }
+      return { mirrored: false, note: "insane-skip" };
+    }
+    ensureDir(MIRROR_DIR);
+    fs.renameSync(tmp, MIRROR_DB);
+    fastMirrorLastMtime = st.mtimeMs; // only a SUCCESS arms the skip marker
+    return { mirrored: true, note: `${(fs.statSync(MIRROR_DB).size / 1024).toFixed(0)}KB` };
+  } catch {
+    return { mirrored: false, note: "skip" }; // SQLITE_BUSY etc — next window retries
+  } finally {
+    fastMirrorLastAt = Date.now();
+    fastMirrorBusy = false;
   }
 }
 
