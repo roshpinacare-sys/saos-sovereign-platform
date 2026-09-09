@@ -1417,6 +1417,8 @@ export interface SmartVaultData {
   agents: { name: string; role: string; active: boolean; lastSeenAt: string | null; messages: number }[];
   messageCount: number;
   stats: { total: number; connected: number; legacy: number; unverified: number; imported: number };
+  /** v33 — last auto-restore outcome (null = not attempted/already stocked) */
+  autoRestore: { keys: number; agents: number; reason: string } | null;
   measuredAt: string;
   error?: string;
 }

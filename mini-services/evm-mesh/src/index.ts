@@ -51,14 +51,46 @@ const PORT = 8545;
 // Root cause fixed: a recycled WorkBoard id used to collide with the
 // persistent WorkDeliverable rows (unique orderId) and break deliveries.
 const ANVIL_STATE = path.resolve(import.meta.dir, "..", "state", "anvil-state.json");
+// v33 שחזור — MULTI-HOME CHAIN STATE: the 3rd sandbox rebuild of 09/09 wiped
+// the gitignored state dir (3rd regenesis of the day) while upload/ survived
+// EVERY rebuild so far (the vault's anchor home). The chain state now lives
+// in TWO homes: the runtime dir + a mirror inside upload/.mesh-state. Boot
+// self-heals the primary from the mirror; a timer mirrors every 5 min.
+const MIRROR_STATE = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".mesh-state", "anvil-state.json");
 const STATE_DUMP_SECONDS = 30;
+const STATE_MIRROR_MS = 5 * 60_000;
 
 function stateFileExists(): boolean {
   try {
     fs.statSync(ANVIL_STATE);
     return fs.statSync(ANVIL_STATE).size > 0;
   } catch {
+    // v33: primary gone (sandbox rebuild) — self-heal from the mirror home
+    try {
+      const mirrored = fs.statSync(MIRROR_STATE);
+      if (mirrored.size > 0) {
+        fs.mkdirSync(path.dirname(ANVIL_STATE), { recursive: true });
+        fs.copyFileSync(MIRROR_STATE, ANVIL_STATE);
+        console.log(`[evm-mesh] v33 chain-state self-heal: primary restored from the mirror home (${(mirrored.size / 1e6).toFixed(1)}MB) — NO regenesis`);
+        return true;
+      }
+    } catch {
+      // no mirror either — honest fresh genesis
+    }
     return false;
+  }
+}
+
+/** v33 — mirrors the chain state to the survivable home (copy-on-change). */
+function mirrorChainState(): void {
+  try {
+    const st = fs.statSync(ANVIL_STATE);
+    if (st.size > 0) {
+      fs.mkdirSync(path.dirname(MIRROR_STATE), { recursive: true });
+      fs.copyFileSync(ANVIL_STATE, MIRROR_STATE);
+    }
+  } catch {
+    // state not dumped yet / disk issue — honest skip, next tick retries
   }
 }
 
@@ -1134,6 +1166,11 @@ async function main(): Promise<void> {
   RT.timers.push(setInterval(() => void autoCycle(), 120_000));
   RT.timers.push(setInterval(() => void watchdog(), 10_000));
   RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
+  // v33 שחזור — chain-state mirror to the survivable home (first copy now,
+  // then every 5 min; anvil dumps every 30s so the mirror lags ≤5min of
+  // blocks — a future rebuild resumes instead of regenesis)
+  mirrorChainState();
+  RT.timers.push(setInterval(() => mirrorChainState(), STATE_MIRROR_MS));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
   console.log("[evm-mesh] auto-runner v30: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה + burn לדלתא שלילית) · PHYSICAL MOVE 4.11 (תזוזה v30: הכסף זז פיזית — sweep-eth/sweep-bsc לבית-האוצר 0x01Bd · פעימת XRPL חתומה כל מחזור עשירי) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
 }

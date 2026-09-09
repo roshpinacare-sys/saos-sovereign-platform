@@ -33,6 +33,7 @@ import {
   sealAvailability,
   vaultHomesHealth,
   withVaultMember,
+  listVaultMembers,
   type SealAvailability,
   type VaultHomeHealth
 } from "@/lib/vault-seal";
@@ -73,6 +74,8 @@ export interface SmartVaultStatus {
   agents: { name: string; role: string; active: boolean; lastSeenAt: string | null; messages: number }[];
   messageCount: number;
   stats: { total: number; connected: number; legacy: number; unverified: number; imported: number };
+  /** v33 — last auto-restore outcome (null = not attempted/already stocked) */
+  autoRestore: { keys: number; agents: number; reason: string } | null;
   measuredAt: string;
   error?: string;
 }
@@ -105,6 +108,29 @@ async function measure(): Promise<SmartVaultStatus> {
   const measuredAt = new Date().toISOString();
   const seal = await sealAvailability();
   const homes = await vaultHomesHealth();
+  // v33 שחזור — the DB is a REBUILDABLE CACHE of the vault (the 3rd sandbox
+  // rebuild of 09/09 wiped it while the vault survived in its homes). An
+  // EMPTY inventory + a present seal + no prior restore = rebuild now.
+  let autoRestore: { keys: number; agents: number; reason: string } | null = null;
+  try {
+    autoRestore = await restoreInventoryIfEmpty();
+  } catch {
+    autoRestore = null; // honest: restore failure never breaks the status rail
+  }
+  if (!autoRestore) {
+    // surface the persistent tombstone — the restore is a DB-life event and
+    // the view must keep showing it (not only in the restoring measure)
+    try {
+      const ts = await db.opLog.findFirst({ where: { op: "smartvault.autorestore" }, orderBy: { createdAt: "desc" } });
+      if (ts) {
+        let d: { keys?: number; agents?: number } = {};
+        try { d = JSON.parse(ts.detail ?? "{}") as { keys?: number; agents?: number }; } catch { /* non-JSON detail */ }
+        autoRestore = { keys: d.keys ?? 0, agents: d.agents ?? 0, reason: `שוחזר מהכספת (v33) — ${ts.createdAt.toISOString()}` };
+      }
+    } catch {
+      // oplog read failed — honest null
+    }
+  }
   let rows: SmartKeyView[] = [];
   try {
     rows = (await listKeyRows()).map(toKeyView);
@@ -134,6 +160,7 @@ async function measure(): Promise<SmartVaultStatus> {
     agents: agentViews,
     messageCount,
     stats,
+    autoRestore,
     measuredAt
   };
 }
@@ -143,6 +170,114 @@ export async function smartVaultStatus(): Promise<SmartVaultStatus> {
   const value = await measure();
   cache = { at: Date.now(), value };
   return value;
+}
+
+// ─── v33 שחזור: the DB inventory is rebuilt FROM THE VAULT ────────────────
+//
+// The 3rd sandbox rebuild of 2026-09-09 (~14:22) wiped db/custom.db (gitignored)
+// while the multi-home vault survived untouched in all three homes. The
+// lesson generalized: the VAULT is the source of truth; the DB is a cache
+// of metadata rows that point at vault members. A wiped DB must never
+// again leave the platform "disconnected" — the inventory self-rebuilds.
+//
+// Guard rails (honesty):
+//   • runs only when the inventory is COMPLETELY empty
+//   • runs only ONCE per DB life (an OpLog tombstone — owner removals stick)
+//   • secrets never cross the boundary: rows are metadata + materialRef;
+//     agent keys are read inside withVaultMember sessions (hash only out)
+
+export interface CanonicalKeyRow {
+  keyId: string;
+  name: string;
+  kind: string;
+  network: string;
+  role?: string | null;
+  address?: string | null;
+  status: string;
+  note?: string | null;
+  materialRef: string;
+}
+
+/** The canonical fleet inventory (v31 restore, enshrined as code-of-record). */
+export const CANONICAL_KEYS: CanonicalKeyRow[] = [
+  { keyId: "steem-owner-legacy", name: "headcorner STEEM — owner (פרה-רוטציה)", kind: "steem-wif", network: "STEEM", role: "owner", address: "headcorner", status: "legacy", note: "נדרש להתאוששות עד ~2026-10-08 · חותם הרוטציה 8313cdcb…", materialRef: "keys/headcorner-steem-legacy.json" },
+  { keyId: "steem-active-legacy", name: "headcorner STEEM — active (פרה-רוטציה)", kind: "steem-wif", network: "STEEM", role: "active", address: "headcorner", status: "legacy", note: "הוחלף 2026-09-08T21:17:33", materialRef: "keys/headcorner-steem-legacy.json" },
+  { keyId: "steem-posting-legacy", name: "headcorner STEEM — posting (פרה-רוטציה)", kind: "steem-wif", network: "STEEM", role: "posting", address: "headcorner", status: "legacy", note: "הוחלף — שידורי העוגנים פסקו", materialRef: "keys/headcorner-steem-legacy.json" },
+  { keyId: "steem-memo-legacy", name: "headcorner STEEM — memo (פרה-רוטציה)", kind: "steem-wif", network: "STEEM", role: "memo", address: "headcorner", status: "legacy", note: "הוחלף", materialRef: "keys/headcorner-steem-legacy.json" },
+  { keyId: "cornerstone-seed-24", name: "אבן הפינה — זרע 24 המילים", kind: "mnemonic", network: "MULTI", role: "cornerstone", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "connected", note: "השורש התפעולי: EVM/TRON/SOL/XRP · בית-האוצר 0x01Bd · XRP r3Tq66", materialRef: "keys/headcorner-seed.json" },
+  { keyId: "sovereign-seed-12", name: "שורש-הזהות — זרע 12 המילים", kind: "mnemonic", network: "MULTI", role: "sovereign", address: "0x7b7869d126FA1ecC19a3426D07bE8186225a2c31", status: "connected", note: "זהויות 0x7b78 + TAzZZ · TRX 0.05", materialRef: "keys/sovereign-mnemonic.json" },
+  { keyId: "treasury-home-evm", name: "בית-האוצר 0x01Bd (ETH+BNB)", kind: "evm-priv", network: "ETHEREUM", role: "treasury", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "connected", note: "m/44'/60'/0'/0/0 — לכאן הוזז הכסף (v30)", materialRef: "keys/headcorner-seed.json" },
+  { keyId: "xrp-cornerstone", name: "XRPL r3Tq66 — פעימות חיות", kind: "xrp-priv", network: "XRPL", role: "cornerstone", address: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh", status: "connected", note: "1.299961 XRP · בר-שליחה ~0.2999", materialRef: "keys/xrp-cornerstone.json" },
+  { keyId: "old-fleet-tron-headcorner", name: "ארנק TRON ישן TG6Srs… (17.6 TRX!)", kind: "tron-priv", network: "TRON", role: "fleet", address: "TG6SrsMJjRqnqAyYM8kGZu1rgkpsgizKEn", status: "connected", note: "הכסף שחשבנו שאבד — המפתח שלם", materialRef: "keys/old-fleet-wallets.json" },
+  { keyId: "old-fleet-sol-headcorner", name: "ארנק SOL ישן 9knfn… (0.024 SOL)", kind: "sol-priv", network: "SOLANA", role: "fleet", address: "9knfnFMLmhUNjKRDbR1BmVnVkq4BRczyYjJ7BqiZSgiL", status: "connected", note: "המפתח שלם", materialRef: "keys/old-fleet-wallets.json" },
+  { keyId: "old-fleet-evm-headcorner", name: "ארנק EVM ישן 0x2767…", kind: "evm-priv", network: "ETHEREUM", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "connected", note: "עדות היסטורית · ~0.000082 ETH", materialRef: "keys/old-fleet-wallets.json" },
+  { keyId: "old-fleet-seed", name: "הזרע הישן (96 hex) — שורש 12 הארנקים", kind: "seed-hex", network: "MULTI", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "connected", note: "fleet-arm self-verify עובר (m/44'/60'/0'/0/2 = 0x2767)", materialRef: "keys/wallets-seed.json" },
+  { keyId: "github-token", name: "GitHub PAT (roshpinacare-sys)", kind: "github-token", network: "GITHUB", role: "sovereign", address: "roshpinacare-sys", status: "connected", note: "גם ב-remote URL · העתק הריפו יימחק", materialRef: "keys/github-token.json" },
+  { keyId: "owner-record-legacy", name: "רשומת הבעלים (הדקור.txt) — דור ישן", kind: "other", network: "STEEM", role: "owner", address: "headcorner", status: "unverified", note: "אינה תואמת לשרשרת — לתיעוד בלבד", materialRef: "keys/legacy-owner-record.json" }
+];
+
+/**
+ * v33 — rebuild the inventory from the vault when the DB is empty.
+ * Idempotent + once-only (OpLog tombstone). Returns the outcome for the
+ * status rail; never throws to the caller.
+ */
+export async function restoreInventoryIfEmpty(): Promise<{ keys: number; agents: number; reason: string } | null> {
+  const count = await db.smartKey.count();
+  if (count > 0) return null; // stocked — nothing to do
+  const tombstone = await db.opLog.findFirst({ where: { op: "smartvault.autorestore" } });
+  if (tombstone) return null; // already restored once — owner removals stick
+  const seal = await sealAvailability();
+  if (!seal.present) return null; // no vault — honest nothing
+
+  // 1) canonical key rows (pure metadata — material stays sealed)
+  let keys = 0;
+  for (const r of CANONICAL_KEYS) {
+    await db.smartKey.upsert({
+      where: { keyId: r.keyId },
+      update: { name: r.name, kind: r.kind, network: r.network, role: r.role ?? null, address: r.address ?? null, status: r.status, note: r.note ?? null, materialRef: r.materialRef },
+      create: { keyId: r.keyId, name: r.name, kind: r.kind, network: r.network, role: r.role ?? null, address: r.address ?? null, status: r.status, note: r.note ?? null, materialRef: r.materialRef }
+    });
+    keys += 1;
+  }
+
+  // 2) agents — their one-time keys are sealed as smart/agent-*.json members;
+  //    the hash is recomputed INSIDE the session (the key never leaves scope)
+  let agents = 0;
+  try {
+    const members = await listVaultMembers();
+    for (const m of members.filter((x) => x.startsWith("smart/agent-"))) {
+      try {
+        const restored = await withVaultMember(m, (content) => {
+          const j = JSON.parse(content) as { agent?: string; role?: string; apiKey?: string };
+          if (!j.agent || !j.apiKey) return null;
+          return { name: j.agent, role: j.role ?? "agent", keyHash: createHash("sha256").update(j.apiKey).digest("hex") };
+        });
+        if (!restored) continue;
+        const existing = await db.agentIdentity.findUnique({ where: { name: restored.name } });
+        if (!existing) {
+          await db.agentIdentity.create({ data: { name: restored.name, role: restored.role, keyHash: restored.keyHash } });
+          await db.agentMessage.create({
+            data: {
+              author: "system",
+              authorRole: "system",
+              kind: "join",
+              content: `סוכן "${restored.name}" שוחזר מהכספת (v33 שחזור-אוטומטי לאחר איפוס-DB) — מפתח ה-API שלו נותר תקף.`,
+              meta: JSON.stringify({ agent: restored.name, restored: true })
+            }
+          });
+          agents += 1;
+        }
+      } catch {
+        // single member corrupt — skip honestly
+      }
+    }
+  } catch {
+    // member enumeration failed — keys still restored, agents honest 0
+  }
+
+  await logOp("smartvault.autorestore", { ok: true, keys, agents, at: new Date().toISOString() });
+  cache = null;
+  return { keys, agents, reason: "DB ריק — המלאי שוחזר מהכספת (v33)" };
 }
 
 // ─── key type detection ────────────────────────────────────────────────────
@@ -290,9 +425,11 @@ async function steemAccountAuthorities(rpc: string, account: string) {
 }
 
 function steemPubFromWif(wif: string): string {
-  const raw = bs58.decode(wif);
+  // v33 fix caught live: bs58.decode returns Uint8Array (no .equals — a Buffer
+  // method); wrap to Buffer so the checksum compare works. Same math.
+  const raw = Buffer.from(bs58.decode(wif));
   const payload = raw.subarray(0, raw.length - 4);
-  if (!raw.subarray(raw.length - 4).equals(SHA256(SHA256(payload)).subarray(0, 4))) {
+  if (!raw.subarray(raw.length - 4).equals(Buffer.from(SHA256(SHA256(payload)).subarray(0, 4)))) {
     throw new Error("WIF checksum mismatch");
   }
   const priv = payload.subarray(1, 33);

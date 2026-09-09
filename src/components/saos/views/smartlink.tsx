@@ -21,7 +21,7 @@ import { useState } from "react";
 import {
   KeyRound, ShieldCheck, HardDriveDownload, HardDrive, FolderLock,
   Import, Download, Fingerprint, RefreshCcw, CheckCircle2, AlertTriangle,
-  Trash2, Eye, EyeOff, Lock
+  Trash2, Eye, EyeOff, Lock, History
 } from "lucide-react";
 import { useLive, timeAgo, postJson, fmtInt, short } from "../lib";
 import {
@@ -211,8 +211,14 @@ export function SmartLinkView() {
         <Kpi label="מצב הכספת" value={d.seal.present ? "חתומה ✓" : "חסרה"} icon={<Lock size={15} />} hint={d.seal.state === "sealed" ? "SAOS-FLEET-VAULT-1 · AES-256-GCM" : d.seal.note} tone={d.seal.present ? "green" : "rose"} />
       </div>
 
+      {d.autoRestore && (
+        <Callout tone="green" icon={<History size={15} />}>
+          <b>שחזור-אוטומטי v33 (בוצע):</b> {d.autoRestore.reason} — {d.autoRestore.keys} מפתחות + {d.autoRestore.agents} סוכנים הוחזרו מהכספת לאחר איפוס-DB של בניית-הסנדבוקס. הכספת היא מקור-האמת; ה-DB מטמון שנבנה מחדש.
+        </Callout>
+      )}
+
       <Callout tone="gold" icon={<HardDrive size={15} />}>
-        <b>השיעור של 09/09 נסגר:</b> הכספת חיה בשלושה בתים — תיקיית-הריצה, בית מחוץ-לריפו (שורד בניית-סנדבוקס) ובית נסתר בתיקיית ההעלאות (ששרד כל איפוס עד כה). כל פתיחה משלימה בית חסר, כל כתיבה משוקפת לכולם. חומר-מפתח לעולם לא בריפו.
+        <b>השיעור של 09/09 נסגר — פעמיים:</b> הכספת חיה בשלושה בתים (תיקיית-הריצה · בית מחוץ-לריפו · בית נסתר בהעלאות — שרד את שלוש הבניות מחדש של היום). v33: ה-DB התרוקן בבנייה השלישית — המלאי <b>משוחזר מהכספת אוטומטית</b> (מטא-דאטה בלבד, החומר חתום), ומצב שרשרת-המעבדה משוקף לבית נוסף ששורד בנייה מחדש — אין עוד ריג'נסיס. חומר-מפתח לעולם לא בריפו.
       </Callout>
 
       <div className="grid lg:grid-cols-3 gap-4 mt-4">

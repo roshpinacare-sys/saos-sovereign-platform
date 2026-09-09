@@ -318,6 +318,18 @@ export async function appendVaultMember(memberPath: string, content: string): Pr
   }
 }
 
+// ─── v33 שחזור: member enumeration (names only — no content) ────────────────
+
+/**
+ * Lists the member PATHS inside the envelope (public names, zero content).
+ * The DB-inventory auto-restore uses this to know which agents exist
+ * without ever exposing material outside a withVaultMember session.
+ */
+export async function listVaultMembers(): Promise<string[]> {
+  const bundle = await openSeal();
+  return Object.keys(bundle.files);
+}
+
 /** Probes seal existence without opening it. */
 export async function sealExists(): Promise<boolean> {
   try {
