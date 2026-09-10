@@ -292,6 +292,33 @@ model PhysicalMove {
   @@index([createdAt])
 }
 
+// ─── v53: Conversion chamber (חדר ההמרה) — הוכחות המרה חיות ────────────────
+// Every live conversion-proof run on SAOS-NET (SOL↔TRX circuits through the
+// sovereign exchange) leaves a full honest row: measured latency per leg,
+// block-delta, gas, fee, atomicity (both legs settled in the SAME block —
+// proven from historical state), and the full per-swap table. The payload
+// is the canonical JSON of the run — the chain + this row are the evidence.
+
+model ConversionProof {
+  id              String   @id @default(cuid())
+  runKey          String   @unique // conv-<epoch-ms>
+  rounds          Int
+  swaps           Int
+  atomicVerified  Int // legs where both balances moved in the same block
+  allAtomic       Boolean
+  p50Ms           Int?
+  p95Ms           Int?
+  maxBlockDelta   Int
+  blocksTraversed Int
+  gasTotal        String // wei sum
+  feeTotalWei     String // gasTotal × effectiveGasPrice sum
+  wallMs          Int
+  payload         String // full canonical JSON (swaps table + comparison)
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // ─── v31: SMART LINK (החיבור החכם) — multi-home vault inventory + agents gateway ──
 // SmartKey rows are METADATA ONLY (names, networks, public addresses,
 // verification status). The actual key material lives exclusively inside

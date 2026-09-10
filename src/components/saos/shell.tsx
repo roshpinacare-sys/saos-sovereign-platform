@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "breakthrough" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -73,6 +73,14 @@ export const VIEWS: ViewDef[] = [
     short: "פריצת דרך",
     desc: "התשובה החיה ל‘מה יש לנו ביד · מה מגביל · איזו פריצה ובאיזו יעילות’ — מלאי-נכסים חי, אילוצים מקוונטפים, מועמדים מדורגים בהשפעה/מאמץ, תוכנית-השקיה ב-USD חי וציון-ריבונות",
     icon: <Lightbulb size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "conversion",
+    label: "חדר ההמרה",
+    short: "המרה",
+    desc: "הכסף שב-TRON וב-SOL — איך הכל מומר על הרשת שלנו: המשמרת הריבונית מול המראה על SAOS-NET, שני מסלולי המרה, סנכרון-המראה לאמת, הוכחת-המרה חיה שנמדדת על השרשרת, ויומן המוכנות לקראת היישום",
+    icon: <ArrowLeftRight size={16} />,
     group: "תפעול"
   },
   {
