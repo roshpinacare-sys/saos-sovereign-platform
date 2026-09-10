@@ -502,6 +502,20 @@ async function checkPage(): Promise<{ http: number | null }> {
 function srcRecentlyTouched(): boolean {
   try {
     const cutoff = Date.now() - SRC_STABLE_MS;
+    // v42 deep-review fix: the old scan treated every LIVING state artifact as a
+    // "source touch" — anvil-state.json refreshes ~every 30s, the services' journals
+    // and seat locks are written continuously — so srcRecentlyTouched() returned true
+    // ~forever and the page-500 / page-hang cures could NEVER fire while the organism
+    // was alive (which is always). Measured live: the page hung 20+ minutes with a
+    // live API and the cure never fired. The truth this gate protects: "is a compile
+    // legitimately in progress?" — only CODE affects the web tier; state files never
+    // recompile anything. Watch code extensions only, skip state/node_modules/locks,
+    // and add the root configs that actually trigger a web recompile.
+    const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|css|json)$/;
+    const isLivingArtifact = (rel: string) =>
+      rel.split(path.sep).includes("state") ||
+      rel.split(path.sep).includes("node_modules") ||
+      rel.endsWith(".lock");
     for (const root of [path.join(PROJECT_DIR, "src"), path.join(PROJECT_DIR, "mini-services")]) {
       let entries: string[] = [];
       try {
@@ -510,12 +524,20 @@ function srcRecentlyTouched(): boolean {
         continue;
       }
       for (const rel of entries) {
+        if (!CODE_EXT.test(rel) || isLivingArtifact(rel)) continue;
         const full = path.join(root, rel);
         try {
           if (fs.statSync(full).mtimeMs > cutoff) return true;
         } catch {
           /* raced away */
         }
+      }
+    }
+    for (const cfg of ["next.config.ts", "tsconfig.json", "tailwind.config.ts", "postcss.config.mjs", "package.json"]) {
+      try {
+        if (fs.statSync(path.join(PROJECT_DIR, cfg)).mtimeMs > cutoff) return true;
+      } catch {
+        /* absent — not a touch */
       }
     }
     return false;

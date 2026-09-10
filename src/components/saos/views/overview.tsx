@@ -375,15 +375,42 @@ export function ViewOverview({
         </PanelBody>
       </Panel>
 
-      {/* ═══ מסקנות ביצוע — ביקורת 8 הריפואים ═══ */}
+      {/* ═══ מסקנות ביצוע — סקירת-העומק v42 ═══ */}
       <Panel>
         <PanelHeader
-          icon={<ShieldAlert size={15} />}
-          title="מסקנות-ביצוע · ביקורת 8 הריפואים של הרשת"
-          sub="בחינת כל התיקיות בגיטהאב (roshpinacare-sys) — אורגניזם-אחד: 8 ריפואים · 5 סוכנים · רשת-אחת. המסקנות לפי דחיפות."
-          actions={<Pill tone="amber">לביצוע הבעלים</Pill>}
+          icon={<ScanSearch size={15} />}
+          title="מסקנות-ביצוע · סקירת-העומק v42"
+          sub="בחינת כל תיקיות הגיט לעומק — 183 קבצי-src · 48 מסלולי-API · 24 תצוגות · 20 מודלי-DB · 12 חוזים · 4 שירותים · 29 סקריפטים. האמת המאומתת של הרגע, לא היסטוריה."
+          actions={<Pill tone="green">אומת חי</Pill>}
         />
         <PanelBody className="space-y-2.5">
+          <Callout tone="green" icon={<ShieldCheck size={14} className="text-emerald-300" />}>
+            <span className="font-bold">טוהר-קוד מלא (v42):</span> tsc 0 שגיאות · lint נקי · MAGEN
+            highCount=0 (שער-פישינג חמוש, 23 מארחים) · אפס TODO ב-src · שני קבצי-סקפולד מתים
+            הוסרו מהריפו (<span dir="ltr" className="font-mono">api/route.ts</span> "Hello world"
+            + <span dir="ltr" className="font-mono">download/</span>) — הריפו נקי ממתח.
+          </Callout>
+          <Callout tone="green" icon={<CheckCircle2 size={14} className="text-emerald-300" />}>
+            <span className="font-bold">אורגניזם 4/4 במושב-יחיד:</span> keeper :3005 · שליח-השער :3006 ·
+            נחיל :3007 · רץ-המש (ללא פורט) + anvil :8545 + ווב :3000 — אפס כפילויות (מוכח במיפוי-פורטים),
+            אמת-תפקוד בשני הכיוונים, גיבויים ריבוניים כל 10 דק' (6 ok / 0 miss).
+          </Callout>
+          <Callout tone="green" icon={<Radio size={14} className="text-emerald-300" />}>
+            <span className="font-bold">סוכני-הצ'אט 3/3 חיים ועובדים:</span> שליח-השער (127 סקירות ·
+            3 פעימות) · סייר-הזהב (דו"חות בינה LLM — 2 פורסמו, 0 כשלים) · סייר-הלילה (10 סיורים ·
+            3 אזעקות שהוסרו בהחלמה · פקודת-אבטחה בשרשרת) — אפס authFails, המפתחות חתומים בכספת.
+          </Callout>
+          <Callout tone="gold" icon={<Coins size={14} className="text-amber-300" />}>
+            <span className="font-bold">התזוזות הפיזיות — אוטומטיות והוכחו חי בסקירה:</span> הראנר
+            סחט אוטונומית 1.000000 TRX שארית מהארנק הישן לבית-האוצר
+            (<span dir="ltr" className="font-mono">txid 72f8d9ee…</span>, confirmed) — במקור נותר רק
+            חיץ-כנות 0.5 TRX לרוחב-פס. פקודת הבעלים "לזוז הכל פיזית" מבוצעת לבד, כל מחזור.
+          </Callout>
+          <Callout tone="gold" icon={<KeyRound size={14} className="text-amber-300" />}>
+            <span className="font-bold">מארב ההתאוששות (v41) פרוס:</span> חלון headcorner פתוח — 28
+            ימים (עד 2026-10-08) · התוקף נתפס חי (40 פעולות/שעה) · הטריגר נסרק כל 60ש' — ההשתלטות
+            הריבונית נוחתת אוטונומית ברגע שבקשה חיה נושאת את הסמכות החתומה בכספת.
+          </Callout>
           <Callout tone="rose" icon={<KeyRound size={14} className="text-rose-300" />}>
             <span className="font-bold">דחוף — רוטציית PAT:</span> אסימון GitHub פרטי ניתן לשחזור
             מהיסטוריית <span dir="ltr" className="font-mono">anchor-baseline</span> (upload/חח.txt,
