@@ -327,8 +327,13 @@ contract SAOSExchange {
     }
 
     // ── the harvest: fees flow OUT to the treasury (נזילות החוצה) ──────────
-    function harvest(uint256 poolId) external returns (uint256, uint256) {
-        if (msg.sender != owner) revert NotOwner();
+    /// @dev v46 — the pot-emptying core, callable internally: harvestAll()
+    ///      used to route through this.harvest(i) (external self-call) which
+    ///      flips msg.sender to the contract → NotOwner revert — the function
+    ///      was dead bytecode on the live chain (the runner harvested per-pool
+    ///      as a workaround since v28.1). The core is now internal so both
+    ///      the owner-facing harvest() and the loop share it, no self-call.
+    function _harvestCore(uint256 poolId) internal returns (uint256, uint256) {
         if (poolId >= pools.length) revert UnknownPool();
         Pool storage p = pools[poolId];
         uint256 amountA = p.potA;
@@ -348,11 +353,16 @@ contract SAOSExchange {
         return (amountA, amountB);
     }
 
+    function harvest(uint256 poolId) external returns (uint256, uint256) {
+        if (msg.sender != owner) revert NotOwner();
+        return _harvestCore(poolId);
+    }
+
     function harvestAll() external returns (uint256 totalPools) {
         if (msg.sender != owner) revert NotOwner();
         for (uint256 i = 0; i < pools.length; i++) {
             if (pools[i].potA > 0 || pools[i].potB > 0) {
-                this.harvest(i);
+                _harvestCore(i);
                 totalPools += 1;
             }
         }

@@ -8,7 +8,7 @@
  * מציאות, כולל מה שתוקן ברוסט זה ומה שנותר פתוח ולמה.
  */
 
-import { Flame, Skull, DollarSign, HeartPulse, Bot, Swords, Timer, Wrench, TriangleAlert, BadgeCheck, ScrollText } from "lucide-react";
+import { Flame, Skull, DollarSign, HeartPulse, Bot, Swords, Timer, Wrench, TriangleAlert, BadgeCheck, ScrollText, Link2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Kpi, Panel, PanelBody, PanelHeader, Pill, SkeletonPanel, Table, Td, Th, Tag } from "../ui";
 import { MeterBar } from "../charts";
@@ -62,6 +62,7 @@ function RoastBody({ d }: { d: RoastData }) {
   const w = d.web;
   const a = d.agents;
   const r = d.recovery;
+  const c = d.chain;
 
   return (
     <>
@@ -159,6 +160,86 @@ function RoastBody({ d }: { d: RoastData }) {
                   : "צומח. כשיגיע ל-1500MB ימוחזר מראש (לפני שהקרנל יהרוג ב-1790MB)."}
               </p>
             </div>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* השרשרת כפי שהיא — ביקורת שלמות חיה מהחוזים עצמם (v46) */}
+      <Panel>
+        <PanelHeader
+          icon={<Link2 size={15} />}
+          title="השרשרת כפי שהיא — ביקורת שלמות חיה"
+          sub="קריאת-חוזים ישירה (read-only): סכום כל היתרות של 22 הסוכנים + 10 החוזים מול totalSupply · גיבוי wSAOS 1:1 · ריצות פתוחות · ריכוז היצע. לא ה-API שלנו על עצמנו — החוזים עצמם."
+          actions={
+            !c.ok ? (
+              <Pill tone="amber">ביקורת לא זמינה</Pill>
+            ) : c.conserved ? (
+              <Pill tone="green">ספרים מאוזנים</Pill>
+            ) : (
+              <Pill tone="rose">פער שימור</Pill>
+            )
+          }
+        />
+        <PanelBody className="space-y-3">
+          {c.ok ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Kpi
+                  label="פער שימור (SAOS-M)"
+                  value={c.conservationGapSaos != null ? fmtNum(c.conservationGapSaos, 4) : "—"}
+                  icon={<ScrollText size={15} />}
+                  hint={c.agentsCounted != null ? `${c.agentsCounted} כתובות נספרו אחד-לאחד` : "—"}
+                  tone={c.conserved ? "green" : "rose"}
+                />
+                <Kpi
+                  label="גיבוי wSAOS 1:1"
+                  value={c.wsaosLive != null ? `${fmtNum(c.wsaosLive, 2)} / ${fmtNum(c.wsaosBacking ?? 0, 2)}` : "—"}
+                  icon={<BadgeCheck size={15} />}
+                  hint={c.wsaosBacked ? "wSaosLive ≤ יתרת הבורסה בפועל" : "חסר כיסוי!"}
+                  tone={c.wsaosBacked ? "green" : "rose"}
+                />
+                <Kpi
+                  label="ריצות פתוחות"
+                  value={fmtNum(c.runsOpen)}
+                  icon={<Timer size={15} />}
+                  hint={c.runsOpen === 0 ? "כל ריצה שנפתחה הושלמה" : "ריצות שלא נסגרו"}
+                  tone={c.runsOpen === 0 ? "green" : "default"}
+                />
+                <Kpi
+                  label="היצע חי (SAOS-M)"
+                  value={fmtNum(c.supply)}
+                  icon={<DollarSign size={15} />}
+                  hint="ledger.totalSupply מהחוזה"
+                  tone="gold"
+                />
+              </div>
+              {(c.hqSharePct != null || c.exchangeSharePct != null) && (
+                <div className="space-y-2">
+                  {c.hqSharePct != null && (
+                    <div>
+                      <div className="flex justify-between text-[11px] text-zinc-500">
+                        <span>ריכוז HQ (מפעיל): {c.hqSharePct}% מההיצע</span>
+                        <span className="text-amber-300">{c.hqSharePct > 50 ? "ריכוז-על — מעבדה, לא רשת מבוזרת" : "פיזור סביר"}</span>
+                      </div>
+                      <MeterBar pct={c.hqSharePct} tone={c.hqSharePct > 50 ? "rose" : "gold"} height="h-2" />
+                    </div>
+                  )}
+                  {c.exchangeSharePct != null && (
+                    <div>
+                      <div className="flex justify-between text-[11px] text-zinc-500">
+                        <span>ריכוז הבורסה: {c.exchangeSharePct}% מההיצע</span>
+                        <span>נזילות-פנימית של המעבדה</span>
+                      </div>
+                      <MeterBar pct={c.exchangeSharePct} tone="gold" height="h-2" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-zinc-500 py-4 text-center">
+              ביקורת השרשרת לא הצליחה להימדד כרגע (RPC/פריסה לא נענו) — תישלף שוב ברענון הבא. אין הסתרה.
+            </p>
           )}
         </PanelBody>
       </Panel>

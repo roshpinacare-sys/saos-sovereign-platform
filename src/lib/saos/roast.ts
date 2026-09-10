@@ -22,6 +22,9 @@
  *   · מדידת-עצמי        — latency של 5 נקודות-API אחיות (cache 90ש')
  */
 
+import * as fs from "fs";
+import * as path from "path";
+import { ethers } from "ethers";
 import { liquidityRadar } from "./liquidity-radar";
 import { meshStatus } from "./mesh-client";
 import { recoveryAmbushStatus } from "./recovery-ambush";
@@ -29,6 +32,95 @@ import { recoveryAmbushStatus } from "./recovery-ambush";
 const KEEPER_URL = "http://127.0.0.1:3005/";
 const HERALD_URL = "http://127.0.0.1:3006/";
 const SWARM_URL = "http://127.0.0.1:3007/";
+
+// v46 — ביקורת-שלמות השרשרת החיה (read-only, מטמון 5 דק'):
+// שימור ספרים (סכום-כל-היתרות מול totalSupply — נספר מכל 22 הסוכנים
+// + 10 החוזים, אחד-לאחד כמו בביקורת הרוסט), גיבוי-wSAOS (wSaosLive
+// מול יתרת המזכיר של הבורסה), וריצות-תקועות. אמת-כפי-שהיא מהחוזים
+// עצמם — לא מה-API שלנו על עצמנו.
+const MESH_RPC = "http://127.0.0.1:8545";
+const MESH_DEPLOYMENT = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "deployment.json");
+
+export interface RoastChain {
+  ok: boolean;
+  measuredAt: string;
+  /** סכום כל היתרות שנספרו מול ההיצע — 0 = שימור מושלם */
+  conservationGapSaos: number | null;
+  conserved: boolean | null;
+  /** wSaosLive מול יתרת SAOS-M האמיתית של הבורסה — גיבוי 1:1 */
+  wsaosBacked: boolean | null;
+  wsaosLive: number | null;
+  wsaosBacking: number | null;
+  /** ריצות שנפתחו ולא הושלמו (0 = השרשרת מקושרת עד הסוף) */
+  runsOpen: number | null;
+  supply: number | null;
+  agentsCounted: number | null;
+  /** ריכוז היצע: HQ + בורסה (מה אחוז ההיצע יושב בשתי כתובות) */
+  hqSharePct: number | null;
+  exchangeSharePct: number | null;
+}
+
+let chainCache: { at: number; data: RoastChain } | null = null;
+
+async function chainIntegrity(): Promise<RoastChain> {
+  if (chainCache && Date.now() - chainCache.at < 300_000) return chainCache.data;
+  const fail: RoastChain = {
+    ok: false, measuredAt: new Date().toISOString(), conservationGapSaos: null, conserved: null,
+    wsaosBacked: null, wsaosLive: null, wsaosBacking: null, runsOpen: null, supply: null,
+    agentsCounted: null, hqSharePct: null, exchangeSharePct: null
+  };
+  const provider = new ethers.JsonRpcProvider(MESH_RPC, 31337, { batchMaxCount: 1 });
+  try {
+    const dep = JSON.parse(fs.readFileSync(MESH_DEPLOYMENT, "utf8")) as { ok?: boolean; contracts?: Record<string, string> };
+    const C = dep.contracts;
+    if (!dep.ok || !C) return fail;
+    const abi = (await import("./generated/SAOSMesh.json")) as unknown as { contracts: Array<{ name: string; abi: ethers.InterfaceAbi }> };
+    const abiOf = (n: string) => abi.contracts.find((c) => c.name === n)?.abi ?? [];
+    const ledger = new ethers.Contract(C.SAOSLedger!, abiOf("SAOSLedger"), provider);
+    const exchange = new ethers.Contract(C.SAOSExchange!, abiOf("SAOSExchange"), provider);
+    const identity = new ethers.Contract(C.SAOSIdentity!, abiOf("SAOSIdentity"), provider);
+    const hub = new ethers.Contract(C.SAOSMeshHub!, abiOf("SAOSMeshHub"), provider);
+    const [supplyB, runCountB, completedB, agentCountB, wsaosLiveB, exchangeLedgerBalB] = await Promise.all([
+      ledger.totalSupply(), hub.runCount(), hub.completedCount(), identity.agentCount(),
+      exchange.wSaosLive(), ledger.balanceOf(C.SAOSExchange!)
+    ]);
+    const supply = BigInt(supplyB);
+    // ספירה מלאה: כל סוכן + כל חוזה (בדיוק הביקורת שנערכה ברוסט v46)
+    let sum = 0n;
+    const n = Number(agentCountB);
+    for (let i = 0; i < n; i++) {
+      const a = await identity.agentAt(i);
+      sum += BigInt(await ledger.balanceOf(a.addr));
+    }
+    let hqBal = 0n;
+    for (const addr of Object.values(C)) {
+      sum += BigInt(await ledger.balanceOf(addr));
+    }
+    const operator = (dep as { operator?: string }).operator;
+    if (operator) hqBal = BigInt(await ledger.balanceOf(operator));
+    const gap = supply - sum; // חיובי = כסף שנטבע ולא נמצא (אין-כיסוי) — שלילי = נייר-על-נייר
+    const data: RoastChain = {
+      ok: true,
+      measuredAt: new Date().toISOString(),
+      conservationGapSaos: Number(ethers.formatEther(gap)),
+      conserved: gap === 0n,
+      wsaosBacked: BigInt(wsaosLiveB) <= BigInt(exchangeLedgerBalB),
+      wsaosLive: Number(ethers.formatEther(BigInt(wsaosLiveB))),
+      wsaosBacking: Number(ethers.formatEther(BigInt(exchangeLedgerBalB))),
+      runsOpen: Number(runCountB) - Number(completedB),
+      supply: Number(ethers.formatEther(supply)),
+      agentsCounted: n + Object.values(C).length,
+      hqSharePct: supply > 0n ? Math.round((Number(ethers.formatEther(hqBal)) / Number(ethers.formatEther(supply))) * 100) : null,
+      exchangeSharePct: supply > 0n ? Math.round((Number(ethers.formatEther(BigInt(exchangeLedgerBalB))) / Number(ethers.formatEther(supply))) * 100) : null
+    };
+    chainCache = { at: Date.now(), data };
+    return data;
+  } catch {
+    return fail;
+  } finally {
+    try { provider.destroy(); } catch { /* already dead */ }
+  }
+}
 
 /** מחיר נייר: מדיניות-הנמוך של SAOS-M — $0.001 בכוונה (מסומן ככזה בכל מקום) */
 const SAOS_POLICY_USD = 0.001;
@@ -89,6 +181,8 @@ export interface RoastData {
     attackerOpsPerHour: number | null;
     attackerActive: boolean | null;
   };
+  /** v46 — אמת-שרשרת חיה מהחוזים עצמם (ביקורת שלמות) */
+  chain: RoastChain;
   latency: RoastLatency[];
   gaps: RoastGap[];
 }
@@ -263,6 +357,51 @@ const ROAST_GAPS: RoastGap[] = [
       "הזהות שהבעלים הצהיר (A2Y1d3…) אינה שחזורה מאף גזירה סטנדרטית של אבן-הפינה (SLIP-0010 m/44'/501'/0'/0' נותן מפתח אחר). המסילה נשארת נעולה fail-closed עם אבחנה מדויקת — עד החלטת הבעלים. אף חתימה מזויפת לא נעשית במקום.",
     tone: "amber",
     status: "open"
+  },
+  {
+    id: "rotation-blindspot",
+    title: "v46 · חיילים 6/7/8 — מובטלים מלידה",
+    claim: "\"כל החיילים ברוטציה · המש מפעיל את כולם\"",
+    reality:
+      "הרוטציה הייתה initiator = signer(1 + runTick % 5) — רק 5 חיילים מתוך 8. קריאה חיה של טבלת הזהויות בשרשרת חשפה: לחיילים 6/7/8 יש runs=0 — אף פעם. תוקן: רוטציה %8 + הטיק נשמר בדיסק (runner-tick.json) — הפאזה שורדת מוות.",
+    tone: "rose",
+    status: "fixed"
+  },
+  {
+    id: "watchdog-suicide-loop",
+    title: "v46 · הכלב-השומר הרג את הראנר הבריא",
+    claim: "\"CYCLE WATCHDOG תופס הקפאות — אבחנה מדויקת\"",
+    reality:
+      "התקרה (8 דק') נקבעה כשהמחזור ארך 4-4.5 דק', אבל v30/v32 הוסיפו צעדים כנים איטיים (LLM+שושן+מגן+תזוזות) — מקרה-הקצה הלגיטימי התנגש בתקרה: 6 התאבדויות-שומר בחלון לוג אחד, כל אחת מאפסת runTick. תוקן: תקרה 8→20 דק' (מעל סכום-גרוע-המקרה ~17) + הטיק בדיסק — הספירלה נשברה.",
+    tone: "rose",
+    status: "fixed"
+  },
+  {
+    id: "dust-arb",
+    title: "v46 · ארב' של אבק — תיקון-דמה ב-$0.00000000000004",
+    claim: "\"בוט-ארב' מיישר את הבריכות למחיר-המדיניות\"",
+    reality:
+      "הרובוט תפס 'סטייה 26%' על מכירת 2.18e-13 WSOL — עסקה של 0.00000000000004 דולר — וביצע אותה בגאווה כ'תיקון'. סחר-אבק אינו תיקון. תוקן: מגן-אבק ARB_MIN_WSAOS=0.05 — סחר שאינו שווה ≥0.05 wSAOS נדלג בכנות ונרשם ביומן.",
+    tone: "amber",
+    status: "fixed"
+  },
+  {
+    id: "harvest-runtime-stale",
+    title: "v46 · harvestAll — בת-קוד מתה על השרשרת החיה",
+    claim: "\"קציר כל הבריכות בפעולה אחת — harvestAll\"",
+    reality:
+      "בשרתר-המקור harvestAll קרא this.harvest(i) — קריאה-חיצונית של החוזה לעצמו, שהופכת את msg.sender לחוזה → NotOwner revert. הפונקציה הייתה בת-קוד מתה מיום הפריסה; הראנר קצר אותה מ-v28.1 בקציר-פר-בריכה. המקור תוקן (_harvestCore פנימי) — אבל ה-runtime שעל השרשרת החיה הוא עדיין הישן: פריסה-מחדש הייתה מוחקת 636+ ריצות של היסטוריה. האמת מסומנת: קציר-העבודה מגיע מהמסלול הפר-בריכה.",
+    tone: "amber",
+    status: "honest"
+  },
+  {
+    id: "state-bloat",
+    title: "v46 · תפיחת-מצב — ה-dump גדל פי 6",
+    claim: "\"גיבוי שרשרת כל 30 בלוקים · נשלט\"",
+    reality:
+      "anvil --dump-state כותב את כל ההיסטוריה (כל הבלוקים+קבלות) לקובץ אחד: 18.4MB (v34, בלוק ~1843) → 111.8MB (v46, ~8.5K בלוקים) — צמיחה ליניארית לנצח. בקצב הנוכחי חצי-ג'יגה תוך שבועות. שתי העתקות (מצב-חי + מראה upload). אין גיזום ב-anvil — הפתרון הכנה: מיזוג-מראה מרוכז וניטור. הקובץ מחוץ לגיט (מוכח), הדיסק ב-26% — נפתח כפער פתוח עם מספרים.",
+    tone: "amber",
+    status: "open"
   }
 ];
 
@@ -271,14 +410,15 @@ const ROAST_GAPS: RoastGap[] = [
 export async function truthRoast(): Promise<RoastData> {
   const measuredAt = new Date().toISOString();
 
-  const [radar, mesh, keeper, herald, swarm, ambush, latency] = await Promise.all([
+  const [radar, mesh, keeper, herald, swarm, ambush, latency, chain] = await Promise.all([
     liquidityRadar().catch(() => null),
     meshStatus().catch(() => null),
     tinyJson<KeeperRoot>(KEEPER_URL),
     tinyJson<HeraldRoot>(HERALD_URL),
     tinyJson<SwarmRoot>(SWARM_URL),
     recoveryAmbushStatus().catch(() => null),
-    measureLatencies()
+    measureLatencies(),
+    chainIntegrity()
   ]);
 
   const realUsd = radar?.totals?.usdKnown ?? null;
@@ -328,11 +468,17 @@ export async function truthRoast(): Promise<RoastData> {
   const paper$ = paperUsd != null ? `$${Math.round(paperUsd)}` : "—";
   const paperPct = paperSharePct != null ? `${paperSharePct}%` : "—";
   const days = recovery.daysLeft ?? 28;
+  // v46 — השרשרת עצמה בפסק-הדין: ביקורת-שלמות חיה מהחוזים, לא מה-API שלנו
+  const chainSentence = !chain.ok
+    ? ""
+    : chain.conserved
+      ? ` ביקורת-שרשרת חיה: שימור הספרים מושלם (gap=0 · ${chain.agentsCounted ?? "?"} כתובות נספרו אחד-לאחד) — הנייר עקבי לפחות כלפי עצמו.`
+      : ` ביקורת-שרשרת חיה: פער שימור ${chain.conservationGapSaos ?? "?"} SAOS-M — כסף שנטבע ולא נמצא באף כיס.`;
   const verdict =
     `האורגניזם חי ומוכח — אבל הוא מעבדה: ${real$} כסף אמיתי מול ${paper$} נייר פנימי (${paperPct} מה"שווי"). ` +
     `השרת מתפרק ומתאחה בעצמו (${web.panicCures ?? "?"} פאניקות נרפאו), הסוכנים עובדים בקצן האמיתי, ` +
     `והפוטנציאל הכי גדול — מארב headcorner — תלוי בגורם חיצוני עם ${days} ימים שנותרו. ` +
-    `ריבונות חיצונית אמיתית תגיע רק עם כסף אמיתי בחוץ. זו האמת, והיא מוצגת בעיניים פקוחות.`;
+    `ריבונות חיצונית אמיתית תגיע רק עם כסף אמיתי בחוץ. זו האמת, והיא מוצגת בעיניים פקוחות.${chainSentence}`;
 
   return {
     ok: true,
@@ -350,6 +496,7 @@ export async function truthRoast(): Promise<RoastData> {
       nightAlerts: night?.work?.alerts ?? null
     },
     recovery,
+    chain,
     latency,
     gaps: ROAST_GAPS
   };

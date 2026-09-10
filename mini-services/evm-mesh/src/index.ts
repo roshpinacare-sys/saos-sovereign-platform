@@ -350,6 +350,35 @@ async function postRealWorkOrder(job: { mission: string; difficulty: number; rew
 }
 
 let runTick = 0;
+// v46 — שימור-runTick על פני הפעלות-מחדש: כל הרוטציות (מיזוג-חיילים ·
+// משימות · פעימת-XRP כל-עשירי · קציר כל-שלישי · העברה-ללא-עמלה כל-שלישי)
+// מוזנות מ-runTick — שהיה זיכרון-בלבד. הכלב-השומר/השומר מחזירים ראנר טרי
+// עם runTick=0 והרוטציה חוזרת להתחלה לנצח — חיילים 6/7/8 לא רצו אף פעם
+// (runs=0 בשרשרת — הוכחה חיה מהרוסט v46). הטיק נשמר בדיסק ונטען באתחול:
+// הפאזה שורדת מוות.
+const RUNTICK_PATH = path.resolve(import.meta.dir, "..", "state", "runner-tick.json");
+function loadRunTick(): number {
+  try {
+    const j = JSON.parse(fs.readFileSync(RUNTICK_PATH, "utf8")) as { tick?: number; at?: string };
+    if (typeof j.tick === "number" && Number.isFinite(j.tick) && j.tick >= 0) {
+      console.log(`[evm-mesh] v46 runTick resumed at ${j.tick} (saved ${j.at ?? "?"}) — rotations survive restarts`);
+      return j.tick;
+    }
+  } catch {
+    /* first boot / torn write — tick 0 */
+  }
+  return 0;
+}
+function saveRunTick(t: number): void {
+  try {
+    const tmp = `${RUNTICK_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ tick: t, at: new Date().toISOString() }));
+    fs.renameSync(tmp, RUNTICK_PATH);
+  } catch {
+    /* state dir gone — honest skip, next cycle retries */
+  }
+}
+runTick = loadRunTick();
 let keeperFails = 0; // v26 — mutual-watch fail streak for the keeper :3005
 
 // v28 — "לסדר את הבריכות": כל 6 הזוגות הידועים של המיקרו-גריד (האורקל
@@ -367,16 +396,20 @@ const fmtAmt = (v: bigint): string => {
 // v26.1 — CYCLE WATCHDOG: the runner froze twice tonight on a dead
 // keep-alive RPC socket (an in-flight ethers request that anvil never
 // answered — promise pending forever, cycle #1 frozen mid-identity-sync,
-// blocks stuck, process "alive" but dead). A cycle is bounded by design
-// (worst case: 100s LLM + 90s bloom + 110s scan + contract waits ≈ 5 min);
+// blocks stuck, process "alive" but dead). A cycle is bounded by design;
 // a cycle that exceeds this bound is a freeze BY DEFINITION — the runner
 // says so loudly and self-terminates; the keeper (≤60s) revives it fresh.
 // A sick cell dies visibly; the organism grows a new one.
 // v30 — האורגניזם גדל והמחזור התמלא: REAL WORK (≤60ש') + מיקרו-גריד + שושנים
 // + מגן + בורסה (חיבור+תזוזה+מסחר+ארב'+קציר) — מחזור מלא נמדד ~4-4.5 דקות.
-// התקרה עולה 5→8 דקות: תליית-שקע אמיתית עדיין נתפסת, אבל מחזור בריא לא
-// מפיל את עצמו (נלמד חי: self-terminate חוזר ב-runTick=0).
-const CYCLE_MAX_MS = 8 * 60_000;
+// v46 — הכלב-השומר הרג את הראנר שלו: תקרת 8 דקות נקבעה כשהמחזור ארך
+// 4-4.5 דקות, אבל v30/v32 הוסיפו צעדים איטיים כנים (LLM 60ש' + שושן
+// 90ש' + מגן 110ש' + תזוזות ≤200ש'×5 + XRP 60ש') — מקרה-הקצה הלגיטימי
+// התנגש בתקרה: 6 התאבדויות-שומר בחלון לוג אחד, כל אחת מאפסת את runTick.
+// אבחנה מדויקת: תליית-שקע מתה אמיתית עדיין תיתפס — אבל מחזור בריא
+// שנעשה ארוך מ-timeout-ים כנים אינו מוות. התקרה עולה 8→20 דקות (מעל
+// סכום-גרוע-המקרה ~17 דק') + הסוויפים נחתכו 200→120ש'.
+const CYCLE_MAX_MS = 20 * 60_000;
 
 async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
   hub: ethers.Contract;
@@ -473,7 +506,10 @@ async function autoCycle(): Promise<void> {
     // 4. a real mesh run — rotating initiators deliver the work + auto-enlist.
     //    v20: the run passes through SAOSMicrogrid (link #6) — every dispatch
     //    ticks the grids on-chain with the prices just posted.
-    const initiator = await provider.getSigner(1 + (runTick % 5));
+    //    v46 — ספסל-מלא: הרוטציה %5 הותירה את חיילים 6/7/8 מובטלים לנצח
+    //    (runs=0 בשרשרת — נתפס ברוסט v46). כל 8 החיילים ברוטציה — כולם
+    //    נרשמו, כולם ממולאים, כולם מקבלים ריצות.
+    const initiator = await provider.getSigner(1 + (runTick % 8));
     const intent = INTENTS[runTick % INTENTS.length] as string;
     const tx = await c.hub.connect(initiator).dispatch(intent);
     const rc = await tx.wait();
@@ -652,6 +688,7 @@ async function autoCycle(): Promise<void> {
       }
     }
     runTick += 1;
+    saveRunTick(runTick); // v46 — הפאזה שורדת מוות: הטיק נשמר בכל סוף-מחזור
   } catch (e) {
     console.log(`[evm-mesh] auto-cycle skipped: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`);
   } finally {
@@ -870,7 +907,9 @@ async function physicalMoveCycle(): Promise<void> {
       | undefined;
 
     if (eth?.canMove) {
-      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-eth" }, 200_000);
+      // v46 — 200→120ש': הסוויפ בפועל מסיים בשניות; 200ש' נתנו משקל-מוות
+      // למחזור הכללי (הכלב-השומר נתלה עליהם). מיתון כנה.
+      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-eth" }, 120_000);
       console.log(
         `[evm-mesh] תזוזה v30: sweep-eth → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} ETH` : String(r?.reason ?? "דילוג כנה")}`
       );
@@ -884,7 +923,7 @@ async function physicalMoveCycle(): Promise<void> {
     // v32 המשך — הארנקים הישנים (המפתחות ששרדו בכספת, תגלית v31):
     // ETH ישן 0x2767 → בית-האוצר · TRX TG6Srs → TMXHfFQd · SOL 9knfn → A2Y1d3
     if (legacy?.evm?.canMove) {
-      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-legacy-eth" }, 200_000);
+      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-legacy-eth" }, 120_000);
       console.log(
         `[evm-mesh] תזוזה v32: sweep-legacy-eth → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} ETH` : String(r?.reason ?? "דילוג כנה")}`
       );
@@ -980,6 +1019,10 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
   }
 
   // ב. בוט-ארב' (האוצר): הבריכות מיושרות אל מחיר-המדיניות (oracleUsd/0.001)
+  //    v46 — מגן-אבק: הרוסט תפס את הארב' "מתקן" סטייה 26% במכירת 2.18e-13
+  //    WSOL — עסקה של $0.00000000000004. סחר-אבק אינו תיקון; גודל שאינו
+  //    שווה ≥0.05 wSAOS (או שהמכסה שלו) נדלג בכנות — היומן אומר זאת.
+  const ARB_MIN_WSAOS = ethers.parseEther("0.05");
   for (const p of pools) {
     try {
       if (p.rA === 0n || p.rB === 0n) continue;
@@ -1000,6 +1043,10 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
         }
         const q = (await exchange.quote(p.id, true, size)) as bigint;
         if (q <= 0n) continue;
+        if (q < ARB_MIN_WSAOS) {
+          console.log(`[evm-mesh] בורסה: ארב' ${symbol} — סחר-אבק (שווי ${fmtAmt(q)} wSAOS < 0.05) — דילוג כנה v46`);
+          continue;
+        }
         const tx = await exchange.connect(treasury).swapExactIn(p.id, true, size, (q * 98n) / 100n);
         await tx.wait();
         console.log(`[evm-mesh] בורסה: ארב' ${symbol} — האוצר מכר ${fmtAmt(size)} (סטייה ${(dev * 100).toFixed(2)}% ← תיקון)`);
@@ -1009,6 +1056,10 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
         const size = minBig((p.rB * 2n) / 100n, treasuryWsaos);
         if (size <= 0n) {
           console.log(`[evm-mesh] בורסה: ארב' ${symbol} — אין wSAOS באוצר (דילוג כנה)`);
+          continue;
+        }
+        if (size < ARB_MIN_WSAOS) {
+          console.log(`[evm-mesh] בורסה: ארב' ${symbol} — סחר-אבק (${fmtAmt(size)} wSAOS < 0.05) — דילוג כנה v46`);
           continue;
         }
         const q = (await exchange.quote(p.id, false, size)) as bigint;
@@ -1091,14 +1142,21 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
         await (await exchange.harvest(BigInt(i))).wait();
         harvestedPools += 1;
       }
+      // v46 — רזרבת-ארב' לאוצר: הקציר הישן שאב את כל ה-wSAOS של האוצר
+      // (יתרה 0) ושיתק את בוט-הארב' בצד-הקנייה — בריכת WSOL נתקעה
+      // בסטייה 26-29% כי "אין wSAOS באוצר" (נתפס ברוסט v46). מעתה נשארים
+      // 50 wSAOS באוצר כרזרבת-ארב'; רק העודף זורם לקופת-העבודה. הגיבוי
+      // לעולם לא נשבר: wSaosLive מכסה 1:1 (נאמת חי — GAP=0).
+      const ARB_RESERVE = ethers.parseEther("50");
       const treasuryWsaos = (await exchange.balanceOf(wsaosId, treasuryAddr)) as bigint;
-      if (treasuryWsaos > ethers.parseEther("2")) {
-        await (await exchange.connect(treasury).withdrawSaos(treasuryWsaos)).wait();
+      if (treasuryWsaos > ARB_RESERVE + ethers.parseEther("2")) {
+        const drain = treasuryWsaos - ARB_RESERVE;
+        await (await exchange.connect(treasury).withdrawSaos(drain)).wait();
         const tBal = (await ledger.balanceOf(treasuryAddr)) as bigint;
         if (tBal > 0n) {
           await (await ledger.connect(treasury).transfer(state.contracts.SAOSWorkBoard as string, tBal)).wait();
           console.log(
-            `[evm-mesh] בורסה: קציר-החוצה — ${harvestedPools} בריכות · ${fmtAmt(treasuryWsaos)} SAOS-M נזילות זרמו לקופת-העבודה (REAL WORK)`
+            `[evm-mesh] בורסה: קציר-החוצה — ${harvestedPools} בריכות · ${fmtAmt(drain)} SAOS-M נזילות זרמו לקופת-העבודה (REAL WORK) · 50 wSAOS נשמרו כרזרבת-ארב' (v46)`
           );
         }
       }
@@ -1221,6 +1279,7 @@ async function watchdog(): Promise<void> {
     selfHealDeployment(); // v34 — addresses may have been wiped with the state
     if (!(await meshAlive())) await deployMesh();
     runTick = 0;
+    saveRunTick(0); // v46 — איפוס-מודע נשמר (regenesis = פאזה חדשה)
   } catch (e) {
     console.log(`[evm-mesh] watchdog failed: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`);
   } finally {
@@ -1242,6 +1301,7 @@ async function artifactWatcher(): Promise<void> {
       RT.artifactMtime = st.mtimeMs;
       await deployMesh();
       runTick = 0;
+      saveRunTick(0); // v46 — איפוס-מודע נשמר (redeploy = פאזה חדשה)
       RT.busy = false;
     }
   } catch {
@@ -1368,7 +1428,7 @@ async function main(): Promise<void> {
   mirrorChainState();
   RT.timers.push(setInterval(() => mirrorChainState(), STATE_MIRROR_MS));
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v30: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה + burn לדלתא שלילית) · PHYSICAL MOVE 4.11 (תזוזה v30: הכסף זז פיזית — sweep-eth/sweep-bsc לבית-האוצר 0x01Bd · פעימת XRPL חתומה כל מחזור עשירי) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 5min (self-terminate on frozen RPC socket) · provider destroyed per cycle (socket-leak fix)");
+  console.log("[evm-mesh] auto-runner v30: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה + burn לדלתא שלילית) · PHYSICAL MOVE 4.11 (תזוזה v30: הכסף זז פיזית — sweep-eth/sweep-bsc לבית-האוצר 0x01Bd · פעימת XRPL חתומה כל מחזור עשירי) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 20min v46 (self-terminate on true frozen socket — healthy slow cycles live) · runTick PERSISTED v46 (rotations survive restarts) · provider destroyed per cycle (socket-leak fix)");
 }
 
 void main().catch((e) => {
