@@ -35,7 +35,12 @@ import { assertTrustedEndpoints } from "./security";
 
 // ─── chains ─────────────────────────────────────────────────────────────────
 
-export type RelayChain = "ethereum" | "bsc";
+export type RelayChain =
+  | "ethereum" | "bsc"
+  // v51 בית-היוצר לגשרים: אותו bytecode פורש על כל רשת EVM —
+  // שש הדלתות החדשות ממפת-הרשתות v48 הופכות לנתיבי-relay
+  // מלאים ברישום אחד. הפריסה נשארת מגודרת-כנות (readiness → funded).
+  | "polygon" | "arbitrum" | "optimism" | "base" | "avalanche" | "gnosis";
 
 const CHAINS: Record<RelayChain, {
   endpoints: string[];
@@ -57,12 +62,61 @@ const CHAINS: Record<RelayChain, {
     network: "BSC",
     explorerTx: (t) => `https://bscscan.com/tx/${t}`,
     explorerAddr: (a) => `https://bscscan.com/address/${a}`
+  },
+  polygon: {
+    endpoints: ["https://polygon-bor-rpc.publicnode.com"],
+    chainId: 137,
+    network: "POLYGON",
+    explorerTx: (t) => `https://polygonscan.com/tx/${t}`,
+    explorerAddr: (a) => `https://polygonscan.com/address/${a}`
+  },
+  arbitrum: {
+    endpoints: ["https://arbitrum-one-rpc.publicnode.com"],
+    chainId: 42161,
+    network: "ARBITRUM",
+    explorerTx: (t) => `https://arbiscan.io/tx/${t}`,
+    explorerAddr: (a) => `https://arbiscan.io/address/${a}`
+  },
+  optimism: {
+    endpoints: ["https://optimism-rpc.publicnode.com"],
+    chainId: 10,
+    network: "OPTIMISM",
+    explorerTx: (t) => `https://optimistic.etherscan.io/tx/${t}`,
+    explorerAddr: (a) => `https://optimistic.etherscan.io/address/${a}`
+  },
+  base: {
+    endpoints: ["https://base-rpc.publicnode.com"],
+    chainId: 8453,
+    network: "BASE",
+    explorerTx: (t) => `https://basescan.org/tx/${t}`,
+    explorerAddr: (a) => `https://basescan.org/address/${a}`
+  },
+  avalanche: {
+    endpoints: ["https://avalanche-c-chain-rpc.publicnode.com"],
+    chainId: 43114,
+    network: "AVALANCHE",
+    explorerTx: (t) => `https://snowtrace.io/tx/${t}`,
+    explorerAddr: (a) => `https://snowtrace.io/address/${a}`
+  },
+  gnosis: {
+    endpoints: ["https://gnosis-rpc.publicnode.com"],
+    chainId: 100,
+    network: "GNOSIS",
+    explorerTx: (t) => `https://gnosisscan.io/tx/${t}`,
+    explorerAddr: (a) => `https://gnosisscan.io/address/${a}`
   }
 };
 
 export function chainCfg(chain: RelayChain) {// v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
+// v51: שש הרשתות החדשות — כולן publicnode, כולן ברישום המהימנים מ-v48.
 assertTrustedEndpoints(
-  ["https://ethereum-rpc.publicnode.com", "https://eth.drpc.org", "https://rpc.mevblocker.io", "https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"],
+  [
+    "https://ethereum-rpc.publicnode.com", "https://eth.drpc.org", "https://rpc.mevblocker.io",
+    "https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org",
+    "https://polygon-bor-rpc.publicnode.com", "https://arbitrum-one-rpc.publicnode.com",
+    "https://optimism-rpc.publicnode.com", "https://base-rpc.publicnode.com",
+    "https://avalanche-c-chain-rpc.publicnode.com", "https://gnosis-rpc.publicnode.com"
+  ],
   "relay-contract"
 );
 
@@ -113,7 +167,10 @@ export interface RelayReadiness {
   at: string;
 }
 
-const NATIVE = { ethereum: "ETH", bsc: "BNB" } as const;
+const NATIVE: Record<RelayChain, string> = {
+  ethereum: "ETH", bsc: "BNB", polygon: "POL", arbitrum: "ETH",
+  optimism: "ETH", base: "ETH", avalanche: "AVAX", gnosis: "xDAI"
+};
 
 export async function relayReadiness(chain: RelayChain): Promise<RelayReadiness> {
   const cfg = CHAINS[chain];

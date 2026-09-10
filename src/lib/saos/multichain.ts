@@ -170,7 +170,7 @@ const CHAINS: ChainDef[] = [
     id: "cosmos", heName: "קוסמוס", symbol: "ATOM",
     family: "secp256k1", curve: "secp256k1",
     path: "m/44'/118'/0'/0/0", kind: "derived", decimals: 6,
-    probe: "cosmos-rest", explorer: "https://www.mintscan.io/cosmos/account/",
+    probe: "cosmos-rest", explorer: "https://mintscan.io/cosmos/account/",
     note: "bech32 cosmos1… — משפחת-על ל-50+ רשתות Cosmos (עם מסלולים אחרים)"
   },
   // — משפחת ed25519 —

@@ -19,6 +19,7 @@ import { ViewOverview } from "@/components/saos/views/overview";
 import { ViewWorth } from "@/components/saos/views/worth";
 import { RoastView } from "@/components/saos/views/roast";
 import { NetworkMapView } from "@/components/saos/views/networkmap";
+import { BridgesView } from "@/components/saos/views/bridges";
 import { Network360View } from "@/components/saos/views/network360";
 import { SecurityView } from "@/components/saos/views/security";
 import { PermissionsView } from "@/components/saos/views/permissions";
@@ -48,6 +49,7 @@ const TITLES: Record<ViewId, string> = {
   worth: "מימוש — שווי הרשת החי",
   roast: "רוסט-אמת — חשיפה עצמית",
   networkmap: "מפת-רשתות — הארנק הרב-רשתי",
+  bridges: "בית-היוצר לגשרים — תשתית לעוד רשתות",
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
   reshut: "רשות — מטריצת הסמכויות",
@@ -103,6 +105,7 @@ export default function Home() {
         {view === "worth" && <ViewWorth />}
         {view === "roast" && <RoastView />}
         {view === "networkmap" && <NetworkMapView />}
+        {view === "bridges" && <BridgesView />}
         {view === "network360" && <Network360View />}
         {view === "security" && <SecurityView />}
         {view === "reshut" && <PermissionsView />}

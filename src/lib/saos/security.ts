@@ -130,7 +130,9 @@ export const DISPLAY_HOSTS: string[] = [
   "explorer.aptoslabs.com",
   "suiscan.xyz",
   "tzkt.io",
-  "explorer.near.org"
+  "explorer.near.org",
+  // — v51 בית-היוצר לגשרים: קישור תצוגה של נתיב קרדאנו (מתועד בלבד) —
+  "cardanoscan.io"
 ];
 const DISPLAY_SET = new Set(DISPLAY_HOSTS);
 

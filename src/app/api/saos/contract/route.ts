@@ -32,7 +32,10 @@ export const dynamic = "force-dynamic";
  * one relay per seal · one enlist per agent · failures recorded as rows.
  */
 
-const NETWORK_OF: Record<RelayChain, string> = { ethereum: "ETHEREUM", bsc: "BSC" };
+const NETWORK_OF: Record<RelayChain, string> = {
+  ethereum: "ETHEREUM", bsc: "BSC", polygon: "POLYGON", arbitrum: "ARBITRUM",
+  optimism: "OPTIMISM", base: "BASE", avalanche: "AVALANCHE", gnosis: "GNOSIS"
+};
 
 function safeParse(s: string | null): Record<string, unknown> | null {
   if (!s) return null;
@@ -180,7 +183,15 @@ export async function POST(req: Request) {
       agent?: unknown;
     };
     const action = typeof obj.action === "string" ? obj.action : "";
-    const chain: RelayChain = obj.chain === "bsc" ? "bsc" : "ethereum";
+    // v51: רשימת-היתר של 8 רשתות ה-relay — פריסה על רשת חדשה עוברת
+    // את אותם שערי-כנות (readiness → funded×2) כמו ETH/BSC המוכחות.
+    const CHAIN_WHITELIST: RelayChain[] = [
+      "ethereum", "bsc", "polygon", "arbitrum", "optimism", "base", "avalanche", "gnosis"
+    ];
+    const chain: RelayChain =
+      typeof obj.chain === "string" && (CHAIN_WHITELIST as string[]).includes(obj.chain)
+        ? (obj.chain as RelayChain)
+        : "ethereum";
 
     // ─── deploy ─────────────────────────────────────────────────────────────
     if (action === "deploy") {
