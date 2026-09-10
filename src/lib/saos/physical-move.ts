@@ -48,6 +48,7 @@ import { withVaultMember } from "@/lib/vault-seal";
 import { guardPermission } from "./permissions";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { logOp } from "./oplog";
+import { withXrpSequence } from "./xrp-sequence-lock";
 
 // ─── כתובות ציבוריות (הזרע חתום; כאן רק הכתובות) ───────────────────────────
 
@@ -709,13 +710,13 @@ async function sweepEvm(net: keyof typeof EVM_NETS): Promise<MoveResult> {
 
 // ─── ב. פעימת XRPL — החשבון חותם עסקה אמיתית בספר ──────────────────────────
 
-async function heartbeatXrp(): Promise<MoveResult> {
+async function heartbeatXrpCritical() {
   const m = await measureXrp();
-  if (!m.ok) return { ok: false, action: "xrp-heartbeat", moved: false, reason: m.note };
+  if (!m.ok) return { kind: "measure-failed" as const, note: m.note };
   const feeDrops = Number(XRP_FEE_DROPS);
   const spendableDrops = Math.round(Number(m.spendable) * 1e6);
   if (spendableDrops < feeDrops * 2) {
-    return { ok: true, action: "xrp-heartbeat", moved: false, reason: m.note };
+    return { kind: "gated" as const, note: m.note };
   }
 
   const keys = await deriveCornerstoneKeys(); // fail-closed מול r3Tq66
@@ -745,8 +746,24 @@ async function heartbeatXrp(): Promise<MoveResult> {
   }>("submit", [{ tx_blob: tx.tx_blob, fail_hard: true }]);
   const engine = sub?.engine_result ?? "";
   const hash = sub?.tx_json?.hash ?? tx.hash;
+  return { kind: "sent" as const, m, engine, hash, accepted: sub?.accepted === true };
+}
+
+async function heartbeatXrp(): Promise<MoveResult> {
+  // v50 — המקטע הקריטי (מדידה ← חתימה ← הגשה) רץ תחת נעילת-הרצף המשותפת
+  // ל-anchor-xrp: פעימת-החיים ועוגן ה-weave חותמים מאותו חשבון r3Tq66 —
+  // בלי הנעילה היו שתי קריאוּת באותו חלון מחזיקות את אותו מספר רצף
+  // (מירוץ-הרצפים של v49 — נסגר כאן).
+  const pulse = await withXrpSequence(() => heartbeatXrpCritical());
+  if (pulse.kind === "measure-failed") {
+    return { ok: false, action: "xrp-heartbeat", moved: false, reason: pulse.note };
+  }
+  if (pulse.kind === "gated") {
+    return { ok: true, action: "xrp-heartbeat", moved: false, reason: pulse.note };
+  }
+  const { m, engine, hash } = pulse;
   const tentative = engine.startsWith("tes");
-  const ok = tentative || sub?.accepted === true;
+  const ok = tentative || pulse.accepted;
   void logOp("physical.xrp-heartbeat", {
     actor: "hq",
     ok,

@@ -19,6 +19,7 @@ import {
   Gauge as GaugeIcon,
   History,
   KeyRound,
+  Landmark,
   Lock,
   RadioTower,
   RefreshCw,
@@ -79,7 +80,9 @@ import type {
   SealStatusData,
   StatusData,
   VaultData,
-  VaultPostResult
+  VaultPostResult,
+  WallData,
+  WallRebuildResult
 } from "../types";
 import { PageHead } from "../shell";
 import { cn } from "../ui";
@@ -786,6 +789,59 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
       setXrpResult({ ok: false, error: res.error ?? "כשל רשת" });
       toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
     }
+  };
+
+  // ─── v50: חומת-העוגנים — אימות חי read-only של חמשת העוגנים מהמיינטנטים ──
+  const wallLive = useLive<WallData>("/api/saos/anchor/wall", 60000);
+  const [wallRebuilding, setWallRebuilding] = useState(false);
+  const [wallRebuildResult, setWallRebuildResult] = useState<WallRebuildResult | null>(null);
+
+  const doWallRebuild = async () => {
+    if (wallRebuilding) return;
+    setWallRebuilding(true);
+    setWallRebuildResult(null);
+    const res = await postJson<WallRebuildResult>("/api/saos/anchor/wall", { rebuild: true });
+    setWallRebuilding(false);
+    if (res.ok && res.data) {
+      setWallRebuildResult(res.data);
+      wallLive.refresh();
+      evmLedger.refresh();
+      svmLedger.refresh();
+      bscLedger.refresh();
+      tronLedger.refresh();
+      xrpLedger.refresh();
+      const created = res.data.created?.length ?? 0;
+      const skipped = res.data.skipped?.length ?? 0;
+      toast.push({
+        tone: created > 0 ? "green" : "gold",
+        title:
+          created > 0
+            ? `הספר שוחזר — ${created} שורות מאמת-השרשרת`
+            : skipped > 0
+              ? "שחזור חלקי — הכנות"
+              : "הספר כבר שלם",
+        desc:
+          created > 0
+            ? `${res.data.created.map((c) => c.network).join(" · ")} — השורש נקרא מהשרשרת עצמה`
+            : skipped > 0
+              ? `${skipped} עוגנים נדלגו בכנות (הבדיקה החיה לא עברה כרגע)`
+              : "כל חמשת העוגנים כבר רשומים ב-DB"
+      });
+    } else {
+      toast.push({ tone: "rose", title: "השחזור נכשל", desc: res.error ?? "השרת לא ענה" });
+    }
+  };
+
+  const doWallRecheck = async () => {
+    setWallRebuilding(true);
+    try {
+      await fetch("/api/saos/anchor/wall?force=1", { cache: "no-store" });
+      wallLive.refresh();
+      toast.push({ tone: "green", title: "החומה נבדקה מחדש", desc: "אימות טרי מחמש השרשראות" });
+    } catch {
+      toast.push({ tone: "rose", title: "בדיקת-מחדש נכשלה", desc: "כשל רשת" });
+    }
+    setWallRebuilding(false);
   };
 
   // ─── v9: פעימה אוטומטית + מדידות חיות ─────────────────────────────────
@@ -2048,6 +2104,198 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
                   ))}
                 </div>
               )}
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v50: חומת-העוגנים — 5 רשתות, 5 הוכחות, אמת מהשרשרת ─────────── */}
+      <Panel accent={(wallLive.data?.verifiedCount ?? 0) >= 5}>
+        <PanelHeader
+          icon={<Landmark size={15} />}
+          title="חומת-העוגנים — חמש רשתות, חמש הוכחות חיות"
+          sub="איפוס-הסביבה (2026-09-10) מחק את ספרי ה-DB המקומיים — אבל העוגנים חיים במיינטנטים, בלתי-ניתנים למחיקה. החומה בודקת כל עוגן ישירות מהשרשרת שלו (read-only, אף מפתח לא נגע): קבלה, חותם, בלוק — והשורש עצמו נקרא מהמטען שעל השרשרת, לא מהרישום. אותם 24 המילים חתמו על חמש הרשתות."
+          actions={
+            wallLive.data ? (
+              <Pill tone={wallLive.data.verifiedCount >= 5 ? "green" : wallLive.data.reachableCount > 0 ? "gold" : "zinc"}>
+                <ShieldCheck size={10} />
+                {wallLive.data.verifiedCount}/{wallLive.data.wall.length} מאומתות
+              </Pill>
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-4">
+          {wallLive.loading && !wallLive.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : wallLive.error && !wallLive.data ? (
+            <ErrorNotice message={wallLive.error} onRetry={wallLive.refresh} />
+          ) : !wallLive.data?.ok ? (
+            <Callout tone="rose" icon={<Lock size={14} />}>
+              <span className="font-semibold">החומה לא נבדקה:</span>{" "}
+              <span dir="auto">{wallLive.data?.error ?? "שגיאה לא ידועה"}</span>
+            </Callout>
+          ) : (
+            <>
+              {/* מחווני-החומה */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat
+                  label="עוגנים מאומתים חי"
+                  value={`${wallLive.data.verifiedCount}/${wallLive.data.wall.length}`}
+                  icon={<ShieldCheck size={13} />}
+                />
+                <SealStat
+                  label="שרשראות שענו"
+                  value={`${wallLive.data.reachableCount}/${wallLive.data.wall.length}`}
+                  icon={<RadioTower size={13} />}
+                />
+                <SealStat
+                  label="מקור האמת"
+                  value="השרשרת עצמה"
+                  icon={<Landmark size={13} />}
+                />
+                <SealStat
+                  label="משך הבדיקה"
+                  value={`${(wallLive.data.tookMs / 1000).toFixed(1)}ש'`}
+                  icon={<History size={13} />}
+                  ltr
+                />
+              </div>
+
+              {/* שורות החומה — כרטיס לכל רשת */}
+              <div className="space-y-2">
+                {wallLive.data.wall.map((w) => (
+                  <div
+                    key={w.network}
+                    className={cn(
+                      "rounded-xl border px-3.5 py-3 space-y-2 transition-colors",
+                      w.ok
+                        ? "border-emerald-400/20 bg-emerald-400/[0.03] hover:bg-emerald-400/[0.05]"
+                        : w.reachable
+                          ? "border-amber-400/25 bg-amber-400/[0.03]"
+                          : "border-rose-400/25 bg-rose-400/[0.02]"
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Pill tone={w.ok ? "green" : w.reachable ? "gold" : "rose"}>
+                          {w.ok ? <CheckCircle2 size={10} /> : <RadioTower size={10} />}
+                          {w.network}
+                        </Pill>
+                        <span className="text-[11px] text-zinc-500">{w.heName} · {w.firedIn}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                        <span dir="ltr" className="font-mono">{w.successMarker ?? "—"}</span>
+                        {w.block != null && (
+                          <span dir="ltr" className="font-mono">
+                            {w.network === "SOLANA" ? "slot" : w.network === "XRPL" ? "ledger" : "block"}{" "}
+                            {w.block.toLocaleString("en-US")}
+                          </span>
+                        )}
+                        <a
+                          href={w.explorer}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-amber-300/80 underline underline-offset-2 hover:text-amber-200"
+                        >
+                          {w.explorerName}
+                        </a>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+                      <span dir="ltr" className="font-mono text-zinc-400">{short(w.txid, 18)}</span>
+                      <CopyBtn text={w.txid} size={11} />
+                      {w.root ? (
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-zinc-500">שורש מהשרשרת:</span>
+                          <span dir="ltr" className="font-mono text-amber-300/90">{short(w.root, 14)}</span>
+                          {w.sealHeight != null && <span className="text-zinc-600">h={w.sealHeight}</span>}
+                        </span>
+                      ) : (
+                        <span className="text-zinc-600">שורש: — (המטען לא נקרא)</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Tag tone={w.signatoryMatches === true ? "green" : w.signatoryMatches === null ? "zinc" : "rose"}>
+                        <Fingerprint size={11} /> {w.signatoryLabel}
+                        {w.signatoryMatches === true ? " ✓" : w.signatoryMatches === false ? " ✗" : ""}
+                      </Tag>
+                      {w.payloadProtocol === "saos-weave/v1" ? (
+                        <Tag tone="green"><BadgeCheck size={11} /> saos-weave/v1 ✓</Tag>
+                      ) : (
+                        <Tag tone="zinc">מטען weave: —</Tag>
+                      )}
+                      {w.blockMatches === true && <Tag tone="green">בלוק מתואם להיסטוריה ✓</Tag>}
+                      {w.blockMatches === false && <Tag tone="rose">בלוק חריג!</Tag>}
+                      {w.error && (
+                        <Tag tone="rose">
+                          <RadioTower size={11} /> {w.error.slice(0, 60)}
+                        </Tag>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* פעולות החומה */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Btn variant="secondary" size="sm" onClick={doWallRecheck} disabled={wallRebuilding} loading={wallRebuilding}>
+                  <RefreshCw size={13} />
+                  בדוק את החומה מחדש
+                </Btn>
+                <Btn variant="primary" size="sm" onClick={doWallRebuild} disabled={wallRebuilding} loading={wallRebuilding}>
+                  <Landmark size={13} />
+                  שחזר את הספר המקומי מאמת-השרשרת
+                </Btn>
+                <p className="text-[11px] text-zinc-500 leading-relaxed flex-1">
+                  השחזור בונה מחדש שורות AnchorTx לעוגנים שאומתו חי באותה נשימה — אידמפוטנטי לפי txid,
+                  כישלון-בדיקה = דילוג כנה. ספרי ה-DB נבנים מהשרשרות, לא מהזיכרון.
+                </p>
+              </div>
+
+              {/* תוצאת השחזור */}
+              {wallRebuildResult && (
+                <Callout
+                  tone={(wallRebuildResult.created?.length ?? 0) > 0 ? "green" : (wallRebuildResult.skipped?.length ?? 0) > 0 ? "gold" : "zinc"}
+                  icon={<Landmark size={14} />}
+                >
+                  <div className="space-y-1">
+                    <p className="font-semibold">
+                      שחזור הספר —{" "}
+                      {(wallRebuildResult.created?.length ?? 0) > 0
+                        ? `${wallRebuildResult.created.length} שורות נוצרו: ${wallRebuildResult.created.map((c) => c.network).join(" · ")}`
+                        : "הספר כבר היה שלם"}
+                      {" · "}
+                      {wallRebuildResult.existing?.length ?? 0} קיימות
+                      {(wallRebuildResult.skipped?.length ?? 0) > 0 &&
+                        ` · ${wallRebuildResult.skipped.length} נדלגו בכנות`}
+                    </p>
+                    {wallRebuildResult.receipt && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-zinc-500">קבלה משורשרת:</span>
+                        <span dir="ltr" className="font-mono text-[10px] text-zinc-400">
+                          {short(wallRebuildResult.receipt, 20)}
+                        </span>
+                        <CopyBtn text={wallRebuildResult.receipt} size={11} />
+                      </div>
+                    )}
+                  </div>
+                </Callout>
+              )}
+
+              <Callout tone="zinc" icon={<Landmark size={14} />}>
+                <span className="font-semibold">האמת המצטברת של החומה:</span>{" "}
+                שני שורשים, מפתח אחד, חמש רשתות —{" "}
+                <span dir="ltr" className="font-mono text-amber-300/90">6097f929…</span> חקוק על
+                ETHEREUM · BSC · SOLANA (חותם #1 של השרשרת המקומית הקודמת),{" "}
+                <span dir="ltr" className="font-mono text-amber-300/90">39575b3b…</span> חקוק על TRON ·
+                XRPL (חותם #1 שלאחר הפריסה מחדש). נמדד{" "}
+                {wallLive.data.cached ? `(מטמון, ${timeAgo(wallLive.data.measuredAt)})` : `חי ב-${timeAgo(wallLive.data.measuredAt)}`}
+                {" · "}ספר מקומי: {Object.entries(wallLive.data.ledgerCounts ?? {}).map(([n, c]) => `${n} ${c}`).join(" · ") || "ריק"}.
+              </Callout>
             </>
           )}
         </PanelBody>

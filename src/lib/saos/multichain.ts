@@ -66,13 +66,13 @@ const EVM_CHAINS: Array<{ id: string; heName: string; symbol: string; url: strin
     id: "ethereum", heName: "את'ריום", symbol: "ETH",
     url: "https://ethereum-rpc.publicnode.com", chainId: 1,
     explorer: "https://etherscan.io/address/",
-    anchored: { txid: "0x4d3c3d56…", link: "https://etherscan.io/tx/0x4d3c3d56c7d3c9d64ea35d8d0e69b9d2c236a41f1f2e4d3a5b6c7d8e9f0a1b2c", label: "עוגן מיינטנט v45 · block 25944802" }
+    anchored: { txid: "0x4d3c3d56…", link: "https://etherscan.io/tx/0x4d3c3d56ee526a3685553619e9791d1418fbebe096314316ed73e09b6fc0d6ef", label: "עוגן מיינטנט v45 · block 25944802 · אומת חי מהחומה v50" }
   },
   {
     id: "bsc", heName: "BNB Smart Chain", symbol: "BNB",
     url: "https://bsc-rpc.publicnode.com", chainId: 56,
     explorer: "https://bscscan.com/address/",
-    anchored: { txid: "0x03961d12…", link: "https://bscscan.com/tx/0x03961d12c7a5e9f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b", label: "עוגן מיינטנט v45 · block 121011726" }
+    anchored: { txid: "0x03961d12…", link: "https://bscscan.com/tx/0x03961d12ac1b5d29eac5e16f88ea780593fa7746c9f209a08814cc59bd7d22e9", label: "עוגן מיינטנט v45 · block 121011726 · אומת חי מהחומה v50" }
   },
   {
     id: "polygon", heName: "פוליגון", symbol: "POL",
@@ -155,6 +155,7 @@ const CHAINS: ChainDef[] = [
     family: "secp256k1", curve: "secp256k1",
     path: "m/44'/195'/0'/0/0", kind: "derived", decimals: 6,
     probe: "tron-api", explorer: "https://tronscan.org/#/address/",
+    anchored: { txid: "3b40a8da…", link: "https://tronscan.org/#/transaction/3b40a8dac9cd00c076802f5f6d7e674bcfff38cd72d854de9d7841aee727acfe", label: "עוגן TRON מיינטנט v49 · block 86124584 · אומת חי מהחומה v50" },
     note: "מאומת-משולש חי (v47) — TMXHfFQd…"
   },
   {
@@ -162,6 +163,7 @@ const CHAINS: ChainDef[] = [
     family: "secp256k1", curve: "secp256k1",
     path: "m/44'/144'/0'/0/0", kind: "derived", decimals: 6,
     probe: "xrp-rpc", explorer: "https://livenet.xrpl.org/accounts/",
+    anchored: { txid: "0C846CB5…", link: "https://livenet.xrpl.org/transactions/0C846CB503F336B6F934FBA8F2CF108F2AECECFB88A086D26567F51589FB5855", label: "עוגן XRPL מיינטנט v49 · ledger 106890679 · אומת חי מהחומה v50" },
     note: "🔥 v48 גילוי: הקידוד הנכון (אלפבית XRP) משחזר בדיוק את r3Tq66… — תיקון-כנות ל-v45 שסימן 'מוצהר בלבד'"
   },
   {

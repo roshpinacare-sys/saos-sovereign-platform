@@ -46,6 +46,7 @@ import https from "https";
 import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
 import { deriveHeadcornerXrp } from "./cornerstone-derive";
+import { withXrpSequence } from "./xrp-sequence-lock";
 
 // ─── endpoints ─────────────────────────────────────────────────────────────
 
@@ -289,7 +290,10 @@ export async function anchorSealLiveOnXrp(seal: XrpLiveSeal): Promise<XrpAnchorO
   // 1) derive + double self-verify from the CORNERSTONE (fail-closed)
   const key = await deriveAndVerify();
 
-  const sent = await (async () => {
+  // v50 — מקטע קריטי תחת נעילת-רצף: מקריאת הרצף ועד ההגשה. פעימות-החיים
+  // של physical-move חותמות מאותו חשבון — בלי הנעילה, שתי קריאוּת באותו
+  // חלון היו מחזיקות את אותו מספר רצף (מירוץ-הרצפים, פער v49).
+  const sent = await withXrpSequence(async () => {
     // 2) live measurements — sequence, ledger window, reserve gate
     const [acct, server] = await Promise.all([
       xrplRpc<{ account_data?: { Balance?: string; Sequence?: number } }>("account_info", [
@@ -344,7 +348,7 @@ export async function anchorSealLiveOnXrp(seal: XrpLiveSeal): Promise<XrpAnchorO
       );
     }
     return { hash, sequence, engine };
-  })();
+  });
 
   // 5) inclusion proof — validated ledger + tesSUCCESS + memo read-back
   let confirmed = false;

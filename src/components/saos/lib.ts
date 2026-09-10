@@ -132,8 +132,8 @@ export const fmt = (n: number): string =>
 export const fmtInt = (n: number): string =>
   n.toLocaleString("he-IL", { maximumFractionDigits: 0 });
 
-export const short = (s: string | null | undefined): string =>
-  s && s.length > 18 ? `${s.slice(0, 10)}…${s.slice(-6)}` : s ?? "—";
+export const short = (s: string | null | undefined, head = 10): string =>
+  s && s.length > 18 ? `${s.slice(0, head)}…${s.slice(-6)}` : s ?? "—";
 
 export function timeAgo(at: string | number | null | undefined): string {
   if (at === null || at === undefined) return "—";

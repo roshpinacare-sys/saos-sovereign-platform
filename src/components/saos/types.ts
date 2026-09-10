@@ -549,6 +549,56 @@ export interface RailPulseResult {
 
 // ─── v9: AUTO-ANCHOR + LIVE PROBES (פעימה אוטומטית + מדידות חיות) ────────────
 
+// ─── v50: חומת-העוגנים (THE ANCHOR WALL) ────────────────────────────────────
+
+export interface WallAnchorRow {
+  network: string;
+  heName: string;
+  txid: string;
+  explorer: string;
+  explorerName: string;
+  firedIn: string;
+  signatoryLabel: string;
+  ok: boolean;
+  reachable: boolean;
+  successMarker: string | null;
+  block: number | null;
+  blockMatches: boolean | null;
+  signatory: string | null;
+  signatoryMatches: boolean | null;
+  payloadProtocol: string | null;
+  sealHeight: number | null;
+  root: string | null;
+  endpoint: string | null;
+  error: string | null;
+  at: string;
+}
+
+export interface WallData {
+  ok: boolean;
+  wall: WallAnchorRow[];
+  verifiedCount: number;
+  reachableCount: number;
+  measuredAt: string;
+  tookMs: number;
+  cached: boolean;
+  ledgerCounts: Record<string, number>;
+  usage?: string;
+  error?: string;
+}
+
+export interface WallRebuildResult {
+  ok: boolean;
+  created: Array<{ network: string; txid: string; height: number | null; root: string | null; rowId: string }>;
+  existing: Array<{ network: string; txid: string }>;
+  skipped: Array<{ network: string; txid: string; reason: string }>;
+  receipt: string | null;
+  ledgerCounts: Record<string, number>;
+  wallSize: number;
+  at: string;
+  error?: string;
+}
+
 export interface LiveProbesData {
   ok: boolean;
   hive: {
