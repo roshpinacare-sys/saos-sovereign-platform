@@ -588,17 +588,35 @@ async function autoCycle(): Promise<void> {
       /* הבורסה best-effort — המחזור הבא מנסה שוב */
     }
 
-    // 4.8 v26 — KEEPER MUTUAL REVIVE: the keeper (mini-services/keeper,
-    //      :3005) watches the web tier + this runner + anvil + machine
-    //      memory and revives any confirmed-dead member. This step is the
-    //      other half of the loop: if the KEEPER itself dies, the runner
-    //      revives it the same way (connection-refused ×2 = confirmed
-    //      death — a timeout is watched, never killed). No member of the
-    //      organism can stay dead: web ⇄ keeper ⇄ runner ⇄ anvil.
+    // 4.8 v26→v36 — KEEPER MUTUAL REVIVE (function-based): the keeper
+    //      (mini-services/keeper, :3005) watches the web tier + this runner
+    //      + anvil + machine memory and revives any confirmed-dead member.
+    //      This step is the other half of the loop. v36 closes the blind
+    //      spot a live incident exposed today: a keeper process can be
+    //      ALIVE and ANSWERING :3005 while its cycle timers are dead
+    //      (bun --hot teardown race — the zombie-watcher class: pids
+    //      1649/3896/14741 all lived today; alive ≠ serving). The port is
+    //      no longer the truth: lastCheckAt must ADVANCE (cycle=10s; stale
+    //      >3min = frozen watcher). The cure follows the proven
+    //      self-watchdog doctrine: SIGTERM the frozen process + detached
+    //      respawn — the fresh keeper takes the stale seat over (v36 seat
+    //      lock). No member of the organism can stay FUNCTION-dead:
+    //      web ⇄ keeper ⇄ runner ⇄ anvil.
     try {
       const k = await fetch("http://127.0.0.1:3005/", { signal: AbortSignal.timeout(3_000) });
-      if (k.ok) keeperFails = 0;
-      else keeperFails += 1;
+      if (k.ok) {
+        const st = (await k.json().catch(() => null)) as { lastCheckAt?: string; pid?: number } | null;
+        const lastMs = st?.lastCheckAt ? Date.parse(st.lastCheckAt) : NaN;
+        if (Number.isFinite(lastMs) && Date.now() - lastMs <= 180_000) {
+          keeperFails = 0; // honestly watching — the cycle advances
+        } else {
+          keeperFails += 2; // zombie-watcher: port answers, function frozen
+          console.log(`[evm-mesh] keeper zombie-watcher: lastCheckAt ${st?.lastCheckAt ?? "none"} stale >3min — port-live but function-dead (v36)`);
+          if (st?.pid && st.pid !== process.pid) {
+            try { process.kill(st.pid, "SIGTERM"); } catch { /* already gone */ }
+          }
+        }
+      } else keeperFails += 1;
     } catch {
       keeperFails += 1;
     }
@@ -606,10 +624,10 @@ async function autoCycle(): Promise<void> {
       keeperFails = 0;
       try {
         Bun.spawn(
-          ["bash", "-c", "cd /home/z/my-project/mini-services/keeper && exec bun run dev >> keeper.log 2>&1"],
+          ["bash", "-c", "sleep 1.5; cd /home/z/my-project/mini-services/keeper && exec bun run dev >> keeper.log 2>&1"],
           { detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }
         );
-        console.log("[evm-mesh] keeper :3005 refused ×2 — revived detached (step 4.8, mutual watch)");
+        console.log("[evm-mesh] keeper function-dead — SIGTERM'd if zombie, revived detached (step 4.8 v36, function-based mutual watch)");
       } catch {
         /* spawn failed — next cycle retries */
       }
@@ -1231,9 +1249,64 @@ async function artifactWatcher(): Promise<void> {
   }
 }
 
+// ─── v36 אכסניית-המושב-היחיד (SINGLE SEAT) ─────────────────────────────────
+// Root fix for the live double-boot incident: /start.sh re-ran over live
+// services and the second mesh runner ADOPTED the live chain — silently
+// doubling every 120s cycle for hours (two runners, one chain: double LLM,
+// double orders, double blooms), because the v20.1 adoption logic was built
+// for an orphaned-chain recovery, not for a second full runner. The seat is
+// a PID lockfile in state/: a second instance exits CLEANLY when a live
+// owner actually serves (its port answers — the zombie lesson: alive ≠
+// serving), takes over a stale seat (dead owner), replaces a broken zombie
+// (owner alive, port dead), and always keeps its own PID (bun --hot
+// re-eval). Fail-safe direction: at most an honest "not starting", never a
+// duplicate runner on the sovereign chain.
+function acquireSeat(tag: string, probePort: number): void {
+  const stateDir = path.join(import.meta.dir, "..", "state");
+  const lockPath = path.join(stateDir, "seat.lock");
+  try { fs.mkdirSync(stateDir, { recursive: true }); } catch { /* exists */ }
+  const release = (): void => {
+    try { if (fs.readFileSync(lockPath, "utf8").trim() === String(process.pid)) fs.rmSync(lockPath, { force: true }); } catch { /* not ours */ }
+  };
+  const GS = globalThis as unknown as { __seatExitBound?: boolean };
+  if (!GS.__seatExitBound) { GS.__seatExitBound = true; process.on("exit", release); }
+  const portAnswers = (): boolean => {
+    try {
+      const r = Bun.spawnSync(["bash", "-c", `exec 3<>/dev/tcp/127.0.0.1/${probePort} 2>/dev/null && exec 3<&- 3>&-`], { timeout: 1500 });
+      return r.exitCode === 0;
+    } catch { return false; }
+  };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const fd = fs.openSync(lockPath, "wx"); // atomic — EEXIST means the seat is taken
+      fs.writeSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      console.log(`[${tag}] seat acquired (pid ${process.pid}) — single-instance doctrine`);
+      return;
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code !== "EEXIST") throw e; // real IO error — crash honestly
+      let ownerPid = 0;
+      try { ownerPid = Number(fs.readFileSync(lockPath, "utf8").trim()); } catch { /* torn write */ }
+      if (ownerPid === process.pid) return; // our own seat — bun --hot re-eval
+      let ownerAlive = false;
+      if (Number.isFinite(ownerPid) && ownerPid > 0) { try { process.kill(ownerPid, 0); ownerAlive = true; } catch { /* dead */ } }
+      if (ownerAlive && portAnswers()) {
+        console.log(`[${tag}] seat: pid ${ownerPid} already serves (port ${probePort} answers) — exiting cleanly, no duplicate`);
+        process.exit(0);
+      }
+      console.log(`[${tag}] seat: ${ownerAlive ? `pid ${ownerPid} alive but NOT serving (zombie)` : `pid ${ownerPid} dead (stale)`} — taking over the seat`);
+      try { fs.rmSync(lockPath, { force: true }); } catch { /* race — retry */ }
+    }
+  }
+  console.log(`[${tag}] seat: contention unresolved — exiting cleanly, no duplicate`);
+  process.exit(0);
+}
+
 // ─── main ──────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  acquireSeat("evm-mesh", PORT); // v36 — a duplicate runner exits before touching the chain
   RT.artifactMtime = 0;
   // v34 אוטרקיה — binary self-sufficiency FIRST (arm the mirror / heal
   // ENOENT) so every boot path below spawns a real binary.
@@ -1307,3 +1380,5 @@ void main().catch((e) => {
 
 // v35 hot-reload trigger
 // v35 reload-2
+
+// v36 reload-verify — clean single-write trigger

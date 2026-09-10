@@ -38,7 +38,8 @@
  *      the frozen-runner zombie rule) and the evidence standard is the
  *      same: not "slow" (subjective) — a measured march to a measured
  *      death threshold (objective).
- *   2. SOVEREIGN BACKUPS: every 30 min the keeper triggers one consistent
+ *   2. SOVEREIGN BACKUPS: every 10 min (v36 — was 30) the keeper triggers one
+ *      consistent
  *      DB snapshot over loopback (POST /api/saos/backup — SQLite VACUUM
  *      INTO through the live client, rotation 48/24h + daily chain
  *      snapshots rotation 7). One copy of the truth = no grip; the
@@ -105,7 +106,7 @@ const ZOMBIE_MS = 10 * 60_000; // 10 min without a new block on a live chain = 3
 // journal trail — running confidence by design, not by luck.
 const RSS_SHED_MB = 1500;
 const RSS_SHED_READINGS = 2;
-const BACKUP_EVERY = 180; // every 180th cycle = 30 min
+const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
 const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
 
@@ -206,6 +207,12 @@ const S = {
   backups: { ok: 0, miss: 0, lastAt: null as string | null, lastNote: "" },
   // v28 — page-500 (Turbopack panic) detection
   page500Streak: 0,
+  // v36 — page-HANG detection (tonight's live incident: the panic left the
+  // API answering 200 while the PAGE hung FOREVER — http null, the 5xx
+  // counter never rose, the documented cure never fired, and the operator
+  // had to purge .next by hand). A persistent hang on a live API is the
+  // same poisoned cache, objectively.
+  pageHangStreak: 0,
   panics: 0,
   lastPanicAt: null as string | null,
   lastPageHttp: null as number | null,
@@ -310,10 +317,14 @@ function readMeminfo(): { totalMb: number; availableMb: number } {
 
 // ─── detached revive (survives the keeper's own death) ─────────────────────
 
-function reviveDetached(dir: string, logFile: string): void {
+/** v36: optional delay — when replacing a SIGTERM'd zombie, give the old
+ *  process time to die so the fresh instance takes the stale seat cleanly
+ *  (and never sees a dying-but-alive owner + briefly-bound port). */
+function reviveDetached(dir: string, logFile: string, delayMs = 0): void {
   try {
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
-    Bun.spawn(["bash", "-c", `cd ${dir} && exec bun run dev >> ${logFile} 2>&1`], {
+    const delay = delayMs > 0 ? `sleep ${(delayMs / 1000).toFixed(1)}; ` : "";
+    Bun.spawn(["bash", "-c", `${delay}cd ${dir} && exec bun run dev >> ${logFile} 2>&1`], {
       detached: true,
       stdin: "ignore",
       stdout: "ignore",
@@ -510,6 +521,7 @@ function cureWebPanic(): void {
   S.panics += 1;
   S.lastPanicAt = new Date().toISOString();
   S.page500Streak = 0;
+  S.pageHangStreak = 0; // v36 — the hang variant feeds the same cure
   S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
   journal(
     "web-panic",
@@ -560,25 +572,55 @@ async function checkAnvil(): Promise<boolean> {
 
 // ─── v36 — the gate herald check (the first external agent) ───────────────
 
-/** Connection check on :3006 — same doctrine as the web tier: refused =
- *  dead, timeout = degraded (never killed). Confirmed death (×3, past the
- *  boot grace) → detached revive via bun run dev in its own dir. */
-async function checkHerald(): Promise<boolean> {
+/** v36 FUNCTION-BASED (alive ≠ serving): the port answering is no longer
+ *  the truth — a bun --hot teardown race leaves a live process serving
+ *  /status with DEAD timers (the zombie-watcher class that lived tonight:
+ *  keeper 14741 with checks frozen at 1 for 20+ minutes). The objective
+ *  signal: the herald's own poll timer advances presence.lastFeedAt every
+ *  45s. Frozen feeds + port answering + web tier HEALTHY = the organ's
+ *  timers are dead. A frozen feed while the web is DOWN is an honest wait —
+ *  never judged, never killed. Returns the zombie's pid for a SIGTERM
+ *  before the detached respawn (the fresh instance takes the stale seat
+ *  over — v36 single-seat lock). */
+interface OrganFunction {
+  serving: boolean;
+  zombiePid: number | null;
+}
+async function checkHeraldFunction(webAlive: boolean): Promise<OrganFunction> {
   try {
     const r = await fetch(GATE_STATUS, { signal: AbortSignal.timeout(4_000) });
-    return r.ok;
+    if (!r.ok) return { serving: false, zombiePid: null };
+    if (!webAlive) return { serving: true, zombiePid: null }; // honest wait — the web is down
+    const st = (await r.json().catch(() => null)) as { pid?: number; presence?: { lastFeedAt?: string | null } } | null;
+    const lastMs = st?.presence?.lastFeedAt ? Date.parse(st.presence.lastFeedAt) : NaN;
+    if (Number.isFinite(lastMs) && Date.now() - lastMs <= 300_000) {
+      return { serving: true, zombiePid: null }; // feeds advance — the poll timer lives
+    }
+    return { serving: false, zombiePid: st?.pid ?? null }; // port-live, function-frozen
   } catch {
-    return false;
+    return { serving: false, zombiePid: null };
   }
 }
 
-/** v38 — connection check on :3007 (the swarm host), same doctrine. */
-async function checkSwarm(): Promise<boolean> {
+/** v38→v36 — same FUNCTION-based doctrine for the swarm host (:3007):
+ *  each agent's poll advances presence.lastFeedAt every 45s — the freshest
+ *  agent feed is the host's heartbeat. */
+async function checkSwarmFunction(webAlive: boolean): Promise<OrganFunction> {
   try {
     const r = await fetch(SWARM_STATUS, { signal: AbortSignal.timeout(4_000) });
-    return r.ok;
+    if (!r.ok) return { serving: false, zombiePid: null };
+    if (!webAlive) return { serving: true, zombiePid: null }; // honest wait — the web is down
+    const st = (await r.json().catch(() => null)) as { pid?: number; agents?: Array<{ presence?: { lastFeedAt?: string | null } }> } | null;
+    const feeds = (st?.agents ?? [])
+      .map((a) => (a.presence?.lastFeedAt ? Date.parse(a.presence.lastFeedAt) : NaN))
+      .filter((ms) => Number.isFinite(ms));
+    const freshest = feeds.length > 0 ? Math.max(...feeds) : NaN;
+    if (Number.isFinite(freshest) && Date.now() - freshest <= 300_000) {
+      return { serving: true, zombiePid: null };
+    }
+    return { serving: false, zombiePid: st?.pid ?? null };
   } catch {
-    return false;
+    return { serving: false, zombiePid: null };
   }
 }
 
@@ -634,10 +676,28 @@ async function cycle(): Promise<void> {
       ) {
         cureWebPanic();
       }
+    } else if (page.http === null) {
+      // v36 — HANG is the same disease as 500 (tonight's live incident:
+      // Turbopack "failed to restore task data" left the API 200 while the
+      // page hung forever — the counter never rose, the cure never fired).
+      // Higher bar than 5xx on purpose: ×3 (90s continuous hang) on a live
+      // API + untouched source — a cold compile never hangs that long.
+      S.pageHangStreak += 1;
+      if (S.pageHangStreak === 1) {
+        journal("page-hang", "the PAGE hangs (timeout 8s) while the API layer answers 200 — first sighting, watching (cure needs ×3 + untouched source)");
+      }
+      if (
+        S.pageHangStreak >= 3 &&
+        !srcRecentlyTouched() &&
+        Date.now() > S.reviveDeadline
+      ) {
+        journal("page-hang", `the PAGE hung ×${S.pageHangStreak} (90s+ continuous) on a live API with untouched source — the poisoned-cache evidence, same cure as page-500 (v36)`);
+        cureWebPanic();
+      }
     } else if (page.http === 200) {
       S.page500Streak = 0;
+      S.pageHangStreak = 0;
     }
-    // http null (טיימאאוט) — דרך ה-degraded הקיימת מנהלת; המונה נשאר.
   }
 
   // 2. lab chain (every 30s) — anvil is also watched by the mesh runner's
@@ -712,7 +772,7 @@ async function cycle(): Promise<void> {
     }
   }
 
-  // 5. v27 אחיזה — sovereign backups (every 30 min; first 30s after boot)
+  // 5. v27 אחיזה — sovereign backups (every 10 min v36; first 30s after boot)
   //    + dev.log hygiene on the same slow cadence. The snapshot itself is
   //    taken by the web tier (VACUUM INTO, consistent); the keeper owns
   //    the schedule and the journal. A miss is data, not an error: the
@@ -728,10 +788,10 @@ async function cycle(): Promise<void> {
   //    Watched like any organ: the organism's promise — no member stays
   //    dead — now covers the agent that arrived from OUTSIDE.
   if (RT.cycle % GATE_EVERY === 0) {
-    const alive = await checkHerald();
-    if (alive) {
+    const fn = await checkHeraldFunction(web.alive);
+    if (fn.serving) {
       if (S.heraldAlive !== true) {
-        journal("herald-up", `gate-herald answering on :3006${S.heraldFailStreak > 0 ? ` (after ${S.heraldFailStreak} misses)` : ""}`);
+        journal("herald-up", `gate-herald serving on :3006${S.heraldFailStreak > 0 ? ` (after ${S.heraldFailStreak} misses)` : ""} — feeds advance, the poll timer lives (v36)`);
       }
       S.heraldAlive = true;
       S.heraldFailStreak = 0;
@@ -739,9 +799,15 @@ async function cycle(): Promise<void> {
     } else if (Date.now() < S.heraldGraceUntil) {
       S.heraldAlive = null; // boot grace — watching, not yet judging
     } else {
-      S.heraldFailStreak += 1;
-      if (S.heraldFailStreak === 1) {
-        journal("herald-dead", `gate-herald :3006 not answering — first sighting, watching (revive needs ×${DEAD_STREAK})`);
+      if (fn.zombiePid) {
+        journal("herald-zombie", `gate-herald port-live but FROZEN (feeds stale while the web is healthy) — SIGTERM pid ${fn.zombiePid}: alive ≠ serving (v36)`);
+        try { process.kill(fn.zombiePid, "SIGTERM"); } catch { /* already gone */ }
+        S.heraldFailStreak = DEAD_STREAK; // objective: function-dead — revive now, not after ×3
+      } else {
+        S.heraldFailStreak += 1;
+        if (S.heraldFailStreak === 1) {
+          journal("herald-dead", `gate-herald :3006 not answering — first sighting, watching (revive needs ×${DEAD_STREAK})`);
+        }
       }
       if (
         S.heraldFailStreak >= DEAD_STREAK &&
@@ -749,8 +815,8 @@ async function cycle(): Promise<void> {
       ) {
         S.heraldRevives += 1;
         S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
-        reviveDetached(GATE_DIR, GATE_LOG);
-        journal("herald-revive", `gate-herald dead ×${S.heraldFailStreak} (connection refused) — bun run dev spawned detached, revive #${S.heraldRevives} — the organism's promise now covers the first EXTERNAL agent too`);
+        reviveDetached(GATE_DIR, GATE_LOG, fn.zombiePid ? 2000 : 0);
+        journal("herald-revive", `gate-herald ${fn.zombiePid ? `zombie pid ${fn.zombiePid} SIGTERM'd` : `dead ×${S.heraldFailStreak} (connection refused)`} — bun run dev spawned detached, revive #${S.heraldRevives} — the fresh herald takes the stale seat over (v36)`);
         S.heraldFailStreak = 0;
         S.heraldAlive = null;
       }
@@ -761,10 +827,10 @@ async function cycle(): Promise<void> {
   //    + night-scout the watchman). The organism's promise — no member
   //    stays dead — now covers the awakened chat agents too.
   if (RT.cycle % GATE_EVERY === 0) {
-    const alive = await checkSwarm();
-    if (alive) {
+    const fn = await checkSwarmFunction(web.alive);
+    if (fn.serving) {
       if (S.swarmAlive !== true) {
-        journal("swarm-up", `swarm-agents answering on :3007${S.swarmFailStreak > 0 ? ` (after ${S.swarmFailStreak} misses)` : ""} — gold-scout + night-scout alive`);
+        journal("swarm-up", `swarm-agents serving on :3007${S.swarmFailStreak > 0 ? ` (after ${S.swarmFailStreak} misses)` : ""} — agent feeds advance, the poll timers live (v36) — gold-scout + night-scout alive`);
       }
       S.swarmAlive = true;
       S.swarmFailStreak = 0;
@@ -772,9 +838,15 @@ async function cycle(): Promise<void> {
     } else if (Date.now() < S.swarmGraceUntil) {
       S.swarmAlive = null; // boot grace — watching, not yet judging
     } else {
-      S.swarmFailStreak += 1;
-      if (S.swarmFailStreak === 1) {
-        journal("swarm-dead", `swarm-agents :3007 not answering — first sighting, watching (revive needs ×${DEAD_STREAK})`);
+      if (fn.zombiePid) {
+        journal("swarm-zombie", `swarm-agents port-live but FROZEN (agent feeds stale while the web is healthy) — SIGTERM pid ${fn.zombiePid}: alive ≠ serving (v36)`);
+        try { process.kill(fn.zombiePid, "SIGTERM"); } catch { /* already gone */ }
+        S.swarmFailStreak = DEAD_STREAK; // objective: function-dead — revive now, not after ×3
+      } else {
+        S.swarmFailStreak += 1;
+        if (S.swarmFailStreak === 1) {
+          journal("swarm-dead", `swarm-agents :3007 not answering — first sighting, watching (revive needs ×${DEAD_STREAK})`);
+        }
       }
       if (
         S.swarmFailStreak >= DEAD_STREAK &&
@@ -782,8 +854,8 @@ async function cycle(): Promise<void> {
       ) {
         S.swarmRevives += 1;
         S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
-        reviveDetached(SWARM_DIR, SWARM_LOG);
-        journal("swarm-revive", `swarm-agents dead ×${S.swarmFailStreak} (connection refused) — bun run dev spawned detached, revive #${S.swarmRevives} — the awakened chat agents are a member now, no member stays dead`);
+        reviveDetached(SWARM_DIR, SWARM_LOG, fn.zombiePid ? 2000 : 0);
+        journal("swarm-revive", `swarm-agents ${fn.zombiePid ? `zombie pid ${fn.zombiePid} SIGTERM'd` : `dead ×${S.swarmFailStreak} (connection refused)`} — bun run dev spawned detached, revive #${S.swarmRevives} — the awakened chat agents are a member now, no member stays FUNCTION-dead (v36)`);
         S.swarmFailStreak = 0;
         S.swarmAlive = null;
       }
@@ -830,6 +902,58 @@ function statusJson() {
   };
 }
 
+// ─── v36 אכסניית-המושב-היחיד (SINGLE SEAT) ─────────────────────────────────
+// Root fix for the live double-boot incident: /start.sh re-ran over live
+// services and a second keeper whose :3005 bind failed lingered as a 0%-CPU
+// zombie (alive process, dead listener — accumulating across revives). The
+// seat is a PID lockfile in state/: a second instance exits CLEANLY when a
+// live owner actually serves (port answers — alive ≠ serving), takes over a
+// stale seat (dead owner), replaces a broken zombie (owner alive, port
+// dead), and always keeps its own PID (bun --hot re-eval). Fail-safe
+// direction: at most an honest "not starting", never a duplicate keeper.
+function acquireSeat(tag: string, probePort: number): void {
+  const stateDir = path.join(import.meta.dir, "..", "state");
+  const lockPath = path.join(stateDir, "seat.lock");
+  try { fs.mkdirSync(stateDir, { recursive: true }); } catch { /* exists */ }
+  const release = (): void => {
+    try { if (fs.readFileSync(lockPath, "utf8").trim() === String(process.pid)) fs.rmSync(lockPath, { force: true }); } catch { /* not ours */ }
+  };
+  const GS = globalThis as unknown as { __seatExitBound?: boolean };
+  if (!GS.__seatExitBound) { GS.__seatExitBound = true; process.on("exit", release); }
+  const portAnswers = (): boolean => {
+    try {
+      const r = Bun.spawnSync(["bash", "-c", `exec 3<>/dev/tcp/127.0.0.1/${probePort} 2>/dev/null && exec 3<&- 3>&-`], { timeout: 1500 });
+      return r.exitCode === 0;
+    } catch { return false; }
+  };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const fd = fs.openSync(lockPath, "wx"); // atomic — EEXIST means the seat is taken
+      fs.writeSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      journal("seat", `seat acquired (pid ${process.pid}) — single-instance doctrine v36`);
+      return;
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code !== "EEXIST") throw e; // real IO error — crash honestly
+      let ownerPid = 0;
+      try { ownerPid = Number(fs.readFileSync(lockPath, "utf8").trim()); } catch { /* torn write */ }
+      if (ownerPid === process.pid) return; // our own seat — bun --hot re-eval
+      let ownerAlive = false;
+      if (Number.isFinite(ownerPid) && ownerPid > 0) { try { process.kill(ownerPid, 0); ownerAlive = true; } catch { /* dead */ } }
+      if (ownerAlive && portAnswers()) {
+        journal("seat", `pid ${ownerPid} already serves (port ${probePort} answers) — exiting cleanly, no duplicate`);
+        process.exit(0);
+      }
+      journal("seat", `${ownerAlive ? `pid ${ownerPid} alive but NOT serving (zombie)` : `pid ${ownerPid} dead (stale)`} — taking over the seat`);
+      try { fs.rmSync(lockPath, { force: true }); } catch { /* race — retry */ }
+    }
+  }
+  journal("seat", "contention unresolved — exiting cleanly, no duplicate");
+  process.exit(0);
+}
+acquireSeat("keeper", PORT);
+
 Bun.serve({
   port: PORT,
   hostname: "127.0.0.1", // loopback only — the outside world never reaches the keeper
@@ -875,7 +999,7 @@ try {
   /* no journal yet — fresh start */
 }
 
-journal("boot", `SHOMER v38 (המשך) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 30min · never touches key material`);
+journal("boot", `SHOMER v39 (המשך) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · never touches key material`);
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
-console.log(`[keeper] SHOMER v38 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 30min · revive only on confirmed death (documented exceptions, all objective-evidence)`);
+console.log(`[keeper] SHOMER v39 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 10min (v36) · single-seat lock v36 · revive only on confirmed death (documented exceptions, all objective-evidence)`);

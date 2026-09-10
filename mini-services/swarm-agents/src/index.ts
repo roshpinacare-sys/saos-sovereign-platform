@@ -849,6 +849,57 @@ function statusJson(): Record<string, unknown> {
   };
 }
 
+// ─── v36 אכסניית-המושב-היחיד (SINGLE SEAT) ─────────────────────────────────
+// Root fix for the live double-boot incident: /start.sh re-ran over live
+// services and second instances lingered (zombies) or doubled work. The seat
+// is a PID lockfile in state/: a second instance exits CLEANLY when a live
+// owner actually serves (port answers — alive ≠ serving), takes over a stale
+// seat (dead owner), replaces a broken zombie (owner alive, port dead), and
+// always keeps its own PID (bun --hot re-eval). Fail-safe direction: at most
+// an honest "not starting", never a duplicate swarm host.
+function acquireSeat(tag: string, probePort: number): void {
+  const stateDir = path.join(import.meta.dir, "..", "state");
+  const lockPath = path.join(stateDir, "seat.lock");
+  try { fs.mkdirSync(stateDir, { recursive: true }); } catch { /* exists */ }
+  const release = (): void => {
+    try { if (fs.readFileSync(lockPath, "utf8").trim() === String(process.pid)) fs.rmSync(lockPath, { force: true }); } catch { /* not ours */ }
+  };
+  const GS = globalThis as unknown as { __seatExitBound?: boolean };
+  if (!GS.__seatExitBound) { GS.__seatExitBound = true; process.on("exit", release); }
+  const portAnswers = (): boolean => {
+    try {
+      const r = Bun.spawnSync(["bash", "-c", `exec 3<>/dev/tcp/127.0.0.1/${probePort} 2>/dev/null && exec 3<&- 3>&-`], { timeout: 1500 });
+      return r.exitCode === 0;
+    } catch { return false; }
+  };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const fd = fs.openSync(lockPath, "wx"); // atomic — EEXIST means the seat is taken
+      fs.writeSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      console.log(`[${tag}] seat acquired (pid ${process.pid}) — single-instance doctrine`);
+      return;
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code !== "EEXIST") throw e; // real IO error — crash honestly
+      let ownerPid = 0;
+      try { ownerPid = Number(fs.readFileSync(lockPath, "utf8").trim()); } catch { /* torn write */ }
+      if (ownerPid === process.pid) return; // our own seat — bun --hot re-eval
+      let ownerAlive = false;
+      if (Number.isFinite(ownerPid) && ownerPid > 0) { try { process.kill(ownerPid, 0); ownerAlive = true; } catch { /* dead */ } }
+      if (ownerAlive && portAnswers()) {
+        console.log(`[${tag}] seat: pid ${ownerPid} already serves (port ${probePort} answers) — exiting cleanly, no duplicate`);
+        process.exit(0);
+      }
+      console.log(`[${tag}] seat: ${ownerAlive ? `pid ${ownerPid} alive but NOT serving (zombie)` : `pid ${ownerPid} dead (stale)`} — taking over the seat`);
+      try { fs.rmSync(lockPath, { force: true }); } catch { /* race — retry */ }
+    }
+  }
+  console.log(`[${tag}] seat: contention unresolved — exiting cleanly, no duplicate`);
+  process.exit(0);
+}
+acquireSeat("swarm-agents", PORT);
+
 Bun.serve({
   port: PORT,
   hostname: "127.0.0.1", // loopback only — the outside world sees the swarm through the chat
