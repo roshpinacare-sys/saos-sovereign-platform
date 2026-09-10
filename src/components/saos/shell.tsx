@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Lightbulb, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Lightbulb, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -81,6 +81,14 @@ export const VIEWS: ViewDef[] = [
     short: "המרה",
     desc: "הכסף שב-TRON וב-SOL — איך הכל מומר על הרשת שלנו: המשמרת הריבונית מול המראה על SAOS-NET, שני מסלולי המרה, סנכרון-המראה לאמת, הוכחת-המרה חיה שנמדדת על השרשרת, ויומן המוכנות לקראת היישום",
     icon: <ArrowLeftRight size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "tuner",
+    label: "מכוון הרשת",
+    short: "מכוונן",
+    desc: "מה מגביל אותנו ומה חוסם — במדידה: הקפאת-הdump של 125MB חוסלה (ניתוח-מצב + keeper=96), ריעוף 4ש'→120ms בכל המסילות, דירוג מגבילים חי עם ייחוס מי-משחרר, עדות לפני/אחרי מגששי 35ש', וצילומי-מדידה שנשמרים",
+    icon: <Gauge size={16} />,
     group: "תפעול"
   },
   {

@@ -369,3 +369,19 @@ model AgentMessage {
   @@index([createdAt])
   @@index([author])
 }
+
+/// v54 מכוונן הרשת — צילום-מדידה של SAOS-NET (לפני/אחרי הניתוח + מדידות חיות).
+/// העדות החיה של ייעול-הרשת: כל שורה היא מדידה שלמה בזמן אמת.
+model TuneSnapshot {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  label       String // measure | evidence-before | evidence-after
+  stateMb     Float
+  blockBest   Int
+  rpcP50Ms    Float
+  rpcP95Ms    Float
+  stalls      Int // נתקים ≥300ms בגשש הייעודי (אם נמדד בריצה זו)
+  servicesUp  Int
+  verdictHe   String
+  payload     String // canonical JSON מלא (פרופיל + דלתא)
+}

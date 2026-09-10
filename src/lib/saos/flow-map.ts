@@ -22,6 +22,7 @@ import { db } from "@/lib/db";
 import { sealAvailability } from "@/lib/vault-seal";
 import { liquidityRadar, type LiquidityRadar } from "./liquidity-radar";
 import { probeDexPairs } from "./dex-live";
+import { meshFastProvider } from "./mesh-provider";
 
 const MESH_STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "deployment.json");
 
@@ -101,7 +102,8 @@ async function microgridTotals(): Promise<{
       fs.readFileSync(path.join(process.cwd(), "src", "lib", "saos", "generated", "SAOSMesh.json"), "utf8")
     ) as { contracts: Array<{ name: string; abi: ethers.InterfaceAbi }> };
     const abi = artifact.contracts.find((c) => c.name === "SAOSMicrogrid")?.abi ?? [];
-    const p = new ethers.JsonRpcProvider("http://127.0.0.1:8545", 31337, { batchMaxCount: 1 });
+    // v54 מכוון-הרשת: ה-provider המהיר המשותף (ריעוף 120ms + אצווה)
+    const p = meshFastProvider();
     const mg = new ethers.Contract(state.contracts.SAOSMicrogrid, abi, p);
     const [grids, realized, swept, fillSeq] = await Promise.all([
       mg.gridCount() as Promise<bigint>,
@@ -122,7 +124,7 @@ async function microgridTotals(): Promise<{
         /* honest partial */
       }
     }
-    p.destroy();
+    // v54 — אין destroy(): ה-provider המהיר משותף וארוך-חיים
     return {
       grids: n,
       realized: ethers.formatEther(realized),

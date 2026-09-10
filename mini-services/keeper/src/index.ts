@@ -714,6 +714,12 @@ async function cycle(): Promise<void> {
     if (S.reviveDeadline > Date.now() - REVIVE_WINDOW_MS && !S.recoveredLogged) {
       journal("web-recovered", `web tier answering again (HTTP ${web.http}) after revive #${S.reviveCount}`);
       S.recoveredLogged = true;
+      // v54 מכוונן-הרשת — החלמת-הווב מחזירה את החסד לאיברים: בזמן שהווב
+      // היה מטופל/מת, הפידים של השליח והפרחה קפאו בכנות (אין למי לפנות);
+      // בלי חלון-נשימה הם נשפטים "זומבי" ברגע שהווב חוזר — ונהרגים בדיוק
+      // כשצריך לחדש את הפידים (נתפס חי: השליח נפל במחזור-הזיכרון של הווב).
+      S.heraldGraceUntil = Date.now() + HERALD_GRACE_MS;
+      S.swarmGraceUntil = Date.now() + SWARM_GRACE_MS;
     }
     if (S.degraded) {
       S.degraded = false;
@@ -892,7 +898,12 @@ async function cycle(): Promise<void> {
         S.heraldRevives += 1;
         S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
         reviveDetached(GATE_DIR, GATE_LOG, fn.zombiePid ? 2000 : 0);
-        journal("herald-revive", `gate-herald ${fn.zombiePid ? `zombie pid ${fn.zombiePid} SIGTERM'd` : `dead ×${S.heraldFailStreak} (connection refused)`} — bun run dev spawned detached, revive #${S.heraldRevives} — the fresh herald takes the stale seat over (v36)`);
+        // v54 מכוונן-הרשת — החסד חוזר עם הריבייב: המופע הטרי צריך את חלון-ה-45ש'
+        // שלו לפני שהפידים מתקדמים; בלי איפוס-החסד השומר שפט זומבי לפי פידים
+        // ישנים עוד לפני שהטיימרים שלו רצו — והרג את מה שהחייה (לולואה חיה,
+        // נתפסה בסבב: swarm שנהרג 3 פעמים ברצף מיד אחרי עלייה).
+        S.heraldGraceUntil = Date.now() + HERALD_GRACE_MS;
+        journal("herald-revive", `gate-herald ${fn.zombiePid ? `zombie pid ${fn.zombiePid} SIGTERM'd` : `dead ×${S.heraldFailStreak} (connection refused)`} — bun run dev spawned detached, revive #${S.heraldRevives} + grace reset (v54) — the fresh herald takes the stale seat over (v36)`);
         S.heraldFailStreak = 0;
         S.heraldAlive = null;
       }
@@ -931,7 +942,10 @@ async function cycle(): Promise<void> {
         S.swarmRevives += 1;
         S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
         reviveDetached(SWARM_DIR, SWARM_LOG, fn.zombiePid ? 2000 : 0);
-        journal("swarm-revive", `swarm-agents ${fn.zombiePid ? `zombie pid ${fn.zombiePid} SIGTERM'd` : `dead ×${S.swarmFailStreak} (connection refused)`} — bun run dev spawned detached, revive #${S.swarmRevives} — the awakened chat agents are a member now, no member stays FUNCTION-dead (v36)`);
+        // v54 מכוונן-הרשת — אותו איפוס-חסד לפרחת-הרשת: בלי זה הסוכנים הטריים
+        // נשפטים לפי פידים שעוד לא התקדמו (45ש' ראשון) — נהרגים ברגע העלייה.
+        S.swarmGraceUntil = Date.now() + SWARM_GRACE_MS;
+        journal("swarm-revive", `swarm-agents ${fn.zombiePid ? `zombie pid ${fn.zombiePid} SIGTERM'd` : `dead ×${S.swarmFailStreak} (connection refused)`} — bun run dev spawned detached, revive #${S.swarmRevives} + grace reset (v54) — the awakened chat agents are a member now, no member stays FUNCTION-dead (v36)`);
         S.swarmFailStreak = 0;
         S.swarmAlive = null;
       }

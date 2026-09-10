@@ -58,6 +58,23 @@ const ANVIL_STATE = path.resolve(import.meta.dir, "..", "state", "anvil-state.js
 // self-heals the primary from the mirror; a timer mirrors every 5 min.
 const MIRROR_STATE = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".mesh-state", "anvil-state.json");
 const STATE_DUMP_SECONDS = 30;
+// v54 מכוונן-הרשת — STATE SURGERY (מדידת-המגביל):
+// קובץ-המצב תפח ל-125MB כי --dump-state כותב את כל ההיסטוריה (12.5K בלוקים
+// + 12.7K עסקאות עם קבלות מלאות — 89MB עסקאות + 29MB בלוקים) וכותב אותה
+// מחדש כל 30 שנ'. נמדד חי (upload/tuner-stallprobe-before-v54.json): כל dump
+// מקפיא את הצומת 400-900ms (2 נתקים בחלון 35ש', מתואמים לרגעי הכתיבה),
+// והכתיבה עצמה לא-אטומית (truncate+מקצים — חלון-שחיתה בקריסה).
+// הניתוח: גוזזים את קובץ-המצב ל-SURGERY_KEEP בלוקים אחרונים + העסקאות
+// שלהם (החשבונות — כל האמת החיה — נשארים שלמים) ומריצים את anvil עם
+// --transaction-block-keeper SURGERY_KEEP כדי שגם בזמן-ריצה ההיסטוריה
+// לא תצטבר חזרה. תוצאה נמדדת: 125MB → ~7.5MB (x17), הקפאה מוגבלת
+// לחלון לנצח. מי שנפגע (בכנות): קבלות עסקאות מחוץ לחלון חוזרות null
+// (אין צרכן כזה — נבדק), שאילתות blockTag מתחת לנקודת-הטעינה נכשלות
+// (ההוכחות שואלות בלוקים שנוצרו בזמן הריצה — post-boot). לפני הניתוח:
+// גיבוי חד-פעמי ל-anvil-state.pre-v54.json.
+const SURGERY_KEEP_BLOCKS = 96;
+const SURGERY_THRESHOLD_MB = 24; // מתחת לזה הקובץ כבר רזה — אין מה לנתח
+const ANVIL_PRE_V54 = path.resolve(import.meta.dir, "..", "state", "anvil-state.pre-v54.json");
 // v35 רציפות — the chain-state mirror tick dropped from 5 min to 60s.
 // anvil rewrites the dump every 30s while blocks flow, so a 60s tick with
 // copy-on-change keeps the survivable home ≤ ~90s behind the chain head
@@ -220,7 +237,11 @@ const G = globalThis as unknown as { __meshRuntime?: MeshRuntime };
 if (G.__meshRuntime) {
   for (const t of G.__meshRuntime.timers) clearInterval(t);
   try {
-    G.__meshRuntime.anvil?.kill();
+    // v54 — SIGKILL (לא SIGTERM): יציאה חיננית מפעילה exit-dump מלא שיכתב
+    // על הקובץ הגזוז בדיוק ברגע שהניתוח כותב אותו; הריגה מיידית = אין
+    // dump-יציאה, הקובץ נשאר כפי שהיה ב-dump ה-30ש' האחרון (חלון-אובדן
+    // זהה לקריסה — מקובל ממילא, והשומר/מחזור הבא ממשיכים).
+    G.__meshRuntime.anvil?.kill(9);
   } catch {
     /* fresh boot */
   }
@@ -228,12 +249,76 @@ if (G.__meshRuntime) {
 const RT: MeshRuntime = { anvil: null, timers: [], artifactMtime: 0, busy: false };
 G.__meshRuntime = RT;
 
+// ─── v54 מכוון-הרשת — STATE SURGERY ─────────────────────────────────────
+
+/** מוצא את ה-PID של anvil המחזיק ב-:8545 (סריקת /proc, בלי תלות חיצונית). */
+function findAnvilPid(): number | null {
+  try {
+    const pids = fs.readdirSync("/proc").filter((d) => /^\d+$/.test(d));
+    for (const pid of pids) {
+      try {
+        const cmd = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8");
+        if (cmd.includes("anvil") && cmd.includes("--port") && cmd.includes(String(PORT))) return Number(pid);
+      } catch { /* gone */ }
+    }
+  } catch { /* /proc unreadable */ }
+  return null;
+}
+
+/** מנתח את קובץ-המצב אם תפח מעל הסף: גיבוי חד-פעמי → גיזום ל-96 בלוקים
+ *  אחרונים + העסקאות שלהם (החשבונות שלמים) → כתיבה אטומית (tmp+rename).
+ *  חסין-כשל מלא: כל כישלון מדלג בכנות — anvil יעלה עם הקובץ כמו שהוא
+ *  + ה-keeper שבדגלים ירזה את ה-dump הבא בכל מקרה (המנגנון האמיתי).
+ *  מהמם את anvil החי (SIGKILL — בלי exit-dump שידרוס את הגזיזה) — רק
+ *  כשהקובץ תפוח, כלומר יש מופע ישן בלי דגלי-הkeeper. */
+function compactAnvilState(): void {
+  try {
+    const st = fs.statSync(ANVIL_STATE);
+    if (!st.size || st.size < SURGERY_THRESHOLD_MB * 1048576) return; // כבר רזה
+    // anvil חי עם קובץ תפוח = מופע ישן בלי הkeeper — מומם ונותח (ההמשך:
+    // main() יגלה שהפורט מת ויפרוש מחדש עם הדגלים)
+    const pid = findAnvilPid();
+    if (pid) {
+      try {
+        process.kill(pid, "SIGKILL"); // SIGKILL: בלי exit-dump שמתחרה בגזיזה
+        console.log(`[evm-mesh] v54 surgery: stale anvil pid ${pid} (bloated dump, no keeper flags) — SIGKILL`);
+        for (let i = 0; i < 50; i++) { // המתנת יציאה עד 5ש' (שינה סינכרונית)
+          try { fs.statSync(`/proc/${pid}`); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100); } catch { break; }
+        }
+      } catch { /* already dead */ }
+    }
+    // גיבוי חד-פעמי — ההיסטוריה המלאה לפני הניתוח נשמרת לצורך ביקורת
+    if (!fs.existsSync(ANVIL_PRE_V54)) fs.copyFileSync(ANVIL_STATE, ANVIL_PRE_V54);
+    const before = st.size;
+    const parsed = JSON.parse(fs.readFileSync(ANVIL_STATE, "utf8")) as {
+      best_block_number?: number; blocks?: Array<{ header?: { number?: unknown } }>; transactions?: Array<{ block_number?: unknown }>; [k: string]: unknown;
+    };
+    const best = Number(parsed.best_block_number ?? 0);
+    const bnOf = (v: unknown): number =>
+      typeof v === "number" ? v : String(v ?? "").startsWith("0x") ? parseInt(String(v), 16) : parseInt(String(v ?? "0"), 10);
+    const from = best - SURGERY_KEEP_BLOCKS;
+    const blocks = (parsed.blocks ?? []).filter((b) => bnOf(b?.header?.number) >= from);
+    const txs = (parsed.transactions ?? []).filter((t) => bnOf(t?.block_number) >= from);
+    if (blocks.length === 0) throw new Error("no blocks survived the filter");
+    const trimmed = { ...parsed, blocks, transactions: txs };
+    const tmp = `${ANVIL_STATE}.surgery-tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(trimmed));
+    fs.renameSync(tmp, ANVIL_STATE); // אטומי — אין חלון-שחיתה
+    const after = fs.statSync(ANVIL_STATE).size;
+    console.log(`[evm-mesh] v54 STATE SURGERY: ${(before / 1048576).toFixed(1)}MB → ${(after / 1048576).toFixed(1)}MB · blocks ${parsed.blocks?.length ?? 0}→${blocks.length} · txs ${parsed.transactions?.length ?? 0}→${txs.length} · best=${best} · backup anvil-state.pre-v54.json`);
+  } catch (e) {
+    console.log(`[evm-mesh] v54 surgery skipped (honest): ${e instanceof Error ? e.message.slice(0, 120) : "unknown"} — ה-keeper בדגלים ירזה את ה-dump הבא בכל מקרה`);
+  }
+}
+
 function spawnAnvil(): ReturnType<typeof Bun.spawn> {
   ensureAnvilBinary(); // v34 — ENOENT heals offline from the survivable home
-  const args = ["--port", String(PORT), "--chain-id", String(MESH_CHAIN_ID), "--dump-state", ANVIL_STATE, "--state-interval", String(STATE_DUMP_SECONDS)];
+  // v54 מכוונן-הרשת — --transaction-block-keeper: anvil שומר נתוני-עסקה
+  // ל-96 הבלוקים האחרונים בלבד; ה-dump הבא כבר ייכתב רזה וישאר רזה.
+  const args = ["--port", String(PORT), "--chain-id", String(MESH_CHAIN_ID), "--dump-state", ANVIL_STATE, "--state-interval", String(STATE_DUMP_SECONDS), "--transaction-block-keeper", String(SURGERY_KEEP_BLOCKS)];
   const resume = stateFileExists();
   if (resume) args.unshift("--load-state", ANVIL_STATE);
-  console.log(`[evm-mesh] starting anvil on :${PORT} (chainId ${MESH_CHAIN_ID})${resume ? " — RESUMING persisted state" : " — fresh genesis"}`);
+  console.log(`[evm-mesh] starting anvil on :${PORT} (chainId ${MESH_CHAIN_ID})${resume ? " — RESUMING persisted state" : " — fresh genesis"}${" · v54 keeper=" + SURGERY_KEEP_BLOCKS}`);
   fs.mkdirSync(path.dirname(ANVIL_STATE), { recursive: true });
   const proc = Bun.spawn([ANVIL_BIN, ...args], {
     stdout: "inherit",
@@ -255,7 +340,7 @@ async function meshAlive(): Promise<boolean> {
   if (!hub || !exchangeAddr) return false;
   let provider: ethers.JsonRpcProvider | null = null;
   try {
-    provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
     const code = await provider.getCode(hub);
     if (typeof code !== "string" || code.length <= 2) return false;
     const xcode = await provider.getCode(exchangeAddr);
@@ -277,7 +362,8 @@ async function meshAlive(): Promise<boolean> {
 }
 
 async function waitRpc(timeoutMs = 20000): Promise<ethers.JsonRpcProvider> {
-  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+  // v54 — ריעוף 120ms: המתנת-עלייה מגיבה מהר פי-33
+  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
   const start = Date.now();
   for (;;) {
     try {
@@ -449,7 +535,9 @@ async function autoCycle(): Promise<void> {
     );
     process.exit(1);
   }, CYCLE_MAX_MS);
-  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+  // v54 מכוון-הרשת — ריעוף 120ms: המחזור עושה עשרות tx.wait(); ברירת-המחדל
+  // 4000ms של ethers האטה כל רגל עד 4ש' (מקור פערי-הבלוק p50=4ש' שנמדדו)
+  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
   try {
     const c = await meshContracts(provider);
     if (!c) throw new Error("mesh not deployed");
@@ -685,6 +773,31 @@ async function autoCycle(): Promise<void> {
         }
       } catch {
         /* balance/idx — honest skip */
+      }
+    }
+    // 6. v54 מכוון-הרשת — נטיל-WRXP אוטומטית: חלון-המדידה של מפקד-ה-XRP
+    //    בקצב-הגשה (v53: "WRXP ממתין בכנות לחלון-מדידה"). כל 10 מחזורים
+    //    (~20 דק') הראנר מזמין reserve-sync מהווב: נכסים מסונכרנים
+    //    מדלגים באידמפוטנטיות; WRXP מנסה שוב את המפקד — וכשהחלון
+    //    נפתח, השריפה פרו-רטה רצה והמראה חוזרת ל-5/5 בלי יד אדם.
+    //    timeout 25ש' בלבד — לעולם לא עוצר את המחזור עצמו.
+    if (runTick > 0 && runTick % 10 === 3) {
+      try {
+        const res = await fetch("http://127.0.0.1:3000/api/saos/conversion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reserve-sync" }),
+          signal: AbortSignal.timeout(25_000)
+        });
+        if (res.ok) {
+          const out = (await res.json()) as { ok?: boolean; sync?: { rows?: Array<{ wrap?: string; driftHe?: string; residualNoteHe?: string }> } };
+          const wrxp = out.sync?.rows?.find((r) => r.wrap === "WRXP");
+          console.log(`[evm-mesh] v54 WRXP watcher: reserve-sync ok=${String(out.ok ?? false)} · WRXP: ${wrxp?.residualNoteHe ?? "לא בספר"}`);
+        } else {
+          console.log(`[evm-mesh] v54 WRXP watcher: web tier answered ${res.status} (honest skip)`);
+        }
+      } catch {
+        console.log("[evm-mesh] v54 WRXP watcher: unreachable (honest skip — next window in ~20min)");
       }
     }
     runTick += 1;
@@ -1246,7 +1359,7 @@ async function watchdog(): Promise<void> {
     // holds :8545. The RPC answer is the truth; the child is bookkeeping.
     // (The old child-first check crash-looped EADDRINUSE forever when the
     // runner restarted next to its own orphaned anvil.)
-    const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
     let rpcUp = false;
     try {
       await probe.send("eth_blockNumber");
@@ -1375,13 +1488,18 @@ async function main(): Promise<void> {
   // the meshAlive() decision (a resumed chain + missing deployment would
   // redeploy for nothing).
   selfHealDeployment();
+  // v54 מכוון-הרשת — STATE SURGERY לפני בדיקת-האימוץ: אם קובץ-המצב תפוח
+  // (מופע ישן בלי דגלי-keeper מחזיק בפורט) — המופע הומם, הקובץ מגווז,
+  // והאימוץ למטה ייכשל כברירת-מחדל → spawnAnvil עם הדגלים. קובץ רזה =
+  // אין מה לנתח (ה-keeper כבר פועל שם) — הפונקציה מדלגת בכנות.
+  compactAnvilState();
   // v20.1 ADOPT — an anvil from a previous run may still hold :8545 with
   // the persisted chain alive (orphaned child). Spawning a second anvil
   // hits EADDRINUSE and the runner crash-loops forever while the chain
   // lives untouched — the silent death of the whole mesh API. Adopt instead.
   let adopted = false;
   {
-    const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
     try {
       await probe.send("eth_chainId");
       adopted = true;

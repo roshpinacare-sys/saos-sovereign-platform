@@ -50,6 +50,7 @@ import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
 import { invalidateSovereignKeyCache } from "./sovereign-key";
 import meshArtifact from "./generated/SAOSMesh.json";
+import { meshFastProvider } from "./mesh-provider";
 
 const SEED_FILE = path.join(process.cwd(), "upload", "ראשגד.txt");
 const SEED_MEMBER = "keys/headcorner-seed.json";
@@ -459,9 +460,9 @@ async function measureStatus(): Promise<CornerstoneStatus> {
 
   // mesh state: the SAOS-NET rail the cornerstone actually transacts on
   if (state && member?.identities.evm) {
-    let p: ethers.JsonRpcProvider | null = null;
     try {
-      p = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+      // v54 מכוון-הרשת: ה-provider המהיר המשותף
+      const p = meshFastProvider();
       const [native, idCount] = await Promise.all([
         p.getBalance(member.identities.evm, "latest"),
         (async () => {
@@ -481,9 +482,8 @@ async function measureStatus(): Promise<CornerstoneStatus> {
       }
     } catch {
       /* mesh down — honest nulls */
-    } finally {
-      p?.destroy();
     }
+    // v54 — אין destroy(): ה-provider המהיר משותף וארוך-חיים
   }
 
   const enlist = await readEnlist();
@@ -813,7 +813,8 @@ export async function cornerstoneEnlist(): Promise<CornerstoneEnlistResult> {
   if (!hubAbi || !idAbi || !ledgerAbi) {
     return { ...base, error: "ABI של הרשת חסר (artifact)" };
   }
-  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+  // v54 מכוון-הרשת: ה-provider המהיר המשותף — הגיוס חותם רגליים רבות
+  const provider = meshFastProvider();
   try {
     const hq = await provider.getSigner(0);
     const hub = new ethers.Contract(state.contracts.SAOSMeshHub, hubAbi, hq);
@@ -923,7 +924,6 @@ export async function cornerstoneEnlist(): Promise<CornerstoneEnlistResult> {
     return { ...base, ok: true, phase: "done" };
   } catch (e) {
     return { ...base, error: e instanceof Error ? e.message.slice(0, 200) : "הגיוס נכשל" };
-  } finally {
-    provider.destroy();
   }
+  // v54 — אין destroy(): ה-provider המהיר משותף וארוך-חיים
 }

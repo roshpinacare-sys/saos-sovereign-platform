@@ -39,6 +39,7 @@ import { cornerstoneStatus, invalidateCornerstoneCache, type CornerstoneStatus, 
 import { liquidityRadar, type LiquidityRadar } from "./liquidity-radar";
 import { microgridStatus, type MicrogridStatus } from "./microgrid-live";
 import meshArtifact from "./generated/SAOSMesh.json";
+import { meshFastProvider } from "./mesh-provider";
 
 const SEED_MEMBER = "keys/headcorner-seed.json";
 export const ROSE_KIND = "rose-bloom";
@@ -247,8 +248,10 @@ export async function rosesBloom(agentName?: string): Promise<RoseBloomResult> {
     if (!hubAbi || !idAbi || !ledgerAbi) {
       return { ...base, error: "ABI של הרשת חסר (artifact)" };
     }
-    const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
-    try {
+    // v54 מכוונן-הרשת: ה-provider המהיר המשותף — הפריחה חותמת רגליים
+    // רבות על המסילה; ריעוף 120ms במקום 4ש' לכל רגל.
+    const provider = meshFastProvider();
+    { // v54 — בלוק פשוט במקום try/finally (הprovider המשותף אינו נהרס)
       const hq = await provider.getSigner(0);
       const hub = new ethers.Contract(state.contracts.SAOSMeshHub, hubAbi, hq);
       const identity = new ethers.Contract(state.contracts.SAOSIdentity, idAbi, hq);
@@ -349,9 +352,8 @@ export async function rosesBloom(agentName?: string): Promise<RoseBloomResult> {
       invalidateRosesCache();
       base.bloomsByAgent = bloomsByAgent;
       return { ...base, ok: true, phase: "done" };
-    } finally {
-      provider.destroy();
     }
+    // v54 — אין destroy(): ה-provider המהיר משותף וארוך-חיים
   } catch (e) {
     return { ...base, error: e instanceof Error ? e.message.slice(0, 200) : "הפריחה נכשלה" };
   } finally {
@@ -490,9 +492,9 @@ async function readMeshTotals(agents: DerivedAgent[]): Promise<MeshTotals> {
   if (!hubAbi || !idAbi || !ledgerAbi) {
     return { live: false, block: null, runCount: null, completedCount: null, agentCount: null, supply: null, payroll: null, balances: new Map() };
   }
-  let p: ethers.JsonRpcProvider | null = null;
   try {
-    p = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    // v54 מכוון-הרשת: ה-provider המהיר המשותף
+    const p = meshFastProvider();
     const hub = new ethers.Contract(state.contracts.SAOSMeshHub, hubAbi, p);
     const identity = new ethers.Contract(state.contracts.SAOSIdentity, idAbi, p);
     const ledger = new ethers.Contract(state.contracts.SAOSLedger, ledgerAbi, p);
@@ -535,9 +537,8 @@ async function readMeshTotals(agents: DerivedAgent[]): Promise<MeshTotals> {
     };
   } catch {
     return { live: false, block: null, runCount: null, completedCount: null, agentCount: null, supply: null, payroll: null, balances: new Map() };
-  } finally {
-    p?.destroy();
   }
+  // v54 — אין destroy(): ה-provider המהיר משותף וארוך-חיים
 }
 
 // ─── the frontier builder (live inputs → the capability boundary) ──────────

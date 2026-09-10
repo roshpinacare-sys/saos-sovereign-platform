@@ -23,6 +23,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ethers } from "ethers";
 import meshArtifact from "./generated/SAOSMesh.json";
+import { meshFastProvider } from "./mesh-provider";
 import { probeDexPairs } from "./dex-live";
 import { assertKnownPair, assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
@@ -66,8 +67,9 @@ function readState(): DeploymentState | null {
 
 const G = globalThis as unknown as { __microgridProvider?: ethers.JsonRpcProvider };
 function getProvider(): ethers.JsonRpcProvider {
+  // v54 מכוונן-הרשת: ה-provider המהיר המשותף (ריעוף 120ms + אצווה).
   if (!G.__microgridProvider) {
-    G.__microgridProvider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    G.__microgridProvider = meshFastProvider();
   }
   return G.__microgridProvider;
 }

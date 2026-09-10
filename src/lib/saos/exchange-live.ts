@@ -27,6 +27,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ethers } from "ethers";
 import meshArtifact from "./generated/SAOSMesh.json";
+import { meshFastProvider } from "./mesh-provider";
 import { liquidityRadar } from "./liquidity-radar";
 import { assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
@@ -65,8 +66,10 @@ function readState(): DeploymentState | null {
 
 const G = globalThis as unknown as { __exchangeProvider?: ethers.JsonRpcProvider };
 function getProvider(): ethers.JsonRpcProvider {
+  // v54 מכוונן-הרשת: ה-provider המהיר המשותף — הטבעות/שריפות/החלפות
+  // חדלות לשלם את ריעוף-4-השנ' של ethers על שרשרת אוטומטית.
   if (!G.__exchangeProvider) {
-    G.__exchangeProvider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    G.__exchangeProvider = meshFastProvider();
   }
   return G.__exchangeProvider;
 }

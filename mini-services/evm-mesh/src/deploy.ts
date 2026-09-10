@@ -239,7 +239,8 @@ export async function deployMesh(): Promise<DeploymentState> {
   const artifact = loadArtifact();
   fs.mkdirSync(path.dirname(STATE_PATH), { recursive: true });
 
-  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+  // v54 מכוון-הרשת — ריעוף 120ms לפריסה/המתנות
+  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
   const operator = await provider.getSigner(0);
   const operatorAddr = await operator.getAddress();
 

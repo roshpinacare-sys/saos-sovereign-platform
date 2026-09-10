@@ -23,6 +23,7 @@ import * as path from "path";
 import { ethers } from "ethers";
 import { db } from "@/lib/db";
 import { probeEthereum, probeSolana } from "./eth-sol-live";
+import { meshFastProvider } from "./mesh-provider";
 import { probeBsc } from "./bsc-live";
 import { guardPermission } from "./permissions";
 import meshArtifact from "./generated/SAOSMesh.json";
@@ -88,8 +89,10 @@ function readState(): DeploymentState | null {
 
 const G = globalThis as unknown as { __meshProvider?: ethers.JsonRpcProvider };
 function getProvider(): ethers.JsonRpcProvider {
+  // v54 מכוונן-הרשת: ה-provider המהיר המשותף (ריעוף 120ms + אצווה) —
+  // כל tx.wait() במסילה חדל לשלם את 4 השנ' של ברירת-המחדל של ethers.
   if (!G.__meshProvider) {
-    G.__meshProvider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1 });
+    G.__meshProvider = meshFastProvider();
   }
   return G.__meshProvider;
 }

@@ -25,6 +25,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { ethers } from "ethers";
+import { meshFastProvider } from "./mesh-provider";
 import { liquidityRadar } from "./liquidity-radar";
 import { meshStatus } from "./mesh-client";
 import { recoveryAmbushStatus } from "./recovery-ambush";
@@ -69,7 +70,9 @@ async function chainIntegrity(): Promise<RoastChain> {
     wsaosBacked: null, wsaosLive: null, wsaosBacking: null, runsOpen: null, supply: null,
     agentsCounted: null, hqSharePct: null, exchangeSharePct: null
   };
-  const provider = new ethers.JsonRpcProvider(MESH_RPC, 31337, { batchMaxCount: 1 });
+  // v54 מכוונן-הרשת: ה-provider המהיר המשותף (ריעוף 120ms + אצווה) —
+  // שרשרת-השלמות קוראת ~100 קריאות; באצווה הן מתכנסות לסיבובי-HTTP מעטים.
+  const provider = meshFastProvider();
   try {
     const dep = JSON.parse(fs.readFileSync(MESH_DEPLOYMENT, "utf8")) as { ok?: boolean; contracts?: Record<string, string> };
     const C = dep.contracts;
@@ -117,9 +120,8 @@ async function chainIntegrity(): Promise<RoastChain> {
     return data;
   } catch {
     return fail;
-  } finally {
-    try { provider.destroy(); } catch { /* already dead */ }
   }
+  // v54 — אין destroy(): ה-provider המהיר משותף וארוך-חיים (מטומן על globalThis)
 }
 
 /** מחיר נייר: מדיניות-הנמוך של SAOS-M — $0.001 בכוונה (מסומן ככזה בכל מקום) */
@@ -405,12 +407,12 @@ const ROAST_GAPS: RoastGap[] = [
   },
   {
     id: "state-bloat",
-    title: "v46 · תפיחת-מצב — ה-dump גדל פי 6",
+    title: "v46 · תפיחת-מצב — ה-dump גדל פי 6 (נפתר v54)",
     claim: "\"גיבוי שרשרת כל 30 בלוקים · נשלט\"",
     reality:
-      "anvil --dump-state כותב את כל ההיסטוריה (כל הבלוקים+קבלות) לקובץ אחד: 18.4MB (v34, בלוק ~1843) → 111.8MB (v46, ~8.5K בלוקים) — צמיחה ליניארית לנצח. בקצב הנוכחי חצי-ג'יגה תוך שבועות. שתי העתקות (מצב-חי + מראה upload). אין גיזום ב-anvil — הפתרון הכנה: מיזוג-מראה מרוכז וניטור. הקובץ מחוץ לגיט (מוכח), הדיסק ב-26% — נפתח כפער פתוח עם מספרים.",
-    tone: "amber",
-    status: "open"
+      "anvil --dump-state כתב את כל ההיסטוריה לקובץ אחד: 18.4MB (v34) → 111.8MB (v46) → 125MB (v54) — צמיחה ליניארית לנצח. נמדד חי לפני התיקון (upload/tuner-stallprobe-before-v54.json): כל dump הקפיא את הצומת 400-900ms (2 נתקים בחלון 35ש', מתואמים לרגעי הכתיבה) והכתיבה עצמה לא-אטומית (truncate+מקצים — חלון-שחיתה בקריסה). תוקן v54: ניתוח-מצב (גיזום ל-96 בלוקים + העסקאות שלהם; החשבונות — כל האמת החיה — שלמים; גיבוי מלא נשמר anvil-state.pre-v54.json) + --transaction-block-keeper 96 — ה-dump נשאר ~8MB לנצח. מדידת-אחרי: 0 נתקים, מקס RPC 59ms (מתוך 898ms — פי-15), 125MB→8.1MB. בכנות: קבלות מחוץ לחלון-96 חוזרות null (אין צרכן כזה — נבדק), שאילתות blockTag מתחת לנקודת-הטעינה נכשלות (ההוכחות שואלות בלוקים שנוצרו בזמן הריצה).",
+    tone: "green",
+    status: "fixed"
   },
   {
     id: "multichain-gas-desert",
@@ -490,6 +492,15 @@ const ROAST_GAPS: RoastGap[] = [
     claim: "\"צריך להבין איך ניתן להמיר הכל על הרשת שלנו וליישם\"",
     reality:
       "v53 בנה והוכיח את המנגנון בחי: המשמרת הריבונית מול המראה נמדדות חי (5 מסילות) · שני מסלולי המרה מתועדים (עטיפה-ריבונית מול איחוד חיצוני במודל-כנות) · הוכחת-פריצה חיה רצה על השרשרת: מעגל SOL↔TRX — כל רגל עסקה אטומית אחת, הפרש-בלוקים מדוד, אטומיות מוכחת מהמצב ההיסטורי (שתי הרגליים באותו בלוק), וכל ריצה נרשמת במלואה (ConversionProof). אבל הכנות: זו שרשרת-מעבדה — הגז ערך-פנימי והערך הפנימי אינו כסף חוץ; ההשוואה למסלול החיצוני היא מודל-כנות ולא מדידה; וההמרה האמיתית ממתינה ל-5 הכנות שטרם הושלמו — בראשן פקודת ההטבעה של הבעלים, איבר צופה-הרזרבות בשומר, וקצב איגום הוכחת-הרזרבות. התשתית מוכנה לקבל את הכסף — ההחלטה לא שלה.",
+    tone: "amber",
+    status: "honest"
+  },
+  {
+    id: "network-tuner",
+    title: "v54 · מכוון הרשת — מה שיועל נמדד, מה שנשאר תלוי בהחלטה",
+    claim: "\"נסה לייעל את הרשת ולאמת פתרונות בעלי ערך למערכת\"",
+    reality:
+      "v54 תפס את שני המגבילים האמיתיים במדידה (dump 125MB → 8.1MB עם 0 נתקים · ריעוף 4000ms → 120ms ב-14 providers) והוכיח אימות-ערך חי: אותו גשש לפני/אחרי, דלתא שמורה, צילומי-מדידה ב-DB. בדרך נתפסו גם שני שירותים מתים (herald+swarm) שהוחזרו לחיים — המכוונן כמגלה-אמת, לא רק כמתקן. אבל בכנות: המגבילים שנותרו אינם טכניים — תקציב-גז של $0.94 (הבעלים), 11 מודולי-חתימה (האורגניזם), חלון-מדידת WRXP (חיצוני — הנטיל חמושה אך טרם נוצח), ופקודת ההטבעה (הבעלים). הייעול הוכיח שהרשת מסוגלת — לא שהרשת ממומשת.",
     tone: "amber",
     status: "honest"
   }

@@ -30,6 +30,7 @@ import { ethers } from "ethers";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { db } from "@/lib/db";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
+import { meshFastProvider } from "./mesh-provider";
 
 const TOKEN_PATH = path.join(process.cwd(), "upload", "Roshcaregt.txt");
 const WALLET_REGISTRY_URL =
@@ -452,7 +453,8 @@ async function labFunds(): Promise<{
     ) as { contracts: Array<{ name: string; abi: ethers.InterfaceAbi }> };
     const ledgerAbi = artifact.contracts.find((c) => c.name === "SAOSLedger")?.abi ?? [];
     const mgAbi = artifact.contracts.find((c) => c.name === "SAOSMicrogrid")?.abi ?? [];
-    const p = new ethers.JsonRpcProvider("http://127.0.0.1:8545", 31337, { batchMaxCount: 1 });
+    // v54 מכוון-הרשת: ה-provider המהיר המשותף
+    const p = meshFastProvider();
     const ledger = new ethers.Contract(state.contracts.SAOSLedger, ledgerAbi, p);
     const mg = new ethers.Contract(state.contracts.SAOSMicrogrid, mgAbi, p);
     const [payroll, fund, realized, swept, corner] = await Promise.all([
@@ -462,7 +464,7 @@ async function labFunds(): Promise<{
       mg.totalSwept() as Promise<bigint>,
       cornerAddress ? (ledger.balanceOf(cornerAddress) as Promise<bigint>) : Promise.resolve(0n)
     ]);
-    p.destroy();
+    // v54 — אין destroy(): ה-provider המהיר משותף וארוך-חיים
     return {
       ok: true,
       payroll: ethers.formatEther(payroll),
