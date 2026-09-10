@@ -80,12 +80,33 @@ export async function fetchJson(url: string, timeoutMs = 4000): Promise<Record<s
       console.error(`[magen] blocked outbound fetch to ${u.hostname} (loopback only)`);
       return null;
     }
+    // v55 לולאת-המוות שנתפסה חי (restart #1/#2): בזמן מצוקת-ווב (RSS 1.5GB ·
+    // page-hang) הווב מחזיר 200+כותרות אבל הגוף נתקע — ו-bun לעולם לא דוחה
+    // את res.json() ב-abort (הוכח בריפרו repro-abort.ts ניסוי B: תלייה>15ש'
+    // למרות abort). הטיפול: ה-abort ממשיך לכסות גם את קריאת-הגוף (clearTimeout
+    // רק ב-finally), וקריאת-הגוף עצמה רצה במירוץ קשיח נגד deadline שתמיד
+    // מסתיים — לא סומכים על ה-abort, ה-fetch-כולו חסום-זמן.
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeoutMs);
-    const res = await fetch(url, { signal: ctl.signal });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
+    try {
+      const res = await fetch(url, { signal: ctl.signal });
+      if (!res.ok) return null;
+      // v55 — המירוץ הקשיח עם ניקוי-טיימר: המנצח מנקה את ה-deadline (אין
+      // לוגי-שקר מאוחרים); המפסיד מוחזר כ-null כנה.
+      const body = await new Promise<Record<string, unknown> | null>((resolve) => {
+        const t2 = setTimeout(() => {
+          console.log(`[evm-mesh] v55 body-deadline: ${u.pathname} stalled >${timeoutMs}ms — honest null (bun abort does not reject a stalled body read)`);
+          resolve(null);
+        }, timeoutMs);
+        res.json().then(
+          (v) => { clearTimeout(t2); resolve(v as Record<string, unknown>); },
+          () => { clearTimeout(t2); resolve(null); }
+        );
+      });
+      return body;
+    } finally {
+      clearTimeout(t);
+    }
   } catch {
     return null;
   }

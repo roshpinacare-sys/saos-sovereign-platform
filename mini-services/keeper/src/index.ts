@@ -104,8 +104,14 @@ const ZOMBIE_MS = 10 * 60_000; // 10 min without a new block on a live chain = 3
 // Recycling gently (SIGTERM + detached respawn) on OUR schedule beats the
 // kernel killing on ITS schedule: same fast recovery, zero surprise, full
 // journal trail — running confidence by design, not by luck.
-const RSS_SHED_MB = 1500;
+// v55 כיוון — 1500→1350MB + חלון-חסד-עלייה: המדידה החיה הראתה שב-1.2–1.5GB
+// הווב סובל (גופים תקועים · page-hang) — אבל הניסיון הראשון (1150MB בלי חסד)
+// יצר לופ-מיחזור: recompile אחרי purge מגיע ל-1.5GB בלגיטימיות → מיחזור
+// בזמן הקומפילציה → שוב. התיקון: הסף 1350 + הקריאות נספרות רק אחרי 12 דק'
+// מעליית הווב (סערת-הקומפילציה חולפת; ווב בוגר ב-1.35GB+ = מסע אמיתי).
+const RSS_SHED_MB = 1350;
 const RSS_SHED_READINGS = 2;
+const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
 const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
@@ -297,19 +303,37 @@ function runnerAlive(): boolean {
   );
 }
 
-function nextServerRssMb(): number {
+function nextServerRssMb(): { rss: number; ageMs: number } {
   for (const p of scanProcs()) {
     if (p.cmdline.includes("next-server")) {
       try {
         const status = fs.readFileSync(`/proc/${p.pid}/status`, "utf8");
         const m = /VmRSS:\s+(\d+)\s+kB/.exec(status);
-        if (m) return Math.round(Number(m[1]) / 1024);
+        if (m) {
+          // v55 — גיל התהליך (שדה 22 ב-/stat = starttime ב-ticks מאז-האתחול):
+          // מיחזור-RSS לגיטימי רק על ווב בוגר; ווב צעיר בסערת-קומפילציה נהנה
+          // מחלון-חסד (לופ-המיחזור שנתפס חי ב-19:08).
+          let ageMs = Infinity;
+          try {
+            const stat = fs.readFileSync(`/proc/${p.pid}/stat`, "utf8");
+            const parts = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+            const startTicks = Number(parts[19]); // field 22 overall (post-comm index 19)
+            if (Number.isFinite(startTicks)) {
+              const hz = 100;
+              const uptimeSec = Number(fs.readFileSync("/proc/uptime", "utf8").split(" ")[0]);
+              ageMs = Math.max(0, (uptimeSec - startTicks / hz) * 1000);
+            }
+          } catch {
+            /* age unknown — treat as mature (fail-open to the old doctrine) */
+          }
+          return { rss: Math.round(Number(m[1]) / 1024), ageMs };
+        }
       } catch {
         /* gone */
       }
     }
   }
-  return 0;
+  return { rss: 0, ageMs: 0 };
 }
 
 function readMeminfo(): { totalMb: number; availableMb: number } {
@@ -829,7 +853,7 @@ async function cycle(): Promise<void> {
   //    our terms) instead of an unplanned kernel OOM kill.
   if (RT.cycle % SLOW_EVERY === 0) {
     const m = readMeminfo();
-    const rss = nextServerRssMb();
+    const { rss, ageMs } = nextServerRssMb();
     const pressure = m.availableMb > 0 && m.availableMb < PRESSURE_MB;
     S.mem = { totalMb: m.totalMb, availableMb: m.availableMb, nextRssMb: rss, pressure };
     if (pressure !== S.memPressurePrev) {
@@ -843,11 +867,18 @@ async function cycle(): Promise<void> {
     }
     const webAnswering = web.alive && !S.degraded;
     if (rss >= RSS_SHED_MB && webAnswering) {
-      S.rssShedStreak += 1;
-      if (S.rssShedStreak >= RSS_SHED_READINGS && Date.now() > S.reviveDeadline) {
-        recycleWeb();
+      if (ageMs < RSS_BOOT_GRACE_MS) {
+        // v55 — young web riding the post-revive compile storm: the RSS spike
+        // is legitimate work, not a march — grace (the 19:08 recycle-loop cure)
+        S.rssShedStreak = 0;
+        journal("pressure", `RSS ${rss}MB ≥ ${RSS_SHED_MB}MB אך הווב בן ${(ageMs / 60000).toFixed(1)} דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים`);
       } else {
-        journal("pressure", `RSS ${rss}MB ≥ ${RSS_SHED_MB}MB (reading ${S.rssShedStreak}/${RSS_SHED_READINGS}) — recycle armed`);
+        S.rssShedStreak += 1;
+        if (S.rssShedStreak >= RSS_SHED_READINGS && Date.now() > S.reviveDeadline) {
+          recycleWeb();
+        } else {
+          journal("pressure", `RSS ${rss}MB ≥ ${RSS_SHED_MB}MB (reading ${S.rssShedStreak}/${RSS_SHED_READINGS}) — recycle armed`);
+        }
       }
     } else if (rss > 0 && rss < RSS_SHED_MB - 200) {
       S.rssShedStreak = 0;

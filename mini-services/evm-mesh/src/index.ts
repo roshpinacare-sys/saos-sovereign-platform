@@ -45,6 +45,37 @@ import {
 const ARTIFACT_PATH = path.resolve(import.meta.dir, "..", "..", "..", "src", "lib", "saos", "generated", "SAOSMesh.json");
 const ANVIL_BIN = process.env.MESH_ANVIL_BIN ?? `${process.env.HOME ?? "/home/z"}/.foundry/bin/anvil`;
 const PORT = 8545;
+
+// v55 לולאת-המוות — RPC DEADLINE קשיח לכל קריאת ethers: ethers דיבר דרך
+// שכבת-התאימות node:http של bun, שבה request.setTimeout(300ש') מעולם לא
+// ירה על שקע תקוע — נתפס חי: register[0] תלוי 10+ דקות עם אפס קריאות
+// שהגיעו ל-anvil (18:28→18:38). getUrl קורא את המענה כולו (כותרות+גוף)
+// לפני שהוא מחזיר — מירוץ אחד סביבו חוסם את כל ה-round-trip. המפסיד
+// נבלע; ה-try/catch של הקורא הופך את הדחייה לדילוג-כנה — המחזור לעולם
+// לא ייתלה על השרשרת, באף שכבה (fetch-ווב · node:http · ethers).
+const RPC_DEADLINE_MS = 20_000;
+{
+  const probe = new ethers.FetchRequest(MESH_RPC);
+  const defaultGetUrl = probe.getUrlFunc as (req: ethers.FetchRequest, signal?: unknown) => Promise<unknown>;
+  ethers.FetchRequest.registerGetUrl(((req: ethers.FetchRequest, signal?: unknown) => {
+    // v55 שקע-מצובר-מת: bun שומר שקעים ב-pool גם אחרי שמתו — והבקשה הבאה
+    // רוכבת על גופה (נתפס חי: register[8]/[9]/[11]/[12] נתקעו זה אחר זה).
+    // Connection: close = שקע טרי לכל בקשה; ב-loopback מחיר-ה-handshake זניח
+    // מול 90ש' של תלייה על גופה.
+    req.setHeader("connection", "close");
+    const rp = defaultGetUrl(req, signal);
+    rp.catch(() => { /* swallowed — the race may abandon it */ });
+    return Promise.race([
+      rp,
+      new Promise<never>((_resolve, reject) => {
+        setTimeout(() => {
+          reject(new Error(`rpc-deadline: ${req.method} ${req.url} stalled >${RPC_DEADLINE_MS}ms (bun node:http socket-timeout never fires)`));
+        }, RPC_DEADLINE_MS);
+      }),
+    ]);
+  }) as typeof defaultGetUrl);
+}
+
 // v18.1 — PERSISTENT LAB CHAIN: anvil dumps its state (every 30s + on exit)
 // and reloads it on boot, so on-chain ids (orders, runs, agents) NEVER
 // regress across service restarts / hot reloads / watchdog respawns.
@@ -409,9 +440,39 @@ const MISSIONS: Array<{ mission: string; difficulty: number; reward: bigint }> =
 const WORK_API = "http://127.0.0.1:3000/api/saos/mesh/work";
 
 /** post a work order WITH a real LLM deliverable through the web tier. */
+// v55 לולאת-המוות — תקציב-צעד קשיח: repro-abort.ts הוכיח ש-bun לעולם לא דוחה
+// קריאת-גוף תקועה ב-abort (ניסוי B: תלייה>15ש'). כל fetch ישיר במחזור רץ
+// עכשיו במירוץ נגד deadline שתמיד מסתיים — המחזור לעולם לא נתלה על הווב,
+// גם כשהווב במצוקה (RSS-עסקה · page-hang · גוף שנתקע באמצע).
+async function webJson<T>(url: string, init: RequestInit | undefined, budgetMs: number): Promise<T | null> {
+  let done = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const bail = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      if (done) return;
+      console.log(`[evm-mesh] v55 step-budget: ${url} exceeded ${budgetMs}ms — honest skip (stalled fetch/body cannot hang the cycle)`);
+      resolve(null);
+    }, budgetMs);
+  });
+  try {
+    const fp = fetch(url, init);
+    fp.catch(() => { /* swallowed — the race may abandon it */ });
+    const res = await Promise.race([fp, bail]);
+    if (!res || !res.ok) return null;
+    const jp = res.json() as Promise<T>;
+    jp.catch(() => { /* swallowed — the race may abandon it */ });
+    return (await Promise.race([jp, bail])) ?? null;
+  } catch {
+    return null;
+  } finally {
+    done = true;
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function postRealWorkOrder(job: { mission: string; difficulty: number; reward: bigint }): Promise<boolean> {
   try {
-    const res = await fetch(WORK_API, {
+    const out = await webJson<{ ok?: boolean; error?: string }>(WORK_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -421,9 +482,8 @@ async function postRealWorkOrder(job: { mission: string; difficulty: number; rew
         realWork: true
       }),
       signal: AbortSignal.timeout(60_000) // v30 — 100→60ש': מחזור-120ש' לא מחכה ל-LLM שנתקע; ה-fallback היבש הכן קיים
-    });
-    if (!res.ok) return false;
-    const out = (await res.json()) as { ok?: boolean; error?: string };
+    }, 75_000); // v55 — ה-abort הפנימי (60ש') + מירוץ קשיח חיצוני (75ש'): קריאת-גוף תקועה לא תלה את המחזור
+    if (!out) return false; // web tier down / stalled body — honest dry fallback below
     if (out.ok) {
       console.log(`[evm-mesh] REAL WORK delivered: "${job.mission}" (LLM solution + anchor)`);
       return true;
@@ -526,9 +586,53 @@ async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
   return { hub, identity, ledger, bridge, workboard, microgrid };
 }
 
+// v55 אינסטרומנטציה — מד-צעדים: כל await במחזור מתועד בהתחלה/סיום עם מילישניות.
+// אבחון לולאת-המוות שנתפסה חי (restart #1/#2 ב-18:01/18:12): המחזור קופא
+// בין צעדים ללא יוצא מן הכלל — הצעד התלוי הוא האחרון שהתחיל ולא סיים.
+const STEP_T0 = Date.now();
+function step(name: string, done = false): void {
+  const ms = Date.now() - STEP_T0;
+  console.log(`[step] ${done ? "∎" : "▶"} ${name} +${ms}ms (tick=${runTick})`);
+}
+
+// v55 לולאת-המוות — תקציב-צעד אקטיבי: ethers v6 מלא שערי-המתנה שקטים
+// (מנוי בלוקים שמת · טיימרים נדחים · תור-בקשות שלא מתרוקן) — נתפס חי:
+// register[2] תלוי 4+ דקות עם אפס בקשות יוצאות מצד אפס טיימרים. אף
+// עטיפה פנימית לא מכסה את כולם — הפתרון הפרודוקטיבי: כל await קריטי
+// במחזור רץ תחת מירוץ שתמיד מסתיים. ההבטחה הננטשת נבלעת; המחזור
+// ממשיך תמיד — לולאת-המוות של השומר (הרג כל 10 דק') נסגרה סופית.
+async function stepB<T>(name: string, fn: () => Promise<T>, budgetMs: number): Promise<T | null> {
+  step(name);
+  let t2: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      (async () => {
+        try {
+          return await fn();
+        } catch (e) {
+          // v55 — כישלון צעד הוא דילוג-כנה, לא ביטול-מחזור: revert של
+          // estimateGas היה מפיל מחזורים שלמים ("auto-cycle skipped").
+          console.log(`[evm-mesh] v55 step-fail: ${name} — ${e instanceof Error ? e.message.slice(0, 110) : "unknown"} — honest skip`);
+          return null;
+        }
+      })(),
+      new Promise<null>((resolve) => {
+        t2 = setTimeout(() => {
+          console.log(`[evm-mesh] v55 step-budget: ${name} exceeded ${budgetMs}ms — honest skip (the await was abandoned; the cycle lives)`);
+          resolve(null);
+        }, budgetMs);
+      }),
+    ]);
+  } finally {
+    if (t2) clearTimeout(t2);
+    step(name, true);
+  }
+}
+
 async function autoCycle(): Promise<void> {
   if (RT.busy) return;
   RT.busy = true;
+  console.log(`[cycle] START tick=${runTick} at ${new Date().toISOString()}`);
   const cycleWatchdog = setTimeout(() => {
     console.log(
       `[evm-mesh] CYCLE WATCHDOG: cycle exceeded ${Math.round(CYCLE_MAX_MS / 60_000)}min (frozen RPC socket / hung await) — self-terminating; the keeper revives a fresh runner. runTick=${runTick} block≈stuck`
@@ -539,37 +643,45 @@ async function autoCycle(): Promise<void> {
   // 4000ms של ethers האטה כל רגל עד 4ש' (מקור פערי-הבלוק p50=4ש' שנמדדו)
   const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
   try {
-    const c = await meshContracts(provider);
+    const c = await stepB("contracts", () => meshContracts(provider), 30_000);
     if (!c) throw new Error("mesh not deployed");
 
     // 1. LIVE 8-chain anchors flow INTO the mesh (דבר מוביל לדבר)
-    const anchors = await fetchLiveAnchors();
+    const anchors = await stepB("anchors-fetch", () => fetchLiveAnchors(), 10_000);
     if (anchors) {
-      const tx = await c.bridge.anchorExternalBulk(anchors.chains, anchors.heights, anchors.digests);
-      await tx.wait();
+      await stepB("anchors-tx", async () => {
+        const tx = await c.bridge.anchorExternalBulk(anchors.chains, anchors.heights, anchors.digests);
+        await tx.wait();
+        return true;
+      }, 90_000);
     }
 
     // 2. fleet identity sync — the REAL organism's agents (idempotent)
-    for (const agent of await fetchFleetAgents()) {
-      try {
+    const fleet = await stepB("fleet-fetch", () => fetchFleetAgents(), 30_000);
+    let regIdx = 0;
+    for (const agent of fleet ?? []) {
+      // v55 — 45ש' בלבד: הרישום אידמפוטנטי; סוכן שנדלג נרשם במחזור הבא.
+      // גרוע-המקרה (13 סוכנים × 45ש') נשאר מתחת לחלון-הזומבי של השומר.
+      await stepB(`register[${regIdx}] ${agent.handle}`, async () => {
         const tx = await c.identity.register(agent.address, agent.handle);
         await tx.wait();
-      } catch {
-        /* already registered */
-      }
+        return true;
+      }, 45_000);
+      regIdx += 1;
     }
 
     // 3. the HQ posts a REAL work order through the solution engine —
     //    LLM deliverable + SAOS-WORK anchor + receipt; dry fallback below
+    step("workorder");
     const job = MISSIONS[runTick % MISSIONS.length] as { mission: string; difficulty: number; reward: bigint };
     const delivered = await postRealWorkOrder(job);
+    step("workorder", true);
     if (!delivered) {
-      try {
+      await stepB("dry-order", async () => {
         await (await c.workboard.postOrder(job.mission, job.difficulty, job.reward)).wait();
         console.log(`[evm-mesh] HQ posted DRY work order (web tier down): "${job.mission}"`);
-      } catch {
-        /* board full/miss — the run still happens */
-      }
+        return true;
+      }, 90_000).catch(() => null); /* board full/miss — the run still happens */
     }
 
     // 3.5 v20 — MICROGRID ORACLE: fresh REAL DEX prices (the web tier's
@@ -577,16 +689,19 @@ async function autoCycle(): Promise<void> {
     //      run itself ticks the grids with live market data (link #6).
     //      v28 — ALL 6 KNOWN_PAIRS (במקום 2) — כל הגרידים מקבלים מחיר טרי.
     try {
-      const dex = await fetchJson("http://127.0.0.1:3000/api/saos/dex");
-      const pairs = (dex?.pairs ?? []) as Array<{ pair?: string; price?: string | null; exists?: boolean }>;
-      for (const pair of KNOWN_PAIRS) {
-        const p = pairs.find((x) => x.pair === pair && x.exists && x.price);
-        const num = p?.price ? Number(p.price) : NaN;
-        if (Number.isFinite(num) && num > 0) {
-          const tx = await c.microgrid.postPrice(pair, BigInt(Math.round(num * 1e6)));
-          await tx.wait();
+      await stepB("oracle-prices", async () => {
+        const dex = await fetchJson("http://127.0.0.1:3000/api/saos/dex");
+        const pairs = (dex?.pairs ?? []) as Array<{ pair?: string; price?: string | null; exists?: boolean }>;
+        for (const pair of KNOWN_PAIRS) {
+          const p = pairs.find((x) => x.pair === pair && x.exists && x.price);
+          const num = p?.price ? Number(p.price) : NaN;
+          if (Number.isFinite(num) && num > 0) {
+            const tx = await c.microgrid.postPrice(pair, BigInt(Math.round(num * 1e6)));
+            await tx.wait();
+          }
         }
-      }
+        return true;
+      }, 120_000);
     } catch {
       /* oracle best-effort — grids tick on the last posted price (honest) */
     }
@@ -597,34 +712,40 @@ async function autoCycle(): Promise<void> {
     //    v46 — ספסל-מלא: הרוטציה %5 הותירה את חיילים 6/7/8 מובטלים לנצח
     //    (runs=0 בשרשרת — נתפס ברוסט v46). כל 8 החיילים ברוטציה — כולם
     //    נרשמו, כולם ממולאים, כולם מקבלים ריצות.
-    const initiator = await provider.getSigner(1 + (runTick % 8));
+    // 4. a real mesh run — rotating initiators deliver the work + auto-enlist.
     const intent = INTENTS[runTick % INTENTS.length] as string;
-    const tx = await c.hub.connect(initiator).dispatch(intent);
-    const rc = await tx.wait();
+    const rc = await stepB("dispatch", async () => {
+      const initiator = await provider.getSigner(1 + (runTick % 8));
+      const tx = await c.hub.connect(initiator).dispatch(intent);
+      return await tx.wait();
+    }, 150_000);
     console.log(`[evm-mesh] auto run #${runTick} "${intent}" gas=${rc?.gasUsed ?? "?"}`);
 
     // 4.2 v21 — ANTI-GRID-DEATH: re-anchor any grid pinned at its band edge
     //      (cursor exhausted) or paused by the drift limit to the FRESH price
     //      just posted — the grid never dies on a trending market.
     try {
-      const gridCount = Number(await c.microgrid.gridCount());
-      for (let i = 0; i < gridCount; i++) {
-        try {
-          const g = (await c.microgrid.gridAt(i)) as unknown as {
-            pair: string; cursor: number; levels: number; live: boolean;
-          };
-          const exhausted = Number(g.cursor) <= -Number(g.levels) || Number(g.cursor) >= Number(g.levels);
-          const paused = !g.live;
-          if (!exhausted && !paused) continue;
-          const price = (await c.microgrid.priceOf(g.pair)) as bigint;
-          if (price <= 0n) continue; // no fresh posted price — honest skip
-          const rtx = await c.microgrid.reanchor(BigInt(i));
-          await rtx.wait();
-          console.log(`[evm-mesh] microgrid grid#${i} ${g.pair} re-anchored → ${Number(price) / 1e6}`);
-        } catch {
-          /* honest skip — the next cycle tries again */
+      await stepB("grids", async () => {
+        const gridCount = Number(await c.microgrid.gridCount());
+        for (let i = 0; i < gridCount; i++) {
+          try {
+            const g = (await c.microgrid.gridAt(i)) as unknown as {
+              pair: string; cursor: number; levels: number; live: boolean;
+            };
+            const exhausted = Number(g.cursor) <= -Number(g.levels) || Number(g.cursor) >= Number(g.levels);
+            const paused = !g.live;
+            if (!exhausted && !paused) continue;
+            const price = (await c.microgrid.priceOf(g.pair)) as bigint;
+            if (price <= 0n) continue; // no fresh posted price — honest skip
+            const rtx = await c.microgrid.reanchor(BigInt(i));
+            await rtx.wait();
+            console.log(`[evm-mesh] microgrid grid#${i} ${g.pair} re-anchored → ${Number(price) / 1e6}`);
+          } catch {
+            /* honest skip — the next cycle tries again */
+          }
         }
-      }
+        return true;
+      }, 120_000);
     } catch {
       /* grid scan best-effort */
     }
@@ -632,13 +753,16 @@ async function autoCycle(): Promise<void> {
     // 4.5 v20 — MICROGRID FLYWHEEL: sweep accrued profit → work-board
     //      payroll (zero-fee rail). Honest: capped by the real balance.
     try {
-      const realizedBefore = await c.microgrid.totalRealized();
-      const sweptTx = await c.microgrid.sweepAllToPayroll();
-      await sweptTx.wait();
-      const realized = Number(ethers.formatEther(realizedBefore));
-      if (realized > 0) {
-        console.log(`[evm-mesh] microgrid realized so far: ${realized.toFixed(4)} SAOS-M (swept → payroll)`);
-      }
+      await stepB("sweep", async () => {
+        const realizedBefore = await c.microgrid.totalRealized();
+        const sweptTx = await c.microgrid.sweepAllToPayroll();
+        await sweptTx.wait();
+        const realized = Number(ethers.formatEther(realizedBefore));
+        if (realized > 0) {
+          console.log(`[evm-mesh] microgrid realized so far: ${realized.toFixed(4)} SAOS-M (swept → payroll)`);
+        }
+        return true;
+      }, 60_000);
     } catch {
       /* sweep best-effort — no grids / no balance yet (honest) */
     }
@@ -649,19 +773,20 @@ async function autoCycle(): Promise<void> {
     //      SAOS-M). The fleet blooms in rotation, forever: "כל הסוכנים גם
     //      יוכלו לפי הצורך לבצע דרך הזרע". Honest skip on failure.
     try {
-      const res = await fetch("http://127.0.0.1:3000/api/saos/roses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "bloom" }),
-        signal: AbortSignal.timeout(90_000)
-      });
-      if (res.ok) {
-        const out = (await res.json()) as { ok?: boolean; agent?: string; block?: number; runId?: number; error?: string };
-        if (out.ok) {
-          console.log(`[evm-mesh] ROSE bloomed: ${out.agent} signed run #${out.runId} via the seed (block ${out.block})`);
-        } else {
-          console.log(`[evm-mesh] rose bloom skipped honestly: ${out.error ?? "unknown"}`);
-        }
+      const out = await webJson<{ ok?: boolean; agent?: string; block?: number; runId?: number; error?: string }>(
+        "http://127.0.0.1:3000/api/saos/roses",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "bloom" }),
+          signal: AbortSignal.timeout(90_000)
+        },
+        100_000 // v55 — מירוץ קשיח: גוף תקוע לא תולה את המחזור
+      );
+      if (out?.ok) {
+        console.log(`[evm-mesh] ROSE bloomed: ${out.agent} signed run #${out.runId} via the seed (block ${out.block})`);
+      } else if (out) {
+        console.log(`[evm-mesh] rose bloom skipped honestly: ${out.error ?? "unknown"}`);
       }
     } catch {
       /* web tier down / timeout — honest skip, next cycle tries again */
@@ -676,25 +801,27 @@ async function autoCycle(): Promise<void> {
     //      verdict lands redacted in the opLog and surfaces in the
     //      מגן + רשות views. Honest skip on failure — next cycle retries.
     try {
-      const st = await fetch("http://127.0.0.1:3000/api/saos/security", {
-        signal: AbortSignal.timeout(30_000)
-      });
-      if (st.ok) {
-        const s = (await st.json()) as { autoscan?: { lastAt: string | null } };
-        const lastJournaled = s?.autoscan?.lastAt ? Date.parse(s.autoscan.lastAt) : 0;
-        if (!lastJournaled || Date.now() - lastJournaled > 55 * 60_000) {
-          const pr = await fetch("http://127.0.0.1:3000/api/saos/security", {
+      const s = await webJson<{ autoscan?: { lastAt: string | null } }>(
+        "http://127.0.0.1:3000/api/saos/security",
+        { signal: AbortSignal.timeout(30_000) },
+        35_000 // v55 — מירוץ קשיח
+      );
+      const lastJournaled = s?.autoscan?.lastAt ? Date.parse(s.autoscan.lastAt) : 0;
+      if (!lastJournaled || Date.now() - lastJournaled > 55 * 60_000) {
+        const o = await webJson<{ ok?: boolean; highCount?: number }>(
+          "http://127.0.0.1:3000/api/saos/security",
+          {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "scan" }),
             signal: AbortSignal.timeout(110_000)
-          });
-          if (pr.ok) {
-            const o = (await pr.json()) as { ok?: boolean; highCount?: number };
-            console.log(
-              `[evm-mesh] MAGEN auto-scan: ${o.ok ? "clean" : `SEVERE (${o.highCount} high) — verdict journaled`} (hourly, step 4.7)`
-            );
-          }
+          },
+          120_000 // v55 — מירוץ קשיח
+        );
+        if (o) {
+          console.log(
+            `[evm-mesh] MAGEN auto-scan: ${o.ok ? "clean" : `SEVERE (${o.highCount} high) — verdict journaled`} (hourly, step 4.7)`
+          );
         }
       }
     } catch {
@@ -707,7 +834,7 @@ async function autoCycle(): Promise<void> {
     //      של המיקרו-גריד מסודרים (best-effort, דילוג כנה בכשל — המחזור
     //      הבא ממשיך).
     try {
-      await exchangeCycle(provider);
+      await stepB("exchange", () => exchangeCycle(provider), 300_000);
     } catch {
       /* הבורסה best-effort — המחזור הבא מנסה שוב */
     }
@@ -727,20 +854,19 @@ async function autoCycle(): Promise<void> {
     //      lock). No member of the organism can stay FUNCTION-dead:
     //      web ⇄ keeper ⇄ runner ⇄ anvil.
     try {
-      const k = await fetch("http://127.0.0.1:3005/", { signal: AbortSignal.timeout(3_000) });
-      if (k.ok) {
-        const st = (await k.json().catch(() => null)) as { lastCheckAt?: string; pid?: number } | null;
-        const lastMs = st?.lastCheckAt ? Date.parse(st.lastCheckAt) : NaN;
-        if (Number.isFinite(lastMs) && Date.now() - lastMs <= 180_000) {
-          keeperFails = 0; // honestly watching — the cycle advances
-        } else {
-          keeperFails += 2; // zombie-watcher: port answers, function frozen
-          console.log(`[evm-mesh] keeper zombie-watcher: lastCheckAt ${st?.lastCheckAt ?? "none"} stale >3min — port-live but function-dead (v36)`);
-          if (st?.pid && st.pid !== process.pid) {
-            try { process.kill(st.pid, "SIGTERM"); } catch { /* already gone */ }
-          }
+      const st = await webJson<{ lastCheckAt?: string; pid?: number }>("http://127.0.0.1:3005/", { signal: AbortSignal.timeout(3_000) }, 5_000);
+      const lastMs = st?.lastCheckAt ? Date.parse(st.lastCheckAt) : NaN;
+      if (st && Number.isFinite(lastMs) && Date.now() - lastMs <= 180_000) {
+        keeperFails = 0; // honestly watching — the cycle advances
+      } else if (st) {
+        keeperFails += 2; // zombie-watcher: port answers, function frozen
+        console.log(`[evm-mesh] keeper zombie-watcher: lastCheckAt ${st?.lastCheckAt ?? "none"} stale >3min — port-live but function-dead (v36)`);
+        if (st?.pid && st.pid !== process.pid) {
+          try { process.kill(st.pid, "SIGTERM"); } catch { /* already gone */ }
         }
-      } else keeperFails += 1;
+      } else {
+        keeperFails += 1; // v55 — unreachable/stalled body — honest fail
+      }
     } catch {
       keeperFails += 1;
     }
@@ -759,7 +885,7 @@ async function autoCycle(): Promise<void> {
 
     // 5. every 3rd cycle: a zero-fee value movement (ללא עמלה — forever 0)
     if (runTick % 3 === 2) {
-      try {
+      await stepB("zero-fee", async () => {
         const count = Number(await c.identity.agentCount());
         if (count > 1) {
           const idx = runTick % count;
@@ -771,9 +897,8 @@ async function autoCycle(): Promise<void> {
             console.log(`[evm-mesh] zero-fee transfer → ${dest.slice(0, 10)}… (fee=0)`);
           }
         }
-      } catch {
-        /* balance/idx — honest skip */
-      }
+        return true;
+      }, 90_000);
     }
     // 6. v54 מכוון-הרשת — נטיל-WRXP אוטומטית: חלון-המדידה של מפקד-ה-XRP
     //    בקצב-הגשה (v53: "WRXP ממתין בכנות לחלון-מדידה"). כל 10 מחזורים
@@ -783,18 +908,21 @@ async function autoCycle(): Promise<void> {
     //    timeout 25ש' בלבד — לעולם לא עוצר את המחזור עצמו.
     if (runTick > 0 && runTick % 10 === 3) {
       try {
-        const res = await fetch("http://127.0.0.1:3000/api/saos/conversion", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "reserve-sync" }),
-          signal: AbortSignal.timeout(25_000)
-        });
-        if (res.ok) {
-          const out = (await res.json()) as { ok?: boolean; sync?: { rows?: Array<{ wrap?: string; driftHe?: string; residualNoteHe?: string }> } };
+        const out = await webJson<{ ok?: boolean; sync?: { rows?: Array<{ wrap?: string; driftHe?: string; residualNoteHe?: string }> } }>(
+          "http://127.0.0.1:3000/api/saos/conversion",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "reserve-sync" }),
+            signal: AbortSignal.timeout(25_000)
+          },
+          30_000 // v55 — מירוץ קשיח
+        );
+        if (out) {
           const wrxp = out.sync?.rows?.find((r) => r.wrap === "WRXP");
           console.log(`[evm-mesh] v54 WRXP watcher: reserve-sync ok=${String(out.ok ?? false)} · WRXP: ${wrxp?.residualNoteHe ?? "לא בספר"}`);
         } else {
-          console.log(`[evm-mesh] v54 WRXP watcher: web tier answered ${res.status} (honest skip)`);
+          console.log(`[evm-mesh] v54 WRXP watcher: web tier stalled/down (honest skip)`);
         }
       } catch {
         console.log("[evm-mesh] v54 WRXP watcher: unreachable (honest skip — next window in ~20min)");
@@ -802,6 +930,7 @@ async function autoCycle(): Promise<void> {
     }
     runTick += 1;
     saveRunTick(runTick); // v46 — הפאזה שורדת מוות: הטיק נשמר בכל סוף-מחזור
+    console.log(`[cycle] DONE tick=${runTick} in ${((Date.now() - STEP_T0) / 1000).toFixed(1)}s`);
   } catch (e) {
     console.log(`[evm-mesh] auto-cycle skipped: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`);
   } finally {
@@ -992,17 +1121,33 @@ async function postPlatform(path: string, body: Record<string, unknown>, timeout
   try {
     // v24 מגן (runner): loopback בלבד — כמו fetchJson
     const u = new URL(`http://127.0.0.1:3000${path}`);
+    // v55 — אותו מירוץ קשיח: קריאת-גוף תקועה (הבאג מ-repro-abort.ts ניסוי B)
+    // לעולם לא תלה את המחזור; ה-abort ממשיך לכסות עד סוף הקריאה.
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeoutMs);
-    const res = await fetch(u, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      signal: ctl.signal
-    });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
+    try {
+      const res = await fetch(u, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctl.signal
+      });
+      if (!res.ok) return null;
+      const jp = res.json() as Promise<Record<string, unknown>>;
+      jp.catch(() => { /* swallowed — the race may abandon it */ });
+      return await new Promise<Record<string, unknown> | null>((resolve) => {
+        const t2 = setTimeout(() => {
+          console.log(`[evm-mesh] v55 body-deadline: ${path} stalled >${timeoutMs}ms — honest null`);
+          resolve(null);
+        }, timeoutMs);
+        jp.then(
+          (v) => { clearTimeout(t2); resolve(v); },
+          () => { clearTimeout(t2); resolve(null); }
+        );
+      });
+    } finally {
+      clearTimeout(t);
+    }
   } catch {
     return null;
   }
@@ -1088,7 +1233,7 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
   // 4.11 v30 — PHYSICAL MOVE CYCLE (תזוזה): הכסף זז פיזית — sweep-eth /
   // sweep-bsc כשיש מה להזיז + פעימת XRPL כל מחזור עשירי (חתימת הכספת
   // בשכבת-הווב; הראנר מזמין דרך ה-API המגודר — אותה החלטה, אותה שרשרת).
-  await physicalMoveCycle();
+  await stepB("physical-move", () => physicalMoveCycle(), 240_000);
 
   // א. מחירי אורקל חיים — מכ"ם הפלטפורמה (Binance). אין → ארב' מדולג כנה.
   let oracle: Record<string, number> = {};

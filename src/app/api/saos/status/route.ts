@@ -13,14 +13,18 @@ function shortTx(txid: string | null): string {
   return txid ? `${txid.slice(0, 10)}…` : "—";
 }
 
-/** v27 אחיזה — the honest rail deadline. The probes carry 12–15s RPC
+/** v27 אחיזה → v55 הנגשה — the honest rail deadline. The probes carry 12–15s RPC
  *  timeouts (measured: a slow public replica can ride the ceiling — an
  *  11.3s /status was observed in dev.log). The view must never wait that
- *  long: after 9s the rail resolves to its not-ok sentinel and the
+ *  long: after the deadline the rail resolves to its not-ok sentinel and the
  *  honest env/static fallback engages — the SAME fallback a probe
  *  failure already uses. The slow probe keeps running; its cache will
- *  serve the next request. */
-const RAIL_DEADLINE_MS = 9_000;
+ *  serve the next request.
+ *  v55: 9000→2500ms. המדידה החיה (v55): בכל פג-מטמון הבקשה רכבה 9ש' שלמות —
+ *  פי-3.6 מהתקציב, זה שבר את fetchLiveAnchors של הראנר (timeout 4ש') והאט
+ *  את הממשק. 2.5ש' = הממשק מקבל תשובה מהירה; הפרוב האיטי ממשיך ברקע וממלא
+ *  את המטמון לבקשה הבאה (אותה דוקטרינה, סף פרודוקטיבי). */
+const RAIL_DEADLINE_MS = 2_500;
 
 function railDeadline<T>(p: Promise<T>, sentinel: T): Promise<T> {
   return Promise.race([
