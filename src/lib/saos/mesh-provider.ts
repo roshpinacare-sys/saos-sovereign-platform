@@ -51,3 +51,33 @@ export function meshFastProvider(): ethers.JsonRpcProvider {
   }
   return G.__meshFastProvider;
 }
+
+// ─── v57: waitTx — סגירת שערי-ההמתנה השקטים של ethers גם בווב ────────────────
+//
+// המשך ישיר של v56 (מנוע-הקצב): בראנר נסגרו 31 אתרי tx.wait() תחת
+// דדליין-המתנה 15ש' — ethers v6.17 TransactionResponse.wait(confirms,
+// timeout) מיושם ב-setTimeout רגיל (אומת בקוד-המקור: providers/provider.js
+// — timeout במילישניות, שנטען חי ב-bun). שער-המתנה שקט (קבלה קיימת, אין
+// אירוע-בלוק שמעיר, אפס קריאות יוצאות — ה-rpc-deadline לא מכסה כי אין
+// בכלל קריאה) נסגר בשניות במקום לתלות את בקשת-ה-HTTP של הוויו עד
+// לפסק-זמן השרת. העסקה עשויה להיכרות מאוחר יותר — הקריאה מחזירה null
+// והמודול הקורא מדלג בכנות (הפעולות אידמפוטנטיות במחזור הבא).
+
+/** דדליין-המתנה לעסקה אחת בצד-הווב — 15ש' כמו בראנר v56. */
+const WAIT_TX_MS = 15_000;
+
+/**
+ * מחכה לקבלת עסקה תחת דדליין קשיח שתמיד מסתיים.
+ * מחזיר את הקבלה, או null כששער-ההמתנה השקט נסגר בדדליין (דילוג כנה).
+ */
+export async function waitTx(
+  tx: ethers.TransactionResponse,
+  ms: number = WAIT_TX_MS
+): Promise<ethers.TransactionReceipt | null> {
+  try {
+    return await tx.wait(1, ms); // timeout ב-ms — אומת בקוד-המקור
+  } catch {
+    // TIMEOUT / replaced / ריעוף — דילוג כנה; השרשרת היא הסמכות
+    return null;
+  }
+}

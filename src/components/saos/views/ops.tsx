@@ -963,7 +963,7 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
         title="מבצעי עגינה"
         sub={
           stage2Connected
-            ? "שלב 2 מחובר: הכספת האטומה (SAOS-FLEET-VAULT-1) אומתה-GCM ונרשמה למניפסט החריצים — חשבון-סוכן, צי 11 חשבונות ו-12 ארנקות מולטי-צ'יין. המפתחות הפרטיים לא עוזבים את המעטפה."
+            ? `שלב 2 מחובר: הכספת האטומה (SAOS-FLEET-VAULT-1) אומתה-GCM ונרשמה למניפסט החריצים — חשבון-סוכן, צי ${seal.data?.stats.fleetAccounts ?? "—"} חשבונות ו-${seal.data?.seal?.wallets.length ?? "—"} ארנקות מולטי-צ'יין. המפתחות הפרטיים לא עוזבים את המעטפה.`
             : "מוכנות שלב 2: רישום כתובות-כספת ציבוריות, הכנת מעטפות-שידור dry-run לכל חותם ויומן תפעול מלא — הפלטפורמה מוכנה לעגינה אמיתית מרגש שמפתחות החתימה חוזרים מהכספת."
         }
         actions={
@@ -1342,6 +1342,31 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
                 <SealStat label="ארנקות מולטי-צ'יין" value={String(seal.data.seal?.wallets.length ?? 0)} icon={<Wallet size={13} />} />
                 <SealStat label="חריצים מחוברים" value={`${(seal.data.connected ?? []).length}/${seal.data.stats.manifestSlots}`} icon={<VaultIcon size={13} />} />
               </div>
+
+              {/* v57 — קליטת האיטום מהסוכן השני: ראיית-מקור חיה */}
+              {seal.data.reception && (
+                <Callout
+                  tone={seal.data.reception.matchesLive ? "green" : "zinc"}
+                  icon={<ShieldCheck size={14} />}
+                >
+                  <span className="font-semibold">
+                    האיטום התקבל מהסוכן השני בגיטהאב {timeAgo(seal.data.reception.receivedAt)}
+                  </span>{" "}
+                  · מקור <span dir="ltr" className="font-mono text-[10px]">{seal.data.reception.source}</span> ·{" "}
+                  sha256 כפול אומת (זיפ חיצוני <span dir="ltr" className="font-mono text-[10px]">{short(seal.data.reception.outer.sha256)}</span> · זיפ פנימי{" "}
+                  <span dir="ltr" className="font-mono text-[10px]">{short(seal.data.reception.inner.sha256)}</span> · {seal.data.reception.inner.files} קבצים) ·{" "}
+                  {seal.data.reception.matchesLive ? (
+                    <>אימות חי: האיטום על הדיסק הוא בדיוק זה שהתקבל (<span dir="ltr" className="font-mono text-[10px]">{short(seal.data.reception.liveSha256)}</span>)</>
+                  ) : (
+                    <>האיטום נערך מאז מקומית — הראייה ההיסטורית נשמרת בכנות</>
+                  )}
+                  {seal.data.reception.carrier.archiveNote ? (
+                    <span className="block mt-1 text-[11px] text-zinc-500 leading-relaxed">
+                      נשא: {seal.data.reception.carrier.sealedBy} · {seal.data.reception.carrier.archiveNote}
+                    </span>
+                  ) : null}
+                </Callout>
+              )}
 
               {/* כפתור חיבור + מצב */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">

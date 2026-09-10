@@ -39,7 +39,7 @@ import { cornerstoneStatus, invalidateCornerstoneCache, type CornerstoneStatus, 
 import { liquidityRadar, type LiquidityRadar } from "./liquidity-radar";
 import { microgridStatus, type MicrogridStatus } from "./microgrid-live";
 import meshArtifact from "./generated/SAOSMesh.json";
-import { meshFastProvider } from "./mesh-provider";
+import { meshFastProvider, waitTx } from "./mesh-provider";
 
 const SEED_MEMBER = "keys/headcorner-seed.json";
 export const ROSE_KIND = "rose-bloom";
@@ -278,7 +278,7 @@ export async function rosesBloom(agentName?: string): Promise<RoseBloomResult> {
           const bal = await provider.getBalance(addr, "latest");
           if (bal >= ethers.parseEther(String(GAS_FLOOR_ETH))) return null;
           const tx = await hq.sendTransaction({ to: addr, value: ethers.parseEther(String(GAS_FUND_ETH)) });
-          await tx.wait();
+          await waitTx(tx); // v57 — שער שקט נסגר ב-15ש'
           return tx.hash;
         })();
         base.fundTx = fundTx;
@@ -289,7 +289,7 @@ export async function rosesBloom(agentName?: string): Promise<RoseBloomResult> {
         let registerTx: string | null = null;
         try {
           const tx = await identity.register(addr, chosen.agent.agent);
-          await tx.wait();
+          await waitTx(tx); // v57 — רישום אידמפוטנטי; הלולאה להלן מאמתת קיום בפועל
           registerTx = tx.hash;
         } catch {
           const count = Number(await identity.agentCount());
@@ -308,7 +308,7 @@ export async function rosesBloom(agentName?: string): Promise<RoseBloomResult> {
         //    records its signature and mints RUN_REWARD to the agent.
         const intent = `${ROSE_INTENTS[(history.length + chosen.agent.idx) % ROSE_INTENTS.length]} (${chosen.agent.agent})`;
         const tx = await hub.connect(wallet).getFunction("dispatch")(intent);
-        const rc = await tx.wait();
+        const rc = await waitTx(tx); // v57 — null = שער-המתנה שקט (המפתחות להלן null-safe)
         return { addr, txHash: tx.hash, rc };
       });
 

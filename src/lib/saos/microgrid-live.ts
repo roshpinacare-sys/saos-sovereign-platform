@@ -23,7 +23,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ethers } from "ethers";
 import meshArtifact from "./generated/SAOSMesh.json";
-import { meshFastProvider } from "./mesh-provider";
+import { meshFastProvider, waitTx } from "./mesh-provider";
 import { probeDexPairs } from "./dex-live";
 import { assertKnownPair, assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
@@ -431,7 +431,7 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
       const num = p?.price ? Number(p.price) : NaN;
       if (Number.isFinite(num) && num > 0) {
         const tx = await mg.postPrice(pair, BigInt(Math.round(num * 1e6)));
-        await tx.wait();
+        await waitTx(tx); // v57 — שער שקט נסגר; המנוע להלן קורא את המחיר מהשרשרת
         oracleTx += 1;
         posted.push({ pair, priceE6: String(Math.round(num * 1e6)) });
       }
@@ -439,10 +439,12 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
 
     // 3. the engine: one transaction ticks every grid
     const tickTx = await mg.tickAll();
-    const rc = await tickTx.wait();
-    const fills = decodeFillLogs(
-      (rc.logs ?? []).map((l) => ({ address: l.address, topics: [...l.topics], data: l.data }))
-    );
+    const rc = await waitTx(tickTx); // v57 — null = שער-המתנה שקט (לא revert)
+    const fills = rc
+      ? decodeFillLogs(
+          (rc.logs ?? []).map((l) => ({ address: l.address, topics: [...l.topics], data: l.data }))
+        )
+      : []; // קבלה לא אושרה בחלון — מלאי-מילוי לא נטען (כנה; המצב יימדד במחזור הבא)
 
     // 3.5 v21 anti-grid-death: re-anchor grids pinned at their band edge
     //     (cursor exhausted) or paused by the drift limit to the FRESH price
@@ -459,7 +461,7 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
         const price = (await mg.priceOf(g.pair)) as bigint;
         if (price <= 0n) continue; // no fresh posted price — honest skip
         const tx = await mg.reanchor(BigInt(i));
-        await tx.wait();
+        await waitTx(tx); // v57 — שער שקט נסגר; הריצה הבאה מודדת מחדש
         reanchored.push(`grid#${i} ${g.pair} → ${e6ToNum(price).toFixed(2)}`);
         txidsExtra.push(tx.hash);
       } catch {
@@ -469,8 +471,8 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
 
     // 4. the flywheel: sweep accrued profit → the work-board payroll
     const sweepTx = await mg.sweepAllToPayroll();
-    const sweepRc = await sweepTx.wait();
-    const sweptEvents = sweepRc.logs ?? [];
+    const sweepRc = await waitTx(sweepTx); // v57 — null = שער-המתנה שקט
+    const sweptEvents = sweepRc?.logs ?? []; // קבלה לא אושרה — אירועי-שאיבה לא נטענים (כנה; הסכומים להלן מהשרשרת)
 
     const totalRealized = await mg.totalRealized();
     const totalSwept = await mg.totalSwept();
@@ -483,7 +485,7 @@ export async function microgridCycle(): Promise<MicrogridCycleResult> {
       realizedAfter: ethers.formatEther(totalRealized),
       swept: ethers.formatEther(totalSwept),
       txids: [tickTx.hash, sweepTx.hash, ...txidsExtra],
-      gasUsed: String((rc.gasUsed ?? 0n) + (sweepRc.gasUsed ?? 0n)),
+      gasUsed: String((rc?.gasUsed ?? 0n) + (sweepRc?.gasUsed ?? 0n)), // v57 — קבלה שלא אושרה: 0 בכנות
       error: oracleTx === 0 && trackedPairs.size > 0 ? "אורקל שקט — הגרידים תקתקו על המחיר האחרון שפורסם (כנה)" : undefined
     };
   } catch (e) {
@@ -531,9 +533,9 @@ export async function microgridCreate(pair: string, levels: number): Promise<Mic
       return { ok: false, action: "create", txid: null, detail: `אין מחיר חי לזוג ${pair} (honest — העוגן חייב מחיר אמיתי שנמדד)` };
     }
     const t1 = await mg.postPrice(safePair, BigInt(Math.round(num * 1e6)));
-    await t1.wait();
+    await waitTx(t1); // v57 — שער שקט נסגר; הגריד נצמד למחיר שפורסם
     const t2 = await mg.createGrid(safePair, safeLevels);
-    await t2.wait();
+    await waitTx(t2);
     return {
       ok: true,
       action: "create",
@@ -556,7 +558,7 @@ export async function microgridFund(amountSaos: number): Promise<MicrogridAction
     const amount = ethers.parseEther(String(Math.max(0, amountSaos)));
     if (amount <= 0n) return { ok: false, action: "fund", txid: null, detail: "סכום לא חוקי" };
     const tx = await ledger.transfer(state.contracts.SAOSMicrogrid!, amount);
-    await tx.wait();
+    await waitTx(tx); // v57 — ה-hash הוא ההוכחה; השרשרת היא הסמכות
     return { ok: true, action: "fund", txid: tx.hash, detail: `${amountSaos} SAOS-M הועברו לקרן-הרווח של המיקרו-גריד (מסילה ללא-עמלה)` };
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 140) : "fund failed";

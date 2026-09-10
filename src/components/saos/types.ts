@@ -369,10 +369,25 @@ export interface SealConnectedSlot {
   updatedAt: string | null;
 }
 
+/** v57 — ראיית-קליטת האיטום מהסוכן השני (github/steem · KEYS-ZIP). */
+export interface SealReception {
+  kind: string;
+  source: string;
+  receivedAt: string;
+  outer: { file: string; sha256: string; bytes: number; algorithm: string };
+  inner: { file: string; sha256: string; files: number };
+  seal: { file: string; sha256: string; sealedAt: string; format: string; gcm: string };
+  carrier: { sealedBy: string; archiveNote: string };
+  doctrine: string;
+  liveSha256: string;
+  matchesLive: boolean;
+}
+
 export interface SealStatusData {
   ok: boolean;
   stage2Ready: boolean;
   seal: SealInventory | null;
+  reception: SealReception | null;
   assignments: Stage2Assignment[];
   connected: SealConnectedSlot[];
   stats: {

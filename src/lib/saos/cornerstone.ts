@@ -50,7 +50,7 @@ import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
 import { invalidateSovereignKeyCache } from "./sovereign-key";
 import meshArtifact from "./generated/SAOSMesh.json";
-import { meshFastProvider } from "./mesh-provider";
+import { meshFastProvider, waitTx } from "./mesh-provider";
 
 const SEED_FILE = path.join(process.cwd(), "upload", "ראשגד.txt");
 const SEED_MEMBER = "keys/headcorner-seed.json";
@@ -844,7 +844,7 @@ export async function cornerstoneEnlist(): Promise<CornerstoneEnlistResult> {
         const bal = await provider.getBalance(addr, "latest");
         if (bal >= ethers.parseEther("0.5")) return null; // already armed with gas
         const tx = await hq.sendTransaction({ to: addr, value: ethers.parseEther("2") });
-        await tx.wait();
+        await waitTx(tx); // v57 — שער שקט נסגר ב-15ש'; היתרה תימדד מהשרשרת בקריאה הבאה
         return tx.hash;
       })();
       base.fundTx = fundTx;
@@ -855,7 +855,7 @@ export async function cornerstoneEnlist(): Promise<CornerstoneEnlistResult> {
       let registerTx: string | null = null;
       try {
         const tx = await identity.register(addr, "CORNERSTONE");
-        await tx.wait();
+        await waitTx(tx); // v57 — רישום אידמפוטנטי; הלולאה להלן מאמתת קיום בפועל
         registerTx = tx.hash;
       } catch {
         const count = Number(await identity.agentCount());
@@ -873,7 +873,7 @@ export async function cornerstoneEnlist(): Promise<CornerstoneEnlistResult> {
       // 5. THE SIGNED RUN — the cornerstone dispatches a mesh cycle itself.
       //    Its private key pays the gas; the chain records its signature.
       const tx = await hub.connect(wallet).getFunction("dispatch")("אבן הפינה: שורש-הזרע מגייס את עצמו לרשת (v22)");
-      const rc = await tx.wait();
+      const rc = await waitTx(tx); // v57 — null = שער-המתנה שקט (המפתחות להלן null-safe)
       return { addr, txHash: tx.hash, rc };
     });
 

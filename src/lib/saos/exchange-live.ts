@@ -27,7 +27,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ethers } from "ethers";
 import meshArtifact from "./generated/SAOSMesh.json";
-import { meshFastProvider } from "./mesh-provider";
+import { meshFastProvider, waitTx } from "./mesh-provider";
 import { liquidityRadar } from "./liquidity-radar";
 import { assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
@@ -814,9 +814,9 @@ async function doSwap(
         };
       }
       const t1 = await ledger.transfer(state.contracts.SAOSExchange, need);
-      await t1.wait();
+      await waitTx(t1); // v57 — שער-המתנה שקט נסגר ב-15ש'; ההפקדה ממשיכה (אוטומיין: העסקה כבר נכרתה)
       const t2 = await xc.depositSaos(need);
-      await t2.wait();
+      await waitTx(t2);
     }
   } else {
     // מכירה — ה-HQ חייב להחזיק את הנכס (אין המצאה)
@@ -834,7 +834,7 @@ async function doSwap(
   if (q <= 0n) return { ok: false, action: "swap", error: "הבריכה לא מחזירה יציאה (רזרבה ריקה — כנה)" };
   const minOut = (q * 98n) / 100n; // 2% סליפג' — מגן שער-השוק של ה-HQ
   const tx = await xc.swapExactIn(BigInt(poolId), assetInIsA, amountInWei, minOut);
-  await tx.wait();
+  await waitTx(tx); // v57 — הקריאות להלן קוראות את האמת מהשרשרת עצמה
 
   // סטיית-בריכה אחרי העסקה — האמת הטרייה מהשרשרת
   const pAfter = (await xc.pools(BigInt(poolId))) as unknown as { aId: bigint; rA: bigint; rB: bigint };
@@ -881,13 +881,13 @@ async function doFillSoldiers(
     }
     // העטיפה תמיד של המחזיק: מסילה לחייל → החייל מפקיד בעצמו
     const t1 = await ledger.transfer(sAddr, topUp);
-    await t1.wait();
+    await waitTx(t1);
     const sLedger = ledger.connect(s) as ethers.Contract;
     const sExchange = xc.connect(s) as ethers.Contract;
     const t2 = await sLedger.transfer(state.contracts.SAOSExchange, topUp);
-    await t2.wait();
+    await waitTx(t2);
     const t3 = await sExchange.depositSaos(topUp);
-    await t3.wait();
+    await waitTx(t3);
     hqLedgerBal -= topUp;
     filled.push({ label: `חייל-${i}`, symbol: "WSAOS", amount: fmtAmt(topUp), address: sAddr, txid: t3.hash });
   }
@@ -932,7 +932,7 @@ async function doHarvest(
     const pre = (await xc.pools(BigInt(i))) as unknown as { aId: bigint; potA: bigint; potB: bigint };
     if (bg(pre.potA) === 0n && bg(pre.potB) === 0n) continue; // קופה ריקה — אין מה לקצור (כנה)
     const tx = await xc.harvest(BigInt(i));
-    const rc = await tx.wait();
+    const rc = await waitTx(tx); // v57 — null בדדליין: הלוגים מדולגים בכנות (rc?.logs כבר null-safe)
     txids.push(tx.hash);
     const sym = await symbolById(xc, Number(pre.aId));
     let potAsset = fmtAmt(pre.potA);
@@ -962,13 +962,13 @@ async function doHarvest(
   if (treasuryWsaos > ethers.parseEther("2")) {
     const tExchange = xc.connect(treasury) as ethers.Contract;
     const t1 = await tExchange.withdrawSaos(treasuryWsaos);
-    await t1.wait();
+    await waitTx(t1);
     txids.push(t1.hash);
     const ledgerBal = (await ledger.balanceOf(treasuryAddr)) as bigint;
     if (ledgerBal > 0n && state.contracts.SAOSWorkBoard) {
       const tLedger = ledger.connect(treasury) as ethers.Contract;
       const t2 = await tLedger.transfer(state.contracts.SAOSWorkBoard, ledgerBal);
-      await t2.wait();
+      await waitTx(t2);
       txids.push(t2.hash);
       sweptToPayroll = fmtAmt(ledgerBal);
     }

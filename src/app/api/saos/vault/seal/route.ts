@@ -8,7 +8,7 @@ import {
   vaultFingerprint,
   VAULT_MANIFEST
 } from "@/lib/saos/broadcast";
-import { readSealInventory, sealExists, stage2Assignments } from "@/lib/vault-seal";
+import { readSealInventory, readSealReception, sealExists, stage2Assignments } from "@/lib/vault-seal";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +40,7 @@ export async function GET() {
     }
     const inv = await readSealInventory(); // throws on tamper → catch below
     const assignments = stage2Assignments(inv);
+    const reception = await readSealReception(); // v57 — ראיית-מקור לאיטום (null כשמקומי)
     const registered = await db.vaultSlot.findMany({
       where: { keyState: "sealed" },
       select: { network: true, slot: true, address: true, fingerprint: true, updatedAt: true }
@@ -48,6 +49,7 @@ export async function GET() {
       ok: true,
       stage2Ready: true,
       seal: inv,
+      reception, // v57 — קליטת האיטום מהסוכן השני: sha כפול + אימון מול האיטום החי
       assignments,
       connected: registered.map((r) => ({
         network: r.network,

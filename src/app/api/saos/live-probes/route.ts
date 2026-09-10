@@ -38,7 +38,10 @@ export async function GET(req: Request) {
     ]);
 
     const tron = await probeTronVault(
-      tronSlots.map((s) => s.address as string),
+      // v57 — דה-דופ כתובות: אותה דלת יכולה לשמש חריץ sovereign וגם vault
+      // (TMXHfFQd = sovereign/headcorner וגם vault-2 מהאיחוי) — גשש אחד לכל
+      // כתובת, והטבלה בוויו לא תיתקע על React key כפול.
+      Array.from(new Set(tronSlots.map((s) => s.address as string))),
       { force }
     );
 

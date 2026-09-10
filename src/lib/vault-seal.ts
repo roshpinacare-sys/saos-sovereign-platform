@@ -208,20 +208,42 @@ function buildInventory(bundle: SealedBundle): SealInventory {
   };
 
   // Fleet — usernames + tiers + chain coverage only
+  // v57 SEAL RECEPTION: the second agent's fresh seal (21:36) carries TWO
+  // chain shapes — soldiers map chains as {steem:[roles], hive:[roles]},
+  // while the head (headcorner, tier=head, mode=recovered-from-operator)
+  // lists chains as a bare array ["steem","hive"] with keys organized by
+  // network. Both shapes are handled honestly below.
   const fleet: SealFleetMember[] = [];
   try {
     const vaultJson = JSON.parse(bundle.files["keys/vault.json"] ?? "{}") as {
       accounts?: Record<string, Record<string, unknown>>;
     };
     for (const entry of Object.values(vaultJson.accounts ?? {})) {
-      const chains = (entry.chains ?? {}) as Record<string, string[]>;
-      const steemRoles = chains.steem ?? [];
-      const hiveRoles = chains.hive ?? [];
+      const chainsRaw = entry.chains ?? {};
+      let chainNames: string[] = [];
+      let steemRoles: string[] = [];
+      let hiveRoles: string[] = [];
+      if (Array.isArray(chainsRaw)) {
+        // head shape: chains = ["steem","hive"], keys = {steem:{…},hive:{…}}
+        chainNames = chainsRaw.map(String);
+        const keysByNet = (entry.keys ?? {}) as Record<string, Record<string, unknown>>;
+        for (const net of chainNames) {
+          const roles = Object.keys(keysByNet[net] ?? {});
+          if (net === "steem") steemRoles = roles;
+          if (net === "hive") hiveRoles = roles;
+        }
+      } else {
+        // soldier shape: chains = {steem:[roles], hive:[roles]}
+        const chains = chainsRaw as Record<string, string[]>;
+        chainNames = Object.keys(chains);
+        steemRoles = chains.steem ?? [];
+        hiveRoles = chains.hive ?? [];
+      }
       fleet.push({
         username: String(entry.username ?? ""),
         tier: String(entry.tier ?? ""),
         mode: String(entry.mode ?? ""),
-        chains: Object.keys(chains),
+        chains: chainNames,
         keyRoles: Array.from(new Set([...steemRoles, ...hiveRoles])),
         hasSteem: steemRoles.length > 0,
         hasHive: hiveRoles.length > 0
@@ -330,6 +352,54 @@ export async function listVaultMembers(): Promise<string[]> {
   return Object.keys(bundle.files);
 }
 
+// ─── v57 SEAL RECEPTION — ראיית-מקור לאיטום שהתקבל מהסוכן השני ───────────────
+
+export interface SealReception {
+  kind: string;
+  source: string;
+  receivedAt: string;
+  outer: { file: string; sha256: string; bytes: number; algorithm: string };
+  inner: { file: string; sha256: string; files: number };
+  seal: { file: string; sha256: string; sealedAt: string; format: string; gcm: string };
+  carrier: { sealedBy: string; archiveNote: string };
+  doctrine: string;
+  /** sha256 של האיטום החי בבית-המחילה כרגע — אמת מדודה, לא מוצהרת */
+  liveSha256: string;
+  /** true ≡ האיטום החי הוא בדיוק זה שהתקבל (עוד לא נאטם מחדש מקומית) */
+  matchesLive: boolean;
+}
+
+/**
+ * קורא את ראיית-הקליטה (seal-reception.json) מבית-המחילה של האיטום
+ * ומאמת אותה מול האיטום החי: sha256 של הקובץ בפועל מחושב כעת.
+ * מחזיר null כשאין ראיה (איטום מקומי/ותיק) — כנות, לא כיסוי.
+ */
+export async function readSealReception(): Promise<SealReception | null> {
+  try {
+    const { enc } = await vaultPaths();
+    const evidencePath = path.join(path.dirname(enc), "seal-reception.json");
+    const raw = await readFile(evidencePath, "utf8");
+    const ev = JSON.parse(raw) as Partial<SealReception>;
+    if (!ev.outer?.sha256 || !ev.seal?.sha256 || !ev.receivedAt) return null;
+    const { createHash } = await import("crypto");
+    const liveSha256 = createHash("sha256").update(await readFile(enc)).digest("hex");
+    return {
+      kind: ev.kind ?? "seal-reception-evidence",
+      source: ev.source ?? "",
+      receivedAt: ev.receivedAt,
+      outer: ev.outer,
+      inner: ev.inner ?? { file: "", sha256: "", files: 0 },
+      seal: ev.seal,
+      carrier: ev.carrier ?? { sealedBy: "", archiveNote: "" },
+      doctrine: ev.doctrine ?? "",
+      liveSha256,
+      matchesLive: liveSha256 === ev.seal.sha256
+    };
+  } catch {
+    return null; // אין ראיית-קליטה — איטום מקומי; לא שקר, פשוט אין מקור
+  }
+}
+
 /** Probes seal existence without opening it. */
 export async function sealExists(): Promise<boolean> {
   try {
@@ -387,6 +457,11 @@ export interface SigningAuthority {
  * Returns only PUBLIC material (account + role public key) plus whatever
  * `fn` returns — the caller is responsible for keeping fn's result secret-free.
  */
+/** v57 — WIF תקין: רגיל (5…, 51-52 תווים) או דחוס (K/L…, 52 תווים — דור הראש המאומת 8/8). */
+function isValidWif(v: unknown): boolean {
+  return typeof v === "string" && (/^5[HJK].{50,51}$/.test(v) || /^[KL].{51}$/.test(v));
+}
+
 export async function withRoleWif<T>(
   role: SigningRole,
   fn: (wif: string, authority: SigningAuthority) => Promise<T>
@@ -399,7 +474,7 @@ export async function withRoleWif<T>(
   });
   const account = (env.AGENT_ACCOUNT || "headcorner").toLowerCase();
   const wif = role === "active" ? env.ACTIVE_WIF : env.POSTING_WIF;
-  if (!wif || !wif.startsWith("5")) {
+  if (!isValidWif(wif)) {
     throw new Error(`vault: ${role} signing key absent from envelope`);
   }
   const authority: SigningAuthority = {
@@ -425,7 +500,7 @@ export async function roleWifAvailable(role: SigningRole): Promise<boolean> {
       if (i > 0) env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     });
     const wif = role === "active" ? env.ACTIVE_WIF : env.POSTING_WIF;
-    return Boolean(wif && wif.startsWith("5"));
+    return isValidWif(wif);
   } catch {
     return false;
   }

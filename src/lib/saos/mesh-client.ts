@@ -23,7 +23,7 @@ import * as path from "path";
 import { ethers } from "ethers";
 import { db } from "@/lib/db";
 import { probeEthereum, probeSolana } from "./eth-sol-live";
-import { meshFastProvider } from "./mesh-provider";
+import { meshFastProvider, waitTx } from "./mesh-provider";
 import { probeBsc } from "./bsc-live";
 import { guardPermission } from "./permissions";
 import meshArtifact from "./generated/SAOSMesh.json";
@@ -661,8 +661,8 @@ export async function runMesh(intentRaw: string, opts?: { soldier?: boolean }): 
           heights.map((h) => BigInt(h.height)),
           heights.map((h) => ethers.id(`saos:${h.chain}:${h.height}`))
         );
-        await tx.wait();
-        anchorsStamped = heights.length;
+        const rc = await waitTx(tx); // v57 — שער שקט נסגר; העוגנים אידמפוטנטיים ויטבעו בריצה הבאה
+        if (rc) anchorsStamped = heights.length;
       } catch {
         /* honest — anchors are best-effort */
       }
@@ -670,8 +670,9 @@ export async function runMesh(intentRaw: string, opts?: { soldier?: boolean }): 
 
     // 2. dispatch through the whole chain
     const tx = await hub.dispatch(intent);
-    const rc = await tx.wait();
-    if (!rc || rc.status !== 1) throw new Error("mesh run reverted (honest)");
+    const rc = await waitTx(tx); // v57 — null = שער-המתנה שקט נסגר (לא revert)
+    if (rc === null) throw new Error("קבלת העסקה לא אושרה בחלון 15ש' — העסקה עשויה להיכרות; אמת מהשרשרת בקריאה הבאה (honest)");
+    if (rc.status !== 1) throw new Error("mesh run reverted (honest)");
 
     // 3. build the trace from the receipt logs + storage
     const events = decodeLogs(
@@ -852,8 +853,9 @@ export async function postWorkOrder(
 
     // 1. HQ posts the order (real transaction, OrderPosted event)
     const tx = await board.postOrder(mission, difficultySafe, ethers.parseEther(String(rewardSafe)));
-    const rc = await tx.wait();
-    if (!rc || rc.status !== 1) throw new Error("postOrder reverted (honest)");
+    const rc = await waitTx(tx); // v57 — null = שער-המתנה שקט נסגר (לא revert)
+    if (rc === null) throw new Error("קבלת postOrder לא אושרה בחלון 15ש' — ההזמנה עשויה להיכרות; אמת מהשרשרת בקריאה הבאה (honest)");
+    if (rc.status !== 1) throw new Error("postOrder reverted (honest)");
     const events = decodeLogs(
       rc.logs.map((l) => ({
         address: l.address,
@@ -929,13 +931,14 @@ export async function anchorWorkDigest(
     if (!bridge) throw new Error("artifact/state mismatch");
     // register the rail once (idempotent — "already registered" is an honest pass)
     try {
-      await (await bridge.registerChain(WORK_RAIL)).wait();
+      await waitTx(await bridge.registerChain(WORK_RAIL)); // v57 — דדליין 15ש'
     } catch {
       /* rail already registered — pass */
     }
     const tx = await bridge.anchorExternal(WORK_RAIL, BigInt(orderId), digest);
-    const rc = await tx.wait();
-    if (!rc || rc.status !== 1) throw new Error("anchorExternal reverted (honest)");
+    const rc = await waitTx(tx); // v57 — null = שער-המתנה שקט נסגר (לא revert)
+    if (rc === null) return { ok: false, error: "קבלת העיגון לא אושרה בחלון 15ש' — העיגון עשוי להיכרות; אמת מהשרשרת בקריאה הבאה (honest)" };
+    if (rc.status !== 1) throw new Error("anchorExternal reverted (honest)");
     return { ok: true, txid: rc.hash, block: rc.blockNumber ?? 0 };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message.slice(0, 160) : "work anchor failed" };
