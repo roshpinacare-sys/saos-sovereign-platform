@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Lightbulb, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "breakthrough" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -65,6 +65,14 @@ export const VIEWS: ViewDef[] = [
     short: "גשרים",
     desc: "תשתית לעוד גשרים לעוד רשתות — מטרות הגישור המקודדות, 24 נתיבים עם מנגנון והליך-פתיחה, 8 מסילות EVM במפקד חי, וטיסת-בדיקה שמוכיחה שהצינור מוכן בלי לגעת במפתח",
     icon: <Hammer size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "breakthrough",
+    label: "מנוע פריצת-הדרך",
+    short: "פריצת דרך",
+    desc: "התשובה החיה ל‘מה יש לנו ביד · מה מגביל · איזו פריצה ובאיזו יעילות’ — מלאי-נכסים חי, אילוצים מקוונטפים, מועמדים מדורגים בהשפעה/מאמץ, תוכנית-השקיה ב-USD חי וציון-ריבונות",
+    icon: <Lightbulb size={16} />,
     group: "תפעול"
   },
   {
