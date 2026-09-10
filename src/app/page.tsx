@@ -1,20 +1,14 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v31 — חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה — מחובר לבורסה החיה: WBNB + WRXP 1:1 · בריכות חדשות · סנכרון WETH · מסילת XRPL) + בורסה ריבונית על SAOS-NET —
- * צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה ·
- * עמלה 20bps — 10 לאוצר 10 לצמיחה · קציר נזילות לאוצר · חיילים סוחרים ·
- * ראוטר לדקסים המובילים · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי) +
- * אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM
- * ב-RSS 1500MB לפני שהקרנל הורג ב-1790 · גיבויים ריבוניים כל 10 דק' (v40) — DB עקבי (VACUUM INTO) + שרשרת יומית,
- * סבב 48+7 · דד-ליין 9ש' לפסי-הרשת ב-status; השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil ממשיכה; הרשות ממשיכה
- * (מכ"ם-נזילות חי: 8 מרחבים · USD · מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני — התמונה של
- * הבעלים נקראת בקצה-האחורי, מאומתת מול ראיות-השרשרת, נאטמת כספת
- * חדשה; מיקרו-גריד עם חוסן-ריאנקור אוטומטי) מעל לוח העבודה.
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 23 עמודים. קיצורי-מקלדת Alt+1..9.
- * v31 חיבור-חכם (SMART LINK): הכספת חיה בשלושה בתים (ריצה · מחוץ-לריפו · נסתר) — כל פתיחה מרפאת,
- * כל כתיבה משוקפת; מלאי-מפתחות מאומת-חי; ייבוא-חכם בזיהוי-אוטומטי; צ'אט-סוכנים דרך API.
- */
+ * SAOS Sovereign Platform v43 — מימוש (REALIZATION): מנוע שווי-הרשת החי —
+ * התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי
+ * שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת, מופרד לעולם
+ * לממומש (הוכח) · אחזקה (חי ביד) · חמוש (ממתין לטריגר) · מנוע (תקרות
+ * כנות) — ופעימת מימוש שמבצעת ערך על הרשת עכשיו (אורקל+סולם+שטיפה+
+ * קציר→קופת-עבודה+ריצה ריבונית דרך כל 10 החוזים, txid לכל צעד).
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 25 עמודים. קיצורי-מקלדת Alt+1..9.
+  */
 
 import { useEffect, useState } from "react";
 import { AppShell, VIEWS, type ViewId } from "@/components/saos/shell";
@@ -22,6 +16,7 @@ import { ToastProvider } from "@/components/saos/ui";
 import { useLive } from "@/components/saos/lib";
 import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
+import { ViewWorth } from "@/components/saos/views/worth";
 import { Network360View } from "@/components/saos/views/network360";
 import { SecurityView } from "@/components/saos/views/security";
 import { PermissionsView } from "@/components/saos/views/permissions";
@@ -48,6 +43,7 @@ import { ViewResearch } from "@/components/saos/views/research";
 
 const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
+  worth: "מימוש — שווי הרשת החי",
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
   reshut: "רשות — מטריצת הסמכויות",
@@ -100,6 +96,7 @@ export default function Home() {
     <ToastProvider>
       <AppShell view={view} onNav={setView} status={status}>
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
+        {view === "worth" && <ViewWorth />}
         {view === "network360" && <Network360View />}
         {view === "security" && <SecurityView />}
         {view === "reshut" && <PermissionsView />}

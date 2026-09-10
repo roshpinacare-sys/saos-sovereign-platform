@@ -1443,3 +1443,53 @@ export interface AgentChatData {
   messages: ChatMessageView[];
   error?: string;
 }
+
+// ─── v43: Worth (מימוש — שווי-הרשת החי ופעימת המימוש) ─────────────────────
+
+export interface WorthRow {
+  label: string;
+  value: string;
+  note?: string;
+  tone?: "gold" | "green" | "rose" | "neutral";
+}
+
+export interface WorthBalance {
+  /** מה כבר בוצע והוכח — עבר, בלתי-הפיך */
+  realized: WorthRow[];
+  /** מה חי ביד עכשיו — שרשרת + כסף אמיתי */
+  held: WorthRow[];
+  /** מה חמוש וממתין לטריגר — לא ספור כהון לפני שהוא נוחת */
+  armed: WorthRow[];
+  /** תקרות המנוע — כנות מתמטית, לא הבטחה */
+  engine: WorthRow[];
+}
+
+export interface WorthData {
+  ok: boolean;
+  measuredAt: string;
+  sources: {
+    mesh: boolean;
+    exchange: boolean;
+    microgrid: boolean;
+    physical: boolean;
+    recovery: boolean;
+  };
+  balance: WorthBalance;
+  summary: {
+    headline: string;
+    potential: string;
+  };
+  honesty: string[];
+  error?: string;
+}
+
+export interface WorthPulseResult {
+  ok: boolean;
+  ranAt: string;
+  run?: { runId: number; intent: string; txid: string; hops: number };
+  harvest?: { ok: boolean; pools: number; sweptToPayrollSaos: string; txids: string[]; error?: string };
+  microgrid?: { ok: boolean; posted: number; swept: string; txids: string[]; error?: string };
+  deltas?: { runs: number; supplySaos: string; sweptSaos: string };
+  receipt?: string;
+  error?: string;
+}

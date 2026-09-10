@@ -7,14 +7,14 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flower2, GitBranch, Globe2, HardHat, HeartPulse, KeyRound, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flower2, Gem, GitBranch, Globe2, HardHat, HeartPulse, KeyRound, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -32,6 +32,14 @@ export const VIEWS: ViewDef[] = [
     short: "בקרה",
     desc: "מצב הפלטפורמה בזמן אמת — שרשרת, מטריצה ובריאות הגרעין",
     icon: <Anchor size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "worth",
+    label: "מימוש — שווי הרשת החי",
+    short: "מימוש",
+    desc: "מה יש בידיים ומה הפוטנציאל האמיתי — מאזן חי מ-5 מקורות-אמת (ממומש · אחזקה · חמוש · מנוע) ופעימת מימוש שמבצעת ערך על הרשת עכשיו",
+    icon: <Gem size={16} />,
     group: "תפעול"
   },
   {
@@ -416,7 +424,7 @@ export function AppShell({
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <span className="flex items-center gap-2">
               <Anchor size={12} className="text-amber-500/80" />
-              SAOS Sovereign Platform v42.0.0 — סקירת-עומק (DEEP REVIEW: כל תיקיות הגיט נבחנו — 183 קבצי-src · 48 מסלולי-API · 24 תצוגות · 20 מודלי-DB · 12 חוזים · 4 שירותים; טוהר מלא — tsc 0 · lint 0 · MAGEN highCount=0 · אפס TODO; מתח-סקפולד הוסר (2 קבצים מתים); התזוזות הפיזיות אוטומטיות והוכחו חי — 1.000000 TRX נסחט אוטונומית לבית-האוצר (txid 72f8d9ee…, confirmed), במקור נותר חיץ-כנות 0.5 בלבד; אורגניזם 4/4 במושב-יחיד ללא כפילויות; סוכני-צ'אט 3/3 חיים — שליח 127 סקירות · זהב 2 דו"חות LLM · לילה 10 סיורים) + חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה (Coinomi) — מחובר לבורסה החיה: WBNB + WRXP נרשמים 1:1 מול המדידה, בריכות #3/#4 נזרעות, אספקת WETH מסונכרנת לאוצר האמיתי · מסילת XRPL חיה במכ"ם · בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה · עמלה 20bps — 10 לקופת האוצר ו-10 לצמיחת הבריכה · נזילות שקוצרת OUT לאוצר ומוזרמת לקופת העבודה · חיילים סוחרים בהון-מסחר · ראוטר לדקסים המובילים — סטייה &gt;0.8% מתוקנת ע"י סוכן-ארביטראז' אוטונומי · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי ?XTransformPort=8545) + אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM ב-RSS 1500MB לפני שהקרנל הורג ב-1790 · גיבויים ריבוניים כל 10 דק' (v40) — DB עקבי VACUUM INTO + שרשרת יומית בסבב 48+7 · דד-ליין 9ש' לפסי-הרשת) + SHOMER (שומר: החייאה עצמית — השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil⇄שער, גלאי-זומבים על בסיס בלוקים + אמת-תפקוד (v40: חי ≠ משרת — פיד שלא מתקדם = מת), מושב-יחיד לכל שירות (נעילת-PID — אין כפילויות) ואב-סנדק לרץ מהשער — אף איבר לא נשאר מת-תפקוד) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה אחת לשעה מה-runner) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + RECOVERY (התאוששות v41: מארב headcorner — אמת-שתי-שרשרות חיה, הוכחת-החזקה קריפטוגרפית מול previous_owner_authority, ספירת-חלון עד 2026-10-08, והשתלטות אוטונומית ברגע שבקשה נושאת את הסמכות הריבונית — השומר בודק כל 60ש') + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+              SAOS Sovereign Platform v43.0.0 — מימוש (REALIZATION: מנוע שווי-הרשת החי + פעימת המימוש) — התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת (10 חוזי-המש · בורסה · מיקרו-גריד · כסף אמיתי ETH/BNB/XRP/TRX · מארב STEEM) מופרד לעולם ל: ממומש (הוכח — ריצות · מסירות · תזוזות) · אחזקה (חי ביד) · חמוש (ממתין לטריגר — לא נספר כהון) · מנוע (תקרות כנות) · ופעימת מימוש שמבצעת ערך על הרשת עכשיו — אורקל+סולם+שטיפה+קציר→קופת-עבודה+ריצה ריבונית אמיתית דרך כל 10 החוזים, הכל עם txid וקבלה משורשרת-האש) + חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה (Coinomi) — מחובר לבורסה החיה: WBNB + WRXP נרשמים 1:1 מול המדידה, בריכות #3/#4 נזרעות, אספקת WETH מסונכרנת לאוצר האמיתי · מסילת XRPL חיה במכ"ם · בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה · עמלה 20bps — 10 לקופת האוצר ו-10 לצמיחת הבריכה · נזילות שקוצרת OUT לאוצר ומוזרמת לקופת העבודה · חיילים סוחרים בהון-מסחר · ראוטר לדקסים המובילים — סטייה &gt;0.8% מתוקנת ע"י סוכן-ארביטראז' אוטונומי · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי ?XTransformPort=8545) + אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM ב-RSS 1500MB לפני שהקרנל הורג ב-1790 · גיבויים ריבוניים כל 10 דק' — DB עקבי VACUUM INTO + שרשרת יומית בסבב 48+7 · דד-ליין 9ש' לפסי-הרשת) + SHOMER (שומר: החייאה עצמית — השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil⇄שער, גלאי-זומבים על בסיס בלוקים + אמת-תפקוד (חי ≠ משרת — פיד שלא מתקדם = מת), מושב-יחיד לכל שירות (נעילת-PID — אין כפילויות) ואב-סנדק לרץ מהשער — אף איבר לא נשאר מת-תפקוד) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה אחת לשעה מה-runner) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + RECOVERY (התאוששות v41: מארב headcorner — אמת-שתי-שרשרות חיה, הוכחת-החזקה קריפטוגרפית מול previous_owner_authority, ספירת-חלון עד 2026-10-08, והשתלטות אוטונומית ברגע שבקשה נושאת את הסמכות הריבונית — השומר בודק כל 60ש') + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
             </span>
             <span className="flex items-center gap-3">
               <a
