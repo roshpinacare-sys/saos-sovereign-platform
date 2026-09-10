@@ -410,6 +410,27 @@ export async function withRoleWif<T>(
   return { authority, result };
 }
 
+/**
+ * v45 — honest availability probe: does the sealed vault actually hold a
+ * role WIF right now? (The 2026-09-10 lesson: the auto-anchor gate read a
+ * STALE DB row while the restored vault HAD the key — the gate refused
+ * the truth.) Never throws, never exposes the secret, only the boolean.
+ */
+export async function roleWifAvailable(role: SigningRole): Promise<boolean> {
+  try {
+    const bundle = await openSeal();
+    const env: Record<string, string> = {};
+    (bundle.files[".env"] ?? "").split("\n").forEach((line) => {
+      const i = line.indexOf("=");
+      if (i > 0) env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    });
+    const wif = role === "active" ? env.ACTIVE_WIF : env.POSTING_WIF;
+    return Boolean(wif && wif.startsWith("5"));
+  } catch {
+    return false;
+  }
+}
+
 // ─── Generic member session (v12 — EVM/SVM rails) ──────────────────────────
 //
 // Same envelope discipline as withRoleWif, generalized to any sealed member

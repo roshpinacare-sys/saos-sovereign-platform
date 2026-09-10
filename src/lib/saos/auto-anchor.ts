@@ -24,6 +24,7 @@ import { db } from "@/lib/db";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { logOp } from "./oplog";
 import { anchorSealLiveOnSteem, explorerLink, type LiveSeal } from "./anchor-live";
+import { roleWifAvailable } from "@/lib/vault-seal";
 
 const AUTO_ANCHOR_KEY = "autoAnchor";
 
@@ -92,11 +93,22 @@ export async function fireLiveAnchorOnSteem(
     };
   }
 
-  // gate — the vault must be sealed for STEEM (the signing identity)
-  const slot = await db.vaultSlot.findFirst({ where: { network: "STEEM", keyState: "sealed" } });
-  if (!slot) {
-    return { ok: false, skipped: "vault-gate", error: "כספת STEEM לא נאטמה — הפעימה לא ירתה (כנות)" };
+  // gate (v45 — the VAULT is the truth, not a stale DB row): the restored
+  // envelope must actually hold the STEEM active WIF right now. The old
+  // gate read a VaultSlot row that was never re-registered after the v31
+  // vault restore — it refused pulses while the key SAT in the vault.
+  const vaultHasActive = await roleWifAvailable("active");
+  if (!vaultHasActive) {
+    return { ok: false, skipped: "vault-gate", error: "כספת STEEM לא נאטמה — אין מפתח active במעטפה — הפעימה לא ירתה (כנות)" };
   }
+  // the gate passed → register the public slot row (best-effort, honest)
+  await db.vaultSlot
+    .upsert({
+      where: { network_slot: { network: "STEEM", slot: "sovereign/headcorner" } },
+      create: { network: "STEEM", slot: "sovereign/headcorner", keyState: "sealed", address: "headcorner" },
+      update: { keyState: "sealed", address: "headcorner" }
+    })
+    .catch(() => undefined); // best-effort — the gate itself never depends on the row
 
   const liveSeal: LiveSeal = {
     height: seal.height,

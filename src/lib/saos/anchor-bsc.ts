@@ -1,9 +1,10 @@
 /**
  * lib/saos/anchor-bsc.ts — LIVE ANCHOR PULSE: BNB SMART CHAIN (v14).
  * =====================================================================
- * "יש לפתוח ל-BSC" — the 8th rail. BSC is EVM: the SAME sovereign wallet
- * (m/44'/60'/0'/0/2 from the fleet vault's wallets-seed) anchors on BNB
- * Chain exactly as it does on Ethereum — one key, two chains:
+ * "יש לפתוח ל-BSC" — the 8th rail. BSC is EVM: the SAME sovereign
+ * CORNERSTONE wallet (m/44'/60'/0'/0/0 — v45 root fix, the treasuryHome)
+ * anchors on BNB Chain exactly as it does on Ethereum — one key, two
+ * chains:
  *
  *   tx: to = sovereign EOA (self), value = 0, data = canonical weave JSON
  *
@@ -116,7 +117,7 @@ export async function bscReadiness(): Promise<BscReadiness> {
           ok: true,
           network: NETWORK,
           address: derived.address,
-          derivation: "evmRoot=sha256(seed|evm|44/60) → m/44'/60'/0'/0/2 (same key as ETHEREUM)",
+          derivation: "cornerstone-24words → BIP39 → m/44'/60'/0'/0/0 (v45, same key as ETHEREUM)",
           selfVerified: true,
           funded: balanceWei >= cost * BALANCE_MARGIN,
           balanceBnb: ethers.formatEther(balanceWei).slice(0, 10),
@@ -138,7 +139,7 @@ export async function bscReadiness(): Promise<BscReadiness> {
       ok: false,
       network: NETWORK,
       address: null,
-      derivation: "evmRoot=sha256(seed|evm|44/60) → m/44'/60'/0'/0/2 (same key as ETHEREUM)",
+      derivation: "cornerstone-24words → BIP39 → m/44'/60'/0'/0/0 (v45, same key as ETHEREUM)",
       selfVerified: false,
       funded: false,
       balanceBnb: null,
@@ -180,6 +181,8 @@ export async function anchorSealLiveOnBsc(seal: EvmLiveSeal): Promise<BscAnchorO
   const payload = buildEvmWeaveData(seal, at, "bsc");
   const dataHex = "0x" + Buffer.from(payload, "utf8").toString("hex");
 
+  // v45: receipt-wait on the OFFICIAL dataseed — publicnode rejects receipt
+  // lookups without a personal token (the broadcast still goes out via [0])
   const sent = await deriveSovereignEvm().then(async (derived) => {
     const provider = new ethers.JsonRpcProvider(BSC_ENDPOINTS[0], CHAIN_ID, { batchMaxCount: 1 });
     try {
@@ -213,17 +216,20 @@ export async function anchorSealLiveOnBsc(seal: EvmLiveSeal): Promise<BscAnchorO
     }
   });
 
-  const receipt = await waitForReceipt(sent.provider, sent.hash);
+  // v45: waitForReceipt + read-back on the official dataseed endpoint
+  const receiptProvider = new ethers.JsonRpcProvider(BSC_ENDPOINTS[1], CHAIN_ID, { batchMaxCount: 1 });
+  const receipt = await waitForReceipt(receiptProvider, sent.hash);
   let confirmed = false;
   let gasUsed: number | null = null;
   let block: number | null = null;
   if (receipt) {
     block = receipt.blockNumber;
     gasUsed = Number(receipt.gasUsed);
-    const txOnChain = await sent.provider.getTransaction(sent.hash).catch(() => null);
+    const txOnChain = await receiptProvider.getTransaction(sent.hash).catch(() => null);
     confirmed = receipt.status === 1 && !!txOnChain && txOnChain.data === dataHex;
   }
   sent.provider.destroy();
+  receiptProvider.destroy();
 
   return {
     ok: true,

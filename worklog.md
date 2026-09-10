@@ -1279,3 +1279,28 @@ Stage Summary:
 - 4 באגים אמיתיים תוקנו (מפתח-כפול ×5 אתרים · מקור-היצע-השקרי · תווית-גרסה-קפואה · הערות header) — אפס שגיאות קונסולה בכל הוויוים.
 - האמת שנחשפה ותועדה: ה"רשת" מעבדה (anvil מקומי) · כסף אמיתי אבק ($251) · שליח-השער 0 פקודות · mainnet לא ממומן · המחזור churn-cycle סביבתי — כל אלה מוצגים חי ב-UI עם סטטוס fixed/open/honest.
 - נותר פתוח (מתועד ברוסט): מכתב Steemit (חלון עד 2026-10-08) · מימון mainnet (בעלים) · חומרה/build-ייצורי ל-churn.
+
+---
+Task ID: 41
+Agent: Z.ai Code (מנהל מהנדס/ארכיטקט)
+Task: הוראת הבעלים 'תמשיך עמוק יותר נרחב יותר ותקן ודחוף' — סבב v45 תיקון-השורש (ROOT FIX): העמקה מעבר לרוסט v44 — איתור וגילוי פיצול-הזרות הגדול בהיסטוריה של הפלטפורמה, תיקון חי, ושתי עוגנות מיינטנט אמיתיות ראשונות.
+
+Work Log:
+- בדיקת בסיס: v44.0.0 (7677f41) מסונכרן · 40 מסלולי API נבדקו חי (38 GET · anchor 404 לפי-תכנון) · tsc 0.
+- הגילוי הגדול (הפער העמוק ביותר שנמצא אי-פעם בקוד): שלוש מסילות המיינטנט (ETHEREUM · BSC · SVM) היו fail-closed לנצח — הקוד גזר את headcorner מזרע-הצי (wallets-seed, idx 2 = 0x2767e814…, ארנק ריק!) בעוד רישום-הכספת (wallets-registry) מצפה לזהות אבן-הפינה (headcorner-seed, 24 מילים, Coinomi, m/44'/60'/0'/0/0 = 0x01Bd2879… — בית-האוצר שמחזיק בפועל את ה-ETH האמיתי). אימות מתמטי חי: BIP39(pbkdf2) מהמילים ← m/44'/60'/0'/0/0 = 0x01Bd ✓ registry ✓ — וכל 13 רשומות הרישום (cashmachine idx1 = 0x962B ✓ …) מוסברות מסכימת אבן-הפינה m/44'/60'/{i}/0. sovereign-key.ts (v22) כבר הכיר באבן-הפינה כשורש — מודולי העוגן לעולם לא הוסבו.
+- נבנה מודול שורש יחיד src/lib/saos/cornerstone-derive.ts: withCornerstoneSeed (BIP39 בתוך מעטפת הכספת בלבד) · deriveHeadcornerEvm (אימות-משולש: identities.evm + treasuryHome + רישום-הכספת) · deriveHeadcornerSol (SLIP-0010 ed25519 m/44'/501'/0'/0' + דגל reproducible כנות).
+- הוסבו כל נקודות החתימה: anchor-evm.ts (deriveSovereignEvm + ANCHORED_EVM_ADDRESS = 0x01Bd… + מסלול חתימה שטוח) · anchor-bsc.ts · anchor-svm.ts (כנות: זהות SOL שהבעלים הצהיר A2Y1d3… אינה שחזורה מאף גזירה סטנדרטית — המסילה נשארת נעולה עם אבחנה מדויקת, אף חתימה מזויפת) · fleet-arm.ts (armEvmFleet מהאוצר · armSolFleet fail-closed מדויק) · relay-contract.ts (מחרוזות גזירה v45).
+- תוקן שער auto-anchor מיושן: השער קרא שורת VaultSlot מת מה-DB ("כספת STEEM לא נאטמה") בעוד המפתח יושב בכספת המשוחזרת — נבנה זרגור כנות roleWifAvailable(role) שבודק את המעטפת עצמה; השער עבר, נרשם slot ציבורי, והפעימה ירתה ל-STEEM החיה — השרשרת עצמה סירבה בכנות ("Missing Active Authority headcorner") וקבלה משורשרת 0ff95d88… תיעדה זאת — תואם לחלון-ההתאוששות הפתוח.
+- הוסף recheck ל-BSC (בעבר רק ל-EVM): אימות-קבלה + קריאה-חוזרת מ-dateseed הרשמי — publicnode דחה בקשות קבלה ללא token.
+- 🔥 שתי עוגנות מיינטנט אמיתיות ראשונות בהיסטוריית הפלטפורמה, חתומות מבית-האוצר האמיתי: ETHEREUM txid 0x4d3c3d56ee526a3685553619e9791d1418fbebe096314316ed73e09b6fc0d6ef (block 25944802 · status 0x1 · gas 34640 · עלות 0.000004 ETH · from=to=0x01Bd… · payload=weave root 6097f929… אומת עצמאית מ-publicnode) ו-BSC txid 0x03961d12ac1b5d29eac5e16f88ea780593fa7746c9f209a08814cc59bd7d22e9 (block 121011726 · status 0x1 · אומת עצמאית מ-bsc-dataseed). שתיהן מוצגות חי בוויו 'מבצעי עגינה'.
+- מכ״ם-זרימה: בית-האוצר 0x01Bd… קודם מ-awaiting-keys ל-live ("המפתח חי ומאומת משולש — העוגן חותם מכאן").
+- רוסט: נוספו 2 פערים — identity-split (fixed) · svm-identity (open) — 11 פערים סה"כ, מוצגים חי.
+- גרסה 45.0.0 'תיקון-השורש (ROOT FIX)' (version.ts + package.json).
+- אירוע-חי: ה-web מוחזר ×2 במהלך הבדיקות (churn מתועד — RSS 1.35GB) — השומר החזירו ב-~25ש' כל פעם; הדפדפן-בדיקה נסגר לשחרור זיכרון.
+- היגיינה: tsc 0 · lint נקי · MAGEN highCount=0 · 0 שגיאות-קונסולה (דסקטופ+מובייל) · מובייל 375px ללא גלישה (scrollW=clientW=375) · פוטר נדחק טבעית בדף ארוך (bottom=5995) · צילומים: v45-root-desktop · v45-roast-desktop · v45-anchor-ops-desktop · v45-anchor-ops-mobile-375 · v45-roast-mobile-375.
+
+Stage Summary:
+- פיצול-השורת תוקן: מקור גזירה יחיד (cornerstone-derive.ts) לכל נקודות החתימה; העוגנים חותמים מבית-האוצר האמיתי 0x01Bd… שמחזיק את הכסף.
+- שתי עוגנות מיינטנט אמיתיות LIVE (txids מעלה) — הפעם הראשונה שהפלטפורמה חתמה בחוץ עם הזהות הנכונה.
+- STEEM: השער תוקן, הפעימה נורתה, השרשרת סירבה בכנות (מסמך-ההתאוששות הפתוח) · SOL: אבחנה מדויקה fail-closed.
+- נותר פתוח (מתועד ברוסט): זהות SOL לא שחזורה (החלטת בעלים) · חלון headcorner · מימון mainnet לחיילים · churn סביבתי.

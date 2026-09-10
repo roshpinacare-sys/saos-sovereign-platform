@@ -7,13 +7,16 @@
  *
  *   tx: to = sovereign EOA (self), value = 0, data = canonical weave JSON
  *
- * The signing identity is the SOVEREIGN wallet derived from the fleet
- * vault's wallets-seed — the exact derivation of the steem repo's
- * THE-WALLETS (113), byte-verified against the anchored public registry
- * (saos:wallets/v1 manifest, custom_json on STEEM):
+ * The signing identity is the SOVEREIGN CORNERSTONE (v45 root fix):
+ * keys/headcorner-seed.json — the owner's 24-word root (Coinomi,
+ * KEYS-EXPORT-2026-09-09.md §3). Its EVM identity is the treasuryHome
+ * 0x01Bd2879… — the registry "headcorner" and the address that holds
+ * the network's real ETH. (Until v45 this module derived the FLEET
+ * seed's idx-2 wallet 0x2767e814… — an empty wallet that never matched
+ * the cornerstone registry, so every self-verify failed PERMANENTLY.)
  *
- *   evmRoot = HDNodeWallet.fromSeed(sha256(seed + "|evm|44/60"))
- *   agent key = evmRoot.derivePath("m/44'/60'/0'/0/" + idx)
+ *   bip39Seed = PBKDF2-HMAC-SHA512(phrase, "mnemonic", 2048, 64)
+ *   agent key = HDNodeWallet.fromSeed(bip39Seed).derivePath("m/44'/60'/0'/0/0")
  *
  * Chain of custody (גבול-האמת) — same discipline as anchor-live.ts:
  *   - the seed exists ONLY inside withVaultMember's callback scope
@@ -30,11 +33,10 @@
  * Additive module — the canonical kernel modules are untouched.
  */
 
-import { createHash } from "crypto";
 import { ethers } from "ethers";
-import { withVaultMember } from "@/lib/vault-seal";
 import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
+import { deriveHeadcornerEvm } from "./cornerstone-derive";
 
 // ─── endpoints (measured reachable in eth-sol-live, same pool) ─────────────
 
@@ -52,16 +54,21 @@ const CHAIN_ID = 1; // mainnet — fail-closed, no chainId confusion
 /** The agent whose wallet signs (matches the STEEM anchor account). */
 const AGENT = "headcorner";
 
+// (v45: the derivation itself lives in cornerstone-derive.ts — the ONE
+// canonical root-identity module. The old sha256(seed|evm|44/60) fleet
+// convention was retired: it derived an EMPTY wallet and never matched
+// the cornerstone registry.)
+
 /**
- * The EXPECTED sovereign EVM address — copied from the ANCHORED public
- * manifest (steem repo, sovereign/node/wallets-public.json, idx 2,
- * anchored on STEEM as saos:wallets/v1). The derived key must reproduce
- * this address or NOTHING is signed.
+ * The EXPECTED sovereign EVM address — the CORNERSTONE treasuryHome
+ * (headcorner-seed identities.evm, vault-registry headcorner, the
+ * address holding the network's real ETH). The derived key must
+ * reproduce this address or NOTHING is signed.
  */
-export const ANCHORED_EVM_ADDRESS = "0x2767e8146c11baD1d9B0784f11325375195c1b0f";
+export const ANCHORED_EVM_ADDRESS = "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37";
 
 /** Public path of the sovereign key — documentation value, not a secret. */
-export const EVM_DERIVATION = "evmRoot=sha256(seed|evm|44/60) → m/44'/60'/0'/0/2";
+export const EVM_DERIVATION = "cornerstone-24words → BIP39 → m/44'/60'/0'/0/0 (בית-האוצר)";
 
 // ─── cost model (measured, conservative) ───────────────────────────────────
 
@@ -108,51 +115,18 @@ export interface EvmAnchorOutcome {
   error?: string;
 }
 
-// ─── canonical derivation (mirror of steem sovereign/node/wallets.cjs) ─────
-
-const sha256buf = (s: string) => createHash("sha256").update(s).digest();
-
-interface DerivedEvm {
-  address: string;
-  privateKey: string; // lives ONLY inside the caller's scope
-  registryAddress: string;
-}
+// ─── canonical derivation (v45: see cornerstone-derive.ts) ───────────────
 
 /**
- * Derives the sovereign EVM key from the sealed seed and verifies it
- * against BOTH the vault registry and the anchored public manifest.
+ * Derives the sovereign EVM key from the CORNERSTONE (v45) and verifies
+ * it against BOTH the headcorner-seed identities AND the vault registry.
  * Returns the key — the caller must keep it inside its scope.
  * (v14: exported for the sovereign relay contract module — same envelope
  * discipline: the key lives only inside the caller's scope.)
  */
-export async function deriveSovereignEvm(): Promise<DerivedEvm> {
-  return withVaultMember("keys/wallets-seed.json", async (seedContent) => {
-    const seedDoc = JSON.parse(seedContent) as { seed?: string };
-    const seed = String(seedDoc.seed ?? "");
-    if (!/^[0-9a-f]{64,}$/.test(seed)) {
-      throw new Error("vault wallets-seed: malformed (fail-closed)");
-    }
-    const evmRoot = ethers.HDNodeWallet.fromSeed(sha256buf(seed + "|evm|44/60"));
-    const wallet = evmRoot.derivePath("m/44'/60'/0'/0/2"); // headcorner = idx 2
-    const registry = await withVaultMember("keys/wallets-registry.json", (regContent) => {
-      const reg = JSON.parse(regContent) as {
-        accounts?: Array<{ agent?: string; evm?: { address?: string } }>;
-      };
-      const row = (reg.accounts ?? []).find((a) => a.agent === AGENT);
-      return row?.evm?.address ?? null;
-    });
-    if (!registry || registry !== wallet.address) {
-      throw new Error(
-        `self-verify FAILED: derived ${wallet.address} ≠ vault registry ${registry ?? "—"} — refusing to sign`
-      );
-    }
-    if (wallet.address !== ANCHORED_EVM_ADDRESS) {
-      throw new Error(
-        `self-verify FAILED: derived ${wallet.address} ≠ ANCHORED manifest ${ANCHORED_EVM_ADDRESS} — refusing to sign`
-      );
-    }
-    return { address: wallet.address, privateKey: wallet.privateKey, registryAddress: registry };
-  });
+export async function deriveSovereignEvm(): Promise<{ address: string; privateKey: string; registryAddress: string }> {
+  const derived = await deriveHeadcornerEvm();
+  return { address: derived.address, privateKey: derived.privateKey, registryAddress: derived.address };
 }
 
 // ─── payload (whitelisted shape — same weave convention as STEEM) ──────────
@@ -299,30 +273,12 @@ export async function anchorSealLiveOnEvm(seal: EvmLiveSeal): Promise<EvmAnchorO
   const payload = buildEvmWeaveData(seal, at);
   const dataHex = "0x" + Buffer.from(payload, "utf8").toString("hex");
 
-  // derive + self-verify + sign INSIDE the envelope session; the key
-  // never escapes this callback's scope
-  const sent = await withVaultMember("keys/wallets-seed.json", async (seedContent) => {
-    const seedDoc = JSON.parse(seedContent) as { seed?: string };
-    const seed = String(seedDoc.seed ?? "");
-    if (!/^[0-9a-f]{64,}$/.test(seed)) throw new Error("vault wallets-seed: malformed (fail-closed)");
+  // v45: derivation + self-verify (cornerstone — the key lives only
+  // inside this scope, discarded after the tx is built)
+  const derived = await deriveSovereignEvm();
+  const wallet = new ethers.Wallet(derived.privateKey);
 
-    const evmRoot = ethers.HDNodeWallet.fromSeed(sha256buf(seed + "|evm|44/60"));
-    const wallet = evmRoot.derivePath("m/44'/60'/0'/0/2");
-
-    // fail-closed double self-verify BEFORE any signing
-    const registry = await withVaultMember("keys/wallets-registry.json", (regContent) => {
-      const reg = JSON.parse(regContent) as {
-        accounts?: Array<{ agent?: string; evm?: { address?: string } }>;
-      };
-      return (reg.accounts ?? []).find((a) => a.agent === AGENT)?.evm?.address ?? null;
-    });
-    if (registry !== wallet.address) {
-      throw new Error(`self-verify FAILED: derived ≠ vault registry (${registry ?? "—"}) — refusing to sign`);
-    }
-    if (wallet.address !== ANCHORED_EVM_ADDRESS) {
-      throw new Error(`self-verify FAILED: derived ≠ ANCHORED manifest — refusing to sign`);
-    }
-
+  const sent = await (async () => {
     // live balance gate — the pulse must fit, with margin
     const provider = new ethers.JsonRpcProvider(ETH_ENDPOINTS[0], CHAIN_ID, { batchMaxCount: 1 });
     try {
@@ -362,7 +318,7 @@ export async function anchorSealLiveOnEvm(seal: EvmLiveSeal): Promise<EvmAnchorO
       provider.destroy(); // v20.1 — every throw on this path leaked a zombie provider
       throw e;
     }
-  });
+  })();
 
   // inclusion proof — receipt + data read-back (independent of the sender)
   const receipt = await waitForReceipt(sent.provider, sent.hash);

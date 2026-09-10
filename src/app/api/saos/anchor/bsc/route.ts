@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { anchorSealLiveOnBsc, bscReadiness, explorerLinkBsc, type BscAnchorOutcome } from "@/lib/saos/anchor-bsc";
+import { ethers } from "ethers";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,42 @@ async function ledger(take = 10): Promise<BscAnchorRow[]> {
 export async function GET(req: Request) {
   try {
     const q = new URL(req.url).searchParams;
+
+    // v45 — recheck: re-verify a row against BNB Chain (receipt + data read-back)
+    const recheck = q.get("recheck");
+    if (recheck) {
+      const row = await db.anchorTx.findUnique({ where: { id: recheck }, include: { seal: true } });
+      if (!row || row.kind !== "weave" || row.network !== NETWORK || !row.seal) {
+        return NextResponse.json({ ok: false, error: "לא נמצא עוגן BSC כזה" }, { status: 200 });
+      }
+      const meta = safeParse(row.meta) ?? {};
+      let confirmed = false;
+      let block: number | null = null;
+      if (row.txid) {
+        // v45: publicnode rejects some receipt lookups — official dataseed first
+        const provider = new ethers.JsonRpcProvider("https://bsc-dataseed.bnbchain.org", 56, { batchMaxCount: 1 });
+        try {
+          const receipt = await provider.getTransactionReceipt(row.txid);
+          if (receipt && receipt.status === 1) {
+            block = receipt.blockNumber;
+            const tx = await provider.getTransaction(row.txid).catch(() => null);
+            const payload = typeof meta.payload === "string" ? (meta.payload as string) : "";
+            const expected = payload ? "0x" + Buffer.from(payload, "utf8").toString("hex") : null;
+            confirmed = expected ? !!tx && tx.data === expected : true;
+          }
+        } catch {
+          // honest — stays unconfirmed
+        } finally {
+          provider.destroy();
+        }
+      }
+      const meta2 = { ...meta, confirmed, ...(block ? { block } : {}), recheckedAt: new Date().toISOString() };
+      await db.anchorTx.update({
+        where: { id: row.id },
+        data: { status: confirmed ? "anchored" : row.status, meta: JSON.stringify(meta2) }
+      });
+      return NextResponse.json({ ok: true, id: row.id, height: row.seal.height, confirmed, block, txid: row.txid });
+    }
 
     // list — the BSC ledger
     if (q.get("list") === "1") {

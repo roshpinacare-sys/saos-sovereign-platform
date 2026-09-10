@@ -577,7 +577,11 @@ async function measure(): Promise<LiquidityRadar> {
     if (!p.addr) return;
     const bal = evmBalances[i];
     const sym = EVM_NETS[p.net].symbol;
-    const status: AssetStatus = bal === null ? "degraded" : bal > 0 ? "awaiting-keys" : "empty";
+    // v45 — בית-האוצר של התזוזה: המפתח אומת משולש (cornerstone-derive) —
+    // זה כבר לא "ממתין למפתח", זה נכס חי שיכול לחתום
+    const isTreasuryHome = p.addr === CORNERSTONE_HOME;
+    const status: AssetStatus =
+      bal === null ? "degraded" : bal > 0 ? (isTreasuryHome ? "live" : "awaiting-keys") : "empty";
     assets.push({
       // v30 — המזהה כולל את קידומת הכתובת: בית-האוצר וארנק-הצי שניהם headcorner
       // אבל כתובות שונות (באג מפתח-כפול שנתפס חי בקונסולת הדפדפן).
@@ -594,9 +598,11 @@ async function measure(): Promise<LiquidityRadar> {
       priceSource: prices[sym]?.source ?? "—",
       status,
       note:
-        bal !== null && bal > 0
-          ? "יתרה חיה — יכולה להיחתם רק עם מפתח"
-          : "אפס נכון למדידה — שער ההתחלה: מימון ראשוני",
+        isTreasuryHome && bal !== null && bal > 0
+          ? "v45: המפתח חי ומאומת משולש (cornerstone-derive) — העוגן חותם מכאן"
+          : bal !== null && bal > 0
+            ? "יתרה חיה — יכולה להיחתם רק עם מפתח"
+            : "אפס נכון למדידה — שער ההתחלה: מימון ראשוני",
       explorer: `${EVM_NETS[p.net].explorer}${p.addr}`
     });
   });

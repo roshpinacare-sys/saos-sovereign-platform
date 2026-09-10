@@ -9,11 +9,12 @@
  *   tx: 1 instruction → Memo program, data = canonical weave JSON,
  *       fee-payer + signer = the sovereign SOL keypair
  *
- * The signing identity is the SOVEREIGN wallet derived from the fleet
- * vault's wallets-seed — the exact derivation of the steem repo's
- * THE-WALLETS (113), verified against the anchored public registry:
- *
- *   solPriv = sha256(seed + "|sol|" + agent)  → ed25519 → base58
+ * The signing identity is the SOVEREIGN CORNERSTONE (v45 root fix):
+ * keys/headcorner-seed.json — the owner's 24-word root. The SOL identity
+ * is verified against the owner-declared identity in the vault registry
+ * (see the honesty note on ANCHORED_SOL_ADDRESS). Until v45 this module
+ * derived the FLEET seed's sha256(seed|sol|headcorner) key — which never
+ * matched the registry, so the rail was permanently fail-closed.
  *
  * Chain of custody (גבול-האמת) — same discipline as anchor-live.ts:
  *   - the seed exists ONLY inside withVaultMember's callback scope
@@ -30,9 +31,6 @@
  * Additive module — the canonical kernel modules are untouched.
  */
 
-import { createHash } from "crypto";
-import bs58 from "bs58";
-import { ed25519 } from "@noble/curves/ed25519.js";
 import {
   Connection,
   Keypair,
@@ -41,9 +39,9 @@ import {
   TransactionInstruction,
   type SignatureStatus
 } from "@solana/web3.js";
-import { withVaultMember } from "@/lib/vault-seal";
 import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
+import { deriveHeadcornerSol } from "./cornerstone-derive";
 
 // ─── endpoints ─────────────────────────────────────────────────────────────
 
@@ -56,19 +54,20 @@ assertTrustedEndpoints([SOL_ENDPOINT, SOL_READ_FALLBACK], "anchor-svm");
 /** SPL Memo v2 — the canonical public on-chain memo program. */
 const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
-/** The agent whose wallet signs (matches the STEEM/EVM anchor identity). */
-const AGENT = "headcorner";
 
 /**
- * The EXPECTED sovereign SOL address — copied from the ANCHORED public
- * manifest (steem repo, sovereign/node/wallets-public.json, idx 2,
- * anchored on STEEM as saos:wallets/v1). The derived key must reproduce
- * this address or NOTHING is signed.
+ * The EXPECTED sovereign SOL address — the OWNER-DECLARED cornerstone
+ * identity (headcorner-seed identities.sol, vault-registry headcorner).
+ * v45 honesty note: this identity is NOT reproducible from the cornerstone
+ * phrase with any standard derivation (SLIP-0010 m/44'/501'/0'/0' gives
+ * a different key). Until the owner clarifies the real SOL scheme the
+ * rail stays fail-closed with a precise diagnosis — never a fabricated
+ * anchor, never a silent switch.
  */
-export const ANCHORED_SOL_ADDRESS = "9knfnFMLmhUNjKRDbR1BmVnVkq4BRczyYjJ7BqiZSgiL";
+export const ANCHORED_SOL_ADDRESS = "A2Y1d3vefh81Ta2DcpazmLaZT4EHdbUX8XjZxigNdVyj";
 
 /** Public derivation of the sovereign key — documentation, not a secret. */
-export const SOL_DERIVATION = "ed25519(sha256(seed|sol|headcorner)) → base58";
+export const SOL_DERIVATION = "cornerstone-24words → BIP39 → SLIP-0010 ed25519 m/44'/501'/0'/0'";
 
 // ─── cost model ────────────────────────────────────────────────────────────
 
@@ -110,35 +109,26 @@ export interface SolAnchorOutcome {
   error?: string;
 }
 
-// ─── canonical derivation (mirror of steem sovereign/node/wallets.cjs) ─────
+// ─── canonical derivation (v45: cornerstone-derive.ts — the ONE root module)
 
-const sha256buf = (s: string) => createHash("sha256").update(s).digest();
-
-interface DerivedSol {
-  address: string;
-  secretKey: Uint8Array; // lives ONLY inside the caller's scope
-}
-
-async function registrySolAddress(): Promise<string | null> {
-  return withVaultMember("keys/wallets-registry.json", (regContent) => {
-    const reg = JSON.parse(regContent) as {
-      accounts?: Array<{ agent?: string; sol?: { address?: string } }>;
-    };
-    return (reg.accounts ?? []).find((a) => a.agent === AGENT)?.sol?.address ?? null;
-  });
-}
-
-function deriveAndVerify(seed: string, registry: string | null): { address: string; keypair: Keypair } {
-  const solPriv = sha256buf(seed + "|sol|" + AGENT);
-  const keypair = Keypair.fromSeed(solPriv); // ed25519 expand-from-seed (32-byte seed)
-  const address = keypair.publicKey.toBase58();
-  if (!registry || registry !== address) {
-    throw new Error(`self-verify FAILED: derived ${address} ≠ vault registry ${registry ?? "—"} — refusing to sign`);
+/**
+ * v45 — derives the SOL keypair from the CORNERSTONE (the documented
+ * scheme) and fails closed with a PRECISE diagnosis when the owner-
+ * declared identity is not reproducible. The old fleet-seed scheme
+ * (sha256(seed|sol|headcorner) → 9knfnFML…) never matched the registry
+ * either — this is the honest version of the same refusal.
+ */
+async function deriveAndVerify(): Promise<{ address: string; keypair: Keypair }> {
+  const sol = await deriveHeadcornerSol();
+  if (!sol.reproducible) {
+    throw new Error(
+      `self-verify FAILED: cornerstone SLIP-0010 derived ${sol.address} ≠ owner-declared identity ${sol.docIdentity ?? "—"} (registry ${sol.registry ?? "—"}) — the recorded SOL identity is not reproducible from the cornerstone phrase — awaiting owner decision — refusing to sign`
+    );
   }
-  if (address !== ANCHORED_SOL_ADDRESS) {
-    throw new Error(`self-verify FAILED: derived ${address} ≠ ANCHORED manifest ${ANCHORED_SOL_ADDRESS} — refusing to sign`);
+  if (sol.address !== ANCHORED_SOL_ADDRESS) {
+    throw new Error(`self-verify FAILED: derived ≠ ANCHORED manifest — refusing to sign`);
   }
-  return { address, keypair };
+  return { address: sol.address, keypair: sol.keypair };
 }
 
 // ─── payload (whitelisted shape — same weave convention as STEEM) ──────────
@@ -180,16 +170,9 @@ export async function solReadiness(): Promise<SolReadiness> {
   try {
     connection = new Connection(SOL_ENDPOINT, "confirmed");
 
-    // 1) derivation + self-verify (keypair discarded immediately)
+    // 1) derivation + self-verify from the CORNERSTONE (v45)
     let address: string;
-    await withVaultMember("keys/wallets-seed.json", async (seedContent) => {
-      const seedDoc = JSON.parse(seedContent) as { seed?: string };
-      const seed = String(seedDoc.seed ?? "");
-      if (!/^[0-9a-f]{64,}$/.test(seed)) throw new Error("vault wallets-seed: malformed (fail-closed)");
-      const registry = await registrySolAddress();
-      const derived = deriveAndVerify(seed, registry);
-      address = derived.address;
-    });
+    address = (await deriveAndVerify()).address;
 
     // 2) live measurements — balance, slot, memo program existence
     const [balanceLamports, slot, memoAccount] = await Promise.all([
@@ -266,13 +249,10 @@ export async function anchorSealLiveOnSol(seal: SolLiveSeal): Promise<SolAnchorO
   const memoBytes = Buffer.from(payload, "utf8");
   const connection = new Connection(SOL_ENDPOINT, "confirmed");
 
-  // derive + self-verify + balance gate + sign INSIDE the envelope session
-  const sent = await withVaultMember("keys/wallets-seed.json", async (seedContent) => {
-    const seedDoc = JSON.parse(seedContent) as { seed?: string };
-    const seed = String(seedDoc.seed ?? "");
-    if (!/^[0-9a-f]{64,}$/.test(seed)) throw new Error("vault wallets-seed: malformed (fail-closed)");
-    const registry = await registrySolAddress();
-    const { address, keypair } = deriveAndVerify(seed, registry);
+  // v45 — derive + self-verify from the CORNERSTONE (fail-closed with
+  // precise diagnosis), then balance gate + sign
+  const { address, keypair } = await deriveAndVerify();
+  const sent = await (async () => {
 
     // balance gate — the fee must fit, with honest margin
     const balance = await connection.getBalance(keypair.publicKey, "confirmed");
@@ -303,7 +283,7 @@ export async function anchorSealLiveOnSol(seal: SolLiveSeal): Promise<SolAnchorO
       preflightCommitment: "confirmed"
     });
     return { signature, address, lastValidBlockHeight };
-  });
+  })();
 
   // inclusion proof — cluster confirmation + memo read-back
   const status = await waitForConfirmation(connection, sent.signature);

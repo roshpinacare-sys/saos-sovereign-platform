@@ -34,8 +34,8 @@ import { canonicalize, sha256Hex } from "./canonical-json";
 import { logOp } from "./oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { readSealInventory, readSovereignWallets, withRoleWif, withVaultMember, type SigningAuthority } from "@/lib/vault-seal";
-import { ANCHORED_EVM_ADDRESS } from "./anchor-evm";
-import { ANCHORED_SOL_ADDRESS } from "./anchor-svm";
+import { deriveSovereignEvm } from "./anchor-evm";
+import { deriveHeadcornerSol } from "./cornerstone-derive";
 import { saosLedger } from "./saos-mint";
 import { ethers } from "ethers";
 import { assertTrustedEndpoints } from "./security";
@@ -490,30 +490,13 @@ export async function armEvmFleet(): Promise<ArmOutcome> {
   const skipped: ArmResultRow[] = [];
   let reserveAfter: Record<string, number | string> | undefined;
 
-  // the whole signing session happens inside the envelope
+  // v45: the sovereign signer is the CORNERSTONE treasury identity —
+  // same root as the anchors (triple self-verify inside cornerstone-derive)
   const { ethers } = await import("ethers");
-  const { createHash } = await import("crypto");
-  const sha256buf = (s: string) => createHash("sha256").update(s).digest();
+  const derived = await deriveSovereignEvm();
+  const wallet = new ethers.Wallet(derived.privateKey);
 
-  await withVaultMember("keys/wallets-seed.json", async (seedContent) => {
-    const seedDoc = JSON.parse(seedContent) as { seed?: string };
-    const seed = String(seedDoc.seed ?? "");
-    if (!/^[0-9a-f]{64,}$/.test(seed)) throw new Error("vault wallets-seed: malformed (fail-closed)");
-
-    // fail-closed double self-verify BEFORE any signing
-    const registry = await withVaultMember("keys/wallets-registry.json", (regContent) => {
-      const reg = JSON.parse(regContent) as { accounts?: Array<{ agent?: string; evm?: { address?: string } }> };
-      return (reg.accounts ?? []).find((a) => a.agent === "headcorner")?.evm?.address ?? null;
-    });
-    const evmRoot = ethers.HDNodeWallet.fromSeed(sha256buf(seed + "|evm|44/60"));
-    const wallet = evmRoot.derivePath("m/44'/60'/0'/0/2");
-    if (registry !== wallet.address) {
-      throw new Error(`self-verify FAILED: derived ≠ vault registry (${registry ?? "—"}) — refusing to sign`);
-    }
-    if (wallet.address !== ANCHORED_EVM_ADDRESS) {
-      throw new Error("self-verify FAILED: derived ≠ ANCHORED manifest — refusing to sign");
-    }
-
+  {
     const provider = new ethers.JsonRpcProvider(ETH_ENDPOINTS[0], 1, { batchMaxCount: 1 });
     // v20.1: try/finally — ANY throw on this path (balance read, fee data,
     // reserve gate, final reserveAfter read) leaked the provider into an
@@ -578,7 +561,7 @@ export async function armEvmFleet(): Promise<ArmOutcome> {
     } finally {
       provider.destroy(); // v20.1 — success AND failure: no zombie providers
     }
-  });
+  }
 
   await armReceipt("EVM", armed.map((a) => a.agent), failed.map((a) => a.agent), skipped.map((a) => a.agent), {
     perSoldierEth: String(EVM_PER_SOLDIER_ETH), // canonical receipts: strings, never floats
@@ -594,9 +577,6 @@ export async function armEvmFleet(): Promise<ArmOutcome> {
 export async function armSolFleet(): Promise<ArmOutcome> {
   const { Keypair, Connection, Transaction, SystemProgram, sendAndConfirmTransaction, LAMPORTS_PER_SOL, PublicKey } =
     await import("@solana/web3.js");
-  const { createHash } = await import("crypto");
-  const sha256buf = (s: string) => createHash("sha256").update(s).digest();
-
   const targets = await withVaultMember("keys/wallets-registry.json", (regContent) => {
     const reg = JSON.parse(regContent) as {
       accounts?: Array<{ agent?: string; sol?: { address?: string } }>;
@@ -612,26 +592,17 @@ export async function armSolFleet(): Promise<ArmOutcome> {
   const skipped: ArmResultRow[] = [];
   let reserveAfter: Record<string, number | string> | undefined;
 
-  await withVaultMember("keys/wallets-seed.json", async (seedContent) => {
-    const seedDoc = JSON.parse(seedContent) as { seed?: string };
-    const seed = String(seedDoc.seed ?? "");
-    if (!/^[0-9a-f]{64,}$/.test(seed)) throw new Error("vault wallets-seed: malformed (fail-closed)");
+  const solId = await deriveHeadcornerSol();
+  if (!solId.reproducible) {
+    // v45 honest fail-closed: the owner-declared SOL identity is not
+    // reproducible from the cornerstone phrase — arming stays locked
+    throw new Error(
+      `self-verify FAILED: cornerstone SLIP-0010 derived ${solId.address} ≠ owner-declared identity ${solId.docIdentity ?? "—"} — the recorded SOL identity is not reproducible from the cornerstone phrase — awaiting owner decision — refusing to sign`
+    );
+  }
+  const keypair = solId.keypair;
 
-    // canonical derivation + double self-verify (same as anchor-svm)
-    const registry = await withVaultMember("keys/wallets-registry.json", (regContent) => {
-      const reg = JSON.parse(regContent) as { accounts?: Array<{ agent?: string; sol?: { address?: string } }> };
-      return (reg.accounts ?? []).find((a) => a.agent === "headcorner")?.sol?.address ?? null;
-    });
-    const solPriv = sha256buf(seed + "|sol|headcorner");
-    const keypair = Keypair.fromSeed(solPriv);
-    const derivedAddress = keypair.publicKey.toBase58(); // public by definition
-    if (registry !== derivedAddress) {
-      throw new Error(`self-verify FAILED: derived ≠ vault registry (${registry ?? "—"}) — refusing to sign`);
-    }
-    if (derivedAddress !== ANCHORED_SOL_ADDRESS) {
-      throw new Error("self-verify FAILED: derived ≠ ANCHORED manifest — refusing to sign");
-    }
-
+  {
     const connection = new Connection(SOL_ENDPOINT, "confirmed");
 
     // live gates: balance must cover disbursements + fees + reserve floor
@@ -677,7 +648,7 @@ export async function armSolFleet(): Promise<ArmOutcome> {
     }
 
     reserveAfter = { sol: ((await connection.getBalance(keypair.publicKey, "confirmed")) / LAMPORTS_PER_SOL).toFixed(4) };
-  });
+  }
 
   await armReceipt("SOL", armed.map((a) => a.agent), failed.map((a) => a.agent), skipped.map((a) => a.agent), {
     perSoldierSol: String(SOL_PER_SOLDIER), // canonical receipts: strings, never floats
