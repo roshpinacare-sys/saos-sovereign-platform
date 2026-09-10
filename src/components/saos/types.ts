@@ -1568,3 +1568,87 @@ export interface WorthPulseResult {
   receipt?: string;
   error?: string;
 }
+
+// ─── v58: הרחבת הריבונות (THE SOVEREIGN EXPANSION) ─────────────────────────
+
+export interface SovereignChainLeg {
+  ok: boolean;
+  block: number;
+  blockId: string;
+  timestamp: string | null;
+  txid: string;
+  txidExpected: boolean;
+  payload: string | null;
+  latencyMs: number | null;
+  error?: string;
+}
+
+export interface SovereignYnetAnchor {
+  ok: boolean;
+  authorities: {
+    steem: string[];
+    hive: string[];
+    headcornerInSteem: boolean;
+    headcornerInHive: boolean;
+    latencyMs: number | null;
+  };
+  steem: SovereignChainLeg;
+  hive: SovereignChainLeg;
+  operable: boolean;
+  whatRemains: string;
+  measuredAt: string;
+}
+
+export interface SovereignSolutionRow {
+  id: string;
+  name: string;
+  family: "gas-free-rail" | "module-lane" | "publish-layer" | "feeless-chain";
+  familyHe: string;
+  gap: string;
+  how: string;
+  openHow: string;
+  costUsd: string;
+  status: "verified-live" | "documented" | "unreachable";
+  probe?: { ok: boolean; latencyMs: number | null; evidence: string; error?: string };
+  source: string;
+}
+
+export interface OrganismSovereigntyRow {
+  id: string;
+  name: string;
+  agent: string;
+  what: string;
+  evidence: string;
+  adoptedByUs: string;
+}
+
+export interface SovereignNetData {
+  ok: boolean;
+  measuredAt: string;
+  ynetAnchor: SovereignYnetAnchor;
+  solutions: SovereignSolutionRow[];
+  organism: OrganismSovereigntyRow[];
+  verdict: {
+    liveVerified: number;
+    documented: number;
+    unreachable: number;
+    freeDoors: number;
+    publishLayers: number;
+    summary: string;
+  };
+  error?: string;
+}
+
+export interface SecretSweepData {
+  ok: boolean;
+  surface: string;
+  scannedFiles: number;
+  scannedBytes: number;
+  skippedBinary: number;
+  patterns: Array<{ id: string; label: string; he: string; severity: "alert" | "public" | "note"; count: number }>;
+  realAlerts: number;
+  verdict: string;
+  tookMs: number;
+  measuredAt: string;
+  error?: string;
+}

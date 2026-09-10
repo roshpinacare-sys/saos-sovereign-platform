@@ -91,7 +91,19 @@ export const TRUSTED_HOSTS: TrustedHost[] = [
   { host: "cosmos-rest.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "REST Cosmos (יתרות ATOM)" },
   { host: "mempool.space", org: "mempool.space · תשתית ביטקוין מרכזית", tier: "major", role: "יתרות BTC (UTXO חי)" },
   { host: "api.blockcypher.com", org: "BlockCypher · תשתית רב-שרשרתית", tier: "major", role: "יתרות DOGE / LTC" },
-  { host: "horizon.stellar.org", org: "Stellar Development Foundation (רשמי)", tier: "official", role: "יתרות XLM (Horizon API)" }
+  { host: "horizon.stellar.org", org: "Stellar Development Foundation (רשמי)", tier: "official", role: "יתרות XLM (Horizon API)" },
+  // v58 · הרחבת הריבונות — פתרונות ריבוניים נוספים שנמצאו על הרשת ואומתו-חי (read-only):
+  // דלת EVM בגז-חינם + מסילות-מודול ב-RPC ציבורי חינם + שכבות-פרסום חינמיות.
+  { host: "mainnet.skalenodes.com", org: "SKALE Network · איגוד SKALE (רשמי)", tier: "official", role: "RPC SKALE Europa — דלת EVM בגז-חינם (הרחבת הריבונות v58)" },
+  { host: "fullnode.mainnet.aptoslabs.com", org: "Aptos Labs (רשמי)", tier: "official", role: "RPC Aptos (מסילת-מודול · הרחבת הריבונות v58)" },
+  { host: "rpc.mainnet.near.org", org: "NEAR Foundation (רשמי)", tier: "official", role: "RPC NEAR (מסילת-מודול · הרחבת הריבונות v58)" },
+  { host: "rpc.polkadot.io", org: "Parity · Web3 Foundation (רשמי)", tier: "official", role: "RPC Polkadot (מסילת-מודול · הרחבת הריבונות v58)" },
+  { host: "rpc.tzbeta.net", org: "TzBeta (צומת Tezos ציבורי)", tier: "major", role: "RPC Tezos (מסילת-מודול · הרחבת הריבונות v58)" },
+  { host: "cosmos-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Cosmos hub (מסילת-מודול · הרחבת הריבונות v58)" },
+  { host: "eos.greymass.com", org: "Greymass (צומת EOS ציבורי)", tier: "major", role: "RPC EOS (מסילת-מודול · הרחבת הריבונות v58)" },
+  { host: "nos.lol", org: "nos.lol (ריליי NOSTR ציבורי)", tier: "major", role: "שכבת-פרסום חינמית NOSTR (הרחבת הריבונות v58)" },
+  { host: "relay.damus.io", org: "Damus (ריליי NOSTR ציבורי)", tier: "major", role: "שכבת-פרסום חינמית NOSTR (הרחבת הריבונות v58)" },
+  { host: "rpc.vara.network", org: "Vara Network (רשמי)", tier: "official", role: "RPC Vara — שרשרת ללא-עמלות WASM (הרחבת הריבונות v58)" }
 ];
 
 const HOST_INDEX = new Map(TRUSTED_HOSTS.map((t) => [t.host, t]));

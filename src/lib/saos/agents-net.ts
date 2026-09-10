@@ -1,25 +1,14 @@
 /**
- * lib/saos/agents-net.ts — LIVE AGENT NETWORK MONITOR (v14).
+ * lib/saos/agents-net.ts — LIVE AGENT NETWORK MONITOR (v14 · v58 expansion).
  * =====================================================================
- * "בחן את שאר הסוכנים — תמיד חשוב להיות במעקב" — the 8 private repos of
- * roshpinacare-sys are one organism working on the same network. This
- * module watches them LIVE through the GitHub REST API (read-only):
+ * "בחן את שאר הסוכנים — תמיד חשוב להיות במעקב" — הריפואים הפרטיים
+ * של roshpinacare-sys הם אורגניזם-אחד על אותה רשת. תצוגה זו קוראת את
+ * GitHub REST API בזמן-אמת (קריאה בלבד): דחיפה אחרונה, קומיט אחרון,
+ * טריות (<1ש׳ "פעיל-כרגע") ותפקיד כל סוכן באורגניזם.
  *
- *   GET /user/repos?per_page=100&sort=pushed  — every repo + pushed_at
- *   GET /repos/{owner}/{repo}/commits?per_page=1 — the last commit
- *                                                     (sha, message, author)
- *
- * Freshness classification (from pushed_at):
- *   live   — pushed < 1h ago   ("פעיל-כרגע")
- *   active — pushed < 24h ago  ("פעיל")
- *   idle   — otherwise         ("רדום")
- *
- * גבול-האמת: the personal token is read server-side ONLY (upload/
- * Roshcaregt.txt, git-ignored) and NEVER appears in results, logs or
- * responses. Failure is data — {ok:false, error} — never a fabricated
- * "all agents active". Cache 90s · inflight dedupe.
- *
- * Additive module — the canonical kernel modules are untouched.
+ * v58 · הרחבת הריבונות: האורגניזם גדל 8→12 ריפואים — נתגלו חיים
+ * במדידת-הרשת של הסבב: saos-control-center (מרכז-הבקרה) · Adsmarket
+ * (קו-הכסף-האמיתי) · saos-jummper (הרנס) · Sdk (ערכת-הפיתוח).
  */
 
 import { access, readFile } from "fs/promises";
@@ -51,7 +40,7 @@ async function readToken(): Promise<string | null> {
   return null;
 }
 
-// ─── role map — the organism's roles, from the 8-repo deep audit ────────────
+// ─── role map — the organism's roles (v58: 12 repos · 8→12 expansion) ──────
 
 const ROLE_MAP: Record<string, string> = {
   steem: "אם-הרשת · מקור המפתחות, הצי וההוכחות (SAOS-NET)",
@@ -61,7 +50,12 @@ const ROLE_MAP: Record<string, string> = {
   "saos-sovereign-foundry": "פלטפורמת-עגינה מקבילה (הסוכן השני)",
   roshpina: "גשר-ההוכחות · kernel אמון",
   "anchor-baseline": "ריפו-סמן (baseline)",
-  "Project-files": "ארכיון היסטורי (זיפים)"
+  "Project-files": "ארכיון היסטורי (זיפים)",
+  // v58 · הרחבת הריבונות — סוכנים חדשים שנתגלו חיים במדידת-הרשת:
+  "saos-control-center": "מרכז-הבקרה — דלת-המטבעות · שוק-חי · פדיון (Task 72)",
+  Adsmarket: "קו-הכסף-האמיתי — 10/10 נכסים ניתנים-לניתוב אטומי",
+  "saos-jummper": "ההרנס — 30/30 בדיקות מכוילות מול ה-API-ים החיים",
+  Sdk: "ערכת-הפיתוח של הרשת"
 };
 
 // ─── types ──────────────────────────────────────────────────────────────────

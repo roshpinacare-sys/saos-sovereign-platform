@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -92,6 +92,14 @@ export const VIEWS: ViewDef[] = [
     group: "תפעול"
   },
   {
+    id: "sovereign-net",
+    label: "הרחבת הריבונות",
+    short: "הרחבה",
+    desc: "פתרונות ריבוניים נוספים שנמצאו על הרשת — דלת EVM בגז-חינם (SKALE), מסילות-מודול ב-RPC חינם, שכבות-פרסום NOSTR — בבדיקה חיה · עוגן-ynet אומת עצמאית · 12 הריפואים · סוופ-סודות ריבוני",
+    icon: <Globe2 size={16} />,
+    group: "תפעול"
+  },
+  {
     id: "network360",
     label: "רשת-360",
     short: "רשת-360",
@@ -143,7 +151,7 @@ export const VIEWS: ViewDef[] = [
     id: "agents",
     label: "מעקב סוכנים",
     short: "סוכנים",
-    desc: "8 הריפואים של האורגניזם במדידה חיה מול GitHub — דחיפות, קומיטים וטריות",
+    desc: "כל ריפואי האורגניזם (12 ב-v58) במדידה חיה מול GitHub — דחיפות, קומיטים וטריות",
     icon: <Users size={16} />,
     group: "תפעול"
   },

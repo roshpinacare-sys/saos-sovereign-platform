@@ -1,11 +1,14 @@
 "use client";
 
 /**
- * SAOS v14 — מעקב סוכנים חי (LIVE AGENT NETWORK MONITOR).
- * "בחן את שאר הסוכנים — תמיד חשוב להיות במעקב" — שמונת הריפואים הפרטיים
+ * SAOS v14/v58 — מעקב סוכנים חי (LIVE AGENT NETWORK MONITOR).
+ * "בחן את שאר הסוכנים — תמיד חשוב להיות במעקב" — הריפואים הפרטיים
  * של roshpinacare-sys הם אורגניזם-אחד על אותה רשת. תצוגה זו קוראת את
  * GitHub REST API בזמן-אמת (קריאה בלבד): דחיפה אחרונה, קומיט אחרון,
  * טריות (<1ש׳ "פעיל-כרגע") ותפקיד כל סוכן באורגניזם.
+ *
+ * v58 · הרחבת הריבונות: האורגניזם גדל 8→12 ריפואים — saos-control-center
+ * · Adsmarket · saos-jummper · Sdk נתגלו חיים במדידת-הרשת ונוספו למפת-התפקידים.
  */
 
 import { Activity, ExternalLink, GitCommit, RadioTower, Users } from "lucide-react";
@@ -35,7 +38,7 @@ export function ViewAgents() {
     <div className="space-y-5 animate-view">
       <PageHead
         title="מעקב סוכנים — האורגניזם בזמן אמת"
-        sub="שמונת הריפואים הפרטיים של הרשת (roshpinacare-sys) במדידה חיה מול GitHub: דחיפה אחרונה, קומיט אחרון וטריות כל סוכן. קריאה בלבד — הטוקן נשאר בצד-השרת. מתעדכן כל 30 שניות."
+        sub={`כל ריפואי הרשת (roshpinacare-sys) במדידה חיה מול GitHub — ${repos.length || 12} ריפואים (v58: האורגניזם גדל 8→12): דחיפה אחרונה, קומיט אחרון וטריות כל סוכן. קריאה בלבד — הטוקן נשאר בצד-השרת. מתעדכן כל 30 שניות.`}
         actions={
           <Btn variant="ghost" size="xs" onClick={() => net.refresh()}>
             <Activity size={11} /> מדידה טרייה
@@ -96,7 +99,7 @@ export function ViewAgents() {
         <PanelHeader
           icon={<Users size={15} />}
           title="ספר הצי — סוכני האורגניזם"
-          sub="לפי דחיפה אחרונה (החדש בראש) · תפקיד כל ריפו מביקורת-העומק של v10"
+          sub="לפי דחיפה אחרונה (החדש בראש) · תפקיד כל ריפו מביקורת-העומק + הרחבת v58"
           actions={
             d?.owner ? (
               <a

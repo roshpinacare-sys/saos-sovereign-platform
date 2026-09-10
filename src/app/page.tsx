@@ -23,6 +23,7 @@ import { BridgesView } from "@/components/saos/views/bridges";
 import { BreakthroughView } from "@/components/saos/views/breakthrough";
 import { ConversionView } from "@/components/saos/views/conversion";
 import { TunerView } from "@/components/saos/views/tuner";
+import { SovereignNetView } from "@/components/saos/views/sovereign-net";
 import { Network360View } from "@/components/saos/views/network360";
 import { SecurityView } from "@/components/saos/views/security";
 import { PermissionsView } from "@/components/saos/views/permissions";
@@ -56,6 +57,7 @@ const TITLES: Record<ViewId, string> = {
   breakthrough: "מנוע פריצת-הדרך — מה יש ביד · מה מגביל · מה הפריצה",
   conversion: "חדר ההמרה — TRON ו-SOL על הרשת שלנו",
   tuner: "מכוון הרשת — מה מגביל · מה חוסם · מה יועל ומה נאמת",
+  "sovereign-net": "הרחבת הריבונות — פתרונות נוספים שנמצאו על הרשת",
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
   reshut: "רשות — מטריצת הסמכויות",
@@ -115,6 +117,7 @@ export default function Home() {
         {view === "breakthrough" && <BreakthroughView />}
         {view === "conversion" && <ConversionView />}
         {view === "tuner" && <TunerView />}
+        {view === "sovereign-net" && <SovereignNetView />}
         {view === "network360" && <Network360View />}
         {view === "security" && <SecurityView />}
         {view === "reshut" && <PermissionsView />}
