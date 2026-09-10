@@ -1397,8 +1397,8 @@ export function ExchangeView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(dexBoard.data.pairs ?? []).map((p) => (
-                        <tr key={`${p.dex}-${p.pair}`}>
+                      {(dexBoard.data.pairs ?? []).map((p, i) => (
+                        <tr key={`${p.dex}-${p.pair}-${i}`}>
                           <Td>
                             <span className="text-[10.5px] text-zinc-400">{p.dex}</span>
                             <span className="text-[9px] text-zinc-600"> · {p.chain}</span>

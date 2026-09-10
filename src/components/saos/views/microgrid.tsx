@@ -457,8 +457,8 @@ export function MicrogridView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(dexBoard.data?.pairs ?? []).map((p) => (
-                    <tr key={`${p.dex}-${p.pair}`} className="border-t border-zinc-800/60">
+                  {(dexBoard.data?.pairs ?? []).map((p, i) => (
+                    <tr key={`${p.dex}-${p.pair}-${i}`} className="border-t border-zinc-800/60">
                       <Td>
                         <div className="flex flex-col">
                           <span dir="ltr" className="font-mono text-xs font-semibold">{p.pair}</span>
@@ -531,8 +531,8 @@ export function MicrogridView() {
                 </div>
                 {sim && sim.length > 0 && (
                   <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {sim.map((s) => (
-                      <div key={`${s.dex}-${s.pair}`} className="flex items-center justify-between gap-2 text-[10px] min-w-0">
+                    {sim.map((s, i) => (
+                      <div key={`${s.dex}-${s.pair}-${i}`} className="flex items-center justify-between gap-2 text-[10px] min-w-0">
                         <span dir="ltr" className="font-mono min-w-0 truncate">{s.pair} · {s.dex.split(" ")[0]}</span>
                         <span dir="ltr" className="font-mono text-zinc-500 shrink-0">{s.amountOut}</span>
                         <Pill tone={(s.impactPct ?? 0) > 0.1 ? "amber" : "zinc"}>{(s.impactPct ?? 0).toFixed(3)}%</Pill>

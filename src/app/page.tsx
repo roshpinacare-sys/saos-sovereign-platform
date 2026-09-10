@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v43 — מימוש (REALIZATION): מנוע שווי-הרשת החי —
- * התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי
- * שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת, מופרד לעולם
- * לממומש (הוכח) · אחזקה (חי ביד) · חמוש (ממתין לטריגר) · מנוע (תקרות
- * כנות) — ופעימת מימוש שמבצעת ערך על הרשת עכשיו (אורקל+סולם+שטיפה+
- * קציר→קופת-עבודה+ריצה ריבונית דרך כל 10 החוזים, txid לכל צעד).
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 25 עמודים. קיצורי-מקלדת Alt+1..9.
-  */
+ * SAOS Sovereign Platform v44 — רוסט-אמת (TRUTH ROAST): החשיפה העצמית
+ * החיה — התשובה הקודדת להוראת הבעלים "חפש בעיות רבות ותקן את כולן חפש
+ * פערים רבים וסדר אותם יש לנו מלא פערים מה אמת למציאות תעשה לעצמך
+ * roast חריף לרשת כדי לחשוף אותך ותתקן דחוף": מנוע truthRoast (5
+ * מקורות-אמת: כסף USD חי · keeper · herald · swarm · מדידת-עצמי) + ויו
+ * 'רוסט-אמת' מקום 3 — פסק-דין, נייר מול אמת, ופערים fixed/open/honest.
+ * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 26 עמודים. קיצורי-מקלדת Alt+1..9.
+ */
 
 import { useEffect, useState } from "react";
 import { AppShell, VIEWS, type ViewId } from "@/components/saos/shell";
@@ -17,6 +17,7 @@ import { useLive } from "@/components/saos/lib";
 import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
 import { ViewWorth } from "@/components/saos/views/worth";
+import { RoastView } from "@/components/saos/views/roast";
 import { Network360View } from "@/components/saos/views/network360";
 import { SecurityView } from "@/components/saos/views/security";
 import { PermissionsView } from "@/components/saos/views/permissions";
@@ -44,6 +45,7 @@ import { ViewResearch } from "@/components/saos/views/research";
 const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
   worth: "מימוש — שווי הרשת החי",
+  roast: "רוסט-אמת — חשיפה עצמית",
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
   reshut: "רשות — מטריצת הסמכויות",
@@ -97,6 +99,7 @@ export default function Home() {
       <AppShell view={view} onNav={setView} status={status}>
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
         {view === "worth" && <ViewWorth />}
+        {view === "roast" && <RoastView />}
         {view === "network360" && <Network360View />}
         {view === "security" && <SecurityView />}
         {view === "reshut" && <PermissionsView />}

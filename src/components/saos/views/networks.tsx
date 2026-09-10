@@ -580,8 +580,8 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(dex.data?.pairs ?? []).map((pair) => (
-                    <tr key={`${pair.chain}-${pair.pair}`} className="hover:bg-white/[0.02] transition-colors">
+                  {(dex.data?.pairs ?? []).map((pair, i) => (
+                    <tr key={`${pair.chain}-${pair.dex}-${pair.pair}-${i}`} className="hover:bg-white/[0.02] transition-colors">
                       <Td>
                         <span dir="ltr" className="font-mono text-[12px] font-bold text-zinc-100">
                           {pair.pair}

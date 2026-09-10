@@ -229,8 +229,8 @@ export function Network360View() {
           />
           <PanelBody className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              {(live?.dex.pairs ?? []).map((p) => (
-                <div key={`${p.net}-${p.pair}`} className="rounded-lg border border-white/[0.07] bg-zinc-900/40 px-3 py-2">
+              {(live?.dex.pairs ?? []).map((p, i) => (
+                <div key={`${p.net}-${p.pair}-${i}`} className="rounded-lg border border-white/[0.07] bg-zinc-900/40 px-3 py-2">
                   <p className="text-[10px] text-zinc-500 flex items-center justify-between">
                     <span dir="ltr">{p.pair}</span>
                     <span className="text-zinc-600" dir="ltr">{p.net === "ethereum" ? "ETH" : "BSC"}</span>
