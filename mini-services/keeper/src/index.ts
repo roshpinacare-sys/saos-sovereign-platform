@@ -167,7 +167,10 @@ interface KeeperEvent {
     // v38 — the sovereign swarm (gold-scout + night-scout)
     | "swarm-up"
     | "swarm-dead"
-    | "swarm-revive";
+    | "swarm-revive"
+    // v41 — the recovery ambush (headcorner takeover engine)
+    | "ambush-fired"
+    | "ambush-alien";
   detail: string;
 }
 
@@ -228,6 +231,14 @@ const S = {
   swarmRevives: 0,
   swarmLastOkAt: null as string | null,
   swarmGraceUntil: Date.now() + SWARM_GRACE_MS,
+  // v41 — the recovery ambush (headcorner): the web tier owns the engine
+  // (vault sessions + broadcast); the keeper owns the cadence + the fire.
+  recovery: {
+    lastCheckAt: null as string | null,
+    state: "watching" as "watching" | "TRIGGERED-OURS" | "foreign-request" | "window-closed" | "stale",
+    daysLeft: null as number | null,
+    lastJournalAt: null as string | null
+  },
   events: [] as KeeperEvent[]
 };
 
@@ -624,6 +635,49 @@ async function checkSwarmFunction(webAlive: boolean): Promise<OrganFunction> {
   }
 }
 
+/** v41 — the recovery ambush (headcorner takeover engine). The web tier
+ *  owns the engine (vault sessions + broadcast); the keeper owns the
+ *  cadence: every slow cycle it reads the live ambush status, and the
+ *  moment a chain request carries OUR sealed sovereign authority it fires
+ *  the POST completion — the takeover lands within minutes, unattended.
+ *  A FOREIGN authority on-chain is journaled as a race alarm. */
+async function checkRecoveryAmbush(): Promise<void> {
+  try {
+    const r = await fetch("http://127.0.0.1:3000/api/saos/recovery", { signal: AbortSignal.timeout(9_000) });
+    if (!r.ok) return;
+    const st = (await r.json().catch(() => null)) as {
+      window?: { open?: boolean; daysLeft?: number };
+      trigger?: { requestFound?: boolean; ours?: boolean | null; requestAuthorityPub?: string | null; sourceChain?: string | null };
+    } | null;
+    if (!st) return;
+    S.recovery.lastCheckAt = new Date().toISOString();
+    S.recovery.daysLeft = st.window?.daysLeft ?? null;
+    const prev = S.recovery.state;
+    S.recovery.state = !st.window?.open
+      ? "window-closed"
+      : st.trigger?.requestFound
+        ? (st.trigger.ours === true ? "TRIGGERED-OURS" : "foreign-request")
+        : "watching";
+    if (S.recovery.state === "foreign-request" && prev !== "foreign-request") {
+      journal("ambush-alien", `recovery ambush: FOREIGN request_account_recovery on ${st.trigger?.sourceChain ?? "STEEM"} (authority ${(st.trigger?.requestAuthorityPub ?? "?").slice(0, 12)}…) — race alarm, the engine refuses + documents (v41)`);
+    }
+    if (st.trigger?.requestFound && st.trigger.ours === true) {
+      const res = await fetch("http://127.0.0.1:3000/api/saos/recovery", {
+        method: "POST",
+        signal: AbortSignal.timeout(45_000)
+      });
+      const out = (await res.json().catch(() => null)) as { recovered?: boolean; reason?: string } | null;
+      journal(
+        "ambush-fired",
+        `recovery ambush FIRED (our authority live on-chain) → ${out?.recovered ? "TAKEOVER COMPLETE — recover_account + rotation + recovery-account change" : (out?.reason ?? "attempt returned")} (v41)`
+      );
+    }
+  } catch {
+    // web down or engine slow = honest wait — the web revive owns recovery
+    S.recovery.state = "stale";
+  }
+}
+
 async function cycle(): Promise<void> {
   RT.cycle += 1;
   S.checks += 1;
@@ -861,6 +915,15 @@ async function cycle(): Promise<void> {
       }
     }
   }
+
+  // 8. v41 — the recovery ambush (headcorner takeover engine). Every slow
+  //    cycle (60s): read the live two-chain status from the web engine, and
+  //    the moment a chain request carries OUR sealed sovereign authority —
+  //    fire the completion. Foreign requests journal a race alarm. Web down
+  //    = honest wait (the web revive owns that path).
+  if (RT.cycle % SLOW_EVERY === 0) {
+    await checkRecoveryAmbush();
+  }
 }
 
 // ─── status API (loopback only) ────────────────────────────────────────────
@@ -869,7 +932,7 @@ function statusJson() {
   return {
     ok: true,
     service: "shomer",
-    version: "38.0.0",
+    version: "41.0.0",
     pid: process.pid,
     startedAt: S.startedAt,
     uptimeSec: Math.round((Date.now() - Date.parse(S.startedAt)) / 1000),
@@ -889,7 +952,8 @@ function statusJson() {
       anvil: { alive: S.anvilOk === true, block: S.anvilHeight, lastOkAt: S.anvilLastOkAt },
       runner: { alive: S.runnerSeen, revives: S.runnerRevives, zombieRestarts: S.zombieRestarts, block: S.anvilHeight },
       herald: { alive: S.heraldAlive === true, failStreak: S.heraldFailStreak, revives: S.heraldRevives, lastOkAt: S.heraldLastOkAt, agent: "gate-herald", port: 3006 },
-      swarm: { alive: S.swarmAlive === true, failStreak: S.swarmFailStreak, revives: S.swarmRevives, lastOkAt: S.swarmLastOkAt, agents: "gold-scout+night-scout", port: 3007 }
+      swarm: { alive: S.swarmAlive === true, failStreak: S.swarmFailStreak, revives: S.swarmRevives, lastOkAt: S.swarmLastOkAt, agents: "gold-scout+night-scout", port: 3007 },
+      recovery: { state: S.recovery.state, daysLeft: S.recovery.daysLeft, lastCheckAt: S.recovery.lastCheckAt, engine: "headcorner-ambush", account: "headcorner" }
     },
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,

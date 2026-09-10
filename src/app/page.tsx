@@ -43,6 +43,7 @@ import { ExchangeView } from "@/components/saos/views/exchange";
 import { FlowView } from "@/components/saos/views/flow";
 import { RosesView } from "@/components/saos/views/roses";
 import { ViewEconomy } from "@/components/saos/views/economy";
+import { RecoveryView } from "@/components/saos/views/recovery";
 import { ViewResearch } from "@/components/saos/views/research";
 
 const TITLES: Record<ViewId, string> = {
@@ -68,6 +69,7 @@ const TITLES: Record<ViewId, string> = {
   flow: "נזילות וזרימה",
   roses: "שושנים",
   economy: "כלכלה",
+  recovery: "התאוששות — מארב headcorner",
   research: "מחקר ומפת-דרך"
 };
 
@@ -119,6 +121,7 @@ export default function Home() {
         {view === "flow" && <FlowView />}
         {view === "roses" && <RosesView />}
         {view === "economy" && <ViewEconomy />}
+        {view === "recovery" && <RecoveryView />}
         {view === "research" && <ViewResearch />}
       </AppShell>
     </ToastProvider>
