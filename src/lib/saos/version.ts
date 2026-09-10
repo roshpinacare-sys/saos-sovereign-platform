@@ -5,7 +5,7 @@
  * bump בכל מהדורה — package.json · shell · footer · overview — הכל מכאן.
  */
 
-export const SAOS_VERSION = "48.0.0";
+export const SAOS_VERSION = "49.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "מפת-הרשתות (NETWORK MAP)";
+export const SAOS_CODENAME = "מסע העוגנים (THE ANCHOR VOYAGE)";

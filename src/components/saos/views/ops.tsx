@@ -714,6 +714,80 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
     }
   };
 
+  // ─── v49: מסילות עיגון חיות — TRON + XRP Ledger (הרשתות 4-5) ────────────
+  const tronRail = useLive<RailReadinessData>("/api/saos/anchor/tron", 60000);
+  const tronLedger = useLive<RailAnchorLedgerData>("/api/saos/anchor/tron?list=1", 30000);
+  const [tronPulsing, setTronPulsing] = useState(false);
+  const [tronResult, setTronResult] = useState<RailPulseResult | null>(null);
+  const xrpRail = useLive<RailReadinessData>("/api/saos/anchor/xrp", 60000);
+  const xrpLedger = useLive<RailAnchorLedgerData>("/api/saos/anchor/xrp?list=1", 30000);
+  const [xrpPulsing, setXrpPulsing] = useState(false);
+  const [xrpResult, setXrpResult] = useState<RailPulseResult | null>(null);
+
+  const doTronPulse = async () => {
+    if (tronPulsing) return;
+    setTronPulsing(true);
+    setTronResult(null);
+    const res = await postJson<RailPulseResult>("/api/saos/anchor/tron", {});
+    setTronPulsing(false);
+    if (res.ok && res.data) {
+      setTronResult(res.data);
+      tronRail.refresh();
+      tronLedger.refresh();
+      ops.refresh();
+      if (res.data.ok) {
+        toast.push({
+          tone: res.data.already ? "gold" : "green",
+          title: res.data.already
+            ? `חותם #${res.data.height} כבר מעוגן ב-TRON`
+            : `עוגן TRON נחת — חותם #${res.data.height}`,
+          desc: res.data.txid ? `txid ${short(res.data.txid)} · TRON mainnet` : "הפעימה תועדה"
+        });
+      } else {
+        toast.push({
+          tone: res.data.gated ? "gold" : "rose",
+          title: "פעימת TRON נכשלה",
+          desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות"
+        });
+      }
+    } else {
+      setTronResult({ ok: false, error: res.error ?? "כשל רשת" });
+      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
+    }
+  };
+
+  const doXrpPulse = async () => {
+    if (xrpPulsing) return;
+    setXrpPulsing(true);
+    setXrpResult(null);
+    const res = await postJson<RailPulseResult>("/api/saos/anchor/xrp", {});
+    setXrpPulsing(false);
+    if (res.ok && res.data) {
+      setXrpResult(res.data);
+      xrpRail.refresh();
+      xrpLedger.refresh();
+      ops.refresh();
+      if (res.data.ok) {
+        toast.push({
+          tone: res.data.already ? "gold" : "green",
+          title: res.data.already
+            ? `חותם #${res.data.height} כבר מעוגן ב-XRPL`
+            : `עוגן XRPL נחת — חותם #${res.data.height}`,
+          desc: res.data.txid ? `hash ${short(res.data.txid)} · XRP Ledger mainnet` : "הפעימה תועדה"
+        });
+      } else {
+        toast.push({
+          tone: res.data.gated ? "gold" : "rose",
+          title: "פעימת XRPL נכשלה",
+          desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות"
+        });
+      }
+    } else {
+      setXrpResult({ ok: false, error: res.error ?? "כשל רשת" });
+      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
+    }
+  };
+
   // ─── v9: פעימה אוטומטית + מדידות חיות ─────────────────────────────────
   const auto = useLive<AutoAnchorData>("/api/saos/anchor-auto", 20000);
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 60000);
@@ -1696,6 +1770,278 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
                         ) : (
                           <span className="text-[10px] text-zinc-600">tx: —</span>
                         )}
+                        <span className="text-[10px] text-zinc-600">{timeAgo(row.at)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v49: פעימת עגינה חיה — TRON (הרשת הרביעית) ─────────────────── */}
+      <Panel accent={tronRail.data?.alreadyAnchored ?? false}>
+        <PanelHeader
+          icon={<RadioTower size={15} />}
+          title="פעימת עגינה חיה — TRON · הרשת הרביעית"
+          sub="ממו-weave רוכב על העברת 1 SUN לכתובת-האחות (m/44'/195'/1'/0/0 — TRON מסרב להעברה עצמית, נלמד חי) מבית-האוצר TMXHfFQd… (m/44'/195'/0'/0/0, 18.09 TRX מהסוויפ v32). ה-protobuf נכתב בבית על סכימה שפוענחה אמפירית מהצומת + עסקאות מיינטנט — והוכחת round-trip בייט-זהה לסריאליזציה של הצומת עצמו נדרשת לפני כל חתימה. עלות מדודה-חי: 2.1 TRX לממו (שריפת רוחב-פס ~8 נקודות לבייט)"
+          actions={
+            tronRail.data?.ok ? (
+              tronRail.data.alreadyAnchored ? (
+                <Pill tone="green">
+                  <CheckCircle2 size={10} /> anchored
+                </Pill>
+              ) : (tronRail.data.readiness as { funded?: boolean })?.funded ? (
+                <Pill tone="gold">live-ready</Pill>
+              ) : (
+                <Pill tone="zinc">ממתין למימון TRX</Pill>
+              )
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-4">
+          {tronRail.loading && !tronRail.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : !tronRail.data?.ready ? (
+            <EmptyBlock
+              icon={<RadioTower size={20} />}
+              title="אין חותם לעיגון"
+              desc="צור חותם בעמוד האיטום — שורש מרקל חי הוא המטען שהפעימה משדרת."
+            />
+          ) : !(
+              tronRail.data.readiness && "address" in tronRail.data.readiness
+            ) ? (
+            <Callout tone="rose" icon={<Lock size={14} />}>
+              <span className="font-semibold">מוכנות הרכב נכשלה:</span>{" "}
+              <span dir="auto">{(tronRail.data.readiness as { error?: string }).error ?? "—"}</span>
+            </Callout>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat label="חותם לשידור" value={`#${tronRail.data.seal?.height ?? 0}`} icon={<ScrollText size={13} />} />
+                <SealStat label="מאזן TRX ריבוני" value={(tronRail.data.readiness as { balanceTrx?: string }).balanceTrx ?? "—"} icon={<Coins size={13} />} ltr />
+                <SealStat label="עלות ממו (מדודה)" value={`${(tronRail.data.readiness as { feeEstimateTrx?: number }).feeEstimateTrx ?? "—"} TRX`} icon={<Zap size={13} />} ltr />
+                <SealStat label="בלוק TRON" value={String((tronRail.data.readiness as { blockHeight?: number }).blockHeight ?? "—")} icon={<RadioTower size={13} />} ltr />
+              </div>
+
+              <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5 space-y-1.5">
+                <div className="flex justify-between items-center gap-2 text-[11px]">
+                  <span className="text-zinc-500">בית-האוצר → כתובת-האחות (1 SUN — הכסף נשאר במשפחה)</span>
+                  <span dir="ltr" className="font-mono text-amber-300">{short((tronRail.data.readiness as { address?: string }).address ?? "")} → {short((tronRail.data.readiness as { sister?: { address?: string } }).sister?.address ?? "")}</span>
+                </div>
+                <p className="text-[10.5px] text-zinc-500 leading-relaxed">
+                  self-verify משולש ✓ (כספת + רישום + מניפסט-עוגן) · הוכחת round-trip לסריאליזציית הצומת לפני כל חתימה ·
+                  החתימה secp256k1 נוצרת מעל sha256(raw) בלבד — ה-txID נקבט מהצומת בחזרה.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Btn
+                  variant={tronRail.data.alreadyAnchored ? "secondary" : "primary"}
+                  onClick={doTronPulse}
+                  disabled={tronPulsing || tronRail.data.alreadyAnchored}
+                  loading={tronPulsing}
+                  className="sm:w-auto"
+                >
+                  <Send size={13} />
+                  {tronPulsing ? "משדר…" : tronRail.data.alreadyAnchored ? "החותם מעוגן" : "שדר פעימת TRON חיה"}
+                </Btn>
+                <p className="text-[10.5px] text-zinc-600 leading-relaxed">
+                  לפני כל נגיעה במפתח: מוכנות מדודה · שער מאזן 3 TRX · דה-דופ לכל חותם · קבלה משורשרת גם לכישלון.
+                </p>
+              </div>
+
+              {tronResult && (
+                <div className={`rounded-xl border px-3.5 py-3 space-y-1.5 ${tronResult.ok ? "border-emerald-400/25 bg-emerald-400/[0.04]" : tronResult.gated ? "border-amber-400/25 bg-amber-400/[0.04]" : "border-rose-400/25 bg-rose-400/[0.03]"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-bold text-zinc-100">
+                      {tronResult.ok ? `חותם #${tronResult.height} מעוגן ב-TRON` : tronResult.gated ? "שער-כנות — לא שודר" : "הפעימה נכשלה (כנות)"}
+                    </p>
+                    {tronResult.receipt && <CopyBtn text={tronResult.receipt} size={12} />}
+                  </div>
+                  {tronResult.txid && (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span dir="ltr" className="font-mono text-[10px] text-zinc-400 truncate">{short(tronResult.txid)}</span>
+                      {tronResult.explorer && (
+                        <a href={tronResult.explorer} target="_blank" rel="noreferrer" className="text-[10px] text-amber-300/80 hover:text-amber-300">
+                          tronscan ↗
+                        </a>
+                      )}
+                      {tronResult.block != null && (
+                        <span className="text-[10px] text-zinc-600">block {tronResult.block}</span>
+                      )}
+                    </div>
+                  )}
+                  {!tronResult.ok && tronResult.error && (
+                    <p dir="auto" className="text-[11px] text-rose-300/90 leading-relaxed">{tronResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {(tronLedger.data?.anchors?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  {(tronLedger.data?.anchors ?? []).slice(0, 4).map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.05] bg-zinc-950/40 px-3 py-2 text-[11px]"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <Tag tone={row.status === "anchored" ? "green" : row.status === "failed" ? "rose" : "zinc"}>
+                          #{row.height}
+                        </Tag>
+                        <span className="text-[10px] text-zinc-500">{row.confirmed ? "מאומת read-back" : row.status}</span>
+                      </span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        {row.txid ? (
+                          <a href={`https://tronscan.org/#/transaction/${row.txid}`} target="_blank" rel="noreferrer" dir="ltr" className="font-mono text-[10px] text-amber-300/80 hover:text-amber-300">
+                            {short(row.txid)} ↗
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-zinc-600">tx: —</span>
+                        )}
+                        {row.block != null && <span className="text-[10px] text-zinc-600">block {row.block}</span>}
+                        <span className="text-[10px] text-zinc-600">{timeAgo(row.at)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v49: פעימת עגינה חיה — XRP LEDGER (הרשת החמישית) ─────────────── */}
+      <Panel accent={xrpRail.data?.alreadyAnchored ?? false}>
+        <PanelHeader
+          icon={<Sparkles size={15} />}
+          title="פעימת עגינה חיה — XRP LEDGER · הרשת החמישית"
+          sub="AccountSet+Memos חתום מהחשבון הריבוני r3Tq66… (m/44'/144'/0'/0/0 — אותו מפתח שמנפיש פעימות-חיים מ-v30): השורש נחקק בספר המאומת לצמיתות. השיעור שנלמד חי: תשלום-עצמי נדחה כ-temREDUNDANT — AccountSet הוא הצורה שנוחתת. עמלה 12 drops · רזרבת-בסיס 1 XRP כנה בפאנל"
+          actions={
+            xrpRail.data?.ok ? (
+              xrpRail.data.alreadyAnchored ? (
+                <Pill tone="green">
+                  <CheckCircle2 size={10} /> anchored
+                </Pill>
+              ) : (xrpRail.data.readiness as { funded?: boolean })?.funded ? (
+                <Pill tone="gold">live-ready</Pill>
+              ) : (
+                <Pill tone="zinc">ממתין מעל הרזרבה</Pill>
+              )
+            ) : undefined
+          }
+        />
+        <PanelBody className="space-y-4">
+          {xrpRail.loading && !xrpRail.data ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : !xrpRail.data?.ready ? (
+            <EmptyBlock
+              icon={<Sparkles size={20} />}
+              title="אין חותם לעיגון"
+              desc="צור חותם בעמוד האיטום — שורש מרקל חי הוא המטען שהפעימה משדרת."
+            />
+          ) : !(
+              xrpRail.data.readiness && "address" in xrpRail.data.readiness
+            ) ? (
+            <Callout tone="rose" icon={<Lock size={14} />}>
+              <span className="font-semibold">מוכנות הרכב נכשלה:</span>{" "}
+              <span dir="auto">{(xrpRail.data.readiness as { error?: string }).error ?? "—"}</span>
+            </Callout>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat label="חותם לשידור" value={`#${xrpRail.data.seal?.height ?? 0}`} icon={<ScrollText size={13} />} />
+                <SealStat label="מאזן XRP" value={(xrpRail.data.readiness as { balanceXrp?: string }).balanceXrp ?? "—"} icon={<Coins size={13} />} ltr />
+                <SealStat label="ניתן לשימוש (מעל רזרבה)" value={(xrpRail.data.readiness as { spendableXrp?: string }).spendableXrp ?? "—"} icon={<GaugeIcon size={13} />} ltr />
+                <SealStat label="ספר נוכחי" value={String((xrpRail.data.readiness as { ledgerIndex?: number }).ledgerIndex ?? "—")} icon={<Sparkles size={13} />} ltr />
+              </div>
+
+              <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5 space-y-1.5">
+                <div className="flex justify-between items-center gap-2 text-[11px]">
+                  <span className="text-zinc-500">החשבון הריבוני (רצף מתקדם — הספר חי)</span>
+                  <span dir="ltr" className="font-mono text-amber-300">{short((xrpRail.data.readiness as { address?: string }).address ?? "")} · seq {(xrpRail.data.readiness as { sequence?: number }).sequence ?? "—"}</span>
+                </div>
+                <p className="text-[10.5px] text-zinc-500 leading-relaxed">
+                  self-verify ✓ (כספת + מניפסט-עוגן) · החתימה secp256k1 בדיוק הדפוס המוכח מהייצור (v30+ · למעלה מ-57.7M רצפים) ·
+                  אימות-הכלה נמדד מהספר המאומת (tesSUCCESS + read-back). שוכן-כנות: פעימות-החיים חותמות מאותו חשבון — מירוץ-רצפים ייכשל בכנות ויהיה ניתן לניסיון חוזר.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Btn
+                  variant={xrpRail.data.alreadyAnchored ? "secondary" : "primary"}
+                  onClick={doXrpPulse}
+                  disabled={xrpPulsing || xrpRail.data.alreadyAnchored}
+                  loading={xrpPulsing}
+                  className="sm:w-auto"
+                >
+                  <Send size={13} />
+                  {xrpPulsing ? "משדר…" : xrpRail.data.alreadyAnchored ? "החותם מעוגן" : "שדר פעימת XRPL חיה"}
+                </Btn>
+                <p className="text-[10.5px] text-zinc-600 leading-relaxed">
+                  לפני כל נגיעה במפתח: מוכנות מדודה · שער-רזרבה (0.001 XRP מעל הבסיס) · דה-דופ לכל חותם · קבלה משורשרת גם לכישלון.
+                </p>
+              </div>
+
+              {xrpResult && (
+                <div className={`rounded-xl border px-3.5 py-3 space-y-1.5 ${xrpResult.ok ? "border-emerald-400/25 bg-emerald-400/[0.04]" : xrpResult.gated ? "border-amber-400/25 bg-amber-400/[0.04]" : "border-rose-400/25 bg-rose-400/[0.03]"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-bold text-zinc-100">
+                      {xrpResult.ok ? `חותם #${xrpResult.height} מעוגן ב-XRPL` : xrpResult.gated ? "שער-כנות — לא שודר" : "הפעימה נכשלה (כנות)"}
+                    </p>
+                    {xrpResult.receipt && <CopyBtn text={xrpResult.receipt} size={12} />}
+                  </div>
+                  {xrpResult.txid && (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span dir="ltr" className="font-mono text-[10px] text-zinc-400 truncate">{short(xrpResult.txid)}</span>
+                      {xrpResult.explorer && (
+                        <a href={xrpResult.explorer} target="_blank" rel="noreferrer" className="text-[10px] text-amber-300/80 hover:text-amber-300">
+                          livenet ↗
+                        </a>
+                      )}
+                      {xrpResult.block != null && (
+                        <span className="text-[10px] text-zinc-600">ledger {xrpResult.block}</span>
+                      )}
+                    </div>
+                  )}
+                  {!xrpResult.ok && xrpResult.error && (
+                    <p dir="auto" className="text-[11px] text-rose-300/90 leading-relaxed">{xrpResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {(xrpLedger.data?.anchors?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  {(xrpLedger.data?.anchors ?? []).slice(0, 4).map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.05] bg-zinc-950/40 px-3 py-2 text-[11px]"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <Tag tone={row.status === "anchored" ? "green" : row.status === "failed" ? "rose" : "zinc"}>
+                          #{row.height}
+                        </Tag>
+                        <span className="text-[10px] text-zinc-500">{row.confirmed ? "מאומת read-back" : row.status}</span>
+                      </span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        {row.txid ? (
+                          <a href={`https://livenet.xrpl.org/transactions/${row.txid}`} target="_blank" rel="noreferrer" dir="ltr" className="font-mono text-[10px] text-amber-300/80 hover:text-amber-300">
+                            {short(row.txid)} ↗
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-zinc-600">hash: —</span>
+                        )}
+                        {row.block != null && <span className="text-[10px] text-zinc-600">ledger {row.block}</span>}
                         <span className="text-[10px] text-zinc-600">{timeAgo(row.at)}</span>
                       </span>
                     </div>

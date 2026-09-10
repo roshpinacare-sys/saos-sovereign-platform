@@ -1385,3 +1385,31 @@ Stage Summary:
 - פער honest חדש "מדבר-הגז": הדלתות פתוחות, רוב החדרים חשוכים — מימון גז לארביטרום/אופטימיזם/בייס הוא הצעד הבא לעיגון נוסף.
 - תקרית Turbopack-מטמון-פגום נרפאה בזמן-ריצה (טיהור .next + שומר) — האורגניזם הוכח שוב.
 - נותר פתוח: headcorner עד 2026-10-08 · מדבר-הגז (מימון) · תפיחת-מצב anvil · Steemit מכתב.
+---
+Task ID: 45
+Agent: Z.ai Code (ראשי)
+Task: הוראת הבעלים "וודא שאתה בקומיט האחרון תמשיך" — סבב v49 מסע-העוגנים (THE ANCHOR VOYAGE): הדלקת שתי הדלתות הממומנות האחרונות ממפת-הרשתות v48 — עוגן TRON מיינטנט (רשת #4) + עוגן XRP LEDGER מיינטנט (רשת #5), שתי פעימות אמיתיות עם אותו שורש חותם.
+
+Work Log:
+- בסיס: 8276d9a = v48 מסונכרן ל-origin, עץ נקי — אומת מיד (הוראת הבעלים נענתה מילולית). ה-web היה מופל (פאניקת Turbopack מוכרת) — השומר החייה אותו ל-200 בזמן הבדיקות. 5/5 שירותים חיים.
+- גילוי מקדים: ה-DB אופס כשהסביבה נבנתה מחדש היום 12:36 (fleet_keys.enc 12:36 · backups 12:36+ · seals=0 · anchorTx רק rose-bloom מהיום) — היסטוריית העוגנים המקומית של ETH/BSC/SOL נמחקה; העוגנים על המיינטנטים לא נפגעו (בלתי-ניתנים למחיקה). תועד כפער-כנות env-rebuild-history ברוסט.
+- גילוי שני: החשבון r3Tq66 כבר חותם AccountSet+Memos "פעימת-חיים SAOS v30" במיינטנט (מצאתי בהיסטוריה — physical-move.ts v30, אותו מפתח m/44'/144') — אבל אף פעם לא עוגן weave. השיעור החי נשמר: תשלום-עצמי = temREDUNDANT.
+- אימות אמפירי לפני כתיבה (הדיסציפלינה של v48): סכימת protobuf של TRON פוענחה מהצומת עצמו (createtransaction + עסקת מיינטנט חיה עם ממו "transfer usdt"): raw f1=ref_block_bytes · f4=ref_block_hash · f8=expiration · f10=data · f11=contract · f14=timestamp; txID=sha256(raw) אומת בייט-מול-בייט; פורמט v של החתימה נבדק על מדגם 535 חתימות מבלוק חי (גם 0/1 וגם 27/28 מתקבלים); TRON מסרב להעברה עצמית — נלמד חי מהצומת ("Cannot transfer TRX to yourself").
+- cornerstone-derive.ts הורחב: deriveHeadcornerXrp (BIP32 secp256k1 m/44'/144'/0'/0/0 → XrpWallet + אימות-מסמך) + deriveHeadcornerTronSister (m/44'/195'/1'/0/0 — יעד ה-1 SUN, הכסף נשאר במשפחה).
+- anchor-tron.ts נכתב: מקודד protobuf ביתי מלא + הוכחת round-trip בייט-זהה לסריאליזציה של הצומת לפני כל חתימה + חתימת ethers SigningKey (65B, v=27+yParity) + שער מאזן.
+- אירוע-חי #1: השידור הראשון סורב בכנות ("No contract!") — broadcasthex של TronGrid זורק את המטען. אבחון אמפירי (עסקת-דמה חתומה-שקר): broadcasttransaction-JSON מפרסר מלא (הגיע לבדיקת תפוגה). תוקן → broadcasttransaction. הכישלון תועד כשורה+קבלה בדיוק כמתוכנן.
+- 🔥 עוגן TRON MAINNET נחת: txid 3b40a8dac9cd00c076802f5f6d7e674bcfff38cd72d854de9d7841aee727acfe · block 86124584 · owner TMXHfFQd → sister TA7q6QZ2 · 1 SUN · ממו weave read-back בתים-מול-בתים (בדיקה עצמאית מהצומת). גילוי עלות: 2.1 TRX לממו (~8 נקודות רוחב-פס לבייט — ההערכה 0.6 הופרכה בשרשרת). לוגיקת האימות תוקנה חי (receipt.result לא קיים להעברות — הסמן הוא ret[0].contractRet=SUCCESS). שער-רצפה הועלה 2→3 TRX.
+- anchor-xrp.ts נכתב: AccountSet+Memos (הדפוס המוכח מהייצור) + שער-רזרבה כנה + אימות-הכלה מהספר המאומת.
+- 🔥 עוגן XRP LEDGER MAINNET נחת ואומת מלא באותה נשימה: hash 0C846CB503F336B6F934FBA8F2CF108F2AECECFB88A086D26567F51589FB5855 · ledger 106890679 · tesSUCCESS · read-back ממושלם (בדיקה עצמאית מהקלאסטר). עמלה 12 drops בלבד.
+- מסלולי API /api/saos/anchor/tron + /api/saos/anchor/xrp: readiness · list · recheck · POST עם דה-דופ לכל חותם · שערי-כנות · קבלות משורשרות (0fbd127b… · 448fb4a9…) · vaultSlot ציבורי · logOp אדום.
+- וויו מבצעי-עגינה: שני פאנלים חיים (רשת רביעית/חמישית) — מוכנות+מאזן טרי-לאחר-עמלה (15.999244 TRX · 1.299662 XRP) · עלות מדודה · ספרי עוגנים עם tronscan/livenet ↗ · anchored pills.
+- רוסט 18→21 פערים: מדבר-הגז התעדכן (5/5 הממומנות מעוגנות; 17 נותרו למימון-גז) + tron-memo-cost (honest) + xrp-sequence-race (open) + env-rebuild-history (honest).
+- גרסה 49.0.0 "מסע העוגנים (THE ANCHOR VOYAGE)": version.ts · package.json · README (רשומה מלאה).
+- היגיינה: tsc 0 · lint נקי · MAGEN highCount=0 · רוסט 21 פערים חי ב-API וב-DOM · 0 שגיאות קונסולה (דסקטופ+מובייל) · מובייל 375px ללא גלישה (sw=cw=375) · צילומים upload/v49-anchorvoyage-desktop.png · v49-anchorvoyage-mobile-375.png.
+
+Stage Summary:
+- התשובה להוראה: המשך ישיר ומלא — הקומיט האחרון אומת, ושתי הדלתות הממומנות האחרונות נדלקו: 5/5 הרשתות הממומנות של הארנק הרב-רשתי מעוגנות weave חי (ETH · BSC · SOL · TRON · XRPL) — אותו שורש חותם #1 (39575b3b…) נחקק בו-זמנית על TRON ו-XRPL באותו סבב.
+- שתי עסקאות מיינטנט אמיתיות עם אימות-משולש עצמאי: TRON block 86124584 (2.1 TRX) · XRPL ledger 106890679 (12 drops) — קבלות משורשרות לשתיהן.
+- שלושה לקחים-חיים חדשים תועדו בקוד: broadcasthex פגום ב-TronGrid · receipt.result חסר להעברות (contractRet הוא הסמן) · עלות-ממו TRX פי-3.5 מהמודל (2.1 TRX).
+- 21 פערים ברוסט (3 חדשים) · v49.0.0 · tsc 0 · lint נקי · MAGEN 0 · E2E ירוק.
+- נותר פתוח: מימון גז ל-17 הדלתות החשוכות (ארביטרום/אופטימיזם/בייס — הבעלים) · xrp-sequence-race (נעילת-רצף עתידית) · תפיחת-מצב anvil · חלון headcorner עד 2026-10-08.

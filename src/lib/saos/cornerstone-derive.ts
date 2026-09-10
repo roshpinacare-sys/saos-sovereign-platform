@@ -40,6 +40,8 @@
 import { createHash, createHmac, pbkdf2Sync } from "crypto";
 import { ethers } from "ethers";
 import { Keypair } from "@solana/web3.js";
+import { Wallet as XrpWallet } from "xrpl";
+import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { withVaultMember } from "@/lib/vault-seal";
 
 export const CORNERSTONE_MEMBER = "keys/headcorner-seed.json";
@@ -264,4 +266,58 @@ function tronBase58Check(publicKey: string): string {
   const raw = Buffer.concat([Buffer.from([0x41]), kec.subarray(12)]);
   const chk = createHash("sha256").update(createHash("sha256").update(raw).digest()).digest().subarray(0, 4);
   return encode(Buffer.concat([raw, chk]));
+}
+
+// ─── v49: XRP from the SAME cornerstone (the fifth rail) ─────────────────────
+
+export const CORNERSTONE_XRP_PATH = "m/44'/144'/0'/0/0";
+
+export interface HeadcornerXrp {
+  wallet: XrpWallet; // the secret lives ONLY inside the caller's scope
+  address: string; // classic r-address
+  path: string;
+  docIdentity: string | null;
+  reproducible: boolean;
+}
+
+/**
+ * v49 — derives headcorner's XRPL identity from the SAME cornerstone
+ * (BIP32 secp256k1 m/44'/144'/0'/0/0 → compressed pubkey → account-ID
+ * ripemd160(sha256) → XRP-alphabet base58check). The very key that has
+ * been signing production heartbeats since v30 (physical-move) — now also
+ * the weave-anchor identity. Honesty contract: the cornerstone doc records
+ * identities.xrp = r3Tq66… (v48 proved the derivation reproduces it — the
+ * v45 "declared-only" note was an encoding bug, fixed); if the derived
+ * address does not reproduce it, `reproducible` is false and the caller
+ * MUST fail-closed with the diagnosis.
+ */
+export async function deriveHeadcornerXrp(): Promise<HeadcornerXrp> {
+  return withCornerstoneSeed(async (seed, doc) => {
+    const w = ethers.HDNodeWallet.fromSeed(seed).derivePath(CORNERSTONE_XRP_PATH);
+    const priv = Buffer.from(ethers.getBytes(w.privateKey));
+    const pub = Buffer.from(secp256k1.getPublicKey(priv, true)); // 33B compressed — the xrpl secp256k1 key
+    const wallet = new XrpWallet(pub.toString("hex"), priv.toString("hex"));
+    const address = wallet.classicAddress;
+    const docIdentity = doc.identities?.xrp ?? null;
+    const reproducible = Boolean(docIdentity && address === docIdentity);
+    return { wallet, address, path: CORNERSTONE_XRP_PATH, docIdentity, reproducible };
+  });
+}
+
+// ─── v49: the TRON ledger-sister (account #1 — the anchor's destination) ────
+
+export const CORNERSTONE_TRON_SISTER_PATH = "m/44'/195'/1'/0/0";
+
+/**
+ * v49 — TRON refuses self-transfers ("Cannot transfer TRX to yourself",
+ * learned live against the node) — so the weave anchor carries its memo on
+ * a 1-SUN transfer to the SISTER: TRON account #1 from the same root
+ * (m/44'/195'/1'/0/0). Provably family: derived from the same 24 words.
+ * The 1 SUN never leaves the organism.
+ */
+export async function deriveHeadcornerTronSister(): Promise<{ address: string; path: string }> {
+  return withCornerstoneSeed(async (seed) => {
+    const w = ethers.HDNodeWallet.fromSeed(seed).derivePath(CORNERSTONE_TRON_SISTER_PATH);
+    return { address: tronBase58Check(w.signingKey.publicKey), path: CORNERSTONE_TRON_SISTER_PATH };
+  });
 }

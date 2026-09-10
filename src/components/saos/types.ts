@@ -486,6 +486,16 @@ export interface RailReadinessData {
         balanceSol?: string | null;
         slot?: number | null;
         memoProgramOnChain?: boolean;
+        // v49 — TRON rail
+        sister?: { address: string; path: string } | null;
+        balanceTrx?: string | null;
+        feeEstimateTrx?: number | null;
+        // v49 — XRPL rail
+        balanceXrp?: string | null;
+        sequence?: number | null;
+        ledgerIndex?: number | null;
+        reserveBaseXrp?: number | null;
+        spendableXrp?: string | null;
         endpoint?: string | null;
         derivation?: string;
         error?: string;
