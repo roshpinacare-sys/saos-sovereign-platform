@@ -5,7 +5,7 @@
  * bump בכל מהדורה — package.json · shell · footer · overview — הכל מכאן.
  */
 
-export const SAOS_VERSION = "46.0.0";
+export const SAOS_VERSION = "47.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "ביקורת-השרשרת (CHAIN AUDIT)";
+export const SAOS_CODENAME = "גילוי הביט (THE HARDENED BIT)";

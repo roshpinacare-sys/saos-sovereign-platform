@@ -11,10 +11,11 @@
  *
  * The signing identity is the SOVEREIGN CORNERSTONE (v45 root fix):
  * keys/headcorner-seed.json — the owner's 24-word root. The SOL identity
- * is verified against the owner-declared identity in the vault registry
- * (see the honesty note on ANCHORED_SOL_ADDRESS). Until v45 this module
- * derived the FLEET seed's sha256(seed|sol|headcorner) key — which never
- * matched the registry, so the rail was permanently fail-closed.
+ * A2Y1d3… is verified triple: derived === vault-registry === manifest.
+ * v45→v47 history: v45 derived with a bare-index bug and honestly refused
+ * ("identity not derivable"); v47 fixed the hardened bit — m/44'/501'/0'/0'
+ * reproduces A2Y1d3… exactly. The owner's uploaded קונמי.txt confirmed the
+ * seed, the first SOL anchor fired from this very identity.
  *
  * Chain of custody (גבול-האמת) — same discipline as anchor-live.ts:
  *   - the seed exists ONLY inside withVaultMember's callback scope
@@ -56,13 +57,15 @@ const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
 
 /**
- * The EXPECTED sovereign SOL address — the OWNER-DECLARED cornerstone
- * identity (headcorner-seed identities.sol, vault-registry headcorner).
- * v45 honesty note: this identity is NOT reproducible from the cornerstone
- * phrase with any standard derivation (SLIP-0010 m/44'/501'/0'/0' gives
- * a different key). Until the owner clarifies the real SOL scheme the
- * rail stays fail-closed with a precise diagnosis — never a fabricated
- * anchor, never a silent switch.
+ * The EXPECTED sovereign SOL address — the CORNERSTONE identity
+ * (headcorner-seed identities.sol, vault-registry headcorner).
+ * v47 ROOT TRUTH: this identity IS reproducible from the cornerstone
+ * phrase — m/44'/501'/0'/0' (SLIP-0010 ed25519, HARDENED bit). The v45
+ * note that claimed "not reproducible" was a code bug (bare index in
+ * writeUInt32BE — see slip10Ed25519). The owner uploaded the very seed
+ * (קונמי.txt, fingerprint-identical to the vault cornerstone) and asked
+ * "is this the SOL?" — YES, and the rail is now LIVE: A2Y1d3… is ours,
+ * balance-verified on mainnet, and this module signs from it.
  */
 export const ANCHORED_SOL_ADDRESS = "A2Y1d3vefh81Ta2DcpazmLaZT4EHdbUX8XjZxigNdVyj";
 

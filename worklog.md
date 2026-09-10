@@ -1325,3 +1325,31 @@ Stage Summary:
 - ביקורת-השרשרת החיה חוברה מקצה-לקצה: החוזים עצמם → chainIntegrity → API → פאנל UI → פסק-דין. האמת: הנייר עקבי לפחות כלפי עצמו (gap=0 · wSAOS 1:1 · runsOpen=0) — אבל 78% ממנו יושב בבריכה אחת.
 - 16 פערים מתועדים (5 חדשים מסבב השרשרת: 3 תוקנו · 1 אמת-מסומנת · 1 פתוח עם מספרים).
 - v46.0.0 נדחף. נותר פתוח: זהות SOL (החלטת בעלים) · חלון headcorner עד 2026-10-08 · מכתב Steemit · מימון mainnet · תפיחת-מצב anvil (נפתח ברוסט עם מספרים) · churn סביבתי.
+
+---
+Task ID: 43
+Agent: orchestrator (Z.ai Code)
+Task: הוראת הבעלים "תראה אם זה זה הסול ועוד ותעגן אותו את המפתח והכל זה מפתח רב שימושי שיכול לשמש אותנו" — זיהוי הקובץ קונמי.txt, אימות מתמטי, תיקון באג השורש של v45, עוגן SOLANA מיינטנט ראשון, ודחיפה.
+
+Work Log:
+- בסיס: v46.0.0 (93fc2fc) מסונכרן · 5/5 שירותים חיים · הבעלים העלה upload/קונמי.txt (259B · 3 שורות: 24 מילים לטיניות + 2 שורות-הערה).
+- אבטחה ראשונה: בדיקת gitignore — upload/ כולו מוכל (שורה 69), אפס קבצי-מפתח בהיסטורית הגיט (מוכח) · כל האימותים בוצעו מחוץ לריפו (/home/z/.verify) · אפס תוכן-זרע בפלט או ביומנים — כתובות-ציבור בלבד.
+- BIP39 checksum: תקין (24 מילים) · אימות-טביעה מול הכספת: פתיחת המעטפת (SAOS-FLEET-VAULT-1 · scrypt+GCM) → keys/headcorner-seed.json → sha256(phrase)[:16] = 6860e2927eedd2ab = sha256(קונמי.txt line1) — זהה מוחלט. שורות 2-3: הערות Coinomi (בדיקת-מילות מבלי להדפיס), אין passphrase.
+- גזירת-מטריצה חיה (כל הנתיבים הסטנדרטיים · EVM/SOL/TRON/BTC/XRP · עם ובלי passphrase): m/44'/60'/0'/0/0 = 0x01Bd ✓ (מוכר) · m/44'/501'/0'/0' = A2Y1d3 ✓ · m/44'/195'/0'/0/0 = TMXHfFQd ✓ · m/44'/0'/0'/0/0 = כתובת BTC נגזרת · m/44'/144' ≠ r3Tq66 (הצהרה בלבד — כנות).
+- 🔥 הגילוי הגדול — באג השורש של v45: slip10Ed25519 ב-cornerstone-derive.ts כתב data.writeUInt32BE(idx) בלי ביט-ה-hardened (SLIP-0010 ed25519 מחייב 0x80000000|idx) → מפתח שגוי → האימות-המשולש סירב בכנות → v45 אבחן "זהות SOL אינה שחזורה" והמסילה כולה נחשבה נעולה. המלכודת שיצרה את הקיצור: 0x80000000|idx הוא int32 שלילי ב-JS → writeUInt32BE זורק RangeError (אומת חי — כך נולד כנראה ה"תיקון" לאינדקס-חשוף). התיקון: (0x80000000|idx)>>>0.
+- הוכחה מתמטית לאחר התיקון: m/44'/501'/0'/0' משחזר A2Y1d3vefh81Ta2DcpazmLaZT4EHdbUX8XjZxigNdVyj בדיוק — REPRODUCIBLE=true · registry ✓ doc ✓.
+- יתרות-מיינטנט חיות (api.mainnet-beta.solana.com): A2Y1d3 = 0.023976117 SOL · 9knfn = 0 SOL (נוקה עוד ב-v32).
+- anchor-svm readiness לאחר תיקון: selfVerified=true · funded=true · memoProgramOnChain=true — המסילה הראשונה מאז v12 שהיא חתימה-מוכנה.
+- 🔥 בוצע עוגן SOLANA MAINNET ראשון בהיסטוריית הפלטפורמה: POST /api/saos/anchor/svm → txid 5z46xVFc3cf8d6daeRhoe2VE1uxPtPQ3S2gPVw2iBSphJhZsFUMwKZiADGbjAb841j8PoRUazic9Bqgjuu5RwZr5 · slot 445822974 · confirmed · fee 5000 lamports · err=null · אפס SOL זז (memo בלבד) · solscan.io/tx/5z46xVF… · אימות עצמאי מ-mainnet-beta: fee-payer=A2Y1d3 ✓ · AnchorTx status=anchored · קבלה משורשרת.
+- נוסף deriveHeadcornerTron (cornerstone-derive.ts): secp256k1 m/44'/195'/0'/0/0 + קידוד TRON base58check — נבדק חי: TMXHfFQdG6BB8kwVfbMYuiXWqr9P5S4VAU = doc = registry — reproducible=true (אימות-משולש).
+- תיקוני-אמת: הערת ANCHORED_SOL_ADDRESS (v45 fail-closed note הוחלף באמת v47) · armSolFleet gate נשאר כ-tripwire עם אבחנת-רגרסיה · smartvault: cornerstone-seed-24 תועד כרב-מסילתית מוכחת (EVM+SOL+TRON+XRP מוצהר) · old-fleet-sol → legacy (0 SOL).
+- רוסט: svm-identity open→fixed (תיקון-שם: הבאג, התיקון, ההוכחה) · פער חדש sol-anchor-live (honest) — 17 פערים.
+- גרסה 47.0.0 "גילוי הביט (THE HARDENED BIT)": version.ts · package.json · README.
+- אירוע-חי במהלך הסבב: ה-web הופל (SIGTERM מהשומר — churn מוכר) — הוחזר ל-200 בתוך ~40ש' בלי מגע-אדם (האורגניזם הוכח שוב).
+- היגיינה: tsc 0 · lint נקי · 0 שגיאות-קונסולה · E2E בדפדפן: וויו רוסט (svm-fixed + קונמי + v47 חיים ב-DOM) · וויו מבצעי-עגינה (SOLANA + txid 5z46xVF + confirmed) · מובייל 375px · צילומים: upload/v47-anchor-sol-desktop.png · v47-anchor-sol-mobile-375.png.
+
+Stage Summary:
+- התשובה לבעלים: כן — זה הסול (A2Y1d3 מהזרע הזה, מוכח מתמטית ומיינטנט) · כן — מפתח רב-שימושי (EVM+SOL+TRON+BTC מ-24 מילים אחת, מוכח) · והעוגן נורה (txid 5z46xVF… confirmed).
+- v45 הפסיד מסילה שלמה בגלל ביט אחד (0x80000000) — תועד כפער fixed ברוסט עם שרשרת-סיבת-שורש מלאה.
+- מצב-כסף חי: A2Y1d3 = 0.023976 SOL בשליטה מלאה · TMXHfFQd (TRON) מאומת ובשליטה · XRP r3Tq66 מוצהר בלבד (הכנות תועדה).
+- נותר פתוח: חלון headcorner עד 2026-10-08 · מכתב Steemit · מימון mainnet לחיילים · תפיחת-מצב anvil · churn סביבתי.

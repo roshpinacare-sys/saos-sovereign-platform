@@ -37,7 +37,7 @@
  * the caller's callback scope. Nothing is cached, logged or persisted.
  */
 
-import { createHmac, pbkdf2Sync } from "crypto";
+import { createHash, createHmac, pbkdf2Sync } from "crypto";
 import { ethers } from "ethers";
 import { Keypair } from "@solana/web3.js";
 import { withVaultMember } from "@/lib/vault-seal";
@@ -89,13 +89,16 @@ export async function withCornerstoneSeed<T>(
 }
 
 /** The registry row for an agent's rail (public data, safe to read). */
-async function registryAddress(agent: string, rail: "evm" | "sol"): Promise<string | null> {
+async function registryAddress(
+  agent: string,
+  rail: "evm" | "sol" | "tron"
+): Promise<string | null> {
   return withVaultMember("keys/wallets-registry.json", (regContent) => {
     const reg = JSON.parse(regContent) as {
-      accounts?: Array<{ agent?: string; evm?: { address?: string }; sol?: { address?: string } }>;
+      accounts?: Array<{ agent?: string; evm?: { address?: string }; sol?: { address?: string }; tron?: { address?: string } }>;
     };
     const row = (reg.accounts ?? []).find((a) => a.agent === agent);
-    return (rail === "evm" ? row?.evm?.address : row?.sol?.address) ?? null;
+    return (rail === "evm" ? row?.evm?.address : rail === "sol" ? row?.sol?.address : row?.tron?.address) ?? null;
   });
 }
 
@@ -155,7 +158,17 @@ export function slip10Ed25519(seed: Buffer, path: number[]): Buffer {
     const data = Buffer.alloc(1 + 32 + 4);
     data[0] = 0x00; // ed25519: hardened only
     key.copy(data, 1);
-    data.writeUInt32BE(idx, 33);
+    // v47 — THE HARDENED BIT. SLIP-0010 ed25519 accepts HARDENED indices
+    // ONLY (0x80000000 | idx). v45 wrote the bare index (44, 501, …) — the
+    // derivation silently produced a WRONG key, the triple-verify honestly
+    // refused, and the whole SVM rail was mis-diagnosed as "identity not
+    // derivable". The owner uploaded the very seed (קונמי.txt = this
+    // cornerstone, fingerprint-verified) and asked "is this the SOL?" —
+    // YES: with the bit set, m/44'/501'/0'/0' reproduces A2Y1d3… exactly.
+    // NOTE the >>> 0: 0x80000000 | idx is a NEGATIVE js int32 — writeUInt32BE
+    // would throw RangeError (the exact trap that likely birthed the v45
+    // "bare index" shortcut). Unsigned coercion is mandatory.
+    data.writeUInt32BE((0x80000000 | idx) >>> 0, 33);
     const I2 = createHmac("sha512", chainCode).update(data).digest();
     key = I2.subarray(0, 32);
     chainCode = I2.subarray(32, 64);
@@ -197,4 +210,58 @@ export async function deriveHeadcornerSol(): Promise<HeadcornerSol> {
       reproducible
     };
   });
+}
+
+// ─── v47: TRON from the SAME cornerstone (the multi-use proof) ──────────────
+
+export const CORNERSTONE_TRON_PATH = "m/44'/195'/0'/0/0";
+
+export interface HeadcornerTron {
+  wallet: ethers.HDNodeWallet; // the secret lives ONLY inside the caller's scope
+  address: string; // TRON base58 (T…)
+  path: string;
+  docIdentity: string | null;
+  registry: string | null;
+  reproducible: boolean;
+}
+
+/**
+ * v47 — derives headcorner's TRON identity from the SAME cornerstone
+ * (secp256k1 m/44'/195'/0'/0/0, TRON address = 0x41 ‖ keccak(pub)[12:]
+ * in base58check). Verified live: reproduces TMXHfFQd… exactly — the
+ * 24 words really are one multi-use key (EVM + SOL + TRON). The same
+ * honesty contract as the SOL twin: triple-verify, fail-closed.
+ */
+export async function deriveHeadcornerTron(): Promise<HeadcornerTron> {
+  return withCornerstoneSeed(async (seed, doc) => {
+    const wallet = ethers.HDNodeWallet.fromSeed(seed).derivePath(CORNERSTONE_TRON_PATH);
+    const address = tronBase58Check(wallet.signingKey.publicKey);
+    const docIdentity = doc.identities?.tron ?? null;
+    const registry = await registryAddress("headcorner", "tron");
+    const reproducible = Boolean(docIdentity && address === docIdentity && registry === docIdentity);
+    return { wallet, address, path: CORNERSTONE_TRON_PATH, docIdentity, registry, reproducible };
+  });
+}
+
+/** TRON address encoding: 0x41 ‖ keccak(uncompressed-pub)[12:] → base58check. */
+function tronBase58Check(publicKey: string): string {
+  const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const encode = (buf: Buffer): string => {
+    let n = BigInt("0x" + buf.toString("hex"));
+    let s = "";
+    while (n > 0n) {
+      s = B58[Number(n % 58n)] + s;
+      n /= 58n;
+    }
+    for (const b of buf) {
+      if (b !== 0) break;
+      s = "1" + s;
+    }
+    return s;
+  };
+  const pub = Buffer.from(publicKey.slice(4), "hex"); // strip 0x04 prefix
+  const kec = Buffer.from(ethers.getBytes(ethers.keccak256(pub)));
+  const raw = Buffer.concat([Buffer.from([0x41]), kec.subarray(12)]);
+  const chk = createHash("sha256").update(createHash("sha256").update(raw).digest()).digest().subarray(0, 4);
+  return encode(Buffer.concat([raw, chk]));
 }

@@ -594,10 +594,11 @@ export async function armSolFleet(): Promise<ArmOutcome> {
 
   const solId = await deriveHeadcornerSol();
   if (!solId.reproducible) {
-    // v45 honest fail-closed: the owner-declared SOL identity is not
-    // reproducible from the cornerstone phrase — arming stays locked
+    // v47: this gate has NEVER fired since the hardened-bit fix — the
+    // identity IS reproducible (m/44'/501'/0'/0' → A2Y1d3…). Kept as the
+    // honest tripwire: if it ever fires again, something regressed.
     throw new Error(
-      `self-verify FAILED: cornerstone SLIP-0010 derived ${solId.address} ≠ owner-declared identity ${solId.docIdentity ?? "—"} — the recorded SOL identity is not reproducible from the cornerstone phrase — awaiting owner decision — refusing to sign`
+      `self-verify FAILED: cornerstone SLIP-0010 derived ${solId.address} ≠ identity ${solId.docIdentity ?? "—"} — regression after v47 fix — refusing to sign`
     );
   }
   const keypair = solId.keypair;
