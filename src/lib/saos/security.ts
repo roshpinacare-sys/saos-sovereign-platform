@@ -80,7 +80,18 @@ export const TRUSTED_HOSTS: TrustedHost[] = [
   { host: "steem-api.arcange.eu", org: "Arcange (צומת קהילה STEEM)", tier: "major", role: "רוטציה קריאות" },
   { host: "api.deathwing.me", org: "Deathwing (צומת HIVE)", tier: "major", role: "רוטציה קריאות" },
   { host: "anyx.io", org: "Anyx (צומת HIVE)", tier: "major", role: "רוטציה קריאות" },
-  { host: "api.justyy.com", org: "Justyy (צומת STEEM)", tier: "major", role: "היסטוריית עוגנים (fallback)" }
+  { host: "api.justyy.com", org: "Justyy (צומת STEEM)", tier: "major", role: "היסטוריית עוגנים (fallback)" },
+  // — v48 מפת-רשתות: מפקד יתרות רב-שרשרתי מאבן-הפינה —
+  { host: "polygon-bor-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Polygon (מפקד מפת-רשתות)" },
+  { host: "arbitrum-one-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Arbitrum (מפקד מפת-רשתות)" },
+  { host: "optimism-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Optimism (מפקד מפת-רשתות)" },
+  { host: "base-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Base (מפקד מפת-רשתות)" },
+  { host: "avalanche-c-chain-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Avalanche C-Chain (מפקד מפת-רשתות)" },
+  { host: "gnosis-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Gnosis (מפקד מפת-רשתות)" },
+  { host: "cosmos-rest.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "REST Cosmos (יתרות ATOM)" },
+  { host: "mempool.space", org: "mempool.space · תשתית ביטקוין מרכזית", tier: "major", role: "יתרות BTC (UTXO חי)" },
+  { host: "api.blockcypher.com", org: "BlockCypher · תשתית רב-שרשרתית", tier: "major", role: "יתרות DOGE / LTC" },
+  { host: "horizon.stellar.org", org: "Stellar Development Foundation (רשמי)", tier: "official", role: "יתרות XLM (Horizon API)" }
 ];
 
 const HOST_INDEX = new Map(TRUSTED_HOSTS.map((t) => [t.host, t]));
@@ -103,7 +114,23 @@ export const DISPLAY_HOSTS: string[] = [
   "hiveblockexplorer.com",
   "blurt.blog",
   "github.com",
-  "livenet.xrpl.org"
+  "livenet.xrpl.org",
+  // — v48 מפת-רשתות: קישורי תצוגה בלבד (לא יעדי fetch של השרת) —
+  "polygonscan.com",
+  "arbiscan.io",
+  "optimistic.etherscan.io",
+  "basescan.org",
+  "snowtrace.io",
+  "gnosisscan.io",
+  "mempool.space",
+  "blockchair.com",
+  "mintscan.io",
+  "stellar.expert",
+  "polkadot.subscan.io",
+  "explorer.aptoslabs.com",
+  "suiscan.xyz",
+  "tzkt.io",
+  "explorer.near.org"
 ];
 const DISPLAY_SET = new Set(DISPLAY_HOSTS);
 

@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "roast" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -49,6 +49,14 @@ export const VIEWS: ViewDef[] = [
     short: "רוסט",
     desc: "החשיפה העצמית החיה — כסף אמיתי מול נייר, השרת כפי שהוא, הסוכנים במספרים, וכל פער: טענה מול מציאות",
     icon: <Flame size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "networkmap",
+    label: "מפת-רשתות — הארנק הרב-רשתי",
+    short: "מפת-רשתות",
+    desc: "איך ארנק אחד פותח הרבה רשתות — 22 זהויות נגזרות מאבן-הפינה ב-4 משפחות קריפטו, מפקד יתרות חי, אימותים-משולשים ועוגנים שנורו",
+    icon: <Waypoints size={16} />,
     group: "תפעול"
   },
   {

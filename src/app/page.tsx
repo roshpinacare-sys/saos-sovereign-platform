@@ -18,6 +18,7 @@ import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
 import { ViewWorth } from "@/components/saos/views/worth";
 import { RoastView } from "@/components/saos/views/roast";
+import { NetworkMapView } from "@/components/saos/views/networkmap";
 import { Network360View } from "@/components/saos/views/network360";
 import { SecurityView } from "@/components/saos/views/security";
 import { PermissionsView } from "@/components/saos/views/permissions";
@@ -46,6 +47,7 @@ const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
   worth: "מימוש — שווי הרשת החי",
   roast: "רוסט-אמת — חשיפה עצמית",
+  networkmap: "מפת-רשתות — הארנק הרב-רשתי",
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
   reshut: "רשות — מטריצת הסמכויות",
@@ -100,6 +102,7 @@ export default function Home() {
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
         {view === "worth" && <ViewWorth />}
         {view === "roast" && <RoastView />}
+        {view === "networkmap" && <NetworkMapView />}
         {view === "network360" && <Network360View />}
         {view === "security" && <SecurityView />}
         {view === "reshut" && <PermissionsView />}
