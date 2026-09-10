@@ -53,7 +53,11 @@ const PORT = 8545;
 // לפני שהוא מחזיר — מירוץ אחד סביבו חוסם את כל ה-round-trip. המפסיד
 // נבלע; ה-try/catch של הקורא הופך את הדחייה לדילוג-כנה — המחזור לעולם
 // לא ייתלה על השרשרת, באף שכבה (fetch-ווב · node:http · ethers).
-const RPC_DEADLINE_MS = 20_000;
+// v56 מנוע-הקצב — RPC-DEADLINE מוקצף: 20ש'→8ש'. נמדד חי אחרי כיווני v54:
+// p95 22-76ms · max 59.4ms — 8ש' הוא שולי-בטחה של פי-135. בזמן שה-rpc-deadline
+// נשרף (20ש' ב-v55) כל קריאה תקועה האטה את המחזור פי-2.5 לחינם; כעת
+// הקריאה התקועה נכשלת ב-8ש' והדילוג-הכנה מגיע מוקדם.
+const RPC_DEADLINE_MS = 8_000;
 {
   const probe = new ethers.FetchRequest(MESH_RPC);
   const defaultGetUrl = probe.getUrlFunc as (req: ethers.FetchRequest, signal?: unknown) => Promise<unknown>;
@@ -65,14 +69,18 @@ const RPC_DEADLINE_MS = 20_000;
     req.setHeader("connection", "close");
     const rp = defaultGetUrl(req, signal);
     rp.catch(() => { /* swallowed — the race may abandon it */ });
-    return Promise.race([
-      rp,
-      new Promise<never>((_resolve, reject) => {
-        setTimeout(() => {
-          reject(new Error(`rpc-deadline: ${req.method} ${req.url} stalled >${RPC_DEADLINE_MS}ms (bun node:http socket-timeout never fires)`));
-        }, RPC_DEADLINE_MS);
-      }),
-    ]);
+    // v56 — חגורת-ביטחון ל-dחיית-ה-deadline: כשהמירוץ כבר הוכרע (rp ניצח
+    // מוקדם) הטיימר עדיין יורה 8ש' מאוחר יותר ודוחה את ההבטחה; אחרי
+    // hot-swap של bun המנויים של המירוץ יכולים להיות מנותקים מהגרף —
+    // הריג'קציה נחשבת "לא-מטופלת" ומפילה את התהליך. מסמנים אותה מטופלת
+    // בעצם ההיווצרות — המירוץ רואה אותה בדיוק כמו קודם.
+    const deadline = new Promise<never>((_resolve, reject) => {
+      setTimeout(() => {
+        reject(new Error(`rpc-deadline: ${req.method} ${req.url} stalled >${RPC_DEADLINE_MS}ms (bun node:http socket-timeout never fires)`));
+      }, RPC_DEADLINE_MS);
+    });
+    deadline.catch(() => { /* handled by construction — hot-swap can't orphan it */ });
+    return Promise.race([rp, deadline]);
   }) as typeof defaultGetUrl);
 }
 
@@ -444,18 +452,31 @@ const WORK_API = "http://127.0.0.1:3000/api/saos/mesh/work";
 // קריאת-גוף תקועה ב-abort (ניסוי B: תלייה>15ש'). כל fetch ישיר במחזור רץ
 // עכשיו במירוץ נגד deadline שתמיד מסתיים — המחזור לעולם לא נתלה על הווב,
 // גם כשהווב במצוקה (RSS-עסקה · page-hang · גוף שנתקע באמצע).
+// v56 מנוע-הקצב — סגירת שקע מלאה: בזמן שהמירוץ ניצח, ה-abort שלנו נורה
+// עכשיו בפועל (AbortController משלנו + העברת אות-הקריאה) — גם אם bun
+// לא דוחה את ההבטחה התקועה, השקע נסגר ברמת-מערכת-ההפעלה והדליפה חסומה
+// לגודל ההבטחה בלבד (לא שקע+מאגרים לנצח).
 async function webJson<T>(url: string, init: RequestInit | undefined, budgetMs: number): Promise<T | null> {
   let done = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  // v56 — בקר-ביטול משלנו: אות-הקריאה של הקורא מועברת פנימה, וה-abort
+  // שלנו נורה גם בפקיעת-התקציב וגם באות חיצוני — השקע נסגר תמיד.
+  const ctrl = new AbortController();
+  const extSignal = (init as { signal?: AbortSignal | null } | undefined)?.signal;
+  if (extSignal) {
+    if (extSignal.aborted) ctrl.abort();
+    else extSignal.addEventListener("abort", () => ctrl.abort(), { once: true });
+  }
   const bail = new Promise<null>((resolve) => {
     timer = setTimeout(() => {
       if (done) return;
+      ctrl.abort(); // v56 — סגירת-שקע אקטיבית: הדליפה חסומה בגודל-הבטחה
       console.log(`[evm-mesh] v55 step-budget: ${url} exceeded ${budgetMs}ms — honest skip (stalled fetch/body cannot hang the cycle)`);
       resolve(null);
     }, budgetMs);
   });
   try {
-    const fp = fetch(url, init);
+    const fp = fetch(url, { ...init, signal: ctrl.signal });
     fp.catch(() => { /* swallowed — the race may abandon it */ });
     const res = await Promise.race([fp, bail]);
     if (!res || !res.ok) return null;
@@ -629,9 +650,34 @@ async function stepB<T>(name: string, fn: () => Promise<T>, budgetMs: number): P
   }
 }
 
+// v56 מנוע-הקצב — שער-המתנה השקט של tx.wait() נסגר בשניות:
+// האמת החיה מהמדידה (Task 51 + הלוג החי): כל מחזור מעורער שרף 10-12
+// תקציבי-צעד שלמים (45-300ש' כ"א — tick=13 ב-950ש' · tick=14 ב-1481ש')
+// בגלל שערי-המתנה שקטים: הקבלה קיימת אך אין אירוע-בלוק שמעיר, אפס
+// קריאות יוצאות — ה-rpc-deadline לא מכסה (אין קריאה!), ורק תקציב-הצעד
+// הציל. התרופה המדויקת: ethers v6 TransactionResponse.wait(confirms,
+// timeout) — אותר ואומת בקוד-המקור (providers/provider.js): ה-timeout
+// מיושם ב-setTimeout רגיל — שנטען חי אצלנו ב-bun (התקציבים יורים
+// תמיד). כל tx.wait() במחזור רץ עכשיו עם דדליין-המתנה משלו — שער
+// שקט נפגע ב-15ש' במקום לשרוף 45-120ש' של תקציב.
+// העסקה עצמה עשויה להיכרות מאוחר יותר — כל פעולות המחזור אידמפוטנטיות
+// והמחזור הבא משלים; הדילוג הכנה ומהיר.
+const WAIT_TX_MS = 15_000;
+async function waitTx(tx: ethers.TransactionResponse, ms: number = WAIT_TX_MS): Promise<ethers.TransactionReceipt | null> {
+  try {
+    return await tx.wait(1, ms);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`[evm-mesh] v56 wait-deadline: ${tx.hash?.slice(0, 14) ?? "tx"}… stalled >${ms}ms (${msg.slice(0, 70)}) — honest skip (silent wait-gate closed in seconds)`);
+    return null;
+  }
+}
+
 async function autoCycle(): Promise<void> {
   if (RT.busy) return;
   RT.busy = true;
+  const startTick = runTick; // v56 — אמת-הלוג: הטיק שבו המחזור התחיל (ההדפסה ב-DONE הדפיסה טיק מוקדם אחרי ההעלאה)
+  const CYCLE_T0 = Date.now(); // v56 — אמת-הלוג: משך-המחזור נמדד מתחילתו (היה נמדד מה-boot — מספר מטעה)
   console.log(`[cycle] START tick=${runTick} at ${new Date().toISOString()}`);
   const cycleWatchdog = setTimeout(() => {
     console.log(
@@ -651,22 +697,22 @@ async function autoCycle(): Promise<void> {
     if (anchors) {
       await stepB("anchors-tx", async () => {
         const tx = await c.bridge.anchorExternalBulk(anchors.chains, anchors.heights, anchors.digests);
-        await tx.wait();
+        await waitTx(tx);
         return true;
-      }, 90_000);
+      }, 40_000); // v56 — תקציב מוקצף: שליחה (8ש' rpc) + המתנה (15ש') מכוסים במלואם
     }
 
     // 2. fleet identity sync — the REAL organism's agents (idempotent)
-    const fleet = await stepB("fleet-fetch", () => fetchFleetAgents(), 30_000);
+    const fleet = await stepB("fleet-fetch", () => fetchFleetAgents(), 15_000); // v56 — 30→15ש' (fetch ווב עם מירוץ פנימי)
     let regIdx = 0;
     for (const agent of fleet ?? []) {
-      // v55 — 45ש' בלבד: הרישום אידמפוטנטי; סוכן שנדלג נרשם במחזור הבא.
-      // גרוע-המקרה (13 סוכנים × 45ש') נשאר מתחת לחלון-הזומבי של השומר.
+      // v56 — 25ש' בלבד: waitTx סוגר שער-המתנה שקט ב-15ש' (היה 45ש' שרוף
+      // בכל רישום תקוע); גרוע-המקרה (13 סוכנים × 25ש') נשאר מתחת לחלון-הזומבי.
       await stepB(`register[${regIdx}] ${agent.handle}`, async () => {
         const tx = await c.identity.register(agent.address, agent.handle);
-        await tx.wait();
+        await waitTx(tx);
         return true;
-      }, 45_000);
+      }, 25_000);
       regIdx += 1;
     }
 
@@ -678,10 +724,10 @@ async function autoCycle(): Promise<void> {
     step("workorder", true);
     if (!delivered) {
       await stepB("dry-order", async () => {
-        await (await c.workboard.postOrder(job.mission, job.difficulty, job.reward)).wait();
+        await waitTx(await c.workboard.postOrder(job.mission, job.difficulty, job.reward));
         console.log(`[evm-mesh] HQ posted DRY work order (web tier down): "${job.mission}"`);
         return true;
-      }, 90_000).catch(() => null); /* board full/miss — the run still happens */
+      }, 30_000).catch(() => null); /* board full/miss — the run still happens */
     }
 
     // 3.5 v20 — MICROGRID ORACLE: fresh REAL DEX prices (the web tier's
@@ -697,11 +743,11 @@ async function autoCycle(): Promise<void> {
           const num = p?.price ? Number(p.price) : NaN;
           if (Number.isFinite(num) && num > 0) {
             const tx = await c.microgrid.postPrice(pair, BigInt(Math.round(num * 1e6)));
-            await tx.wait();
+            await waitTx(tx);
           }
         }
         return true;
-      }, 120_000);
+      }, 45_000); // v56 — 120→45ש' (6 זוגות × (שליחה 8 + המתנה 15) בנחירות)
     } catch {
       /* oracle best-effort — grids tick on the last posted price (honest) */
     }
@@ -717,8 +763,8 @@ async function autoCycle(): Promise<void> {
     const rc = await stepB("dispatch", async () => {
       const initiator = await provider.getSigner(1 + (runTick % 8));
       const tx = await c.hub.connect(initiator).dispatch(intent);
-      return await tx.wait();
-    }, 150_000);
+      return await waitTx(tx);
+    }, 45_000); // v56 — 150→45ש' (העסקה מתכרהת מייד ב-automine; שער שקט נסגר ב-15ש')
     console.log(`[evm-mesh] auto run #${runTick} "${intent}" gas=${rc?.gasUsed ?? "?"}`);
 
     // 4.2 v21 — ANTI-GRID-DEATH: re-anchor any grid pinned at its band edge
@@ -738,14 +784,14 @@ async function autoCycle(): Promise<void> {
             const price = (await c.microgrid.priceOf(g.pair)) as bigint;
             if (price <= 0n) continue; // no fresh posted price — honest skip
             const rtx = await c.microgrid.reanchor(BigInt(i));
-            await rtx.wait();
+            await waitTx(rtx);
             console.log(`[evm-mesh] microgrid grid#${i} ${g.pair} re-anchored → ${Number(price) / 1e6}`);
           } catch {
             /* honest skip — the next cycle tries again */
           }
         }
         return true;
-      }, 120_000);
+      }, 60_000); // v56 — 120→60ש': סריקת gridAt קריאות-קריאה בלבד
     } catch {
       /* grid scan best-effort */
     }
@@ -756,13 +802,13 @@ async function autoCycle(): Promise<void> {
       await stepB("sweep", async () => {
         const realizedBefore = await c.microgrid.totalRealized();
         const sweptTx = await c.microgrid.sweepAllToPayroll();
-        await sweptTx.wait();
+        await waitTx(sweptTx);
         const realized = Number(ethers.formatEther(realizedBefore));
         if (realized > 0) {
           console.log(`[evm-mesh] microgrid realized so far: ${realized.toFixed(4)} SAOS-M (swept → payroll)`);
         }
         return true;
-      }, 60_000);
+      }, 35_000); // v56 — 60→35ש' (שליחה 8 + המתנה 15 + שוליים)
     } catch {
       /* sweep best-effort — no grids / no balance yet (honest) */
     }
@@ -893,12 +939,12 @@ async function autoCycle(): Promise<void> {
           const dest = String(agent[0]);
           if (dest) {
             const t2 = await c.ledger.transfer(dest, ethers.parseEther("1"));
-            await t2.wait();
+            await waitTx(t2);
             console.log(`[evm-mesh] zero-fee transfer → ${dest.slice(0, 10)}… (fee=0)`);
           }
         }
         return true;
-      }, 90_000);
+      }, 30_000); // v56 — 90→30ש' (שליחה 8 + המתנה 15 + שוליים)
     }
     // 6. v54 מכוון-הרשת — נטיל-WRXP אוטומטית: חלון-המדידה של מפקד-ה-XRP
     //    בקצב-הגשה (v53: "WRXP ממתין בכנות לחלון-מדידה"). כל 10 מחזורים
@@ -930,7 +976,7 @@ async function autoCycle(): Promise<void> {
     }
     runTick += 1;
     saveRunTick(runTick); // v46 — הפאזה שורדת מוות: הטיק נשמר בכל סוף-מחזור
-    console.log(`[cycle] DONE tick=${runTick} in ${((Date.now() - STEP_T0) / 1000).toFixed(1)}s`);
+    console.log(`[cycle] DONE tick=${startTick} in ${((Date.now() - CYCLE_T0) / 1000).toFixed(1)}s`); // v56 — טיק-ההתחלה + משך אמיתי מתחילת המחזור
   } catch (e) {
     console.log(`[evm-mesh] auto-cycle skipped: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`);
   } finally {
@@ -1030,7 +1076,7 @@ async function foundMoneyConnect(
       } catch {
         // רישום חדש + הטבעה + בריכה + זריעה (חד-פעמי)
         const tx0 = await xc.registerAsset(spec.symbol, spec.note);
-        await tx0.wait();
+        await waitTx(tx0);
         console.log(`[evm-mesh] חיבור v29: נכס ${spec.symbol} נרשם — "${spec.note}"`);
         id = Number(await xc.assetIdOf(spec.symbol));
         const totalWei = unitsToWei(spec.units);
@@ -1039,14 +1085,14 @@ async function foundMoneyConnect(
         const perSaos = BigInt(Math.round((spec.usd / SAOS_M_USD_POLICY) * 1e6));
         const poolSaos = (poolAsset * perSaos) / 1_000_000n;
         const tx1 = await xc.mintAsset(id, hqAddr, totalWei, `${spec.units} ${spec.symbol} אמיתיים (מכ"ם v29)`);
-        await tx1.wait();
+        await waitTx(tx1);
         const tx2 = await xc.transfer(id, treasuryAddr, treasuryAsset);
-        await tx2.wait();
+        await waitTx(tx2);
         const tx3 = await xc.createPool(id, wsaosId);
-        await tx3.wait();
+        await waitTx(tx3);
         const poolId = Number(await xc.poolCount()) - 1;
         const tx4 = await xc.addLiquidity(poolId, poolAsset, poolSaos);
-        await tx4.wait();
+        await waitTx(tx4);
         console.log(
           `[evm-mesh] חיבור v29: בריכה ${spec.symbol}/wSAOS #${poolId} נזרעה — ${ethers.formatEther(poolAsset)} ${spec.symbol} · ${ethers.formatEther(poolSaos)} wSAOS (מחיר מדיניות $0.001)`
         );
@@ -1059,7 +1105,7 @@ async function foundMoneyConnect(
       const delta = totalWei - a.totalMinted;
       if (delta > ethers.parseEther("0.000000001")) {
         const tx = await xc.mintAsset(id, treasuryAddr, delta, `סנכרון גיבוי v29: +${ethers.formatEther(delta)} ${spec.symbol} במדידה`);
-        await tx.wait();
+        await waitTx(tx);
         console.log(`[evm-mesh] חיבור v29: סנכרון ${spec.symbol} +${ethers.formatEther(delta)} → הון-יוצר-שוק באוצר`);
       } else if (delta < -ethers.parseEther("0.000000001")) {
         // v30 תזוזה — דלתא שלילית (דמי-שריפה בפעימת XRPL / גז): burn
@@ -1068,7 +1114,7 @@ async function foundMoneyConnect(
         const burnable = burnWei > held ? held : burnWei;
         if (burnable > 0n) {
           const tx = await xc.burnAsset(id, treasuryAddr, burnable, `סנכרון גיבוי v30: ${ethers.formatEther(burnable)} ${spec.symbol} נשרף (דמי תזוזה)`);
-          await tx.wait();
+          await waitTx(tx);
           console.log(`[evm-mesh] תזוזה v30: סנכרון ${spec.symbol} -${ethers.formatEther(burnable)} (נשרף — הגיבוי עוקב)`);
         }
       }
@@ -1082,7 +1128,7 @@ async function foundMoneyConnect(
       const delta = totalWei - a.totalMinted;
       if (delta > ethers.parseEther("0.000000001")) {
         const tx = await xc.mintAsset(wethId, treasuryAddr, delta, `סנכרון גיבוי v29: +${ethers.formatEther(delta)} ETH במדידה (אבק אבן-הפינה)`);
-        await tx.wait();
+        await waitTx(tx);
         console.log(`[evm-mesh] חיבור v29: סנכרון WETH +${ethers.formatEther(delta)} → הון-יוצר-שוק באוצר`);
       } else if (delta < -ethers.parseEther("0.000000001")) {
         // v30 תזוזה — סנכרון שלילי: הכסף זז/נשרף בגז אמיתי → האספקה העטופה
@@ -1092,7 +1138,7 @@ async function foundMoneyConnect(
         const burnable = burnWei > held ? held : burnWei;
         if (burnable > 0n) {
           const tx = await xc.burnAsset(wethId, treasuryAddr, burnable, `סנכרון גיבוי v30: ${ethers.formatEther(burnable)} ETH יצא/נשרף (גז התזוזה)`);
-          await tx.wait();
+          await waitTx(tx);
           console.log(`[evm-mesh] תזוזה v30: סנכרון WETH -${ethers.formatEther(burnable)} (נשרף — הגיבוי עוקב אחרי האמת שבשרשרת)`);
         }
       }
@@ -1306,7 +1352,7 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
           continue;
         }
         const tx = await exchange.connect(treasury).swapExactIn(p.id, true, size, (q * 98n) / 100n);
-        await tx.wait();
+        await waitTx(tx);
         console.log(`[evm-mesh] בורסה: ארב' ${symbol} — האוצר מכר ${fmtAmt(size)} (סטייה ${(dev * 100).toFixed(2)}% ← תיקון)`);
       } else {
         // הנכס זול בבריכה → האוצר קונה (2% מהשווי ה-wSAOS — כפי יתרת האוצר)
@@ -1323,7 +1369,7 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
         const q = (await exchange.quote(p.id, false, size)) as bigint;
         if (q <= 0n) continue;
         const tx = await exchange.connect(treasury).swapExactIn(p.id, false, size, (q * 98n) / 100n);
-        await tx.wait();
+        await waitTx(tx);
         console.log(`[evm-mesh] בורסה: ארב' ${symbol} — האוצר קנה ב-${fmtAmt(size)} wSAOS (סטייה ${(dev * 100).toFixed(2)}% ← תיקון)`);
       }
     } catch {
@@ -1356,7 +1402,7 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
             const q = (await exchange.quote(p.id, true, assetAmt)) as bigint;
             if (q > 0n) {
               const tx = await exchange.connect(soldier).swapExactIn(p.id, true, assetAmt, (q * 99n) / 100n);
-              await tx.wait();
+              await waitTx(tx);
               console.log(`[evm-mesh] בורסה: soldier-${sIdx} מכר ${fmtAmt(assetAmt)} ${symbol}`);
               traded = true;
             }
@@ -1373,7 +1419,7 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
           const q = (await exchange.quote(p.id, false, amt)) as bigint;
           if (q > 0n) {
             const tx = await exchange.connect(soldier).swapExactIn(p.id, false, amt, (q * 99n) / 100n);
-            await tx.wait();
+            await waitTx(tx);
             console.log(`[evm-mesh] בורסה: soldier-${sIdx} קנה ${symbol} ב-${fmtAmt(amt)} wSAOS`);
           }
         } else if (amt > 0n) {
@@ -1397,7 +1443,7 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
       for (let i = 0; i < pc; i++) {
         const hp = (await exchange.pools(BigInt(i))) as unknown as { potA: bigint; potB: bigint };
         if (hp.potA === 0n && hp.potB === 0n) continue; // קופה ריקה — דילוג כנה
-        await (await exchange.harvest(BigInt(i))).wait();
+        await waitTx(await exchange.harvest(BigInt(i)));
         harvestedPools += 1;
       }
       // v46 — רזרבת-ארב' לאוצר: הקציר הישן שאב את כל ה-wSAOS של האוצר
@@ -1409,10 +1455,10 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
       const treasuryWsaos = (await exchange.balanceOf(wsaosId, treasuryAddr)) as bigint;
       if (treasuryWsaos > ARB_RESERVE + ethers.parseEther("2")) {
         const drain = treasuryWsaos - ARB_RESERVE;
-        await (await exchange.connect(treasury).withdrawSaos(drain)).wait();
+        await waitTx(await exchange.connect(treasury).withdrawSaos(drain));
         const tBal = (await ledger.balanceOf(treasuryAddr)) as bigint;
         if (tBal > 0n) {
-          await (await ledger.connect(treasury).transfer(state.contracts.SAOSWorkBoard as string, tBal)).wait();
+          await waitTx(await ledger.connect(treasury).transfer(state.contracts.SAOSWorkBoard as string, tBal));
           console.log(
             `[evm-mesh] בורסה: קציר-החוצה — ${harvestedPools} בריכות · ${fmtAmt(drain)} SAOS-M נזילות זרמו לקופת-העבודה (REAL WORK) · 50 wSAOS נשמרו כרזרבת-ארב' (v46)`
           );
@@ -1434,9 +1480,9 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
       const sAddr = await s.getAddress();
       const w = (await exchange.balanceOf(wsaosId, sAddr)) as bigint;
       if (w < ethers.parseEther("50") && hqLedgerBal >= fillAmt) {
-        await (await ledger.transfer(sAddr, fillAmt)).wait();
-        await (await ledger.connect(s).transfer(state.contracts.SAOSExchange as string, fillAmt)).wait();
-        await (await exchange.connect(s).depositSaos(fillAmt)).wait();
+        await waitTx(await ledger.transfer(sAddr, fillAmt));
+        await waitTx(await ledger.connect(s).transfer(state.contracts.SAOSExchange as string, fillAmt));
+        await waitTx(await exchange.connect(s).depositSaos(fillAmt));
         hqLedgerBal -= fillAmt;
         console.log(`[evm-mesh] בורסה: soldier-${i} מולא ל-300 wSAOS (למלא את החיילים)`);
       }
@@ -1464,8 +1510,8 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
       if (have.has(pair)) continue;
       const price = priceOf(pair);
       if (price === null) continue; // אין מחיר חי — דילוג כנה
-      await (await microgrid.postPrice(pair, BigInt(Math.round(price * 1e6)))).wait();
-      await (await microgrid.createGrid(pair, 24)).wait();
+      await waitTx(await microgrid.postPrice(pair, BigInt(Math.round(price * 1e6))));
+      await waitTx(await microgrid.createGrid(pair, 24));
       have.add(pair);
       console.log(`[evm-mesh] מיקרו-גריד: גריד ${pair} ×24 נוצר — לסדר את הבריכות (${have.size}/6)`);
     }
@@ -1474,7 +1520,7 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
     if (profitFund < ethers.parseEther("10")) {
       const hqBal = (await ledger.balanceOf(hqAddr)) as bigint;
       if (hqBal >= ethers.parseEther("50")) {
-        await (await ledger.transfer(state.contracts.SAOSMicrogrid as string, ethers.parseEther("50"))).wait();
+        await waitTx(await ledger.transfer(state.contracts.SAOSMicrogrid as string, ethers.parseEther("50")));
         console.log("[evm-mesh] מיקרו-גריד: קרן-הרווח מומנה מחדש (50 SAOS-M)");
       }
     }
