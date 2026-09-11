@@ -303,9 +303,32 @@ interface MeshRuntime {
   artifactMtime: number;
   busy: boolean;
 }
-const G = globalThis as unknown as { __meshRuntime?: MeshRuntime };
+// v62 מכנס הדורות (THE GENERATION CONVERGENCE) — כל הערכה מחדש של המודול
+// היא "דור" חדש. האמת שנתפסה חי ביומן (tick=63: 5×, tick=64 ואילך: 7×):
+// main() האסינכרוני רץ דקות (waitRpc · deployMesh · meshAlive — קריאות RPC
+// ארוכות); סערת-העריכות של הסבב הקודם העריכה את המודול מחדש בזמן ש-main()-ים
+// ישנים עדיין בטיסה — הניקוי למטה רוקן ספר-טיימרים ריק/חלקי, ואחר-כך
+// ה-main() הישן הדחיק את 4 הטיימרים שלו ל-RT הישן שלו — טיימרים יתומים
+// שאף ניקוי עתידי לא רואה (הוא מנקה רק את ה-RT החדש). שבעה דורות שרדו כך
+// — שבעה מחזורים מלאים על השרשרת כל 120ש' (כפול LLM · כפול עוגנים ·
+// כפול מסחר · כתיבות-טיק מתחרות). הריפוי בשלוש שכבות: (א) מזהה-דור על
+// globalThis — כל טיימר בודק בכל הפעלה אם דורו עדיין הנוכחי, יתום מפרק
+// את עצמו בכנות בהפעלה הבאה שלו; (ב) ספר-טיימרים גלובלי — הניקוי מרוקן
+// גם אותו; (ג) נעילת-טיסה-יחידה גלובלית על המחזור — גם יתום שכבר בטיסה,
+// דור אחר מדלג בכנות עד שיסיים.
+const G = globalThis as unknown as {
+  __meshRuntime?: MeshRuntime;
+  __meshGen?: number;
+  __meshAllTimers?: ReturnType<typeof setInterval>[];
+  __meshCycleBusy?: boolean;
+};
+G.__meshGen = (G.__meshGen ?? 0) + 1;
+const MY_GEN = G.__meshGen;
+if (!G.__meshAllTimers) G.__meshAllTimers = [];
 if (G.__meshRuntime) {
   for (const t of G.__meshRuntime.timers) clearInterval(t);
+  for (const t of G.__meshAllTimers) clearInterval(t); // v62 — גם יתומים שנדחפו אחרי ניקוי קודם (מרוץ ה-main האסינכרוני)
+  G.__meshAllTimers = [];
   try {
     // v54 — SIGKILL (לא SIGTERM): יציאה חיננית מפעילה exit-dump מלא שיכתב
     // על הקובץ הגזוז בדיוק ברגע שהניתוח כותב אותו; הריגה מיידית = אין
@@ -318,6 +341,24 @@ if (G.__meshRuntime) {
 }
 const RT: MeshRuntime = { anvil: null, timers: [], artifactMtime: 0, busy: false };
 G.__meshRuntime = RT;
+
+/** v62 — טיימר ממוגן-דור: נרשם בשני הספרים (מקומי + גלובלי) ובודק בכל
+ *  הפעלה את תקפות-הדור שלו — יתום (הדור שלו כבר לא הנוכחי) מפרק את עצמו
+ *  בכנות בהפעלה הבאה שלו. זה סוגר את מרוץ ה-main האסינכרוני לנצח: גם אם
+ *  טיימר נדחף ל-RT ישן אחרי שהניקוי כבר רץ, הוא עוד יפרק את עצמו. */
+function genTimer(label: string, fn: () => void, ms: number): ReturnType<typeof setInterval> {
+  const t = setInterval(() => {
+    if (MY_GEN !== G.__meshGen) {
+      clearInterval(t);
+      console.log(`[evm-mesh] v62 generation retire: stale ${label} timer (gen ${MY_GEN}) retired itself — current gen ${G.__meshGen}`);
+      return;
+    }
+    fn();
+  }, ms);
+  RT.timers.push(t);
+  G.__meshAllTimers?.push(t);
+  return t;
+}
 
 // ─── v54 מכוון-הרשת — STATE SURGERY ─────────────────────────────────────
 
@@ -771,7 +812,15 @@ async function waitTx(tx: ethers.TransactionResponse, ms: number = WAIT_TX_MS): 
 }
 
 async function autoCycle(): Promise<void> {
+  if (G.__meshCycleBusy) {
+    // v62 — טיסה-יחידה חוצת-דורות: מחזור מדור אחר עדיין בטיסה (יתום שכבר
+    // יצא לדרך או מחזור קודם שעוד רץ, חסום נעילת-המחזור שלו) — דילוג כנה;
+    // הטיק שלנו הבא ירוץ כשהנעילה תתפנה.
+    console.log("[evm-mesh] v62 single-flight: another generation's cycle is in flight — this fire skips honestly");
+    return;
+  }
   if (RT.busy) return;
+  G.__meshCycleBusy = true; // v62 — נעילה גלובלית חסינת-הוט-סוואפ: דור אחד בלבד מריץ מחזור בכל רגע
   RT.busy = true;
   const startTick = runTick; // v56 — אמת-הלוג: הטיק שבו המחזור התחיל (ההדפסה ב-DONE הדפיסה טיק מוקדם אחרי ההעלאה)
   const CYCLE_T0 = Date.now(); // v56 — אמת-הלוג: משך-המחזור נמדד מתחילתו (היה נמדד מה-boot — מספר מטעה)
@@ -1087,6 +1136,7 @@ async function autoCycle(): Promise<void> {
       /* already dead */
     }
     RT.busy = false;
+    G.__meshCycleBusy = false; // v62 — הנעילה הגלובלית משתחררת תמיד (חסינת-קריסה: גם אם המחזור זרק)
   }
 }
 
@@ -1825,16 +1875,16 @@ async function main(): Promise<void> {
   // של השומר לספר-הזמנים יש יותר אוויר מתחת לתקרת-5-הדקות של ה-cycle
   // watchdog (המחזורים התארכו ב-v30: פיזי-זוזה+מיזוג+LLM — נלמד חי).
   void autoCycle();
-  RT.timers.push(setInterval(() => void autoCycle(), 120_000));
-  RT.timers.push(setInterval(() => void watchdog(), 10_000));
-  RT.timers.push(setInterval(() => void artifactWatcher(), 5_000));
+  genTimer("auto-cycle", () => void autoCycle(), 120_000);
+  genTimer("watchdog", () => void watchdog(), 10_000);
+  genTimer("artifact-watcher", () => void artifactWatcher(), 5_000);
   // v33 שחזור — chain-state mirror to the survivable home (first copy now,
   // then every 5 min; anvil dumps every 30s so the mirror lags ≤5min of
   // blocks — a future rebuild resumes instead of regenesis)
   mirrorChainState();
-  RT.timers.push(setInterval(() => mirrorChainState(), STATE_MIRROR_MS));
+  genTimer("state-mirror", () => mirrorChainState(), STATE_MIRROR_MS);
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
-  console.log("[evm-mesh] auto-runner v30: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה + burn לדלתא שלילית) · PHYSICAL MOVE 4.11 (תזוזה v30: הכסף זז פיזית — sweep-eth/sweep-bsc לבית-האוצר 0x01Bd · פעימת XRPL חתומה כל מחזור עשירי) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 20min v46 (self-terminate on true frozen socket — healthy slow cycles live) · runTick PERSISTED v46 (rotations survive restarts) · provider destroyed per cycle (socket-leak fix)");
+  console.log("[evm-mesh] auto-runner v30: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה + burn לדלתא שלילית) · PHYSICAL MOVE 4.11 (תזוזה v30: הכסף זז פיזית — sweep-eth/sweep-bsc לבית-האוצר 0x01Bd · פעימת XRPL חתומה כל מחזור עשירי) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 20min v46 (self-terminate on true frozen socket — healthy slow cycles live) · runTick PERSISTED v46 (rotations survive restarts) · provider destroyed per cycle (socket-leak fix) · v62 GENERATION CONVERGENCE (orphan timers self-retire · global single-flight cycle lock — one cycle per moment, across hot-swap generations)");
 }
 
 void main().catch((e) => {
