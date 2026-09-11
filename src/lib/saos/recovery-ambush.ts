@@ -53,6 +53,23 @@ const NEW_SOVEREIGN_MEMBER = "keys/headcorner-new-sovereign.json";
 
 const CACHE_TTL_MS = 60_000;
 
+// v61 מסילת המארב (אותו דפוס של v59/v60 ל-GET-ים חוצי-רשתות): האמת שנמדדה
+// חי ב-dev.log — ה-GET של recovery רכב 8.8-9.0ש' בפג-מטמון. שני שורשים
+// מדודים: (א) כל קריאת grapheneRpc פתחה חיבור TLS חדש (agent:false —
+// אותו כאב שרופא ב-v59 ל-providers הציבוריים); (ב) בתוך כל שרשרת
+// get_accounts ו-get_owner_history רצו רצופות — זמן-קיר = סכום. הריפוי:
+// סוכן keep-alive חי על globalThis (חיבור TLS חי בין קריאות ובין מדידות,
+// חסין-למיחזור-מודולים של dev) + שתי הקריאות ב-Parallel בכל שרשרת.
+const GRAPHENE_AGENT_G = globalThis as unknown as { __saosGrapheneAgent?: https.Agent };
+if (!GRAPHENE_AGENT_G.__saosGrapheneAgent) {
+  GRAPHENE_AGENT_G.__saosGrapheneAgent = new https.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30_000,
+    maxSockets: 4,
+    scheduling: "lifo"
+  });
+}
+
 // ─── DTOs ─────────────────────────────────────────────────────────────────
 
 export interface RecoveryChainState {
@@ -123,7 +140,9 @@ function grapheneRpc<T>(rpc: string, method: string, params: unknown[], timeoutM
         method: "POST",
         headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
         timeout: timeoutMs,
-        agent: false
+        // v61 — keep-alive על סוכן globalThis (היה agent:false — TLS חדש לכל
+        // קריאה, וזמן-ההתקשרות נשרף פעמיים-שלוש בכל מדידה)
+        agent: GRAPHENE_AGENT_G.__saosGrapheneAgent
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -183,7 +202,13 @@ async function fetchChainState(chain: "STEEM" | "HIVE"): Promise<RecoveryChainSt
     previousOwnerPub: null
   };
   try {
-    const accounts = await grapheneRpc<GrapheneAccount[]>(rpc, "condenser_api.get_accounts", [[ACCOUNT]]);
+    // v61 — מקבול מלא בתוך השרשרת: get_accounts ו-get_owner_history בלתי-
+    // תלויות (היסטוריית-הבעלות אינה נגזרת מהחשבון) — היו רצופות וזמן-הקיר
+    // היה הסכום; עכשיו הוא המקסימום של שתיהן.
+    const [accounts, hist] = await Promise.all([
+      grapheneRpc<GrapheneAccount[]>(rpc, "condenser_api.get_accounts", [[ACCOUNT]]),
+      grapheneRpc<OwnerHistoryEntry[]>(rpc, "condenser_api.get_owner_history", [ACCOUNT])
+    ]);
     const a = accounts?.[0];
     if (a) {
       out.ownerPub = a.owner?.key_auths?.[0]?.[0] ?? null;
@@ -197,7 +222,6 @@ async function fetchChainState(chain: "STEEM" | "HIVE"): Promise<RecoveryChainSt
       out.recoveryAccount = a.recovery_account ?? null;
       out.lastOwnerUpdate = a.last_owner_update ?? null;
     }
-    const hist = await grapheneRpc<OwnerHistoryEntry[]>(rpc, "condenser_api.get_owner_history", [ACCOUNT]);
     out.previousOwnerPub = hist?.[0]?.previous_owner_authority?.key_auths?.[0]?.[0] ?? null;
     out.ok = Boolean(a);
   } catch (e) {
@@ -422,6 +446,16 @@ export async function recoveryAmbushStatus(force = false): Promise<RecoveryAmbus
   } finally {
     inflight = null;
   }
+}
+
+/**
+ * v61 — אמת-אחרונה חשופה למסילת המסלול (route): כשהרענון החי עדיין רץ
+ * מעבר ל-RAIL_MS, ה-GET מחזיר את האמת הזו עם refreshing:true במקום
+ * לתלות את הבקשה על מלוא המסע חוצה-השרשראות. null = אין עדיין אמת
+ * במופע הזה — המסלול מחזיר המתנה כנה.
+ */
+export function lastRecoveryTruth(): { at: number; value: RecoveryAmbushStatus } | null {
+  return cache;
 }
 
 // ─── the ambush: completion engine (broadcasts ONLY on our trigger) ────────

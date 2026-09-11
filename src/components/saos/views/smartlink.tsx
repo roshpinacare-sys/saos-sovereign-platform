@@ -231,7 +231,7 @@ export function SmartLinkView() {
         <b>רציפות v35 — פער המראות נסגר:</b> ה-DB זורם לבית-השורד <b>מונע-שינוי בכל מדידה</b> (שינוי mtime → VACUUM INTO → קידום אטומי; ≤60 שנ' במקום ≤30 דק' — רוכב על מסילת הסטטוס של השומר והדפדפן, נעול-מקסם + שער שפיות ≥10 טבלאות) · מצב השרשרת משוקף כל 60 שנ' עם ולידציית-JSON לפני הקידום — עותק קרוע (anvil באמצע כתיבה) לעולם לא מגיע לבית, בניגוד להעתקה העיוורת של v33/v34 · המחזור העמוק (30 דק') נשאר להיסטוריית 24 השעות. חלון האיבוד של בנייה: מחצי שעה לדקה.
       </Callout>
 
-      <div className="grid lg:grid-cols-3 gap-4 mt-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
         {/* vault homes */}
         <Panel>
           <PanelHeader icon={<HardDriveDownload size={15} />} title="בתי הכספת — שלושה עותקים חיים" tag="v31" />

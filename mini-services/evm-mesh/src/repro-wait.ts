@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   });
   console.log("hash:", tx.hash, "mined-in-block(object):", tx.blockNumber);
   const rc = await tx.wait();
-  console.log("RESULT: wait() RESOLVED — receipt block:", rc.blockNumber, "status:", rc.status);
+  console.log("RESULT: wait() RESOLVED — receipt:", rc ? `block ${rc.blockNumber} status ${rc.status}` : "null (no receipt — honest)");
   clearTimeout(killer);
   provider.destroy();
   process.exit(0);

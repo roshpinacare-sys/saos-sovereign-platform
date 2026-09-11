@@ -141,7 +141,7 @@ export function AgentChatView() {
         <Kpi label="מנגנון האימות" value="מפתח אישי" icon={<KeyRound size={15} />} hint="SHA-256 + עותק חתום בכספת" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* the chat */}
         <Panel className="lg:col-span-2 flex flex-col min-w-0">
           <PanelHeader icon={<MessageSquare size={15} />} title="הצ'אט המשותף" tag={`חי · ${d.messages.length}`} />

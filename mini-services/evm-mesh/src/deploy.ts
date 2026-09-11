@@ -45,12 +45,55 @@ export const MESH_CHAINS = ["SAOS-NET", "STEEM", "BLURT", "HIVE", "TRON", "ETHER
 
 export interface MeshArtifactContract {
   name: string;
-  abi: unknown[];
+  // v61 אמת-הסוגים — ה-ABI של ה-artifact הוא InterfaceAbi של ethers (היה
+  // unknown[]: כל העברתו ל-ContractFactory/Contract נדחתה בטיפוסים).
+  abi: ethers.InterfaceAbi;
   bytecode: string;
+  // האמת מה-artifact החי (build-pipeline כותב את ספירת הבתים) — אופציונלי
+  // כי עצים ישנים עשויים שלא לשאת אותו.
+  bytecodeBytes?: number;
 }
 export interface MeshArtifact {
   version: string;
   contracts: MeshArtifactContract[];
+}
+
+// ─── v61 אמת-הסוגים של חוזי-הרשת (the mesh contract faces) ──────────────────
+// ethers.Contract הוא פרוקסי דינמי בזמן-ריצה — ושרשרת .connect(x).method()
+// מאבדת את הפרוקסי בטיפוסים (connect מחזיר BaseContract חסר-שיטות). אלה
+// פני החוזים כפי שהפריסה והראנר באמת מפעילים אותם: בדיקת-סוגים מלאה לכל
+// קריאה, אפס שינוי בזמן-ריצה (הטלה בלבד). connect() מוחזר כטיפוס-הבן
+// כדי שהשרשראות ייבדקו לכל אורכן.
+export type MeshTx = Promise<ethers.ContractTransactionResponse>;
+
+export interface HubContract extends ethers.BaseContract {
+  connect(runner: ethers.ContractRunner): HubContract;
+  dispatch(message: string): MeshTx;
+  // שאר שיטות ה-ABI נותרות הפרוקסי הדינמי של ethers (אותה הרשאה
+  // שלעצמה בזמן-ריצה) — הפנים המסומנים מכסים את מה שהטיפוסים באמת
+  // צריכים: את שרשראות ה-connect ואת יעדי waitTx.
+  [method: string]: any;
+}
+
+export interface LedgerContract extends ethers.BaseContract {
+  connect(runner: ethers.ContractRunner): LedgerContract;
+  transfer(to: string, amount: bigint): MeshTx;
+  [method: string]: any;
+}
+
+export interface ExchangeContract extends ethers.BaseContract {
+  connect(runner: ethers.ContractRunner): ExchangeContract;
+  swapExactIn(poolId: number | bigint, assetToAsset: boolean, amountIn: bigint, minOut: bigint): MeshTx;
+  transfer(assetId: number, to: string, amount: bigint): MeshTx;
+  depositSaos(amount: bigint): MeshTx;
+  withdrawSaos(amount: bigint): MeshTx;
+  balanceOf(assetId: number, who: string): Promise<bigint>;
+  quote(poolId: number | bigint, assetToAsset: boolean, amountIn: bigint): Promise<bigint>;
+  // v61 — האמת מהשרשרת: uint256 חוזר כ-bigint (poolCount-1n עובד חי);
+  // assetIdOf נקרא תמיד בתוך Number(...) — bigint מדויק לשניהם.
+  assetIdOf(symbol: string): Promise<bigint>;
+  poolCount(): Promise<bigint>;
+  [method: string]: any;
 }
 
 export interface DeploymentState {
@@ -265,7 +308,7 @@ export async function deployMesh(): Promise<DeploymentState> {
   const operator = await provider.getSigner(0);
   const operatorAddr = await operator.getAddress();
 
-  const abiOf = (name: string): unknown[] => {
+  const abiOf = (name: string): ethers.InterfaceAbi => {
     const c = artifact.contracts.find((x) => x.name === name);
     if (!c) throw new Error(`artifact missing ${name}`);
     return c.abi;
@@ -282,15 +325,15 @@ export async function deployMesh(): Promise<DeploymentState> {
   }
 
   const C = (name: string) => new ethers.Contract(addr[name] as string, abiOf(name), operator);
-  const hub = C("SAOSMeshHub");
+  const hub = C("SAOSMeshHub") as unknown as HubContract;
   const relay = C("SAOSMeshRelay");
   const identity = C("SAOSIdentity");
-  const ledger = C("SAOSLedger");
+  const ledger = C("SAOSLedger") as unknown as LedgerContract;
   const solutions = C("SAOSSolutions");
   const bridge = C("SAOSBridge");
   const workboard = C("SAOSWorkBoard");
   const microgrid = C("SAOSMicrogrid");
-  const exchange = C("SAOSExchange");
+  const exchange = C("SAOSExchange") as unknown as ExchangeContract;
   const value = C("SAOSValueEngine");
 
   // v4 — אוצר-הבורסה / reserve custodian: חותם 9 (anvil unlocked). כל הקציר

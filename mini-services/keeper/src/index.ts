@@ -61,6 +61,20 @@
 import * as fs from "fs";
 import * as path from "path";
 
+// v61 מגן ההבטחות — אותו לקח שנלמד בראנר (evm-mesh): דחיית-רפאים
+// (unhandledRejection) הופלה את התהליך ב-bun. השומר הוא קו-ההגנה
+// האחרון של האורגניזם — אם הוא עצמו ייפול מרפא, ההחייאה-ההדדית
+// נחלשת. כל רפא נספג ומתועד בכנות; השומר חי. דגל globalThis —
+// חסין-ל-hot-swap (רישום כפול אסור).
+const GUARD_G = globalThis as unknown as { __saosKeeperPromiseGuard?: boolean };
+if (!GUARD_G.__saosKeeperPromiseGuard) {
+  GUARD_G.__saosKeeperPromiseGuard = true;
+  process.on("unhandledRejection", (reason: unknown) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    console.log(`[keeper] v61 promise-guard: ghost rejection absorbed (the shomer lives) — ${msg.slice(0, 140)}`);
+  });
+}
+
 const PORT = 3005;
 const WEB_HEALTH = "http://127.0.0.1:3000/api/saos/live-probes";
 const ANVIL_RPC = "http://127.0.0.1:8545";

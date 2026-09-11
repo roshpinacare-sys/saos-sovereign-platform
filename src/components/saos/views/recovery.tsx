@@ -200,7 +200,11 @@ export function RecoveryView() {
           </Panel>
 
           {/* possession + ambush */}
-          <div className="grid lg:grid-cols-2 gap-4">
+          {/* v61 — grid-cols-1 מפורש (ריפוי גלישת-מובייל חיה שנתפסה באימות: העמודה
+              המרומזת מדדה min-width:auto → הקלפים 387px בתוך 343px ודחפו את
+              הדף ל-sw=403/375; מסלול minmax(0,1fr) מצטמצם — אותו תיקון
+              שיטתי של v59 ב-12 גרידים). */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Panel>
               <PanelHeader
                 icon={<Fingerprint size={16} />}

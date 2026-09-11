@@ -55,6 +55,18 @@
 import * as fs from "fs";
 import * as path from "path";
 
+// v61 מגן ההבטחות — הלקח מהראנר (evm-mesh): דחיית-רפאים הופלה תהליך
+// ב-bun. הנחיל לא ייפול מרפא — כל דחייה נספגת ומתועדת בכנות.
+// דגל globalThis — חסין-ל-hot-swap.
+const GUARD_G = globalThis as unknown as { __saosSwarmPromiseGuard?: boolean };
+if (!GUARD_G.__saosSwarmPromiseGuard) {
+  GUARD_G.__saosSwarmPromiseGuard = true;
+  process.on("unhandledRejection", (reason: unknown) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    console.log(`[swarm] v61 promise-guard: ghost rejection absorbed (the swarm lives) — ${msg.slice(0, 140)}`);
+  });
+}
+
 const PORT = 3007;
 const WEB = "http://127.0.0.1:3000";
 const GATE = `${WEB}/api/saos/agents-gateway`;

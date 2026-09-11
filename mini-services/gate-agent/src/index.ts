@@ -44,6 +44,18 @@
 import * as fs from "fs";
 import * as path from "path";
 
+// v61 מגן ההבטחות — הלקח מהראנר (evm-mesh): דחיית-רפאים הופלה תהליך
+// ב-bun. הראלד לא ייפול מרפא — כל דחייה נספגת ומתועדת בכנות.
+// דגל globalThis — חסין-ל-hot-swap.
+const GUARD_G = globalThis as unknown as { __saosHeraldPromiseGuard?: boolean };
+if (!GUARD_G.__saosHeraldPromiseGuard) {
+  GUARD_G.__saosHeraldPromiseGuard = true;
+  process.on("unhandledRejection", (reason: unknown) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    console.log(`[gate-agent] v61 promise-guard: ghost rejection absorbed (the herald lives) — ${msg.slice(0, 140)}`);
+  });
+}
+
 const PORT = 3006;
 const GATE = "http://127.0.0.1:3000/api/saos/agents-gateway";
 const INBOX = `${GATE}/inbox`;

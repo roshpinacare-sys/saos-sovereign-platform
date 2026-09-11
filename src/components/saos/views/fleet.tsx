@@ -373,7 +373,7 @@ export function ViewFleet() {
           {fleet.loading && !fleet.data ? (
             <SkeletonPanel lines={5} />
           ) : (
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {/* STEEM */}
               <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.03] p-4 flex flex-col">
                 <div className="flex items-center justify-between mb-2">

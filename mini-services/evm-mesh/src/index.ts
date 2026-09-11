@@ -39,12 +39,43 @@ import {
   MESH_RPC,
   MESH_CHAIN_ID,
   STATE_PATH,
-  SAOS_M_USD_POLICY
+  SAOS_M_USD_POLICY,
+  type HubContract,
+  type LedgerContract,
+  type ExchangeContract
 } from "./deploy";
 
 const ARTIFACT_PATH = path.resolve(import.meta.dir, "..", "..", "..", "src", "lib", "saos", "generated", "SAOSMesh.json");
 const ANVIL_BIN = process.env.MESH_ANVIL_BIN ?? `${process.env.HOME ?? "/home/z"}/.foundry/bin/anvil`;
 const PORT = 8545;
+
+// v61 מגן ההבטחות (THE PROMISE GUARD) — הראנר לא נופל יותר מהבטחות-רפאים.
+// האמת שנתפסה חי (00:2x, אחרי tick=59 ב-38.2ש'): כשמרוץ-הקבלות מציל קבלה
+// (poll wins), ההמתנה הפנימית של ethers (tx.wait) נשארת חיה ברקע עם
+// PollingTransactionSubscriber רשום על ה-hash — וה-_poll שלו קורא
+// getTransactionReceipt בלי שאף אחד ממתין להבטחתו. בסוף המחזור
+// provider.destroy() (תיקון דליפת-השקעים v26.1) דוחה את הקריאה שבטיסה
+// ("provider destroyed; cancelled request", provider-jsonrpc batch-reject —
+// ללא קריאת רשת, המנגנון של v56 לא רואה אותה כלל) → unhandledRejection
+// → bun מפיל את התהליך → השומר מחייה (קרס ב-00:20, pid 27374→29044).
+// הריפוי בשתי שכבות: (א) המגן הזה — כל דחיית-רפאים נספגת ומתועדת
+// בכנות, התהליך חי (אומת ב-bun: exit=0 עם המאזין); (ב) קטיעת המנוי
+// הפנימי ב-waitTx מיד אחרי ההצלה — מקור הרפאים עצמו מפורק. השומר
+// נשאר קו-הגנה האחרון לכל רפא-עתידי שטרם פגשנו. דגל על globalThis —
+// חסין-ל-hot-swap (רישום כפול של מאזינים אסור).
+const GUARD_G = globalThis as unknown as { __saosPromiseGuard?: boolean };
+if (!GUARD_G.__saosPromiseGuard) {
+  GUARD_G.__saosPromiseGuard = true;
+  process.on("unhandledRejection", (reason: unknown) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    const op = reason instanceof Error && "operation" in (reason as object)
+      ? ` · ${(reason as unknown as { operation: string }).operation}`
+      : "";
+    console.log(
+      `[evm-mesh] v61 promise-guard: ghost rejection absorbed (process lives) — ${msg.slice(0, 140)}${op}`
+    );
+  });
+}
 
 // v55 לולאת-המוות — RPC DEADLINE קשיח לכל קריאת ethers: ethers דיבר דרך
 // שכבת-התאימות node:http של bun, שבה request.setTimeout(300ש') מעולם לא
@@ -81,7 +112,7 @@ const RPC_DEADLINE_MS = 8_000;
     });
     deadline.catch(() => { /* handled by construction — hot-swap can't orphan it */ });
     return Promise.race([rp, deadline]);
-  }) as typeof defaultGetUrl);
+  }) as ethers.FetchGetUrlFunc);
 }
 
 // v18.1 — PERSISTENT LAB CHAIN: anvil dumps its state (every 30s + on exit)
@@ -268,7 +299,7 @@ function selfHealDeployment(): void {
 
 interface MeshRuntime {
   anvil: ReturnType<typeof Bun.spawn> | null;
-  timers: number[];
+  timers: ReturnType<typeof setInterval>[];
   artifactMtime: number;
   busy: boolean;
 }
@@ -406,7 +437,7 @@ async function waitRpc(timeoutMs = 20000): Promise<ethers.JsonRpcProvider> {
   const start = Date.now();
   for (;;) {
     try {
-      await provider.send("eth_chainId");
+      await provider.send("eth_chainId", []);
       return provider;
     } catch {
       if (Date.now() - start > timeoutMs) throw new Error("anvil RPC did not come up within 20s");
@@ -715,6 +746,19 @@ async function waitTx(tx: ethers.TransactionResponse, ms: number = WAIT_TX_MS): 
   const winner = await Promise.race([evWait, taggedPoller]);
   stopped = true;
   if (winner.via === "poll") {
+    // v61 — קטיעת המנוי-הפנימי של ethers על ה-hash: ברגע שהקבלה בידינו,
+    // ההמתנה הפנימית של tx.wait (PollingTransactionSubscriber — מנוי-רשת
+    // פעיל על ה-hash) היא משקל-מת שממשיך לסקר getTransactionReceipt על
+    // כל בלוק עד הדדליין; ובסוף-המחזור provider.destroy() דוחה את הקריאה
+    // שבטיסה כ-unhandledRejection שהפילה את הראנר. מפרקים את המנוי מיד —
+    // ההמתנה שלנו כבר הוכרעה; ה-waiter הפנימי ייסגר בדדליין שלו בשקט
+    // (ה-handlers שלנו על evWait קיימים). בראנר כל hash הוא יחידאי — אין
+    // מאזינים אחרים לפרק.
+    try {
+      tx.provider.removeAllListeners(tx.hash);
+    } catch {
+      /* provider כבר מת/המנוי כבר פורק */
+    }
     console.log(
       `[evm-mesh] v59 receipt-race: ${hash.slice(0, 14)}… rescued by active poll (+${Date.now() - t0}ms) — the event-gate was silent, the chain had the receipt`
     );
@@ -815,7 +859,7 @@ async function autoCycle(): Promise<void> {
     const intent = INTENTS[runTick % INTENTS.length] as string;
     const rc = await stepB("dispatch", async () => {
       const initiator = await provider.getSigner(1 + (runTick % 8));
-      const tx = await c.hub.connect(initiator).dispatch(intent);
+      const tx = await (c.hub as unknown as HubContract).connect(initiator).dispatch(intent);
       return await waitTx(tx);
     }, 45_000); // v56 — 150→45ש' (העסקה מתכרהת מייד ב-automine; שער שקט נסגר ב-15ש')
     console.log(`[evm-mesh] auto run #${runTick} "${intent}" gas=${rc?.gasUsed ?? "?"}`);
@@ -1320,8 +1364,8 @@ async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
   const hqAddr = await hq.getAddress();
   const treasury = await provider.getSigner(9);
   const treasuryAddr = await treasury.getAddress();
-  const exchange = new ethers.Contract(state.contracts.SAOSExchange, xAbi, hq);
-  const ledger = new ethers.Contract(state.contracts.SAOSLedger, lAbi, hq);
+  const exchange = new ethers.Contract(state.contracts.SAOSExchange, xAbi, hq) as unknown as ExchangeContract;
+  const ledger = new ethers.Contract(state.contracts.SAOSLedger, lAbi, hq) as unknown as LedgerContract;
   const microgrid = new ethers.Contract(state.contracts.SAOSMicrogrid, mAbi, hq);
   const wsaosId = Number(await exchange.assetIdOf("WSAOS"));
 
@@ -1606,7 +1650,7 @@ async function watchdog(): Promise<void> {
     const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
     let rpcUp = false;
     try {
-      await probe.send("eth_blockNumber");
+      await probe.send("eth_blockNumber", []);
       rpcUp = true;
     } catch {
       /* chain down */
@@ -1745,7 +1789,7 @@ async function main(): Promise<void> {
   {
     const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
     try {
-      await probe.send("eth_chainId");
+      await probe.send("eth_chainId", []);
       adopted = true;
       console.log("[evm-mesh] anvil already LIVE on :8545 — ADOPTING the live chain (no respawn, no regenesis)");
     } catch {
