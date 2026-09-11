@@ -349,6 +349,25 @@ const RECOVERED_RELAYS: Partial<Record<RelayChain, { address: string; deployer: 
     deployNonce: 64,
     evidence:
       "CREATE(0x2767…1b0f, nonce=64) · runtime 803B זהה-בייט-מול-בייט ל-artifact (נמדד חי) · טביעת-האצבע מקומיט v14 (a52D85cA…78E6) · חסר-בעלים"
+  },
+  // v68 בית-הזיכרון: שני ה-relay של v67 נולדו מההשקיה האוטונומית (probe →
+  // ×2 → deploy → anchor h1). איפוס-הסנדבוקס מחק את הספר — הקוד חי על השרשרת
+  // וכתובותיהם אומתו מתמטית (ethers.getCreateAddress מהכתובת הריבונית +
+  // nonce מדיד) ומהקבלות (העוגנים נשלחו מהכתובת הריבונית). השחזור הזה —
+  // אותו דפוס v51: הגשש מרפא את השורה בעצמו בכל מפקד.
+  optimism: {
+    address: "0x56c9D54ea866e25916757903E51392BBEdeE2ECe",
+    deployer: ANCHORED_EVM_ADDRESS,
+    deployNonce: 4,
+    evidence:
+      "CREATE(0x01Bd…B37, nonce=4) אומת מתמטית · runtime 803B נמדד חי מ-mainnet.optimism.io · עוגן h1 (0x6a44d714…) נשלח מהכתובת הריבונית — קבלה אומתה"
+  },
+  base: {
+    address: "0x279818b4c9Eddc02fB3DD036a5E77D8F7Dc1CF87",
+    deployer: ANCHORED_EVM_ADDRESS,
+    deployNonce: 2,
+    evidence:
+      "CREATE(0x01Bd…B37, nonce=2) אומת מתמטית · runtime 803B נמדד חי מ-mainnet.base.org · עוגן h1 (0xa74b994a…) נשלח מהכתובת הריבונית — קבלה אומתה"
   }
 };
 
@@ -415,7 +434,7 @@ async function probeEvmRail(rail: { chain: RelayChain; heName: string; symbol: s
                 recoveredFromChain: true,
                 recoveredAt: new Date().toISOString(),
                 deployNonce: rec.deployNonce,
-                note: "v51 בית-היוצר — הספר נבנה מחדש מהשרשרת (איפוס-הסביבה מחק את ה-DB; החוזה על המיינטנט לא נפגע)",
+                note: "v51/v68 בית-היוצר — הספר נבנה מחדש מהשרשרת (איפוס-הסביבה מחק את ה-DB; החוזה על השרשרת לא נפגע)",
                 evidence: rec.evidence
               })
             }

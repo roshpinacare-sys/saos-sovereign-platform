@@ -35,6 +35,7 @@ import { db } from "@/lib/db";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { logOp } from "./oplog";
 import { bridgeCensus, type EvmRailState } from "./bridge-forge";
+import { ensureChainMemory } from "./memory-house";
 import {
   deploySovereignRelay,
   relayAnchorThroughContract,
@@ -122,6 +123,8 @@ export interface ExpansionCensus {
   counts: { expanded: number; armed: number; dark: number; error: number };
   verdictHe: string;
   scoutHe: string;
+  /** v68 בית-הזיכרון — מצב השחזור מהשרשרת (מלא רק כשקרה שחזור/בדיקה) */
+  memoryHouseHe?: string | null;
   error?: string;
 }
 
@@ -146,6 +149,23 @@ function nextStepHe(state: RailExpansionState): string {
 export async function expansionCensus(opts: { force?: boolean } = {}): Promise<ExpansionCensus> {
   const at = new Date().toISOString();
   const setting = await getAutoExpansionEnabled().catch(() => true);
+
+  // v68 בית-הזיכרון: איפוס-הסנדבוקס מוחק את הספר — האורגניזם "שוכח" את
+  // ה-relay שלו ומשתיק. לפני כל מפקד: אם אין חותם בספר (חתימת-האיפוס),
+  // הספר נבנה מחדש מהשרשרת החיה (eth_getCode + קבלות מאומתות). אידמפוטנטי —
+  // ספר בריא לא נוגע. כישלון = נתון כנה; המפקד ממשיך ומדווח מה שרואה.
+  let memoryHouseHe: string | null = null;
+  try {
+    const mem = await ensureChainMemory();
+    if (mem.recovered) {
+      memoryHouseHe = `בית-הזיכרון שחזר את הספר מהשרשרת — ${mem.anchorRows} עוגני-relay · ${mem.dripRows} טפטופי-השקיה · חותם h=1 נזרע (החותם הבא יהיה h=2)`;
+    } else if (mem.ok && mem.noteHe) {
+      memoryHouseHe = mem.noteHe;
+    }
+  } catch {
+    /* נתון כנה — המפקד עצמו ממשיך */
+  }
+
   try {
     const [bridge, seal] = await Promise.all([
       bridgeCensus({ force: opts.force }),
@@ -231,6 +251,7 @@ export async function expansionCensus(opts: { force?: boolean } = {}): Promise<E
       rails,
       counts,
       verdictHe,
+      memoryHouseHe,
       scoutHe: "השומר (:3005) קורא את המפקד כל 10 דק' — מסילה שעוברת את שער היתרה ×2 נורית אוטומטית (source=auto) תחת אותם שערי-כנות"
     };
   } catch (e) {

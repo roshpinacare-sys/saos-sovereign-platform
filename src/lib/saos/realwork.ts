@@ -105,7 +105,20 @@ export async function generateSolution(
       return { content, latencyMs: Date.now() - t0, chars };
     } catch (e) {
       lastError = e;
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 900));
+      // v68 בית-הזיכרון — 429 נתפס חי ב-dev.log: המנוע ניסה שוב אחרי 900ms
+      // ושרף את הניסיון השני על אותה חסימת-קצב. החוכמה: מגבלת-קצב לא
+      // נפתרת בלחץ — היא נפתרת בהמתנה. 4.5 שניות לפני הניסיון השני,
+      // ואם גם הוא נחסם — כשל כנה עם שם-שגיאה מפורש (הגששים המחזוריים
+      // ינסו שוב ממילא במחזור הבא; לא מזייפים הצלחה).
+      const msg = e instanceof Error ? e.message : String(e);
+      const rateLimited = /429|too many requests/i.test(msg);
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, rateLimited ? 4500 : 900));
+        continue; // ניסיון שני אחרי המתנה מכבדת-קצב
+      }
+      if (rateLimited) {
+        throw new Error("מנוע-הפתרונות נחסם במגבלת-קצב (429) גם בניסיון השני — כשל כנה; המחזור הבא ינסה שוב");
+      }
     }
   }
   throw lastError instanceof Error ? lastError : new Error("מנוע הפתרונות נכשל (כנות)");

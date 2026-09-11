@@ -56,6 +56,14 @@ const CHAIN_STATE_DIR = path.join(ROOT, "mini-services", "evm-mesh", "state");
 // self-heals from it at the next measure() — history included.
 const MIRROR_DIR = path.join(ROOT, "upload", ".db-mirror");
 const MIRROR_DB = path.join(MIRROR_DIR, "custom.db");
+// v68 בית-הזיכרון — שומר-העושר של המראה. התקרית החיה (2026-09-11 13:23):
+// איפוס-הסנדבוקס החזיר DB "כשיר" לכאורה (header תקין, prisma push) —
+// isSaneSqlite החזיר אמת, השחזור לא ירה, והמראה-המהירה דרסה את הספר
+// העשיר שהמתין בבית-השורד בעותק עני. התשובה: המראה נושאת כרטיס-עושר
+// (custom.richness.json) — גובה-החותם הגבוה בי ומניין-העוגנים החיצוניים
+// ברגע הכתיבה. מראה עשירה לעולם לא תידרס על-ידי מסד עני ממנה; מסד עני
+// מהמראה משוחזר ממנה. השוואת-עושר — לא תקינות-header בלבד.
+const MIRROR_SIDECAR = path.join(MIRROR_DIR, "custom.richness.json");
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0", "utf8");
 const MIN_SANE_DB_BYTES = 4096;
 
@@ -159,20 +167,97 @@ function isSaneSqlite(p: string): boolean {
   }
 }
 
-/** v34 אוטרקיה — self-heal a WIPED database from the survivable-home mirror.
- *  Runs at the top of every measure()/snapshotNow(): if db/custom.db is
- *  gone / an empty shell (the exact signature of a sandbox rebuild) and the
- *  upload/.db-mirror snapshot is present and sane — copy it back (atomic
- *  tmp+rename) and RECONNECT the live Prisma client ($disconnect — the
- *  next query opens the restored file, never the dead old inode). History
- *  (chat, work orders, journals) survives the rebuild; the v33 vault
- *  restore stays as the fallback when NO mirror exists. Never overwrites
- *  a healthy DB. Journaled as an opLog event ("db.autorestore") — the UI
- *  surfaces it like the vault tombstone. */
+// ─── v68 בית-הזיכרון — כרטיס-העושר של המראה ─────────────────────────────
+
+export interface MirrorRichness {
+  /** גובה החותם הגבוה בי בספר ברגע הכתיבה (0 = אין חותמים) */
+  sealHeight: number;
+  /** מניין העוגנים החיצוניים (כל AnchorTx עם txid שאינו SAOS-NET פנימי) */
+  externalAnchors: number;
+  at: string;
+}
+
+/** העושר החי של ה-DB הפעיל — מהפריזמה, בזריזות (count+max) */
+async function liveRichness(): Promise<MirrorRichness> {
+  try {
+    const [top, external] = await Promise.all([
+      db.sealRecord.findFirst({ orderBy: { height: "desc" }, select: { height: true } }),
+      db.anchorTx.count({ where: { txid: { not: null }, NOT: { network: "SAOS-NET" } } })
+    ]);
+    return { sealHeight: top?.height ?? 0, externalAnchors: external, at: new Date().toISOString() };
+  } catch {
+    return { sealHeight: -1, externalAnchors: -1, at: new Date().toISOString() }; // לא נמדר — לא גורם
+  }
+}
+
+function readMirrorSidecar(): MirrorRichness | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(MIRROR_SIDECAR, "utf8")) as MirrorRichness;
+    if (typeof raw.sealHeight === "number" && typeof raw.externalAnchors === "number") return raw;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMirrorSidecar(r: MirrorRichness): void {
+  try {
+    ensureDir(MIRROR_DIR);
+    fs.writeFileSync(MIRROR_SIDECAR, JSON.stringify(r));
+  } catch {
+    /* כרטיס העושר הוא חיזוק — כשלו לבד לא פוסל את המראה */
+  }
+}
+
+/**
+ * האם המראה עשירה מהחי? אמת רק כשהכרטיס קיים ותקין וגובה-החותם שבו גבוה
+ * מהחי (מונוטוניות החותמים — הספר רק גדל). המניין החיצוני שובר שוויון
+ * (אותו גובה אחרי שחזור-בית-הזיכרון — לא נדרס ספר שנבנה מהשרשרת).
+ */
+function mirrorRicherThanLive(sidecar: MirrorRichness | null, live: MirrorRichness): boolean {
+  if (!sidecar) return false;
+  if (live.sealHeight < 0) return false; // החי לא נמדר — לא חותכים
+  if (sidecar.sealHeight > live.sealHeight) return true;
+  if (sidecar.sealHeight === live.sealHeight && sidecar.externalAnchors > live.externalAnchors) return true;
+  return false;
+}
+
+/** v34/v68 אוטרקיה — self-heal a WIPED database from the survivable-home mirror.
+ *  Runs at the top of every measure()/snapshotNow(). Two wipe signatures,
+ *  both measured live:
+ *    v34 — db/custom.db is gone / an empty shell (header/size insane);
+ *    v68 — "sane-but-POORER than the mirror's richness card": a sandbox
+ *          rebuild returns a FRESH prisma-push DB that passes the header
+ *          check — the old code called it healthy and the fast mirror then
+ *          DESTROYED the richer pre-rebuild book in the survivable home
+ *          (the 2026-09-11 13:23 incident, live). Richness comparison now
+ *          decides: the mirror's card says it carries a higher seal height
+ *          (or more external anchors at equal height) → the live DB is a
+ *          rebuild shell → RESTORE from the mirror (atomic tmp+rename,
+ *          lazy Prisma reconnect). Never overwrites a healthy, at-least-
+ *          as-rich DB. Journaled as opLog "db.autorestore". */
 export async function restoreDatabaseIfWiped(): Promise<{ restored: boolean; note: string }> {
   try {
     const healthy = isSaneSqlite(DB_FILE);
-    if (healthy) return { restored: false, note: "כשיר" };
+    const sidecar = readMirrorSidecar();
+    if (healthy && sidecar) {
+      // v68 — החתימה החיה מהתקרית: הקובץ כשיר אבל הספר עני מהמראה
+      // (איפוס-הסנדבוקס החזיר DB טרי מ-prisma push). האמת בכרטיס-העושר.
+      const live = await liveRichness();
+      if (mirrorRicherThanLive(sidecar, live)) {
+        if (!isSaneSqlite(MIRROR_DB)) {
+          return {
+            restored: false,
+            note: `הספר עני מהמראה (חי: h${live.sealHeight}/${live.externalAnchors} · מראה: h${sidecar.sealHeight}/${sidecar.externalAnchors}) אבל המראה עצמה פגומה — לא משחזרים מעותק חשוד; בית-הזיכרון (שחזור מהשרשרת) הוא הנפילה`
+          };
+        }
+        // נופל למטה — לשחזור מהמראה העשירה
+      } else {
+        return { restored: false, note: "כשיר" };
+      }
+    } else if (healthy) {
+      return { restored: false, note: "כשיר" };
+    }
     if (!isSaneSqlite(MIRROR_DB)) {
       return { restored: false, note: "ה-DB ריק/חסר ואין מראה כשירה — נופל חזרה לשחזור-הכספת (v33)" };
     }
@@ -228,6 +313,26 @@ export async function mirrorDatabaseFast(): Promise<{ mirrored: boolean; note: s
       "SELECT count(*) AS n FROM sqlite_master WHERE type='table'"
     );
     if (Number(tables[0]?.n ?? 0) < 10) return { mirrored: false, note: "shell" };
+    // v68 שומר-העושר — מראה עשירה לעולם לא נדרסת על-ידי מסד עני ממנה.
+    // זו הנקודה שבה נהרס ספר-v67: ה-DB הטרי שלאחר האיפוס עבר את שער-הטבלאות
+    // ודרס את המראה שבבית-השורד. מכאן: הכרטיס אומר "המראה עשירה מהחי" →
+    // לא כותבים, מתעדים בכנות — השחזור (שרץ לפני זה ב-measure) הוא הבעלים.
+    const sidecar = readMirrorSidecar();
+    const live = await liveRichness();
+    if (mirrorRicherThanLive(sidecar, live)) {
+      void logOp("backup.mirror-guard", {
+        ok: false,
+        skipped: true,
+        sidecar,
+        live,
+        at: new Date().toISOString(),
+        note: "המראה עשירה מה-DB החי — הדריסה נחסמה (פער-האיפוס); השחזור הוא הבעלים"
+      }).catch(() => undefined);
+      return {
+        mirrored: false,
+        note: `mirror-richer (חי: h${live.sealHeight}/${live.externalAnchors} · מראה: h${sidecar?.sealHeight}/${sidecar?.externalAnchors}) — הדריסה נחסמה`
+      };
+    }
     const tmp = `${MIRROR_DB}.fast-tmp`;
     try { fs.unlinkSync(tmp); } catch { /* not there — fine */ }
     await db.$executeRawUnsafe(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
@@ -237,6 +342,8 @@ export async function mirrorDatabaseFast(): Promise<{ mirrored: boolean; note: s
     }
     ensureDir(MIRROR_DIR);
     fs.renameSync(tmp, MIRROR_DB);
+    // v68 — הכרטיס נכתב מיד אחרי המראה, מתאר בדיוק את מה שהונח בבית-השורד
+    writeMirrorSidecar(await liveRichness());
     fastMirrorLastMtime = st.mtimeMs; // only a SUCCESS arms the skip marker
     return { mirrored: true, note: `${(fs.statSync(MIRROR_DB).size / 1024).toFixed(0)}KB` };
   } catch {
@@ -393,11 +500,28 @@ export async function snapshotNow(trigger: string): Promise<SnapshotResult> {
         "SELECT count(*) AS n FROM sqlite_master WHERE type='table'"
       );
       if (Number(tables[0]?.n ?? 0) >= 10) {
-        ensureDir(MIRROR_DIR);
-        const tmp = `${MIRROR_DB}.tmp`;
-        fs.copyFileSync(dbFile, tmp);
-        fs.renameSync(tmp, MIRROR_DB);
-        mirrored = true;
+        // v68 שומר-העושר — גם המחזור-העמוק לא דורס מראה עשירה (אותה סכנה,
+        // אותה חסימה; השחזור שרץ בראש snapshotNow הוא הבעלים של הכתיבה)
+        const sidecar = readMirrorSidecar();
+        const live = await liveRichness();
+        if (!mirrorRicherThanLive(sidecar, live)) {
+          ensureDir(MIRROR_DIR);
+          const tmp = `${MIRROR_DB}.tmp`;
+          fs.copyFileSync(dbFile, tmp);
+          fs.renameSync(tmp, MIRROR_DB);
+          mirrored = true;
+          writeMirrorSidecar(await liveRichness());
+        } else {
+          void logOp("backup.mirror-guard", {
+            ok: false,
+            skipped: true,
+            deep: true,
+            sidecar,
+            live,
+            at: new Date().toISOString(),
+            note: "המחזור-העמוק נמנע מדריסת מראה עשירה — השחזור הוא הבעלים"
+          }).catch(() => undefined);
+        }
       }
     } catch {
       /* mirror failure never fails the snapshot itself — db/backups still holds it */
