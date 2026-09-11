@@ -14,6 +14,10 @@ export const dynamic = "force-dynamic";
  *   { action: "reserve-sync" }            → שריפת פער המראה פרו-רטה (המראה == משמרת)
  *   { action: "run-proof", rounds?: 1..6 } → מעגל המרה SOL↔TRX חי על השרשרת,
  *                                            נמדד ומוקלט (בלוק · זמן · גז · אטומיות)
+ *   { action: "mint-order" }              → v70 הניסיון המאושר: הטבעת גירעון-המשמרת
+ *                                            1:1 (fail-closed מתמטי — הגירעון בלבד,
+ *                                            לאוצר החוזה החי, הערת-גיבוי חיה + digest
+ *                                            saos-por/v1 חתום בקבלה משורשרת)
  */
 export async function GET(req: Request) {
   try {

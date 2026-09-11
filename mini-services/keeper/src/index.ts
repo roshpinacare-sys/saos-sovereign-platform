@@ -157,6 +157,18 @@ const IRRIGATION_URL = "http://127.0.0.1:3000/api/saos/irrigation";
 const IRRIGATION_EVERY = 60; // every 60th cycle = 10 min
 const IRRIGATION_FIRST_AT = 6; // first scout 1 min after boot — אוטונומית מהרגע הראשון
 
+// v70 — the reserve watcher (צופה-הרזרבות, הכנת חדר-ההמרה). The web tier
+// owns the measurement (custody↔mirror from the live census + the live
+// contract); the keeper owns the cadence: every 5 min it reads the chamber
+// KPIs and journals the drift state. Mesh-managed rails (WETH/WBNB/WRXP)
+// are the mesh organ's authority — the watcher reports them as autonomous,
+// never as drift. The watcher NEVER acts on the mirror — it watches, the
+// HQ (owner-authorized actions) acts.
+const RESERVES_URL = "http://127.0.0.1:3000/api/saos/conversion";
+const RESERVES_EVERY = 30; // every 30th cycle = 5 min
+const RESERVES_FIRST_AT = 9; // first watch 90s after boot
+const RESERVES_DRIFT_USD = 0.05; // journal-worthy drift threshold (chamber rails only)
+
 // v28 — page-500 detector (the documented frontier). Turbopack cache panic
 // (3 live incidents: v29, v30, v31) leaves the PROCESS alive and the API
 // layer answering 200 while the user-visible PAGE "/" returns 5xx. Objective
@@ -225,7 +237,11 @@ interface KeeperEvent {
     // v67 — the wise-irrigation scout (ההשקיה החכמה)
     | "irrigation-planned"
     | "irrigation-dripped"
-    | "irrigation-off";
+    | "irrigation-off"
+    // v70 — the reserve watcher (צופה-הרזרבות — הכנת חדר-ההמרה)
+    | "reserve-watched"
+    | "reserve-drift"
+    | "reserve-recovered";
   detail: string;
 }
 
@@ -315,6 +331,19 @@ const S = {
     setting: null as boolean | null,
     lastDripAt: null as string | null,
     drips: 0 as number
+  },
+  // v70 — the reserve watcher (צופה-הרזרבות): reads custody↔mirror from the
+  // web every 5 min; drift beyond threshold → journal alert (advisory — the
+  // HQ actions are the only hands on the mirror).
+  reserves: {
+    lastCheckAt: null as string | null,
+    state: "boot" as "boot" | "watching" | "drift" | "recovered" | "stale",
+    driftUsd: null as number | null,
+    custodyUsd: null as number | null,
+    mirroredUsd: null as number | null,
+    meshManaged: 0 as number,
+    driftAlerts: 0 as number,
+    lastAlertAt: null as string | null
   },
   events: [] as KeeperEvent[]
 };
@@ -952,6 +981,78 @@ async function checkIrrigation(): Promise<void> {
   }
 }
 
+/** v70 — the reserve watcher (צופה-הרזרבות). The web tier owns the chamber
+ *  measurement (sovereign custody from the live census ↔ mirror from the
+ *  live contract, both fail-closed honest); the keeper owns the cadence and
+ *  the alert: every 5 min it reads the KPIs and journals. Drift beyond
+ *  $0.05 on the CHAMBER rails (WTRX/WSOL — mesh-managed rails are the mesh
+ *  organ's authority and never count as drift) → a "reserve-drift" journal
+ *  entry, and "reserve-recovered" when it returns inside the bound. The
+ *  watcher is advisory by design: the only hands on the mirror are the HQ
+ *  actions (reserve-sync burn · mint-order mint) — both owner-authorized,
+ *  both fail-closed. Web down = honest wait. */
+async function checkReserves(): Promise<void> {
+  try {
+    const r = await fetch(RESERVES_URL, { signal: AbortSignal.timeout(25_000) });
+    if (!r.ok) {
+      S.reserves.state = "stale";
+      return;
+    }
+    const st = (await r.json().catch(() => null)) as {
+      ok?: boolean;
+      kpis?: {
+        custodyUsd?: number | null;
+        mirroredUsd?: number | null;
+        driftUsd?: number | null;
+        readinessReady?: number;
+        readinessTotal?: number;
+      };
+      sync?: { rows?: Array<{ wrap?: string; meshManaged?: boolean; needsBurn?: boolean }> };
+    } | null;
+    if (!st || st.ok !== true) {
+      S.reserves.state = "stale";
+      return;
+    }
+    S.reserves.lastCheckAt = new Date().toISOString();
+    S.reserves.custodyUsd = st.kpis?.custodyUsd ?? null;
+    S.reserves.mirroredUsd = st.kpis?.mirroredUsd ?? null;
+    S.reserves.driftUsd = st.kpis?.driftUsd ?? null;
+    S.reserves.meshManaged = (st.sync?.rows ?? []).filter((x) => x.meshManaged === true).length;
+
+    const prev = S.reserves.state;
+    const drift = S.reserves.driftUsd;
+    const driftAbs = drift === null ? null : Math.abs(drift);
+    const needsBurn = (st.sync?.rows ?? []).filter((x) => x.needsBurn === true).length;
+
+    if (driftAbs !== null && (driftAbs >= RESERVES_DRIFT_USD || needsBurn > 0)) {
+      S.reserves.driftAlerts += 1;
+      S.reserves.lastAlertAt = new Date().toISOString();
+      S.reserves.state = "drift";
+      journal(
+        "reserve-drift",
+        `reserve-watcher: mirror drift ${drift?.toFixed(4)} USD on chamber rails (${needsBurn} need burn · mesh-managed ${S.reserves.meshManaged} rails are the organ's authority) — custody ${S.reserves.custodyUsd?.toFixed(2)} USD ↔ mirror ${S.reserves.mirroredUsd?.toFixed(2)} USD — HQ actions are the hands (reserve-sync | mint-order), the watcher only speaks`
+      );
+      return;
+    }
+
+    S.reserves.state = "watching";
+    if (prev === "drift") {
+      journal(
+        "reserve-recovered",
+        `reserve-watcher: drift back inside the $${RESERVES_DRIFT_USD} bound (${drift?.toFixed(4)} USD) — the mirror tells the truth again`
+      );
+    } else if (prev === "boot") {
+      journal(
+        "reserve-watched",
+        `reserve-watcher LIVE: custody ${S.reserves.custodyUsd?.toFixed(2)} USD ↔ mirror ${S.reserves.mirroredUsd?.toFixed(2)} USD · drift ${drift?.toFixed(4)} USD · ${S.reserves.meshManaged} mesh-managed rails (organ authority) · readiness ${st.kpis?.readinessReady ?? "?"}/${st.kpis?.readinessTotal ?? "?"} — advisory organ, HQ owns the hands`
+      );
+    }
+  } catch {
+    // web down or chamber slow = honest wait
+    S.reserves.state = "stale";
+  }
+}
+
 async function cycle(): Promise<void> {
   RT.cycle += 1;
   S.checks += 1;
@@ -1237,6 +1338,14 @@ async function cycle(): Promise<void> {
   if (RT.cycle === IRRIGATION_FIRST_AT || (RT.cycle > IRRIGATION_FIRST_AT && (RT.cycle - IRRIGATION_FIRST_AT) % IRRIGATION_EVERY === 0)) {
     await checkIrrigation();
   }
+
+  // 11. v70 — the reserve watcher (צופה-הרזרבות). Every 5 min: read the
+  //     live custody↔mirror KPIs from the conversion chamber; drift beyond
+  //     the bound → journal alert. Advisory organ — the HQ actions are the
+  //     only hands on the mirror. Web down = honest wait.
+  if (RT.cycle === RESERVES_FIRST_AT || (RT.cycle > RESERVES_FIRST_AT && (RT.cycle - RESERVES_FIRST_AT) % RESERVES_EVERY === 0)) {
+    await checkReserves();
+  }
 }
 
 // ─── status API (loopback only) ────────────────────────────────────────────
@@ -1268,7 +1377,8 @@ function statusJson() {
       swarm: { alive: S.swarmAlive === true, failStreak: S.swarmFailStreak, revives: S.swarmRevives, lastOkAt: S.swarmLastOkAt, agents: "gold-scout+night-scout", port: 3007 },
       recovery: { state: S.recovery.state, daysLeft: S.recovery.daysLeft, lastCheckAt: S.recovery.lastCheckAt, engine: "headcorner-ambush", account: "headcorner" },
       expansion: { state: S.expansion.state, armed: S.expansion.armed, setting: S.expansion.setting, lastCheckAt: S.expansion.lastCheckAt, lastFireAt: S.expansion.lastFireAt, fires: S.expansion.fires, engine: "auto-expansion (v66)", cadence: "10min" },
-      irrigation: { state: S.irrigation.state, fundable: S.irrigation.fundable, setting: S.irrigation.setting, lastCheckAt: S.irrigation.lastCheckAt, lastDripAt: S.irrigation.lastDripAt, drips: S.irrigation.drips, engine: "wise-irrigation (v67)", cadence: "10min" }
+      irrigation: { state: S.irrigation.state, fundable: S.irrigation.fundable, setting: S.irrigation.setting, lastCheckAt: S.irrigation.lastCheckAt, lastDripAt: S.irrigation.lastDripAt, drips: S.irrigation.drips, engine: "wise-irrigation (v67)", cadence: "10min" },
+      reserves: { state: S.reserves.state, custodyUsd: S.reserves.custodyUsd, mirroredUsd: S.reserves.mirroredUsd, driftUsd: S.reserves.driftUsd, meshManaged: S.reserves.meshManaged, driftAlerts: S.reserves.driftAlerts, lastAlertAt: S.reserves.lastAlertAt, lastCheckAt: S.reserves.lastCheckAt, engine: "reserve-watcher (v70)", cadence: "5min", hands: "HQ-only (advisory organ)" }
     },
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,

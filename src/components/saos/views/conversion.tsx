@@ -21,7 +21,7 @@
 import { useCallback, useState } from "react";
 import {
   ArrowLeftRight, BookOpenCheck, CheckCircle2, Coins, Database, Flame, Gavel,
-  Layers, ListChecks, Lock, Repeat, Rocket, ShieldCheck, Timer, Vault
+  Layers, ListChecks, Lock, Repeat, Rocket, ShieldCheck, Sparkles, Timer, Vault
 } from "lucide-react";
 import {
   Btn, Callout, CopyBtn, Kpi, Panel, PanelBody, PanelHeader, Pill,
@@ -32,7 +32,7 @@ import { PageHead } from "../shell";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import { cn } from "../ui";
 import type {
-  ChamberActionResult, ConversionChamberData, DelegatedDecision, ProofRunResult, ReadinessItem, RouteCard
+  ChamberActionResult, ConversionChamberData, DelegatedDecision, MintOrderResult, ProofRunResult, ReadinessItem, RouteCard, TryAuthorization
 } from "@/lib/saos/conversion-chamber";
 
 // ─── עזרי-תצוגה ─────────────────────────────────────────────────────────────
@@ -171,6 +171,85 @@ function DelegatedDecisionPanel({ d }: { d: DelegatedDecision }) {
             <span className="text-zinc-400 font-semibold">הפניית-החוכמה: </span>
             {d.wiseRedirectHe}
           </p>
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+// ─── (1.7) הניסיון המאושר — v70 ─────────────────────────────────────────────
+
+function AuthorizedTryPanel({ t, onMint, mintBusy }: { t: TryAuthorization; onMint: () => void; mintBusy: boolean }) {
+  return (
+    <Panel accent className="border-amber-400/30">
+      <PanelHeader
+        icon={<Sparkles size={15} />}
+        title={`הניסיון המאושר — ההמרה רצה (${t.grantedAt})`}
+        sub="הבעלים אישר לנסות במילים פשוטות — והניסיון רץ במלואו על הרשת שלנו: סנכרון-המראה נורה, מעגל SOL↔TRX חי הוכח, ופקודת ההטבעה נחתמה. הכסף לא זז מהמשמרת — הערך נכנס לרשת"
+        actions={<Pill tone="gold">פקודת הטבעה — בוצע</Pill>}
+      />
+      <PanelBody className="space-y-4">
+        {/* ההרשאה — כלשונה, בציטוט */}
+        <blockquote className="relative rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-4 py-3 ps-5">
+          <span
+            aria-hidden
+            className="absolute inset-y-0 start-0 w-[3px] rounded-full bg-gradient-to-b from-amber-400/60 to-emerald-400/40"
+          />
+          <p className="text-[10.5px] font-semibold text-amber-300/80 mb-1">
+            ההרשאה לניסיון — דברי הבעלים, כלשונם ({t.grantedAt}):
+          </p>
+          <p className="text-[13px] leading-relaxed text-amber-100 font-medium">
+            «{t.textHe}»
+          </p>
+        </blockquote>
+
+        {/* מה ההרשאה פתחה */}
+        <div className="rounded-lg border border-white/[0.08] bg-zinc-900/45 px-4 py-3">
+          <p className="text-[10.5px] font-bold text-zinc-300 mb-1">הניסיון שאושר:</p>
+          <p className="text-[12px] leading-relaxed text-zinc-300">{t.scopeHe}</p>
+        </div>
+
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {/* הביצוע — מהחי */}
+          <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/[0.05] px-4 py-3">
+            <p className="text-[10.5px] font-bold text-emerald-300 mb-1 flex items-center gap-1.5">
+              <CheckCircle2 size={12} />
+              מה נעשה בפועל (מהחי — שורת ה-oplog האחרונה):
+            </p>
+            {t.executedHe ? (
+              <p className="text-[11.5px] leading-relaxed text-emerald-100 font-medium">
+                <TextWithAddresses text={t.executedHe} />
+              </p>
+            ) : (
+              <p className="text-[11.5px] leading-relaxed text-zinc-400">
+                פקודת ההטבעה טרם רצה עם טפיפות בפועל — הכפתור למטה מריץ אותה (הטבעת הגירעון בלבד, fail-closed).
+              </p>
+            )}
+          </div>
+
+          {/* ההוכחה — מהחי */}
+          <div className="rounded-lg border border-white/[0.08] bg-zinc-900/45 px-4 py-3">
+            <p className="text-[10.5px] font-bold text-zinc-300 mb-1 flex items-center gap-1.5">
+              <Repeat size={12} className="text-emerald-400/80" />
+              הוכחת-הפריצה שרצה בכוח ההרשאה:
+            </p>
+            {t.proofHe ? (
+              <p className="text-[11.5px] leading-relaxed text-zinc-300">{t.proofHe}</p>
+            ) : (
+              <p className="text-[11.5px] leading-relaxed text-zinc-400">טרם רצה — הכפתור בפאנל ההוכחה למטה מריץ מעגל SOL↔TRX חי.</p>
+            )}
+          </div>
+        </div>
+
+        {/* כפתור הפקודה — מטפטף גירעון חדש אם צמחה המשמרת */}
+        <div className="flex items-center justify-between gap-3 flex-wrap rounded-lg border border-white/[0.07] bg-white/[0.02] px-4 py-2.5">
+          <p className="text-[10.5px] leading-relaxed text-zinc-500 max-w-xl">
+            הפקודה אידמפוטנטית מטבעה: היא מטפיעה אך ורק את הגירעון שנוצר (custody − mirror) — טפיפות עתיד של
+            צמיחת משמרת. מסילות-הרשת (WETH · WBNB · WRXP) בסמכות איבר-הגיבוי האוטונומי והפקודה לא נוגעת בהן.
+          </p>
+          <Btn variant="primary" size="sm" loading={mintBusy} onClick={onMint} title="הטבעת גירעון-המשמרת 1:1 (fail-closed)">
+            הרץ פקודת הטבעה (1:1)
+          </Btn>
         </div>
       </PanelBody>
     </Panel>
@@ -376,26 +455,33 @@ export function ConversionView() {
 
   const [syncBusy, setSyncBusy] = useState(false);
   const [proofBusy, setProofBusy] = useState(false);
+  const [mintBusy, setMintBusy] = useState(false);
   const [syncResult, setSyncResult] = useState<ChamberActionResult["sync"] | null>(null);
+  const [mintResult, setMintResult] = useState<MintOrderResult | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const runAction = useCallback(
-    async (action: "reserve-sync" | "run-proof") => {
+    async (action: "reserve-sync" | "run-proof" | "mint-order") => {
       setActionError(null);
       if (action === "reserve-sync") {
         setSyncBusy(true);
         setSyncResult(null);
+      } else if (action === "mint-order") {
+        setMintBusy(true);
+        setMintResult(null);
       } else {
         setProofBusy(true);
       }
       const res = await postJson<ChamberActionResult>("/api/saos/conversion", { action, rounds: 3 });
       if (res.ok && res.data?.ok) {
         if (action === "reserve-sync") setSyncResult(res.data.sync ?? null);
+        if (action === "mint-order") setMintResult(res.data.mint ?? null);
         live.refresh();
       } else {
         setActionError(res.error ?? res.data?.error ?? "הפעולה נכשלה (כנה)");
       }
       if (action === "reserve-sync") setSyncBusy(false);
+      else if (action === "mint-order") setMintBusy(false);
       else setProofBusy(false);
     },
     [live]
@@ -446,6 +532,9 @@ export function ConversionView() {
 
       {/* (1.5) ההחלטה המואצלת — v69: הבעלים האציל, האורגניזם החליט */}
       <DelegatedDecisionPanel d={d.decision} />
+
+      {/* (1.7) הניסיון המאושר — v70: הבעלים אישר לנסות, האורגניזם ניסה */}
+      <AuthorizedTryPanel t={d.try} mintBusy={mintBusy} onMint={() => void runAction("mint-order")} />
 
       {/* (2) מחוונים */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
@@ -516,12 +605,17 @@ export function ConversionView() {
               </thead>
               <tbody>
                 {d.rails.map((r) => {
-                  const driftTone = r.synced ? "green" : r.drift === null ? "zinc" : r.drift > 0 ? "rose" : "amber";
+                  const driftTone = r.meshManaged ? "gold" : r.synced ? "green" : r.drift === null ? "zinc" : r.drift > 0 ? "rose" : "amber";
                   return (
                     <tr key={r.id}>
                       <Td className="font-semibold text-zinc-200 whitespace-nowrap">
                         {r.he}
                         <span className="block text-[10px] text-zinc-600">{r.symbol} → {r.wrap}</span>
+                        {r.meshManaged && (
+                          <span className="inline-block mt-1 text-[9px] font-bold text-amber-300/90 border border-amber-400/25 bg-amber-400/[0.06] rounded px-1.5 py-0.5">
+                            אוטונומי — איבר-הגיבוי של הרשת
+                          </span>
+                        )}
                       </Td>
                       <Td className="text-zinc-400" dir="ltr">
                         {r.address ? (
@@ -552,10 +646,12 @@ export function ConversionView() {
                         <span className="block text-[10px] text-zinc-600">{fmtUsd(r.mirroredUsd)}</span>
                       </Td>
                       <Td>
-                        <Tag tone={driftTone as "green" | "rose" | "amber" | "zinc"}>
-                          {r.drift !== null ? `${r.drift > 0 ? "+" : ""}${fmtNative(r.drift)}` : "—"}
+                        <Tag tone={driftTone as "green" | "rose" | "amber" | "zinc" | "gold"}>
+                          {r.meshManaged ? "איבר-רשת" : r.drift !== null ? `${r.drift > 0 ? "+" : ""}${fmtNative(r.drift)}` : "—"}
                         </Tag>
-                        <span className="block text-[10px] text-zinc-600 mt-0.5" dir="ltr">{fmtUsd(r.driftUsd)}</span>
+                        {!r.meshManaged && (
+                          <span className="block text-[10px] text-zinc-600 mt-0.5" dir="ltr">{fmtUsd(r.driftUsd)}</span>
+                        )}
                       </Td>
                       <Td className="text-zinc-500 text-[10px] max-w-[200px] leading-relaxed">
                         <span className={r.exitBasis === "measured" ? "text-emerald-400/80" : "text-zinc-500"}>
@@ -624,13 +720,18 @@ export function ConversionView() {
               <tbody>
                 {d.sync.rows.map((r) => (
                   <tr key={r.wrap}>
-                    <Td className="font-semibold text-zinc-200 whitespace-nowrap">{r.wrap}</Td>
+                    <Td className="font-semibold text-zinc-200 whitespace-nowrap">
+                      {r.wrap}
+                      {r.meshManaged && (
+                        <span className="block text-[9px] font-bold text-amber-300/90 mt-0.5">אוטונומי — איבר-הגיבוי</span>
+                      )}
+                    </Td>
                     <Td className="tabular-nums text-zinc-300" dir="ltr">{r.mintedHe}</Td>
                     <Td className="tabular-nums text-zinc-300" dir="ltr">{r.custodyHe}</Td>
                     <Td className="tabular-nums text-zinc-300" dir="ltr">{r.driftHe}</Td>
                     <Td className="tabular-nums text-zinc-400" dir="ltr">{fmtUsd(r.driftUsd)}</Td>
                     <Td>
-                      <Pill tone={r.needsBurn ? "amber" : r.driftHe === "—" ? "zinc" : "green"}>
+                      <Pill tone={r.meshManaged ? "gold" : r.needsBurn ? "amber" : r.driftHe === "—" ? "zinc" : "green"}>
                         {r.statusHe}
                       </Pill>
                     </Td>
@@ -678,7 +779,70 @@ export function ConversionView() {
           )}
 
           {actionError && (
-            <p className="mt-3 text-xs text-rose-300">פעולת הסנכרון נענתה בכנות: {actionError}</p>
+            <p className="mt-3 text-xs text-rose-300">פעולת החדר נענתה בכנות: {actionError}</p>
+          )}
+
+          {mintResult && (
+            <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-4 space-y-2">
+              <p className="text-xs font-bold text-amber-200">
+                פקודת ההטבעה בוצעה — {mintResult.txCount} טפיפות 1:1 מול משמרת חיה (fail-closed: הגירעון בלבד)
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>נכס</Th>
+                      <Th>לפני</Th>
+                      <Th>משמרת</Th>
+                      <Th>גירעון</Th>
+                      <Th>הוטבע</Th>
+                      <Th>tx</Th>
+                      <Th>הערת-כנות</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mintResult.rows.map((r) => (
+                      <tr key={r.wrap}>
+                        <Td className="font-semibold text-zinc-200">{r.wrap}</Td>
+                        <Td className="tabular-nums text-zinc-400" dir="ltr">{r.mintedBeforeHe}</Td>
+                        <Td className="tabular-nums text-zinc-400" dir="ltr">{r.custodyHe}</Td>
+                        <Td className="tabular-nums text-amber-300/90" dir="ltr">{r.deficitHe}</Td>
+                        <Td className="tabular-nums text-emerald-300/90" dir="ltr">{r.mintedHe}</Td>
+                        <Td className="text-zinc-500" dir="ltr">
+                          {r.txid ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="tabular-nums">{short(r.txid, 8)}</span>
+                              <CopyBtn text={r.txid} size={12} />
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </Td>
+                        <Td className="text-[10px] text-zinc-500 max-w-[260px]">{r.noteHe}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+              {mintResult.mintedTotalsHe.length > 0 && (
+                <p className="text-[11px] text-emerald-300">
+                  סה"כ הוטבע: {mintResult.mintedTotalsHe.map((t) => `${t.amountHe} ${t.wrap}`).join(" · ")}
+                </p>
+              )}
+              <div className="rounded-lg border border-white/[0.08] bg-zinc-900/45 px-3 py-2 space-y-1">
+                <p className="text-[10.5px] font-bold text-zinc-300 flex items-center gap-1.5">
+                  <ShieldCheck size={12} className="text-emerald-400/80" />
+                  הוכחת-רזרבות saos-por/v1 (read-back מהחוזה אחרי ההטבעה):
+                </p>
+                <p className="text-[10.5px] text-zinc-400 flex items-center gap-1.5" dir="ltr">
+                  <span className="font-mono break-all">{mintResult.por.digest.slice(0, 32)}…</span>
+                  <CopyBtn text={mintResult.por.digest} size={12} />
+                  {mintResult.por.receipt && <span className="text-zinc-600">· קבלה משורשרת {short(mintResult.por.receipt, 8)}</span>}
+                </p>
+                <p className="text-[10px] text-zinc-600 leading-relaxed">{mintResult.por.noteHe}</p>
+              </div>
+              <p className="text-[10px] text-zinc-600 leading-relaxed">{mintResult.noteHe}</p>
+            </div>
           )}
           {d.sync.lastSyncHe && <p className="mt-3 text-[10px] text-zinc-500">{d.sync.lastSyncHe}</p>}
           <p className="mt-2 text-[10px] text-zinc-600 leading-relaxed">{d.sync.noteHe}</p>

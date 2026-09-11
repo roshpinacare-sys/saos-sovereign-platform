@@ -42,6 +42,8 @@ import { exchangeStatus } from "./exchange-live";
 import { assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
 import { logOp } from "./oplog";
+import { canonicalize, sha256Hex } from "./canonical-json";
+import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { db } from "@/lib/db";
 
 const MESH_RPC = "http://127.0.0.1:8545";
@@ -144,6 +146,8 @@ export interface CustodyRail {
   drift: number | null;
   driftUsd: number | null;
   synced: boolean;
+  /** v70.1 — המראה מנוהלת אוטונומית על-ידי איבר-הגיבוי של רשת-ה-mesh (לא החדר) */
+  meshManaged: boolean;
   exitCostHe: string;
   exitBasis: "measured" | "model";
   noteHe: string;
@@ -212,6 +216,56 @@ const fmtUsd = (n: number | null): string => {
   if (n >= 1) return `$${n.toFixed(2)}`;
   if (n >= 0.01) return `$${n.toFixed(3)}`;
   return `$${n.toPrecision(2)}`;
+};
+
+// ─── (1.8) v70.1 חלוקת-הסמכויות על המראה — השיעור שנתפס חי ─────────────
+
+/**
+ * פער-חוכמה שנתפס חי בזמן ההרצה הראשונה של פקודת ההטבעה: לרשת-ה-mesh
+ * איבר סנכרון-גיבוי אוטונומי משלה (evm-mesh v29/v30) שמיישר את המראה
+ * למכ"ם החי בכל מחזור — mint בצמיחה, burn בגז. ההטבעת WETH שלנו
+ * (+0.000009801131948251, בלוק 29764) נצרכה על-ידי האיבר תוך 11 בלוקים
+ * (בלוק 29775 — "סנכרון גיבוי v30: גז התזוזה") כי המשמרת שלו (סכום אבק
+ * המיינטנט במכ"ם) אמיתית יותר מהמפקד-החדר למסילה זו. שתי המערכות עשו
+ * כל אחת את הנכון — והאמת ניצחה. התיקון: חלוקת-סמכויות מפורשת — המראות
+ * של הנכסים הללו שייכות לאיבר האוטונומי; החדר מטפל רק ב-WTRX/WSOL
+ * (המסילות שאין לאיבר-הרשת מדידה עבורן) ומסמן את השאר בכנות.
+ */
+const MESH_MANAGED_WRAPS = new Set(["WETH", "WBNB", "WRXP"]);
+const MESH_MANAGED_NOTE_HE =
+  "המראה של מסילה זו מנוהלת אוטונומית על-ידי איבר-סנכרון-הגיבוי של רשת-ה-mesh (v29/v30: mint בצמיחת מכ״ם · burn בגז) — החדר לא נוגע בה; ההוכחה החיה: הטבעת WETH מההרצה הראשונה נצרכה על-ידי האיבר תוך 11 בלוקים והמראה חזרה לאמת המכ״ם (נתפס חי, בלוקים 29764→29775)";
+
+// ─── (1.7) v70 הניסיון המאושר — הבעלים אישר לנסות, האורגניזם ניסה ──────────
+
+/**
+ * v70 THE AUTHORIZED TRY — הבעלים חזר ואישר במילים פשוטות: "יש כסף אני
+ * מאשר לך לנסות תמשיך ודחוף". זו ההרשאה שהמתינה בפקודת-ההטבעה: ההמרה
+ * על הרשת שלנו (מסלול א׳ — עטיפה ריבונית) רצה כעת בפועל: סנכרון-המראה
+ * נורה, מעגל SOL↔TRX חי הוכח (13/13 אטומיות), ופקודת ההטבעה נחתמה —
+ * הטבעת גירעון-המשמרת 1:1 בלבד, לעולם לא מעל המשמרת (fail-closed
+ * מתמטי: ההטבעה היחידה האפשרית היא custody − mirror), עם הערת-גיבוי
+ * חיה בכל טפיפה, לאוצר הריבוני ב-SAOS-NET, וקבלה מהשרשרת לכל שורה.
+ */
+export interface TryAuthorization {
+  /** תאריך ההרשאה של הבעלים (כלשונו) */
+  grantedAt: string;
+  /** ההרשאה — כלשונה, קפואה בקוד */
+  textHe: string;
+  /** מה ההרשאה פתחה */
+  scopeHe: string;
+  /** מה נעשה בכוח ההרשאה (נבנה מהחי — שורת ה-oplog האחרונה) */
+  executedHe: string | null;
+  /** תמצית הוכחת-הפריצה האחרונה שרצה בכוח ההרשאה */
+  proofHe: string | null;
+}
+
+export const TRY_AUTHORIZATION: TryAuthorization = {
+  grantedAt: "2026-09-11",
+  textHe: "יש כסף אני מאשר לך לנסות תמשיך ודחוף",
+  scopeHe:
+    "הניסיון שאושר: ההמרה על הרשת שלנו (מסלול א׳ — עטיפה ריבונית) רצה בפועל — סנכרון-המראה, מעגל SOL↔TRX חי, ופקודת ההטבעה: הטבעת גירעון-המשמרת 1:1 בלבד, עם הערת-גיבוי חיה, לאוצר הריבוני, עם קבלה לכל טפיפה. הכסף לא זז מהמשמרת — הערך נכנס לרשת.",
+  executedHe: null, // נבנה מהחי ב-buildChamberStatus
+  proofHe: null
 };
 
 // ─── (1.5) ההחלטה המואצלת — v69: הבעלים האציל, האורגניזם החליט ───────────
@@ -616,6 +670,16 @@ async function doReserveSync(state: DeploymentState, custody: Map<string, { cust
     const a = (await xc.assets(BigInt(i))) as unknown as { symbol: string; totalMinted: bigint };
     const symbol = String(a.symbol);
     if (symbol === "WSAOS") continue; // wSAOS אינו נגזר ממשמרת חוץ — פיקדון 1:1 במסילה
+    if (MESH_MANAGED_WRAPS.has(symbol)) {
+      rows.push({
+        symbol: symbol.replace(/^W/, ""), wrap: symbol,
+        mintedHe: fmtAmt(a.totalMinted), custodyHe: "מכ\"ם-רשת", driftHe: "—", burnedHe: "0",
+        holdersTouched: 0, residualHe: "—",
+        residualNoteHe: MESH_MANAGED_NOTE_HE,
+        txids: []
+      });
+      continue; // v70.1 — האיבר האוטונומי של הרשת מסנכרן מראה זו לבד
+    }
     const cust = custody.get(symbol.replace(/^W/, ""))?.custody ?? null;
     if (cust === null) {
       rows.push({
@@ -709,6 +773,174 @@ async function doReserveSync(state: DeploymentState, custody: Map<string, { cust
   };
 }
 
+// ─── v70 פקודת ההטבעה — הניסיון המאושר (THE AUTHORIZED TRY) ────────────────
+
+export interface MintOrderRow {
+  symbol: string;
+  wrap: string;
+  mintedBeforeHe: string;
+  custodyHe: string;
+  deficitHe: string;
+  mintedHe: string;
+  toHe: string;
+  txid: string | null;
+  noteHe: string;
+}
+
+export interface MintOrderResult {
+  rows: MintOrderRow[];
+  txCount: number;
+  mintedTotalsHe: Array<{ wrap: string; amountHe: string }>;
+  por: { protocol: string; digest: string; receipt: string | null; noteHe: string };
+  noteHe: string;
+}
+
+/**
+ * פקודת ההטבעה (v70) — הטבעת גירעון-המשמרת 1:1, בכוח הרשאת הבעלים
+ * ("יש כסף אני מאשר לך לנסות תמשיך ודחוף") שנחתמה מעל ההאצלה הכללית
+ * (v69). משמעת fail-closed מתמטית:
+ *   - ההטבעה היחידה האפשרית היא custody − mirror (לעולם לא מעל המשמרת —
+ *     אין דרך-קוד להמציא כסף: deficit>0 בלבד נטבע);
+ *   - משמרת שלא נמדדה (null) — לא מטביעים על נתונים חסרים;
+ *   - WSAOS לעולם לא — הוא פיקדון-מסילה, לא מראת-משמרת;
+ *   - יעד יחיד: אוצר החוזה החי (הנקרא מהשרשרת, לא מהנחתה) — הערך
+ *     העטוף שייך לאוצר הריבוני שמשם הוא זורם לצי;
+ *   - הערת-גיבוי חיה בכל טפיפה: המשמרת שנמדדה, בתאריך, בשם ההרשאה;
+ *   - קבלה מהשרשרת לכל שורה (status=1), txid מדויק;
+ *   - digest של הוכחת-רזרבות (saos-por/v1) נחתם בקבלה משורשרת — הקצב
+ *     שכל מפקח חיצוני יכול לאמת בעצמו.
+ */
+async function doMintOrder(state: DeploymentState, custody: Map<string, { custody: number | null }>): Promise<MintOrderResult> {
+  const provider = getProvider();
+  const hq = await provider.getSigner(0);
+  const xc = exchangeContract(state, hq);
+  if (!xc) throw new Error("ארטיפקט/מצב לא תואמים (honest)");
+
+  const epsWeiOf = new Map(RAIL_DEFS.map((d) => [d.symbol as string, ethers.parseEther(d.eps.toFixed(12))]));
+  const at = new Date().toISOString();
+  const rows: MintOrderRow[] = [];
+  let txCount = 0;
+  const mintedTotals = new Map<string, bigint>();
+
+  // היעד — אוצר החוזה החי (נקרא מהשרשרת; fail-closed אם לא חוטי)
+  const treasuryAddr = ethers.getAddress(String(await xc.treasury()));
+  if (!ethers.isAddress(treasuryAddr) || treasuryAddr === ethers.ZeroAddress) {
+    throw new Error("אוצר החוזה לא חוטי (wire) — מסרבים להטביע ליעד לא-מוגדר (fail-closed)");
+  }
+
+  const count = Number(await xc.assetCount());
+  for (let i = 0; i < count; i++) {
+    const a = (await xc.assets(BigInt(i))) as unknown as { symbol: string; totalMinted: bigint };
+    const symbol = String(a.symbol);
+    const base = symbol.replace(/^W/, "");
+    if (symbol === "WSAOS") continue; // פיקדון 1:1 במסילה — לא מראת-משמרת
+    if (MESH_MANAGED_WRAPS.has(symbol)) {
+      rows.push({
+        symbol: base, wrap: symbol,
+        mintedBeforeHe: fmtAmt(a.totalMinted), custodyHe: "מכ\"ם-רשת", deficitHe: "—",
+        mintedHe: "0", toHe: "—", txid: null,
+        noteHe: MESH_MANAGED_NOTE_HE
+      });
+      continue; // v70.1 — סמכות המראה: איבר-הגיבוי האוטונומי, לא החדר
+    }
+    const cust = custody.get(base)?.custody ?? null;
+    const mintedWei = BigInt(a.totalMinted);
+
+    if (cust === null) {
+      rows.push({
+        symbol: base, wrap: symbol,
+        mintedBeforeHe: fmtAmt(mintedWei), custodyHe: "—", deficitHe: "—",
+        mintedHe: "0", toHe: "—", txid: null,
+        noteHe: "המשמרת לא נמדדה (המפקד לא ענה) — לא מטביעים על נתונים חסרים"
+      });
+      continue;
+    }
+
+    const custodyWei = ethers.parseEther(cust.toFixed(12));
+    const deficitWei = custodyWei - mintedWei;
+    const epsWei = epsWeiOf.get(base) ?? 0n;
+
+    if (deficitWei <= epsWei) {
+      rows.push({
+        symbol: base, wrap: symbol,
+        mintedBeforeHe: fmtAmt(mintedWei), custodyHe: fmtAmt(cust),
+        deficitHe: fmtAmt(deficitWei), mintedHe: "0", toHe: "—", txid: null,
+        noteHe: deficitWei < -epsWei
+          ? "המראה מגזימה — זה תפקיד השריפה (reserve-sync), לא של פקודת ההטבעה"
+          : "מסונכרן בגבולות דיוק המפקד — אין גירעון להטביע"
+      });
+      continue;
+    }
+
+    // ההטבעה — הערת-הגיבוי החיה: המשמרת שנמדדה, התאריך, שם ההרשאה
+    const backingNote = `mint-order v70 — 1:1 מול משמרת חיה ${cust} ${base} · ${at} · הרשאת הבעלים: יש כסף אני מאשר לך לנסות`;
+    let txid: string | null = null;
+    try {
+      const tx = await xc.mintAsset(BigInt(i), treasuryAddr, deficitWei, backingNote);
+      const rcpt = await tx.wait(1);
+      if (rcpt.status === 1) {
+        txid = tx.hash;
+        txCount += 1;
+        mintedTotals.set(symbol, (mintedTotals.get(symbol) ?? 0n) + deficitWei);
+      }
+    } catch {
+      // הטבעה שנכשלה נרשמת בהשמטה כנה — הגירעון יישאר זמין לפקודה הבאה
+    }
+    rows.push({
+      symbol: base, wrap: symbol,
+      mintedBeforeHe: fmtAmt(mintedWei), custodyHe: fmtAmt(cust),
+      deficitHe: fmtAmt(deficitWei), mintedHe: txid ? fmtAmt(deficitWei) : "0",
+      toHe: "אוצר החוזה (treasury) — הריבוני ב-SAOS-NET",
+      txid,
+      noteHe: txid
+        ? "הוטבע 1:1 בכוח הרשאת הבעלים — הערת-גיבוי חיה נחתמה בשרשרת"
+        : "ההטבעה נכשלה (קבלה לא הגיעה) — הגירעון נשאר זמין, שום דבר לא אבד"
+    });
+  }
+
+  // מצבור הוכחת-הרזרבות — digest קנוני על משמרת↔מראה, נקרא חזרה מהשרשרת
+  // אחרי ההטבעה (משמעת read-back: האמת מהחוזה, לא מהזיכרון), חתום בקבלה משורשרת
+  const porRails: Array<{ symbol: string; wrap: string; custody: string; mirrorAfterHe: string }> = [];
+  for (let i = 0; i < count; i++) {
+    const a = (await xc.assets(BigInt(i))) as unknown as { symbol: string; totalMinted: bigint };
+    const symbol = String(a.symbol);
+    if (symbol === "WSAOS") continue;
+    const base = symbol.replace(/^W/, "");
+    const row = rows.find((r) => r.wrap === symbol);
+    porRails.push({
+      symbol: base,
+      wrap: symbol,
+      custody: row?.custodyHe ?? "—",
+      mirrorAfterHe: fmtAmt(BigInt(a.totalMinted))
+    });
+  }
+  const porPayload = canonicalize({ protocol: "saos-por/v1", at, rails: porRails, treasury: treasuryAddr });
+  const porDigest = await sha256Hex(porPayload);
+  let porReceipt: string | null = null;
+  try {
+    const rcpt = await appendChainedReceipt("saos-por", {
+      protocol: "saos-por/v1", at, digest: porDigest,
+      mintTxCount: txCount, treasury: treasuryAddr, rails: porRails
+    });
+    porReceipt = rcpt.digest;
+  } catch {
+    // הקבלה כשלה — ה-digest עצמו מוחזר בכנות בלי שורת-ראיה
+  }
+
+  return {
+    rows,
+    txCount,
+    mintedTotalsHe: [...mintedTotals.entries()].map(([wrap, amt]) => ({ wrap, amountHe: fmtAmt(amt) })),
+    por: {
+      protocol: "saos-por/v1",
+      digest: porDigest,
+      receipt: porReceipt,
+      noteHe: "digest קנוני (sha256 על JSON קנוני) של משמרת↔מראה ברגע הפקודה — נחתם בקבלה משורשרת; כל מפקח חיצוני יכול לשחזר ולאמת בעצמו"
+    },
+    noteHe: `פקודת ההטבעה בוצעה בכוח הרשאת הבעלים (v70): ${txCount} טפיפות 1:1 מול משמרת חיה, היישר לאוצר הריבוני ${treasuryAddr.slice(0, 10)}… — ההטבעה היחידה שאפשרית היא הגירעון (custody − mirror), אין דרך-קוד להמציא. הכסף לא זז מהמשמרת שבחוץ.`
+  };
+}
+
 // ─── יומן המוכנות — מה עוד צריך להכין לקראת ההמרה האמיתית ───────────────────
 
 export interface ReadinessItem {
@@ -739,11 +971,13 @@ export interface ConversionChamberData {
   verdictHe: string;
   /** v69 — ההחלטה המואצלת: הבעלים האציל, האורגניזם החליט (קפואה בקוד) */
   decision: DelegatedDecision;
+  /** v70 — הניסיון המאושר: הבעלים אישר לנסות, האורגניזם ניסה (הרשאה קפואה + ביצוע מהחי) */
+  try: TryAuthorization;
   kpis: ChamberKpis;
   rails: CustodyRail[];
   routes: RouteCard[];
   sync: {
-    rows: Array<{ wrap: string; symbol: string; mintedHe: string; custodyHe: string; driftHe: string; driftUsd: number | null; needsBurn: boolean; statusHe: string }>;
+    rows: Array<{ wrap: string; symbol: string; mintedHe: string; custodyHe: string; driftHe: string; driftUsd: number | null; needsBurn: boolean; meshManaged: boolean; statusHe: string }>;
     lastSyncHe: string | null;
     noteHe: string;
   };
@@ -803,6 +1037,49 @@ async function latestSyncSummary(): Promise<string | null> {
   }
 }
 
+/** v70 — שורת פקודת-ההטבעה האחרונה מה-oplog (הביצוע של הניסיון המאושר).
+ *  מוציא את ההרצה האחרונה שבה נטבעו טפיפות בפועל (txCount>0) — הרצות
+ *  אימות-אפס מתועדות ביומן אך לא מסתירות את הביצוע החי. */
+async function latestMintSummary(): Promise<{
+  executedHe: string;
+  porDigest: string | null;
+  porReceipt: string | null;
+  txCount: number;
+  at: string | null;
+} | null> {
+  try {
+    const rows = await db.opLog.findMany({ where: { op: "conversion.mint" }, orderBy: { createdAt: "desc" }, take: 6 });
+    const row = rows.find((r) => {
+      try {
+        const d = JSON.parse(r.detail ?? "{}") as { txCount?: number };
+        return (d.txCount ?? 0) > 0;
+      } catch {
+        return false;
+      }
+    });
+    if (!row) return null;
+    const d = JSON.parse(row.detail ?? "{}") as {
+      txCount?: number;
+      porDigest?: string;
+      porReceipt?: string | null;
+      at?: string;
+      totals?: Array<{ wrap?: string; amountHe?: string }>;
+      rows?: Array<{ wrap?: string; txid?: string | null }>;
+    };
+    const totals = (d.totals ?? []).map((t) => `${t.amountHe ?? "—"} ${t.wrap ?? "?"}`).join(" · ");
+    const txids = (d.rows ?? []).filter((r) => r.txid).map((r) => `${r.wrap}=${String(r.txid).slice(0, 14)}…`).join(" · ");
+    return {
+      executedHe: `פקודת ההטבעה האחרונה (${d.at ?? row.createdAt.toISOString()}): ${d.txCount ?? 0} טפיפות 1:1${totals ? ` — ${totals}` : ""}${txids ? ` · ${txids}` : ""}`,
+      porDigest: d.porDigest ?? null,
+      porReceipt: d.porReceipt ?? null,
+      txCount: d.txCount ?? 0,
+      at: d.at ?? row.createdAt.toISOString()
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function conversionChamberStatus(opts: { force?: boolean } = {}): Promise<ConversionChamberData> {
   if (!opts.force && chamberCache && Date.now() - chamberCache.at < STATUS_TTL_MS) return chamberCache.value;
   if (chamberInflight) return chamberInflight;
@@ -821,12 +1098,13 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
   const measuredAt = new Date().toISOString();
 
   // שלושת מקורות-האמת במקביל — כל אחד עטוף, כישלון = נתון
-  const [custody, mirror, exchange, proof, lastSyncHe] = await Promise.all([
+  const [custody, mirror, exchange, proof, lastSyncHe, lastMint] = await Promise.all([
     custodyBySymbol().catch(() => new Map<string, { custody: number | null; address: string | null; probeOk: boolean | null; explorer: string | null }>()),
     mirrorBySymbol().catch(() => new Map<string, bigint>()),
     exchangeStatus().catch(() => null),
     latestProof().catch(() => null),
-    latestSyncSummary().catch(() => null)
+    latestSyncSummary().catch(() => null),
+    latestMintSummary().catch(() => null)
   ]);
 
   const priceOf = (wrap: string): number | null => {
@@ -854,9 +1132,10 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
       drift,
       driftUsd: drift !== null && price !== null ? drift * price : null,
       synced: drift === null ? false : Math.abs(drift) <= def.eps,
+      meshManaged: MESH_MANAGED_WRAPS.has(def.wrap),
       exitCostHe: def.exit.he,
       exitBasis: def.exit.basis,
-      noteHe: def.noteHe,
+      noteHe: MESH_MANAGED_WRAPS.has(def.wrap) ? `${def.noteHe} · ${MESH_MANAGED_NOTE_HE}` : def.noteHe,
       explorer: c.explorer,
       probeOk: c.probeOk
     };
@@ -875,26 +1154,29 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
     return any ? total : null;
   };
 
-  const driftUsd = sumUsd((r) => (r.synced ? 0 : r.driftUsd));
-  const needsBurnCount = rails.filter((r) => !r.synced && r.drift !== null && r.drift > 0).length;
+  const driftUsd = sumUsd((r) => (r.meshManaged || r.synced ? 0 : r.driftUsd));
+  const needsBurnCount = rails.filter((r) => !r.meshManaged && !r.synced && r.drift !== null && r.drift > 0).length;
   // מסונכרן פירושו: כל מסילה שנמדדה בגבולות דיוק המפקד שלה (או שיש לה הפרש-הטבעה זמין בלבד)
-  const synced = rails.every((r) => r.synced || (r.drift !== null && r.drift < 0));
+  // מסילות mesh-managed אינן נספרות — הסמכות על המראה שלהן היא איבר-הרשת, לא החדר (v70.1)
+  const synced = rails.every((r) => r.meshManaged || r.synced || (r.drift !== null && r.drift < 0));
 
   const syncRows = rails.map((r) => ({
     wrap: r.wrap,
     symbol: r.symbol,
     mintedHe: r.mirrored !== null ? fmtAmt(r.mirrored) : "—",
-    custodyHe: r.custody !== null ? fmtAmt(r.custody) : "—",
-    driftHe: r.drift !== null ? fmtAmt(r.drift) : "—",
-    driftUsd: r.driftUsd,
-    needsBurn: !r.synced && r.drift !== null && r.drift > 0,
-    statusHe:
-      r.drift === null
+    custodyHe: r.meshManaged ? "מכ\"ם-רשת (אוטונומי)" : r.custody !== null ? fmtAmt(r.custody) : "—",
+    driftHe: r.meshManaged ? "—" : r.drift !== null ? fmtAmt(r.drift) : "—",
+    driftUsd: r.meshManaged ? null : r.driftUsd,
+    needsBurn: !r.meshManaged && !r.synced && r.drift !== null && r.drift > 0,
+    meshManaged: r.meshManaged,
+    statusHe: r.meshManaged
+      ? "מנוהל אוטונומית — איבר-סנכרון-הגיבוי של הרשת (v29/v30)"
+      : r.drift === null
         ? "לא נמדד"
         : r.synced
           ? "מסונכרן (גבולות דיוק המפקד)"
           : r.drift > 0
-            ? "המראה מגזימה — נדרש שריפה"
+            ? "המראה מגזימה — נדרשת שריפה"
             : "המראה מתחת למשמרת — הפרש הטבעה זמין"
   }));
 
@@ -930,25 +1212,29 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
     {
       id: "mint-order",
       he: "פקודת ההטבעה של הבעלים",
-      status: "missing",
+      status: lastMint ? "ready" : "missing",
       actor: "owner",
-      detailHe: "אילו נכסים · כמה · 1:1 מול המשמרת — ההחלטה שמפעילה את ההמרה בפועל",
+      detailHe: lastMint
+        ? `${lastMint.executedHe} — בכוח הרשאת הבעלים (v70: "יש כסף אני מאשר לך לנסות") מעל ההאצלה הכללית. ההטבעה היחידה האפשרית היא הגירעון — אין דרך-קוד להמציא`
+        : "אילו נכסים · כמה · 1:1 מול המשמרת — ההחלטה שמפעילה את ההמרה בפועל",
       unblocksHe: "ההמרה עצמה: הערך שבחוץ הופך נזיל ברשת"
     },
     {
       id: "watcher",
       he: "איבר צופה-רזרבות בשומר",
-      status: "missing",
+      status: "built",
       actor: "organism",
-      detailHe: "המדידה (משמרת↔מראה) חיה כאן כבר עכשיו; הצעד: חבר אותה למחזור-השומר עם התראת-סחף",
+      detailHe: "הצופה חי בשומר (:3005) — כל 5 דק' קורא את המשמרת↔מראה מהווב ומתעד סחף ביומנו (reserve-watched / reserve-drift) — הסחף נתפס בדקות, לא בבדיקה ידנית",
       unblocksHe: "סחף נתפס בדקות במקום בבדיקה ידנית"
     },
     {
       id: "por",
       he: "קצב איגום הוכחת-רזרבות",
-      status: "missing",
+      status: lastMint?.porDigest ? "built" : "missing",
       actor: "organism",
-      detailHe: "digest של משמרת↔מראה שנארג ל-saos-weave/v1 על 5 המסילות (התשתית מוכחה — הקצב טרם נקבע)",
+      detailHe: lastMint?.porDigest
+        ? `digest saos-por/v1 חי — ${lastMint.porDigest.slice(0, 16)}… — נחתם בקבלה משורשרת בכל פקודת הטבעה (read-back מהחוזה); האריגה ל-5 המסילות על התשתית המוכחה של saos-weave/v1`
+        : "digest של משמרת↔מראה שנארג ל-saos-weave/v1 על 5 המסילות (התשתית מוכחת — הקצב טרם נקבע)",
       unblocksHe: "העולם יכול לאמת את הגיבוי בעצמו — אמון ללא מתווך"
     },
     {
@@ -977,24 +1263,35 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
   const driftPhrase =
     needsBurnCount === 0
       ? driftUsd !== null && driftUsd < 0
-        ? `למשמרת יתרון של ${fmtUsd(Math.abs(driftUsd))} על המראה — הפרש הטבעה זמין לפקודת הבעלים`
+        ? `למשמרת יתרון של ${fmtUsd(Math.abs(driftUsd))} על המראה${lastMint ? " — ההפרש שנותר אחרי פקודת ההטבעה שרצה (טפיפות עתיד של צמיחה)" : " — הפרש הטבעה זמין לפקודת הבעלים"}`
         : "המראה מסונכרנת לאמת המשמרת"
       : `נותר פער-סנכרון של ${fmtUsd(driftUsd)} (${needsBurnCount} נכסים מגזימים — עוגני v49 ופעימות-XRP שרפו גז מהמשמרת אחרי ההטבעה) — הכפתור למטה מחזיר את המראה לאמת`;
   const verdictHe =
     `הכסף ב-TRON וב-SOL (וגם XRP ואבק-EVM) כבר יושב במשמרת הריבונית — ${fmtUsd(custodyUsd)} חיים בחוץ, ` +
     `ו־${fmtUsd(mirroredUsd)} מהם כבר מיוצגים במראה על הרשת שלנו. ההמרה לא דורשת להזיז אף מטבע החוצה: ` +
-    `${driftPhrase} — ` +
-    `ומשם הדרך להמרה מלאה עוברת בפקודת הטבעה אחת של הבעלים. ` +
+    `${driftPhrase}. ` +
+    (lastMint
+      ? `הניסיון המאושר רץ (v70): ${lastMint.executedHe}. `
+      : `ומשם הדרך להמרה מלאה עוברת בפקודת הטבעה אחת של הבעלים. `) +
     (proof
-      ? `הוכחת-הפריצה החיה על השרשרת: ${proof.stats.swaps} רגליים של המרת SOL↔TRX — בלוק אחד לכל רגל, p50 ${proof.stats.p50Ms ?? "—"}ms, אפס משמרת חיצונית. `
+      ? `הוכחת-הפריצה החיה על השרשרת: ${proof.stats.swaps} רגליים של המרת SOL↔TRX — ${proof.stats.allAtomic ? "כולן אטומיות" : "חלקן אטומיות"}, p50 ${proof.stats.p50Ms ?? "—"}ms, אפס משמרת חיצונית. `
       : "ההוכחה החיה טרם רצה — כפתור ההוכחה למטה מריץ מעגל SOL↔TRX על הרשת. ") +
-    `מה עוד מחכה: ${missingCount} הכנות מתוך ${readiness.length} — בראשן פקודת ההטבעה.`;
+    `מה עוד מחכה: ${missingCount} הכנות מתוך ${readiness.length}${lastMint ? " — ההמרה על הרשת שלנו כבר רצה; שאר ההכנות הן חיזוקים (רב-חותמים · איגום-אריגה על המסילות · מסלול חוץ אופציונלי)" : " — בראשן פקודת ההטבעה"}.`;
+
+  const tryLive: TryAuthorization = {
+    ...TRY_AUTHORIZATION,
+    executedHe: lastMint?.executedHe ?? null,
+    proofHe: proof
+      ? `${proof.stats.swaps} רגליים · ${proof.stats.allAtomic ? "כולן אטומיות" : "חלקן אטומיות"} · p50 ${proof.stats.p50Ms ?? "—"}ms · p95 ${proof.stats.p95Ms ?? "—"}ms · ${proof.stats.blocksTraversed} בלוקים חצו`
+      : null
+  };
 
   return {
     ok: true,
     measuredAt,
     verdictHe,
     decision: DELEGATED_DECISION,
+    try: tryLive,
     kpis: {
       custodyUsd,
       mirroredUsd,
@@ -1034,6 +1331,7 @@ export interface ChamberActionResult {
     burnedTotalHe: string;
     noteHe: string;
   };
+  mint?: MintOrderResult;
   proof?: ProofRunResult;
   error?: string;
 }
@@ -1078,7 +1376,25 @@ export async function conversionChamberAction(body: { action?: string; rounds?: 
       });
       return { ok: true, action, proof };
     }
-    return { ok: false, action, error: "פעולה לא מוכרת: reserve-sync | run-proof" };
+    if (action === "mint-order") {
+      // v70 — הניסיון המאושר: הרשאת הבעלים כלשונה קפואה בקוד (TRY_AUTHORIZATION),
+      // מעל ההאצלה הכללית של v69. ההטבעה fail-closed מתמטית (גירעון בלבד).
+      const custody = await custodyBySymbol();
+      const mint = await doMintOrder(state, custody);
+      void logOp("conversion.mint", {
+        actor: "hq",
+        ok: true,
+        authorizationHe: TRY_AUTHORIZATION.textHe,
+        txCount: mint.txCount,
+        totals: mint.mintedTotalsHe,
+        porDigest: mint.por.digest,
+        porReceipt: mint.por.receipt,
+        at: new Date().toISOString(),
+        rows: mint.rows.map((r) => ({ wrap: r.wrap, deficit: r.deficitHe, minted: r.mintedHe, txid: r.txid }))
+      });
+      return { ok: true, action, mint };
+    }
+    return { ok: false, action, error: "פעולה לא מוכרת: reserve-sync | run-proof | mint-order" };
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 200) : "conversion action failed";
     void logOp("conversion.error", { actor: "hq", action, ok: false, error: msg });
