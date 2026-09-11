@@ -134,6 +134,18 @@ const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror fr
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
 const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
 
+// v66 — auto-expansion scout (התפשטות-אוטומטית). The web tier owns the engine
+// (census + the deploy → anchor pipeline with every honesty gate: dedupe,
+// readiness, balance ×2, receipt-from-node, chained receipt, oplog); the
+// keeper owns the cadence — the same division that runs the recovery ambush
+// (v41). Every 10 min it reads the rail census; the moment a dark door's
+// balance crosses the ×2 gate it fires the POST (source=auto): the owner
+// transfers — the organism expands by itself. The keeper NEVER touches key
+// material; it only pokes the web engine.
+const EXPANSION_URL = "http://127.0.0.1:3000/api/saos/auto-expand";
+const EXPANSION_EVERY = 60; // every 60th cycle = 10 min
+const EXPANSION_FIRST_AT = 12; // first scout 2 min after boot
+
 // v28 — page-500 detector (the documented frontier). Turbopack cache panic
 // (3 live incidents: v29, v30, v31) leaves the PROCESS alive and the API
 // layer answering 200 while the user-visible PAGE "/" returns 5xx. Objective
@@ -194,7 +206,11 @@ interface KeeperEvent {
     | "swarm-revive"
     // v41 — the recovery ambush (headcorner takeover engine)
     | "ambush-fired"
-    | "ambush-alien";
+    | "ambush-alien"
+    // v66 — the auto-expansion scout (rail irrigation watcher)
+    | "expansion-armed"
+    | "expansion-fired"
+    | "expansion-off";
   detail: string;
 }
 
@@ -262,6 +278,17 @@ const S = {
     state: "watching" as "watching" | "TRIGGERED-OURS" | "foreign-request" | "window-closed" | "stale",
     daysLeft: null as number | null,
     lastJournalAt: null as string | null
+  },
+  // v66 — the auto-expansion scout (התפשטות-אוטומטית): the web tier owns
+  // the engine (census + deploy → anchor with every honesty gate); the
+  // keeper owns the cadence + the poke. Same division as the ambush (v41).
+  expansion: {
+    lastCheckAt: null as string | null,
+    state: "boot" as "boot" | "watching" | "armed" | "fired" | "off" | "stale",
+    armed: 0 as number,
+    setting: null as boolean | null,
+    lastFireAt: null as string | null,
+    fires: 0 as number
   },
   events: [] as KeeperEvent[]
 };
@@ -742,6 +769,83 @@ async function checkRecoveryAmbush(): Promise<void> {
   }
 }
 
+/** v66 — the auto-expansion scout (rail irrigation watcher). The web tier
+ *  owns the engine (census + deploy → anchor pipeline with every honesty
+ *  gate); the keeper owns the cadence: every 10 min it reads the live rail
+ *  census, and the moment a rail crosses the ×2 balance gate it fires the
+ *  POST (source=auto) — the expansion lands within minutes of the owner's
+ *  transfer, unattended. Setting off = journaled once, watched, not fired.
+ *  Web down = honest wait (the web revive owns that path). */
+async function checkAutoExpansion(): Promise<void> {
+  try {
+    const r = await fetch(`${EXPANSION_URL}?force=1`, { signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) {
+      S.expansion.state = "stale";
+      return;
+    }
+    const st = (await r.json().catch(() => null)) as {
+      ok?: boolean;
+      setting?: boolean;
+      counts?: { armed?: number; expanded?: number; dark?: number };
+      seal?: { height?: number } | null;
+    } | null;
+    if (!st || st.ok !== true) {
+      S.expansion.state = "stale";
+      return;
+    }
+    S.expansion.lastCheckAt = new Date().toISOString();
+    S.expansion.setting = st.setting === true;
+    S.expansion.armed = st.counts?.armed ?? 0;
+    const prev = S.expansion.state;
+
+    if (st.setting !== true) {
+      S.expansion.state = "off";
+      if (prev !== "off") {
+        journal("expansion-off", "auto-expansion setting OFF — the scout watches but never fires (control-plane, honest)");
+      }
+      return;
+    }
+
+    const armed = st.counts?.armed ?? 0;
+    if (armed > 0) {
+      if (prev !== "armed") {
+        journal(
+          "expansion-armed",
+          `auto-expansion: ${armed} rail(s) crossed the ×2 gate (seal h${st.seal?.height ?? "?"}) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)`
+        );
+      }
+      // THE FIRE — the engine owns every gate (dedupe · readiness · balance
+      // ×2 · receipt-from-node · chained receipt); the keeper only pokes.
+      const res = await fetch(EXPANSION_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ source: "auto" }),
+        signal: AbortSignal.timeout(180_000)
+      });
+      const out = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        fired?: number;
+        results?: Array<{ chain?: string; ok?: boolean; anchorTxid?: string | null; confirmed?: boolean; error?: string }>;
+      } | null;
+      S.expansion.fires += 1;
+      S.expansion.lastFireAt = new Date().toISOString();
+      S.expansion.state = "fired";
+      const summary = (out?.results ?? [])
+        .map((x) => `${x.chain ?? "?"}:${x.ok === true ? (x.confirmed === true ? "confirmed" : "sent") : (x.error ?? "fail").slice(0, 60)}`)
+        .join(" · ");
+      journal(
+        "expansion-fired",
+        `auto-expansion FIRED (${out?.fired ?? 0} rail(s)) — ${summary || "no result"} — every step receipted by the engine (proof or it never happened)`
+      );
+    } else {
+      S.expansion.state = "watching";
+    }
+  } catch {
+    // web down or engine slow = honest wait — the web revive owns recovery
+    S.expansion.state = "stale";
+  }
+}
+
 async function cycle(): Promise<void> {
   RT.cycle += 1;
   S.checks += 1;
@@ -1009,6 +1113,15 @@ async function cycle(): Promise<void> {
   if (RT.cycle % SLOW_EVERY === 0) {
     await checkRecoveryAmbush();
   }
+
+  // 9. v66 — the auto-expansion scout (rail irrigation watcher). Every 10
+  //    min: read the live rail census from the web engine; the moment a
+  //    dark door's balance crosses the ×2 gate — fire the pipeline POST
+  //    (source=auto). The engine owns every honesty gate; the keeper owns
+  //    the cadence. Web down = honest wait.
+  if (RT.cycle === EXPANSION_FIRST_AT || (RT.cycle > EXPANSION_FIRST_AT && (RT.cycle - EXPANSION_FIRST_AT) % EXPANSION_EVERY === 0)) {
+    await checkAutoExpansion();
+  }
 }
 
 // ─── status API (loopback only) ────────────────────────────────────────────
@@ -1038,7 +1151,8 @@ function statusJson() {
       runner: { alive: S.runnerSeen, revives: S.runnerRevives, zombieRestarts: S.zombieRestarts, block: S.anvilHeight },
       herald: { alive: S.heraldAlive === true, failStreak: S.heraldFailStreak, revives: S.heraldRevives, lastOkAt: S.heraldLastOkAt, agent: "gate-herald", port: 3006 },
       swarm: { alive: S.swarmAlive === true, failStreak: S.swarmFailStreak, revives: S.swarmRevives, lastOkAt: S.swarmLastOkAt, agents: "gold-scout+night-scout", port: 3007 },
-      recovery: { state: S.recovery.state, daysLeft: S.recovery.daysLeft, lastCheckAt: S.recovery.lastCheckAt, engine: "headcorner-ambush", account: "headcorner" }
+      recovery: { state: S.recovery.state, daysLeft: S.recovery.daysLeft, lastCheckAt: S.recovery.lastCheckAt, engine: "headcorner-ambush", account: "headcorner" },
+      expansion: { state: S.expansion.state, armed: S.expansion.armed, setting: S.expansion.setting, lastCheckAt: S.expansion.lastCheckAt, lastFireAt: S.expansion.lastFireAt, fires: S.expansion.fires, engine: "auto-expansion (v66)", cadence: "10min" }
     },
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,

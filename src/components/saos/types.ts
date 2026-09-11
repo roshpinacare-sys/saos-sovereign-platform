@@ -1761,3 +1761,52 @@ export interface TreasuryData {
   honestyHe: string[];
   error?: string;
 }
+
+// ─── v66 התפשטות-אוטומטית (THE AUTO-EXPANSION) ─────────────────────────────
+
+export interface ExpansionRailRow {
+  chain: string;
+  network: string;
+  heName: string;
+  symbol: string;
+  relayLive: boolean | null;
+  relayAddress: string | null;
+  relayAnchoredCurrent: boolean;
+  balanceNative: number | null;
+  funded: boolean | null;
+  state: "expanded" | "armed" | "dark" | "error";
+  stateHe: string;
+  nextStepHe: string;
+  explorerAddr: string | null;
+  error?: string;
+}
+
+export interface ExpansionFireRow {
+  id: string;
+  network: string;
+  height: number;
+  txid: string | null;
+  status: string;
+  confirmed: boolean;
+  source: string | null;
+  engine: string | null;
+  contract: string | null;
+  costNative: string | null;
+  explorer: string | null;
+  at: string;
+}
+
+export interface ExpansionData {
+  ok: boolean;
+  at: string;
+  version: string;
+  setting: boolean;
+  settingHe: string;
+  seal: { height: number; root: string; leaves: number } | null;
+  rails: ExpansionRailRow[];
+  counts: { expanded: number; armed: number; dark: number; error: number };
+  verdictHe: string;
+  scoutHe: string;
+  fires?: ExpansionFireRow[];
+  error?: string;
+}

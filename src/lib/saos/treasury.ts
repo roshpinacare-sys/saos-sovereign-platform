@@ -387,6 +387,7 @@ function historicDefs(): HistoricDef[] {
 interface AnchorMetaRow {
   id: string;
   network: string;
+  kind?: string; // v66 — weave | relay (לתכלית-ההוצאה)
   txid: string | null;
   status: string;
   createdAt: Date;
@@ -422,6 +423,26 @@ function metaCost(row: AnchorMetaRow): { native: number | null; symbol: string; 
       const lam = num(m.feeLamports);
       return { native: lam !== null ? lam / 1e9 : null, symbol: "SOL", noteHe: lam !== null ? `מהמסלול (${lam} lamports)` : null };
     }
+    // v66 התפשטות-אוטומטית — מסילות ה-relay החדשות (אותו קונבנציה: העלות
+    // נכתבת מהקבלה בירי, הספר קורא את השדה-הסמלי)
+    case "POLYGON": {
+      const c = typeof m.costPol === "string" ? Number(m.costPol) : null;
+      return { native: c && c > 0 ? c : null, symbol: "POL", noteHe: c && c > 0 ? "מהמסלול (costPol)" : null };
+    }
+    case "ARBITRUM":
+    case "OPTIMISM":
+    case "BASE": {
+      const c = typeof m.costEth === "string" ? Number(m.costEth) : null;
+      return { native: c && c > 0 ? c : null, symbol: "ETH", noteHe: c && c > 0 ? `מהמסלול (costEth — L2)` : null };
+    }
+    case "AVALANCHE": {
+      const c = typeof m.costAvax === "string" ? Number(m.costAvax) : null;
+      return { native: c && c > 0 ? c : null, symbol: "AVAX", noteHe: c && c > 0 ? "מהמסלול (costAvax)" : null };
+    }
+    case "GNOSIS": {
+      const c = typeof m.costXdai === "string" ? Number(m.costXdai) : null;
+      return { native: c && c > 0 ? c : null, symbol: "xDAI", noteHe: c && c > 0 ? "מהמסלול (costXdai — סטייבל)" : null };
+    }
     default:
       return { native: null, symbol: "—", noteHe: null };
   }
@@ -434,7 +455,14 @@ const LIVE_NETWORK_HE: Record<string, string> = {
   XRPL: "XRP Ledger",
   SOLANA: "סולאנה",
   STEEM: "STEEM",
-  BLURT: "BLURT"
+  BLURT: "BLURT",
+  // v66 — מסילות ההתפשטות-האוטומטית
+  POLYGON: "פוליגון",
+  ARBITRUM: "ארביטרום",
+  OPTIMISM: "אופטימיזם",
+  BASE: "בייס",
+  AVALANCHE: "אבאלנש'",
+  GNOSIS: "נוסיס"
 };
 
 const LIVE_PURPOSE_HE: Record<string, string> = {
@@ -444,7 +472,25 @@ const LIVE_PURPOSE_HE: Record<string, string> = {
   XRPL: "פעימת עיגון חיה — מסילת XRPL",
   SOLANA: "פעימת עיגון חיה — מסילת SOL",
   STEEM: "פעימת עיגון חיה — מסילת STEEM (עמלת-רשת בלבד)",
-  BLURT: "פעימת עיגון חיה — מסילת BLURT"
+  BLURT: "פעימת עיגון חיה — מסילת BLURT",
+  POLYGON: "פעימת התפשטות חיה — מסילת POL",
+  ARBITRUM: "פעימת התפשטות חיה — מסילת ARBITRUM",
+  OPTIMISM: "פעימת התפשטות חיה — מסילת OPTIMISM",
+  BASE: "פעימת התפשטות חיה — מסילת BASE",
+  AVALANCHE: "פעימת התפשטות חיה — מסילת AVAX",
+  GNOSIS: "פעימת התפשטות חיה — מסילת xDAI"
+};
+
+/** v66 — פעימות relay (anchor דרך SAOSRelay) מקבלות תכלית משלהן */
+const RELAY_PURPOSE_HE: Record<string, string> = {
+  ETHEREUM: "עוגן-relay חי — anchor(root, height) דרך SAOSRelay הריבוני",
+  BSC: "עוגן-relay חי — SAOSRelay על BNB Smart Chain",
+  POLYGON: "עוגן-relay חי — SAOSRelay על פוליגון",
+  ARBITRUM: "עוגן-relay חי — SAOSRelay על ארביטרום",
+  OPTIMISM: "עוגן-relay חי — SAOSRelay על אופטימיזם",
+  BASE: "עוגן-relay חי — SAOSRelay על בייס",
+  AVALANCHE: "עוגן-relay חי — SAOSRelay על אבאלנש'",
+  GNOSIS: "עוגן-relay חי — SAOSRelay על נוסיס"
 };
 
 function explorerOf(network: string, txid: string): string | null {
@@ -455,22 +501,31 @@ function explorerOf(network: string, txid: string): string | null {
     case "XRPL": return `https://livenet.xrpl.org/transactions/${txid}`;
     case "SOLANA": return `https://solscan.io/tx/${txid}`;
     case "STEEM": return `https://steemblockexplorer.com/tx/${txid}`;
+    // v66 — מסילות ההתפשטות
+    case "POLYGON": return `https://polygonscan.com/tx/${txid}`;
+    case "ARBITRUM": return `https://arbiscan.io/tx/${txid}`;
+    case "OPTIMISM": return `https://optimistic.etherscan.io/tx/${txid}`;
+    case "BASE": return `https://basescan.org/tx/${txid}`;
+    case "AVALANCHE": return `https://snowtrace.io/tx/${txid}`;
+    case "GNOSIS": return `https://gnosisscan.io/tx/${txid}`;
     default: return null;
   }
 }
 
 async function liveExpenses(): Promise<TreasuryExpense[]> {
   try {
+    // v66: kind "relay" (עוגן דרך SAOSRelay) נכנס לספר כמו weave — כל
+    // הוצאה ריבונית של ההתפשטות-האוטומטית נראית כאן, עם עלות מהקבלה.
     const rows = await db.anchorTx.findMany({
       where: {
-        kind: "weave",
-        network: { in: ["ETHEREUM", "BSC", "TRON", "XRPL", "SOLANA"] },
+        kind: { in: ["weave", "relay"] },
+        network: { in: ["ETHEREUM", "BSC", "TRON", "XRPL", "SOLANA", "POLYGON", "ARBITRUM", "OPTIMISM", "BASE", "AVALANCHE", "GNOSIS"] },
         status: { in: ["anchored", "broadcast"] },
         txid: { not: null }
       },
       orderBy: { createdAt: "desc" },
       take: 30,
-      select: { id: true, network: true, txid: true, status: true, createdAt: true, meta: true, sealId: true }
+      select: { id: true, network: true, kind: true, txid: true, status: true, createdAt: true, meta: true, sealId: true }
     });
     return rows.map((r) => {
       const c = metaCost(r);
@@ -479,7 +534,10 @@ async function liveExpenses(): Promise<TreasuryExpense[]> {
         at: r.createdAt.toISOString(),
         network: r.network,
         heName: LIVE_NETWORK_HE[r.network] ?? r.network,
-        purposeHe: LIVE_PURPOSE_HE[r.network] ?? "פעימת עיגון חיה",
+        purposeHe:
+          r.kind === "relay"
+            ? (RELAY_PURPOSE_HE[r.network] ?? "עוגן-relay חי — anchor() דרך SAOSRelay")
+            : (LIVE_PURPOSE_HE[r.network] ?? "פעימת עיגון חיה"),
         amountNative: c.native !== null ? c.native.toFixed(c.native < 0.001 ? 9 : 6) : null,
         symbol: c.symbol,
         amountUsd: null, // נמולא במחיר החי בגוף המנוע

@@ -19,10 +19,12 @@ import {
   DoorOpen,
   ExternalLink,
   Eye,
+  Flame,
   Landmark,
   Receipt,
   Scale,
   ScrollText,
+  Sprout,
   Wallet
 } from "lucide-react";
 import {
@@ -42,7 +44,7 @@ import {
 } from "../ui";
 import { useLive, useTick } from "../lib";
 import { PageHead } from "../shell";
-import type { TreasuryData, TreasuryExpense } from "../types";
+import type { ExpansionData, TreasuryData, TreasuryExpense } from "../types";
 
 // ─── עזרי-תצוגה ─────────────────────────────────────────────────────────────
 
@@ -137,14 +139,54 @@ function ExpenseRow({ e }: { e: TreasuryExpense }) {
 export function TreasuryView() {
   useTick(30000);
   const [refreshing, setRefreshing] = useState(false);
+  const [firing, setFiring] = useState(false);
+  const [fireMsg, setFireMsg] = useState<string | null>(null);
   const live = useLive<TreasuryData>("/api/saos/treasury", 60000);
+  const expLive = useLive<ExpansionData>("/api/saos/auto-expand", 60000);
   const d = live.data;
+  const exp = expLive.data;
 
   const doRefresh = async () => {
     setRefreshing(true);
     await fetch("/api/saos/treasury?force=1").catch(() => undefined);
+    await fetch("/api/saos/auto-expand?force=1").catch(() => undefined);
     live.refresh();
+    expLive.refresh();
     setRefreshing(false);
+  };
+
+  const doFire = async () => {
+    setFiring(true);
+    setFireMsg(null);
+    try {
+      const res = await fetch("/api/saos/auto-expand", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({})
+      });
+      const out = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        fired?: number;
+        results?: Array<{ chain?: string; ok?: boolean; error?: string; anchorTxid?: string | null }>;
+        error?: string;
+      } | null;
+      if (out?.error) {
+        setFireMsg(out.error);
+      } else if (out && out.results && out.results.length > 0) {
+        const parts = out.results.map(
+          (r) => `${r.chain ?? "?"}: ${r.ok === true ? (r.anchorTxid ?? "נורה") : (r.error ?? "נכשל")}`
+        );
+        setFireMsg(`נורה ${out.fired ?? 0} מסילה/ות — ${parts.join(" · ")}`);
+      } else {
+        setFireMsg("אף מסילה אינה דרוכה — ההשקיה בידי הבעלים, ההתפשטות תבוא לבד");
+      }
+      await fetch("/api/saos/auto-expand?force=1").catch(() => undefined);
+      expLive.refresh();
+      live.refresh();
+    } catch {
+      setFireMsg("הירי נכשל — נתון, לא אפס");
+    }
+    setFiring(false);
   };
 
   if (!d) {
@@ -174,10 +216,18 @@ export function TreasuryView() {
         title="ספר האוצר — הכסף של הריבון, מתועד"
         sub="הוראת הבעלים פתחה את סעיף הכסף שהמתין ('גז ל-7 דלתות EVM' — סעיף פתוח מס' 1 בדוח-היום). הספר הזה הוא התיעוד-הבהיר שההוראה דורשת: כל שקל, כל פעימה, כל txid — נקרא חי מהשרשרות ששילמו."
         actions={
-          <Btn onClick={doRefresh} disabled={refreshing} variant="ghost" size="sm">
-            <Receipt size={14} className={refreshing ? "animate-spin" : ""} />
-            {refreshing ? "מודד מהקבלות…" : "מדידה טרייה"}
-          </Btn>
+          <div className="flex items-center gap-2">
+            {exp && exp.counts.armed > 0 && (
+              <Btn onClick={doFire} disabled={firing} variant="primary" size="sm">
+                <Flame size={14} className={firing ? "animate-pulse" : ""} />
+                {firing ? "יורה…" : "ירי ידני"}
+              </Btn>
+            )}
+            <Btn onClick={doRefresh} disabled={refreshing} variant="ghost" size="sm">
+              <Receipt size={14} className={refreshing ? "animate-spin" : ""} />
+              {refreshing ? "מודד מהקבלות…" : "מדידה טרייה"}
+            </Btn>
+          </div>
         }
       />
 
@@ -417,6 +467,130 @@ export function TreasuryView() {
           </div>
         </PanelBody>
       </Panel>
+
+      {/* v66 התפשטות-אוטומטית */}
+      {exp && (
+        <Panel>
+          <PanelHeader
+            icon={<Sprout size={15} />}
+            title="התפשטות-אוטומטית — הרגע שגז נוחת, האורגניזם מתפשט לבד"
+            tag={`${exp.counts.expanded} פרוצות · ${exp.counts.armed} דרוכות · ${exp.counts.dark} חשוכות`}
+          />
+          <PanelBody className="p-0">
+            <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Pill tone={exp.setting ? "green" : "zinc"} pulse={exp.setting}>
+                  {exp.setting ? "הגשש מופעל — 10 דק'" : "הגשש כבוי (control-plane)"}
+                </Pill>
+                {exp.seal && (
+                  <span className="text-[10.5px] text-zinc-500 font-mono" dir="ltr">
+                    seal h{exp.seal.height} · {exp.seal.root.slice(0, 10)}…
+                  </span>
+                )}
+              </div>
+              {fireMsg && (
+                <p className="text-[10.5px] text-amber-200/80 max-w-[420px] text-left" dir="rtl">
+                  {fireMsg}
+                </p>
+              )}
+            </div>
+            <Table>
+              <thead>
+                <tr>
+                  <Th>מסילה</Th>
+                  <Th>מצב</Th>
+                  <Th>יתרה (מקומי)</Th>
+                  <Th>relay</Th>
+                  <Th>השלב הבא</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {exp.rails.map((r) => (
+                  <tr key={r.chain} className="transition-colors hover:bg-white/[0.02]">
+                    <Td className="whitespace-nowrap text-zinc-200">{r.heName}</Td>
+                    <Td>
+                      {r.state === "expanded" ? (
+                        <Pill tone="green" pulse>פרוץ</Pill>
+                      ) : r.state === "armed" ? (
+                        <Pill tone="gold" pulse>דרוך</Pill>
+                      ) : r.state === "error" ? (
+                        <Pill tone="rose">גשש לא ענה</Pill>
+                      ) : (
+                        <Pill tone="zinc">חשוך</Pill>
+                      )}
+                    </Td>
+                    <Td dir="ltr" className="font-mono whitespace-nowrap">
+                      <span className={r.funded === true ? "text-emerald-300/80" : "text-zinc-400"}>
+                        {fmtNative(r.balanceNative, r.symbol)}
+                      </span>
+                      {r.funded === true && (
+                        <span className="text-[9.5px] text-emerald-300/60 mr-1"> ×2 ✓</span>
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap">
+                      {r.relayLive === true && r.relayAddress ? (
+                        <a
+                          href={`https://etherscan.io/address/${r.relayAddress}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-[10.5px] text-emerald-300/80 hover:text-emerald-200 transition-colors"
+                          title={r.relayAddress}
+                        >
+                          {r.relayAddress.slice(0, 8)}…{r.relayAddress.slice(-4)}
+                          <ExternalLink size={9} />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-zinc-600">לא פרוס</span>
+                      )}
+                    </Td>
+                    <Td className="max-w-[260px]">
+                      <p className="text-[10px] text-zinc-500 leading-relaxed">{r.nextStepHe}</p>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            <div className="px-4 py-3 border-t border-white/[0.05] space-y-2">
+              <p className="text-[11px] text-zinc-400 leading-relaxed">{exp.verdictHe}</p>
+              {exp.fires && exp.fires.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[10.5px] text-zinc-500 font-semibold">היריום האחרונים (עדות מהמנוע):</p>
+                  {exp.fires.slice(0, 4).map((f) => (
+                    <div key={f.id} className="flex items-center gap-2 flex-wrap text-[10.5px]">
+                      <span className="text-zinc-300">{f.network}</span>
+                      <Tag tone={f.confirmed ? "green" : "zinc"} dir="ltr">
+                        h{f.height} · {f.source ?? "—"}
+                      </Tag>
+                      {f.txid ? (
+                        <a
+                          href={f.explorer ?? "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-300/80 hover:text-emerald-200 transition-colors"
+                          title={f.txid}
+                        >
+                          {f.txid.slice(0, 10)}…{f.txid.slice(-6)}
+                          <ExternalLink size={9} />
+                        </a>
+                      ) : (
+                        <span className="text-zinc-600 font-mono text-[10px]">txid — </span>
+                      )}
+                      {f.costNative && (
+                        <span className="text-amber-300/70 font-mono text-[10px]" dir="ltr">
+                          {f.costNative}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-zinc-600 leading-relaxed">
+                {exp.scoutHe} · האמת של המנוע: הירי עובר דה-דופה → הכנות → מאזן ×2 (בתוך deploy/call) → קבלה מהצומת → קבלה משורשרת → יומן — שום התפשטות שקטה.
+              </p>
+            </div>
+          </PanelBody>
+        </Panel>
+      )}
 
       {/* מדיניות ההוצאה */}
       <Panel>
