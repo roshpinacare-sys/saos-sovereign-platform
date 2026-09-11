@@ -711,6 +711,39 @@ export interface AgentsNetData {
   error?: string;
 }
 
+// ─── v63: The listening plane (מישור-הקשבה) ────────────────────────────────
+
+export interface BroadcastLocalRow {
+  file: string;
+  title: string;
+  sizeBytes: number;
+  mtime: string;
+  preview: string;
+  githubUrl: string | null;
+}
+
+export interface BroadcastRepoRow {
+  repo: string;
+  ours: boolean;
+  count: number;
+  latestFile: string | null;
+  latestAt: string | null;
+  folderUrl: string | null;
+  latestUrl: string | null;
+}
+
+export interface BroadcastsData {
+  ok: boolean;
+  owner: string | null;
+  local: BroadcastLocalRow[];
+  repos: BroadcastRepoRow[];
+  reposWithBroadcasts: number;
+  reposWithoutBroadcasts: number;
+  totalFiles: number;
+  measuredAt: string;
+  error?: string;
+}
+
 // ─── v14: Sovereign relay contract (החוזה הריבוני) ──────────────────────────
 
 export interface ContractRowInfo {

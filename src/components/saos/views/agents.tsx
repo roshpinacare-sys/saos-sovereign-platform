@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS v14/v58 — מעקב סוכנים חי (LIVE AGENT NETWORK MONITOR).
+ * SAOS v14/v58/v63 — מעקב סוכנים חי (LIVE AGENT NETWORK MONITOR) + מישור-הקשבה.
  * "בחן את שאר הסוכנים — תמיד חשוב להיות במעקב" — הריפואים הפרטיים
  * של roshpinacare-sys הם אורגניזם-אחד על אותה רשת. תצוגה זו קוראת את
  * GitHub REST API בזמן-אמת (קריאה בלבד): דחיפה אחרונה, קומיט אחרון,
@@ -9,12 +9,16 @@
  *
  * v58 · הרחבת הריבונות: האורגניזם גדל 8→12 ריפואים — saos-control-center
  * · Adsmarket · saos-jummper · Sdk נתגלו חיים במדידת-הרשת ונוספו למפת-התפקידים.
+ *
+ * v63 · מישור-הקשבה (THE LISTENING PLANE): הכספת הקימה את מוסד-השידור
+ * (תיקיית broadcasts/ בכל ריפו) — ואנחנו עונים בתמונת-מראה: פאנל חי
+ * שקורא מה נחת אצלנו + מי משדר בכל הרשת. 404 = "אין שידורים" כנה.
  */
 
-import { Activity, ExternalLink, GitCommit, RadioTower, Users } from "lucide-react";
+import { Activity, ExternalLink, GitCommit, Inbox, Radio, RadioTower, Star, Users } from "lucide-react";
 import { Btn, Callout, CopyBtn, ErrorNotice, Kpi, Panel, PanelBody, PanelHeader, Pill, Skeleton, Tag } from "../ui";
 import { fmtInt, timeAgo, useLive, useTick } from "../lib";
-import type { AgentsNetData } from "../types";
+import type { AgentsNetData, BroadcastsData } from "../types";
 import { PageHead } from "../shell";
 
 const FRESHNESS_TONE: Record<string, { dot: string; label: string; pill: "green" | "amber" | "zinc" | "rose" }> = {
@@ -27,6 +31,7 @@ const FRESHNESS_TONE: Record<string, { dot: string; label: string; pill: "green"
 export function ViewAgents() {
   useTick(15000);
   const net = useLive<AgentsNetData>("/api/saos/agents-net", 30000);
+  const bc = useLive<BroadcastsData>("/api/saos/broadcasts", 60000);
 
   if (net.error && !net.data) {
     return <ErrorNotice message={net.error} onRetry={net.refresh} />;
@@ -181,6 +186,150 @@ export function ViewAgents() {
                 );
               })}
             </ul>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* v63 · listening plane — incoming broadcasts across the organism */}
+      <Panel>
+        <PanelHeader
+          icon={<Radio size={15} />}
+          title="מישור-הקשבה — שידורים נכנסים ברשת"
+          sub="מוסד-השידור (broadcasts/ בכל ריפו · הוקם על-ידי הכספת r23/r24): מה נחת אצלנו + מי משדר באורגניזם · קריאה בלבד"
+          actions={
+            <span className="flex items-center gap-2">
+              {bc.data && (
+                <Pill tone={bc.data.ok ? "green" : "rose"}>
+                  {bc.data.ok ? `${bc.data.reposWithBroadcasts}/${bc.data.reposWithBroadcasts + bc.data.reposWithoutBroadcasts} משדרים` : "מדידה נכשלה"}
+                </Pill>
+              )}
+              <Btn variant="ghost" size="xs" onClick={() => bc.refresh()}>
+                <Activity size={11} /> מדידה טרייה
+              </Btn>
+            </span>
+          }
+        />
+        <PanelBody className="space-y-4">
+          {bc.loading && !bc.data ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-[76px] rounded-xl" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {bc.data && !bc.data.ok && (
+                <Callout tone="rose">
+                  <span className="font-bold">מדידת-השידורים נכשלה (כנות):</span> {bc.data.error ?? "שגיאה לא ידועה"} — לא
+                  מוצגים נתונים מפוברקים.
+                </Callout>
+              )}
+
+              {/* what landed in OUR repo */}
+              {(bc.data?.local ?? []).length > 0 && (
+                <div className="space-y-2">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-400">
+                    <Inbox size={12} className="text-amber-300/80" />
+                    נחת בריפו שלנו ({bc.data?.local.length} קבצים)
+                  </p>
+                  {(bc.data?.local ?? []).map((l) => (
+                    <div
+                      key={l.file}
+                      className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3.5 hover:border-amber-400/40 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span dir="ltr" className="font-mono text-[11px] text-amber-200/90 truncate">
+                            broadcasts/{l.file}
+                          </span>
+                          {l.githubUrl && (
+                            <a
+                              href={l.githubUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-zinc-500 hover:text-amber-300 transition-colors shrink-0"
+                              aria-label="פתח בגיטאהב"
+                            >
+                              <ExternalLink size={10} />
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 text-[10px] text-zinc-600 tabular-nums">
+                          <span>{l.sizeBytes > 1024 ? `${(l.sizeBytes / 1024).toFixed(1)}KB` : `${l.sizeBytes}B`}</span>
+                          <span>·</span>
+                          <span>{timeAgo(l.mtime)}</span>
+                        </div>
+                      </div>
+                      <p className="mt-1.5 text-[12px] font-bold text-zinc-200 leading-relaxed">{l.title}</p>
+                      {l.preview && (
+                        <p className="mt-1 text-[11px] text-zinc-500 leading-relaxed line-clamp-2">{l.preview}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* who broadcasts across the organism */}
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-400">
+                  <RadioTower size={12} className="text-emerald-300/80" />
+                  המשדרים ברשת ({bc.data?.reposWithBroadcasts ?? 0} ריפואים · {bc.data?.totalFiles ?? 0} קבצים סה״כ)
+                </p>
+                {(bc.data?.repos ?? []).length === 0 ? (
+                  <p className="px-4 py-3 text-center text-xs text-zinc-500">
+                    אף ריפו עדיין לא משדר — 404 כנה (מוסד-השידור נולד הלילה אצל הכספת).
+                  </p>
+                ) : (
+                  <ul className="grid grid-cols-1 gap-1.5">
+                    {(bc.data?.repos ?? []).map((r) => (
+                      <li
+                        key={r.repo}
+                        className="flex items-center justify-between gap-2 flex-wrap rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2 hover:border-emerald-400/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {r.ours && <Star size={11} className="text-amber-300 shrink-0 fill-amber-300/40" aria-label="הריפו שלנו" />}
+                          <a
+                            href={r.folderUrl ?? "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            dir="ltr"
+                            className="text-[12px] font-bold text-zinc-200 hover:text-emerald-300 transition-colors truncate"
+                          >
+                            {r.repo}
+                          </a>
+                          <span className="shrink-0 rounded bg-emerald-400/[0.08] border border-emerald-400/20 px-1.5 py-0.5 text-[9px] text-emerald-300/90 tabular-nums">
+                            ×{r.count}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {r.latestFile && (
+                            <a
+                              href={r.latestUrl ?? r.folderUrl ?? "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              dir="ltr"
+                              className="max-w-[220px] truncate font-mono text-[10px] text-zinc-500 hover:text-emerald-300 transition-colors sm:max-w-[320px]"
+                              title={r.latestFile}
+                            >
+                              {r.latestFile}
+                            </a>
+                          )}
+                          <span className="shrink-0 text-[10px] text-zinc-600 tabular-nums">
+                            {r.latestAt ? timeAgo(r.latestAt) : "—"}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <Callout tone="zinc">
+                <span className="font-bold">גבול-האמת של המישור:</span> קריאה-בלבד מצידנו — אף פעם לא כותבים לריפואים
+                מהפאנל · ריפו ללא תיקיית broadcasts נספר בכנות כ"אין שידורים" (404) · תצוגה-מקדימה מקומית נחתכת
+                לשורות-סיכום בלבד · מטמון 5 דק' · {bc.data ? `עודכן ${timeAgo(bc.data.measuredAt)}` : "טוען…"}
+              </Callout>
+            </>
           )}
         </PanelBody>
       </Panel>

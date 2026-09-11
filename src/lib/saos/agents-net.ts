@@ -23,7 +23,8 @@ const TOKEN_PATHS = [
 
 let cachedToken: string | null = null;
 
-async function readToken(): Promise<string | null> {
+/** v63 — הטוקן משותף לכל מישורי-הקריאה (קריאה בלבד, צד-שרת בלבד). */
+export async function readToken(): Promise<string | null> {
   if (cachedToken) return cachedToken;
   for (const p of TOKEN_PATHS) {
     try {
