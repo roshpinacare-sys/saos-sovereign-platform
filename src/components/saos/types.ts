@@ -720,6 +720,12 @@ export interface BroadcastLocalRow {
   mtime: string;
   preview: string;
   githubUrl: string | null;
+  /** v64: נתיב-הנחיתה — broadcasts מול שורש-הריפו */
+  channel: "broadcasts" | "root";
+  /** v64: איזה סוכן כתב את המסמך (null = לא זוהה) */
+  sourceAgent: string | null;
+  /** v64: מסמך שכתבנו אנחנו */
+  ours: boolean;
 }
 
 export interface BroadcastRepoRow {

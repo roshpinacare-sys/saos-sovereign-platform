@@ -13,6 +13,12 @@
  * v63 · מישור-הקשבה (THE LISTENING PLANE): הכספת הקימה את מוסד-השידור
  * (תיקיית broadcasts/ בכל ריפו) — ואנחנו עונים בתמונת-מראה: פאנל חי
  * שקורא מה נחת אצלנו + מי משדר בכל הרשת. 404 = "אין שידורים" כנה.
+ *
+ * v64 · האוזן המלאה (THE FULL EAR): הכספת סימנה ב-r25b ש-foundry דוחף
+ * דוחות לשורש-הריפו ולא ל-broadcasts/ — האוזן של v63 היתה חירשת
+ * ל-3 מתוך 4 מסמכים. מהיום: המישור-המקומי קורא גם את שורש-הריפו
+ * (SAOS-DAILY-REPORT · AGENT-BRIEFING · EPOCH-PATCH-SPEC) עם זיהוי-מקור
+ * לכל מסמך — איזה סוכן כתב אותו, ומאיזה ערוץ הגיע.
  */
 
 import { Activity, ExternalLink, GitCommit, Inbox, Radio, RadioTower, Star, Users } from "lucide-react";
@@ -195,7 +201,7 @@ export function ViewAgents() {
         <PanelHeader
           icon={<Radio size={15} />}
           title="מישור-הקשבה — שידורים נכנסים ברשת"
-          sub="מוסד-השידור (broadcasts/ בכל ריפו · הוקם על-ידי הכספת r23/r24): מה נחת אצלנו + מי משדר באורגניזם · קריאה בלבד"
+          sub="מוסד-השידור (broadcasts/ בכל ריפו · הוקם על-ידי הכספת r23/r24) + שורש-הריפו (v64 · האוזן המלאה — foundry דוחף לשורש): מה נחת אצלנו, מי כתב ומי משדר באורגניזם · קריאה בלבד"
           actions={
             <span className="flex items-center gap-2">
               {bc.data && (
@@ -225,12 +231,12 @@ export function ViewAgents() {
                 </Callout>
               )}
 
-              {/* what landed in OUR repo */}
+              {/* what landed in OUR repo — v64: broadcasts/ + root, with source agent */}
               {(bc.data?.local ?? []).length > 0 && (
                 <div className="space-y-2">
                   <p className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-400">
                     <Inbox size={12} className="text-amber-300/80" />
-                    נחת בריפו שלנו ({bc.data?.local.length} קבצים)
+                    נחת בריפו שלנו ({bc.data?.local.length} מסמכים · broadcasts/ + שורש)
                   </p>
                   {(bc.data?.local ?? []).map((l) => (
                     <div
@@ -239,9 +245,33 @@ export function ViewAgents() {
                     >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span dir="ltr" className="font-mono text-[11px] text-amber-200/90 truncate">
-                            broadcasts/{l.file}
+                          <span
+                            dir="ltr"
+                            className={`font-mono text-[11px] truncate ${
+                              l.channel === "root" ? "text-amber-200/90" : "text-emerald-200/80"
+                            }`}
+                            title={l.channel === "root" ? "נחת בשורש-הריפו (v64 · האוזן המלאה)" : "נחת בערוץ broadcasts/"}
+                          >
+                            {l.channel === "root" ? l.file : `broadcasts/${l.file}`}
                           </span>
+                          {l.channel === "root" && (
+                            <span className="shrink-0 rounded border border-amber-400/30 bg-amber-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-amber-300/90">
+                              שורש
+                            </span>
+                          )}
+                          {l.sourceAgent && (
+                            <span
+                              dir="ltr"
+                              className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold tabular-nums ${
+                                l.ours
+                                  ? "border-sky-400/25 bg-sky-400/[0.06] text-sky-300/90"
+                                  : "border-zinc-500/25 bg-zinc-500/[0.06] text-zinc-400"
+                              }`}
+                              title={l.ours ? "מסמך שכתבנו אנחנו" : `נכתב על-ידי ${l.sourceAgent}`}
+                            >
+                              {l.ours ? "שלנו" : l.sourceAgent}
+                            </span>
+                          )}
                           {l.githubUrl && (
                             <a
                               href={l.githubUrl}
@@ -326,7 +356,8 @@ export function ViewAgents() {
 
               <Callout tone="zinc">
                 <span className="font-bold">גבול-האמת של המישור:</span> קריאה-בלבד מצידנו — אף פעם לא כותבים לריפואים
-                מהפאנל · ריפו ללא תיקיית broadcasts נספר בכנות כ"אין שידורים" (404) · תצוגה-מקדימה מקומית נחתכת
+                מהפאנל · ריפו ללא תיקיית broadcasts נספר בכנות כ"אין שידורים" (404) · שורש-הריפו נקרא רק לפי
+                רשימה-לבנה מפורשת (SAOS-DAILY-REPORT · AGENT-BRIEFING · EPOCH-PATCH-SPEC) · תצוגה-מקדימה נחתכת
                 לשורות-סיכום בלבד · מטמון 5 דק' · {bc.data ? `עודכן ${timeAgo(bc.data.measuredAt)}` : "טוען…"}
               </Callout>
             </>
