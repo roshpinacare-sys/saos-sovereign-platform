@@ -142,7 +142,8 @@ function detectSourceAgent(file: string, raw: string): { agent: string | null; o
     return { agent: null, ours: false };
   }
   if (/epoch-patch/.test(f)) return { agent: "saos-sovereign-foundry", ours: false };
-  if (/vault-report/.test(f)) return { agent: "Saosmartwallet", ours: false };
+  // vault-ack / vault-report / vault-* — כל שידור-הכספת מזוהה לפי קונבנציית-השם שלה (r23: vault-report · r26: vault-ack)
+  if (/vault-/.test(f)) return { agent: "Saosmartwallet", ours: false };
   if (/platform-response/.test(f)) return { agent: "saos-sovereign-platform", ours: true };
   // SAOS-DAILY-REPORT-<date>.md בלי סיומת-סוכן = דוח-היום שכתבנו אנחנו (Task 59)
   if (/^saos-daily-report-\d{4}-\d{2}-\d{2}\.md$/.test(f)) return { agent: "saos-sovereign-platform", ours: true };
