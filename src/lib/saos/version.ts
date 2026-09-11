@@ -8,4 +8,4 @@
 export const SAOS_VERSION = "62.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "מגן ההבטחות (THE PROMISE GUARD)";
+export const SAOS_CODENAME = "מכנס הדורות (THE GENERATION CONVERGENCE)";
