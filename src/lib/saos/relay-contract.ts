@@ -134,7 +134,7 @@ export const RELAY_COMPILER: string = artifact.compiler;
 
 // ─── cost model (measured, conservative — same anchors as anchor-evm) ──────
 
-const DEPLOY_GAS_LIMIT = 1_200_000n; // tx safety headroom — payment is gasUsed × price
+const DEPLOY_GAS_LIMIT = 600_000n; // v67.1 — submission headroom (+33% over the 450K expectation). The node enforces balance ≥ gasLimit×gasPrice: at the 0.1gwei floor 1.2M demanded 0.00012 ETH — more than a freshly-irrigated ×2 door holds (caught live on Optimism deploy 2026-09-11). Payment is still gasUsed × price.
 const CALL_GAS_LIMIT = 200_000n; // tx safety headroom for anchor/enlist events
 const EXPECTED_DEPLOY_GAS = 450_000n; // measured deploy of 831-byte bytecode ≈ 410–450K
 const EXPECTED_CALL_GAS = 110_000n; // anchor/enlist events ≈ 60–110K

@@ -1810,3 +1810,109 @@ export interface ExpansionData {
   fires?: ExpansionFireRow[];
   error?: string;
 }
+
+// ─── v67 ההשקיה החכמה (THE WISE IRRIGATION) ─────────────────────────────────
+
+export interface IrrigationAuthorization {
+  grantedAt: string;
+  textHe: string;
+  followUpHe: string;
+  scopeHe: string;
+  rulesHe: string[];
+}
+
+export interface IrrigationSourceRowT {
+  id: string;
+  heName: string;
+  symbol: string;
+  balanceNative: number | null;
+  floorNative: number | null;
+  spareNative: number | null;
+  spareUsd: number | null;
+  state: "ready" | "empty" | "conversion-gated" | "error";
+  stateHe: string;
+  roleHe: string;
+}
+
+export interface IrrigationDoorRowT {
+  chain: string;
+  heName: string;
+  symbol: string;
+  balanceNative: number | null;
+  targetNative: number | null;
+  gapNative: number | null;
+  relayLive: boolean | null;
+  routeKind: "l1-portal" | "locked-complexity" | "no-sovereign-route";
+  routeNoteHe: string;
+  routeVerified: boolean;
+  fundable: boolean;
+  planHe: string;
+}
+
+export interface IrrigationConversionOptionT {
+  id: string;
+  heName: string;
+  costHe: string;
+  custodyHe: string;
+}
+
+export interface IrrigationDripRowT {
+  id: string;
+  at: string;
+  door: string;
+  doorHeName: string;
+  txid: string | null;
+  status: string;
+  probe: boolean;
+  deliveredEth: string | null;
+  costEth: string | null;
+  l2Verified: boolean | null;
+  l2BalanceAfter: string | null;
+  source: "auto" | "manual" | null;
+  explorer: string | null;
+}
+
+export interface IrrigationData {
+  ok: boolean;
+  at: string;
+  version: string;
+  authorization: IrrigationAuthorization;
+  setting: boolean;
+  settingHe: string;
+  sources: IrrigationSourceRowT[];
+  doors: IrrigationDoorRowT[];
+  plan: { fundableCount: number; totalGapUsd: number | null; verdictHe: string };
+  conversionGate: {
+    dexAnswerHe: string;
+    solSpareNative: number | null;
+    trxSpareNative: number | null;
+    coversAllGapsUsd: number | null;
+    options: IrrigationConversionOptionT[];
+    gateHe: string;
+  };
+  journal: IrrigationDripRowT[];
+  counts: { fundable: number; waitingSource: number; locked: number; noRoute: number };
+  usage?: string;
+  error?: string;
+}
+
+export interface IrrigationFireResultT {
+  ok: boolean;
+  at: string;
+  source: "auto" | "manual";
+  chain: string | null;
+  network: string | null;
+  probe: boolean;
+  deliveredEth: string | null;
+  txid: string | null;
+  explorer: string | null;
+  gasUsed: number | null;
+  costEth: string | null;
+  l2Verified: boolean | null;
+  l2BalanceAfter: string | null;
+  balanceBeforeEth: string | null;
+  balanceAfterEth: string | null;
+  receipt: string | null;
+  verdictHe: string;
+  error?: string;
+}

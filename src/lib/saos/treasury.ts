@@ -516,11 +516,12 @@ async function liveExpenses(): Promise<TreasuryExpense[]> {
   try {
     // v66: kind "relay" (עוגן דרך SAOSRelay) נכנס לספר כמו weave — כל
     // הוצאה ריבונית של ההתפשטות-האוטומטית נראית כאן, עם עלות מהקבלה.
+    // v67: kind "irrigation" (טפטוף גז לדלתות) — ההשקיה החכמה בספר.
     const rows = await db.anchorTx.findMany({
       where: {
-        kind: { in: ["weave", "relay"] },
+        kind: { in: ["weave", "relay", "irrigation"] },
         network: { in: ["ETHEREUM", "BSC", "TRON", "XRPL", "SOLANA", "POLYGON", "ARBITRUM", "OPTIMISM", "BASE", "AVALANCHE", "GNOSIS"] },
-        status: { in: ["anchored", "broadcast"] },
+        status: { in: ["anchored", "broadcast", "delivered"] },
         txid: { not: null }
       },
       orderBy: { createdAt: "desc" },
@@ -529,15 +530,32 @@ async function liveExpenses(): Promise<TreasuryExpense[]> {
     });
     return rows.map((r) => {
       const c = metaCost(r);
+      // v67 — טפטוף השקיה: הדלת שקיבלה את הגז נקראת מה-meta (הוגן, לא מומצא)
+      let irrigationDoorHe = "";
+      if (r.kind === "irrigation") {
+        try {
+          const m = r.meta ? (JSON.parse(r.meta) as Record<string, unknown>) : {};
+          const door = typeof m.door === "string" ? (m.door as string) : "?";
+          const heDoors: Record<string, string> = {
+            base: "בייס", optimism: "אופטימיזם", arbitrum: "ארביטרום",
+            bsc: "BSC", polygon: "פוליגון", avalanche: "אבאלנש'", gnosis: "נוסיס"
+          };
+          irrigationDoorHe = heDoors[door] ?? door;
+        } catch {
+          irrigationDoorHe = "?";
+        }
+      }
       return {
         id: r.id,
         at: r.createdAt.toISOString(),
         network: r.network,
         heName: LIVE_NETWORK_HE[r.network] ?? r.network,
         purposeHe:
-          r.kind === "relay"
-            ? (RELAY_PURPOSE_HE[r.network] ?? "עוגן-relay חי — anchor() דרך SAOSRelay")
-            : (LIVE_PURPOSE_HE[r.network] ?? "פעימת עיגון חיה"),
+          r.kind === "irrigation"
+            ? `השקיה — טפטוף גז לדלת ${irrigationDoorHe} דרך הפורטל הקנוני (v67)`
+            : r.kind === "relay"
+              ? (RELAY_PURPOSE_HE[r.network] ?? "עוגן-relay חי — anchor() דרך SAOSRelay")
+              : (LIVE_PURPOSE_HE[r.network] ?? "פעימת עיגון חיה"),
         amountNative: c.native !== null ? c.native.toFixed(c.native < 0.001 ? 9 : 6) : null,
         symbol: c.symbol,
         amountUsd: null, // נמולא במחיר החי בגוף המנוע

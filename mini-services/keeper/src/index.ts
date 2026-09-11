@@ -146,6 +146,17 @@ const EXPANSION_URL = "http://127.0.0.1:3000/api/saos/auto-expand";
 const EXPANSION_EVERY = 60; // every 60th cycle = 10 min
 const EXPANSION_FIRST_AT = 12; // first scout 2 min after boot
 
+// v67 — the wise-irrigation scout (ההשקיה החכמה). The web tier owns the
+// engine (board + the drip hand: triple-verified canonical portals only,
+// to=our own address only, probe-first + L2-arrival verification, source
+// floor ×2, exact-gap drip, receipt from the node); the keeper owns the
+// cadence. Every 10 min it reads the irrigation board; the moment a dark
+// door has a fundable plan it fires ONE drip (source=auto) — the organism
+// irrigates itself. The keeper NEVER touches key material.
+const IRRIGATION_URL = "http://127.0.0.1:3000/api/saos/irrigation";
+const IRRIGATION_EVERY = 60; // every 60th cycle = 10 min
+const IRRIGATION_FIRST_AT = 6; // first scout 1 min after boot — אוטונומית מהרגע הראשון
+
 // v28 — page-500 detector (the documented frontier). Turbopack cache panic
 // (3 live incidents: v29, v30, v31) leaves the PROCESS alive and the API
 // layer answering 200 while the user-visible PAGE "/" returns 5xx. Objective
@@ -210,7 +221,11 @@ interface KeeperEvent {
     // v66 — the auto-expansion scout (rail irrigation watcher)
     | "expansion-armed"
     | "expansion-fired"
-    | "expansion-off";
+    | "expansion-off"
+    // v67 — the wise-irrigation scout (ההשקיה החכמה)
+    | "irrigation-planned"
+    | "irrigation-dripped"
+    | "irrigation-off";
   detail: string;
 }
 
@@ -289,6 +304,17 @@ const S = {
     setting: null as boolean | null,
     lastFireAt: null as string | null,
     fires: 0 as number
+  },
+  // v67 — the wise-irrigation scout (ההשקיה החכמה): web owns the engine
+  // (board + drip hand); keeper owns the cadence + the poke. ONE drip per
+  // cycle — דיסציפלינת-טפטוף.
+  irrigation: {
+    lastCheckAt: null as string | null,
+    state: "boot" as "boot" | "watching" | "planned" | "dripped" | "off" | "stale",
+    fundable: 0 as number,
+    setting: null as boolean | null,
+    lastDripAt: null as string | null,
+    drips: 0 as number
   },
   events: [] as KeeperEvent[]
 };
@@ -846,6 +872,86 @@ async function checkAutoExpansion(): Promise<void> {
   }
 }
 
+/** v67 — the wise-irrigation scout (ההשקיה החכמה). The web tier owns the
+ *  engine (board + the drip hand with every honesty gate: triple-verified
+ *  portals, to=ourselves, probe-first + L2-arrival proof, source floor,
+ *  exact-gap); the keeper owns the cadence: every 10 min it reads the live
+ *  irrigation board, and the moment a dark door has a fundable plan it
+ *  fires ONE drip POST (source=auto). Setting off = journaled once,
+ *  watched, not fired. Web down = honest wait. */
+async function checkIrrigation(): Promise<void> {
+  try {
+    const r = await fetch(`${IRRIGATION_URL}?force=1`, { signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) {
+      S.irrigation.state = "stale";
+      return;
+    }
+    const st = (await r.json().catch(() => null)) as {
+      ok?: boolean;
+      setting?: boolean;
+      plan?: { fundableCount?: number; verdictHe?: string };
+      doors?: Array<{ chain?: string; fundable?: boolean; relayLive?: boolean | null }>;
+    } | null;
+    if (!st || st.ok !== true) {
+      S.irrigation.state = "stale";
+      return;
+    }
+    S.irrigation.lastCheckAt = new Date().toISOString();
+    S.irrigation.setting = st.setting === true;
+    S.irrigation.fundable = st.plan?.fundableCount ?? 0;
+    const prev = S.irrigation.state;
+
+    if (st.setting !== true) {
+      S.irrigation.state = "off";
+      if (prev !== "off") {
+        journal("irrigation-off", "wise-irrigation setting OFF — the scout watches but never drips (control-plane, honest)");
+      }
+      return;
+    }
+
+    const fundable = (st.doors ?? []).filter((d) => d.fundable === true && d.chain);
+    if (fundable.length > 0) {
+      if (prev !== "planned") {
+        journal(
+          "irrigation-planned",
+          `wise-irrigation: ${fundable.length} fundable door(s) [${fundable.map((d) => d.chain).join(",")}] — dripping ONE now (source=auto); the engine gates everything (probe-first · L2-arrival proof · source floor · exact-gap)`
+        );
+      }
+      // THE DRIP — one door per cycle. The engine owns every gate; the
+      // keeper only pokes. The drip hand can take minutes (probe arrival
+      // wait on L2) — the timeout is long on purpose.
+      const res = await fetch(IRRIGATION_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chain: fundable[0]!.chain, source: "auto" }),
+        signal: AbortSignal.timeout(600_000)
+      });
+      const out = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        chain?: string | null;
+        probe?: boolean;
+        deliveredEth?: string | null;
+        txid?: string | null;
+        l2Verified?: boolean | null;
+        error?: string;
+        verdictHe?: string;
+      } | null;
+      S.irrigation.drips += 1;
+      S.irrigation.lastDripAt = new Date().toISOString();
+      S.irrigation.state = "dripped";
+      journal(
+        "irrigation-dripped",
+        `wise-irrigation DRIPPED ${out?.chain ?? "?"}${out?.probe === true ? " (probe)" : ""} — delivered=${out?.deliveredEth ?? "—"} txid=${out?.txid ?? "—"} l2Verified=${out?.l2Verified ?? "—"} ${(out?.error ?? "").slice(0, 60)} — proof or it never happened`
+      );
+    } else {
+      S.irrigation.state = "watching";
+    }
+  } catch {
+    // web down or engine slow = honest wait — the web revive owns recovery
+    S.irrigation.state = "stale";
+  }
+}
+
 async function cycle(): Promise<void> {
   RT.cycle += 1;
   S.checks += 1;
@@ -1122,6 +1228,15 @@ async function cycle(): Promise<void> {
   if (RT.cycle === EXPANSION_FIRST_AT || (RT.cycle > EXPANSION_FIRST_AT && (RT.cycle - EXPANSION_FIRST_AT) % EXPANSION_EVERY === 0)) {
     await checkAutoExpansion();
   }
+
+  // 10. v67 — the wise-irrigation scout (ההשקיה החכמה). Every 10 min:
+  //    read the live irrigation board from the web engine; the moment a
+  //    dark door has a fundable plan — drip ONE (source=auto). The engine
+  //    owns every honesty gate; the keeper owns the cadence. Web down =
+  //    honest wait.
+  if (RT.cycle === IRRIGATION_FIRST_AT || (RT.cycle > IRRIGATION_FIRST_AT && (RT.cycle - IRRIGATION_FIRST_AT) % IRRIGATION_EVERY === 0)) {
+    await checkIrrigation();
+  }
 }
 
 // ─── status API (loopback only) ────────────────────────────────────────────
@@ -1152,7 +1267,8 @@ function statusJson() {
       herald: { alive: S.heraldAlive === true, failStreak: S.heraldFailStreak, revives: S.heraldRevives, lastOkAt: S.heraldLastOkAt, agent: "gate-herald", port: 3006 },
       swarm: { alive: S.swarmAlive === true, failStreak: S.swarmFailStreak, revives: S.swarmRevives, lastOkAt: S.swarmLastOkAt, agents: "gold-scout+night-scout", port: 3007 },
       recovery: { state: S.recovery.state, daysLeft: S.recovery.daysLeft, lastCheckAt: S.recovery.lastCheckAt, engine: "headcorner-ambush", account: "headcorner" },
-      expansion: { state: S.expansion.state, armed: S.expansion.armed, setting: S.expansion.setting, lastCheckAt: S.expansion.lastCheckAt, lastFireAt: S.expansion.lastFireAt, fires: S.expansion.fires, engine: "auto-expansion (v66)", cadence: "10min" }
+      expansion: { state: S.expansion.state, armed: S.expansion.armed, setting: S.expansion.setting, lastCheckAt: S.expansion.lastCheckAt, lastFireAt: S.expansion.lastFireAt, fires: S.expansion.fires, engine: "auto-expansion (v66)", cadence: "10min" },
+      irrigation: { state: S.irrigation.state, fundable: S.irrigation.fundable, setting: S.irrigation.setting, lastCheckAt: S.irrigation.lastCheckAt, lastDripAt: S.irrigation.lastDripAt, drips: S.irrigation.drips, engine: "wise-irrigation (v67)", cadence: "10min" }
     },
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,

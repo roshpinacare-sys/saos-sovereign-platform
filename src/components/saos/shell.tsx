@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -49,6 +49,14 @@ export const VIEWS: ViewDef[] = [
     short: "האוצר",
     desc: "הוראת הבעלים 'אתה יכול להשתמש בכסף אין בעיה תעשה מה שצריך אבל שיהיה תיעוד ברור' — ההרשאה בקוד · מלאי האוצר החי · כל הוצאה אי-פעם (עלות חיה מהקבלות) · הוצאות מאז ההרשאה · תוכנית 7 הדלתות · מדיניות ההוצאה",
     icon: <Landmark size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "irrigation",
+    label: "ההשקיה החכמה — אוטונומית אבל בחוכמה",
+    short: "השקיה",
+    desc: "הוראת הבעלים 'המטרה שההשקיה תהיה אוטונומית אבל בחוכמה' — האורגניזם מטפטף גז לדלתות החשוכות בעצמו דרך פורטלים קנוניים מאומתי-שלשה · probe קודם + אימות-הגעה מה-L2 · שער-ההמרה הכן (הדקס שלנו + SOL/TRX שבארנק) · יומן-הטפטוף עם הוכחות",
+    icon: <Droplets size={16} />,
     group: "תפעול"
   },
   {
