@@ -10,7 +10,7 @@
  *   (2) רישום-נתיבים מלא (BRIDGE_LANES) — 24 דלתות: לכל רשת המנגנון
  *       הקונקרטי שפותח אותה, הליך-הפתיחה צעד-צעד, רצפת-עלות (מדוד או
  *       מודל-כנות) ומצב חי מחושב.
- *   (3) מפקד-גשרים חי (bridgeCensus) — 8 מסילות EVM נבדקות ב-RPC חי
+ *   (3) מפקד-גשרים חי (bridgeCensus) — 9 מסילות EVM נבדקות ב-RPC חי
  *       (chainId · בלוק · גז · יתרת 0x01Bd · קוד-relay על השרשרת),
  *       שאר המשפחות מצטרפות ממפקד מפת-הרשתות v48. אפס מפתחות —
  *       הכתובת הציבורית בלבד.
@@ -56,7 +56,7 @@ const GOAL_SKELETON: Array<Omit<BridgeGoal, "measured">> = [
     id: "fee-free",
     title: "ריבונות ללא עמלה",
     source: "v14 — \"להקים באיתריום חוזה חכם שנוכל לעבוד עליו ושיקשר אותנו ללא עמלה\"",
-    how: "SAOSRelay — חוזה ללא בעלים, ללא שדרוג, ללא עוצר, ללא payable. אותו bytecode בדיוק פורש על 8 רשתות EVM מרגע v51; השולח משלם גז בלבד, הפרוטוקול לא גובה כלום."
+    how: "SAOSRelay — חוזה ללא בעלים, ללא שדרוג, ללא עוצר, ללא payable. אותו bytecode בדיוק פורש על 9 רשתות EVM (v69: SKALE אירופה — גז נומינלי, הדלת הזולה); השולח משלם גז בלבד, הפרוטוקול לא גובה כלום."
   },
   {
     id: "one-key",
@@ -112,7 +112,8 @@ export interface BridgeLaneDef {
   explorer: string;
 }
 
-/** 8 מסילות EVM — כולן פותחות באותו blueprint של SAOSRelay (מוכח ETH+BSC) */
+/** 9 מסילות EVM — כולן פותחות באותו blueprint של SAOSRelay (מוכח ETH+BSC).
+ *  v69 מסילה 9: SKALE Europa — גז נומינלי (100000 wei), הדלת הזולה במערכה */
 const EVM_RAILS: Array<{ chain: RelayChain; heName: string; symbol: string }> = [
   { chain: "ethereum", heName: "את'ריום", symbol: "ETH" },
   { chain: "bsc", heName: "BNB Smart Chain", symbol: "BNB" },
@@ -121,7 +122,8 @@ const EVM_RAILS: Array<{ chain: RelayChain; heName: string; symbol: string }> = 
   { chain: "optimism", heName: "אופטימיזם", symbol: "ETH" },
   { chain: "base", heName: "בייס", symbol: "ETH" },
   { chain: "avalanche", heName: "אבאלנש' (C-Chain)", symbol: "AVAX" },
-  { chain: "gnosis", heName: "נוסיס", symbol: "xDAI" }
+  { chain: "gnosis", heName: "נוסיס", symbol: "xDAI" },
+  { chain: "skale", heName: "סקייל (אירופה)", symbol: "ETH" }
 ];
 
 const EVM_MECHANISM = [
@@ -260,7 +262,9 @@ assertTrustedEndpoints(
   [
     "https://polygon-bor-rpc.publicnode.com", "https://arbitrum-one-rpc.publicnode.com",
     "https://optimism-rpc.publicnode.com", "https://base-rpc.publicnode.com",
-    "https://avalanche-c-chain-rpc.publicnode.com", "https://gnosis-rpc.publicnode.com"
+    "https://avalanche-c-chain-rpc.publicnode.com", "https://gnosis-rpc.publicnode.com",
+    // v69 מסילה 9 — SKALE Europa (ברישום MAGEN מאז v58)
+    "https://mainnet.skalenodes.com/v1/europa"
   ],
   "bridge-forge"
 );
@@ -304,6 +308,17 @@ const BALANCE_MARGIN = 2n;
 function pricedGas(rawWei: bigint): bigint {
   const buffered = (rawWei * GAS_PRICE_BUFFER) / 100n;
   return buffered > GAS_PRICE_FLOOR_WEI ? buffered : GAS_PRICE_FLOOR_WEI;
+}
+
+/**
+ * v69 — תמחור לפי שרשרת: מסילה נומינלית (SKALE, cfg.nominalGas) מתומחרת
+ * במחיר הגולמי של הצומת (100000 wei) בלי buffer ובלי רצפת 0.1gwei.
+ * נתפס חי: בלי זה המפקד דרש 0.000112 יחידות לדלת SKALE — פי 1000 מהנדרש
+ * (האמת: יעד-×2 ≈ 0.000000112 יחידות ≈ $0.0003 במודל). רצפת-ה-0.1gwei
+ * נשארת לכל שאר המסילות (דגם v14 המוכח).
+ */
+function chainPricedGas(nominal: boolean | undefined, rawWei: bigint): bigint {
+  return nominal ? rawWei : pricedGas(rawWei);
 }
 
 export interface EvmRailState {
@@ -392,7 +407,8 @@ async function probeEvmRail(rail: { chain: RelayChain; heName: string; symbol: s
     base.chainIdOk = seen === cfg.chainId;
     if (!base.chainIdOk) throw new Error(`chainId ${seen ?? "?"} ≠ ${cfg.chainId}`);
     base.blockNumber = typeof blk.result === "string" ? Number(BigInt(blk.result)) : null;
-    const pg = pricedGas(BigInt(String(gas.result ?? "0")));
+    const rawGasWei = BigInt(String(gas.result ?? "0"));
+    const pg = chainPricedGas(cfg.nominalGas, rawGasWei);
     base.gasPriceGwei = Number(ethers.formatUnits(pg, "gwei"));
     const wei = BigInt(String(bal.result ?? "0"));
     base.balanceNative = Number(ethers.formatEther(wei));
@@ -614,10 +630,10 @@ export async function bridgeCensus(opts: { force?: boolean } = {}): Promise<Brid
         let measured = "";
         switch (g.id) {
           case "fee-free":
-            measured = `${kpis.evmLive}/8 מסילות EVM עם relay חי על השרשרת · אפס עמלות-פרוטוקול (חוזה ללא payable)`;
+            measured = `${kpis.evmLive}/${evm.length} מסילות EVM עם relay חי על השרשרת · אפס עמלות-פרוטוקול (חוזה ללא payable)`;
             break;
           case "one-key":
-            measured = `${multi?.totals.derived ?? 22} זהויות מזרע אחד · ${multi?.totals.families ?? 4} משפחות · הכתובת ${ANCHORED_EVM_ADDRESS.slice(0, 10)}… זהה בכל 8 ה-EVM`;
+            measured = `${multi?.totals.derived ?? 22} זהויות מזרע אחד · ${multi?.totals.families ?? 4} משפחות · הכתובת ${ANCHORED_EVM_ADDRESS.slice(0, 10)}… זהה בכל ${evm.length} ה-EVM`;
             break;
           case "undeletable-book":
             measured = `${kpis.anchored}/5 הממומנות מעוגנות weave חי · תשתית ל-${lanes.length} ספרים עתידיים`;
@@ -643,7 +659,7 @@ export async function bridgeCensus(opts: { force?: boolean } = {}): Promise<Brid
         lanes,
         summaryHe:
           `${kpis.lanesTotal} נתיבי-גשר ברישום · ${kpis.live} חיים · ${kpis.readyOpen} ממומנים-לפתיחה · ` +
-          `${kpis.needsGas} ממתינים לגז · ${kpis.needsModule} ממתינים למודול · ${kpis.evmLive}/8 relay-EVM חיים · ` +
+          `${kpis.needsGas} ממתינים לגז · ${kpis.needsModule} ממתינים למודול · ${kpis.evmLive}/${evm.length} relay-EVM חיים · ` +
           `מחירי גז חיים מ-${evm.filter((e) => e.gasPriceGwei !== null).length} צמתים`
       };
       censusCache = { at: Date.now(), value };
@@ -761,7 +777,7 @@ export async function bridgePreflight(laneId: string): Promise<BridgePreflight> 
     let gasGwei: number | null = null;
     try {
       const gas = await rpcPost(cfg.endpoints[0], "eth_gasPrice");
-      const pg = pricedGas(BigInt(String(gas.result ?? "0")));
+      const pg = chainPricedGas(cfg.nominalGas, BigInt(String(gas.result ?? "0")));
       gasGwei = Number(ethers.formatUnits(pg, "gwei"));
       costNative = Number(ethers.formatEther(EXPECTED_CALL_GAS * pg));
     } catch { /* נתון — לא אפס */ }

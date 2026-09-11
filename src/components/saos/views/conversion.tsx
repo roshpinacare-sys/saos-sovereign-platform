@@ -8,6 +8,8 @@
  *
  * שבע שכבות — הכל מדידה חיה, אפס מספר מומצא:
  *   (1) פסק-דין — התשובה הישירה מהנתונים
+ *   (1.5) ההחלטה המואצלת — v69: הבעלים האציל את ההחלטה בדבריו, האורגניזם
+ *         פסק בכוח הראיות (ההרשאה כלשונה · הראיות · הנתיבים הפתוחים)
  *   (2) מחוונים — משמרת · מראה · פער · הוכחה · מוכנות
  *   (3) המשמרת הריבונית מול המראה — הכסף שבחוץ מול הייצוג על הרשת
  *   (4) שני מסלולי המרה — עטיפה-ריבונית (הפריצה) מול איחוד חיצוני
@@ -18,7 +20,7 @@
 
 import { useCallback, useState } from "react";
 import {
-  ArrowLeftRight, BookOpenCheck, CheckCircle2, Coins, Database, Flame,
+  ArrowLeftRight, BookOpenCheck, CheckCircle2, Coins, Database, Flame, Gavel,
   Layers, ListChecks, Lock, Repeat, Rocket, ShieldCheck, Timer, Vault
 } from "lucide-react";
 import {
@@ -30,7 +32,7 @@ import { PageHead } from "../shell";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import { cn } from "../ui";
 import type {
-  ChamberActionResult, ConversionChamberData, ProofRunResult, ReadinessItem, RouteCard
+  ChamberActionResult, ConversionChamberData, DelegatedDecision, ProofRunResult, ReadinessItem, RouteCard
 } from "@/lib/saos/conversion-chamber";
 
 // ─── עזרי-תצוגה ─────────────────────────────────────────────────────────────
@@ -64,6 +66,116 @@ const fmtLabEth = (v: string): string => {
   if (n === 0) return "0";
   return n < 0.001 ? n.toPrecision(3) : n.toFixed(6);
 };
+
+// ─── (1.5) ההחלטה המואצלת — v69 ─────────────────────────────────────────────
+
+/** כתובת EVM (40 hex) המופיעה בתוך מלל עברי — מוצגת מונו + העתקה, בלי לשבור שורה */
+const ADDR_RE = /0x[0-9a-fA-F]{40}/g;
+
+function TextWithAddresses({ text }: { text: string }) {
+  const parts = text.split(ADDR_RE);
+  const addrs = text.match(ADDR_RE) ?? [];
+  return (
+    <span>
+      {parts.map((p, i) => (
+        <span key={`p${i}`}>
+          {p}
+          {addrs[i] && (
+            <span dir="ltr" className="inline-flex items-center gap-1 align-baseline">
+              <span className="font-mono text-emerald-300/90 break-all">{addrs[i]}</span>
+              <CopyBtn text={addrs[i]} size={12} />
+            </span>
+          )}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function DelegatedDecisionPanel({ d }: { d: DelegatedDecision }) {
+  return (
+    <Panel accent className="border-emerald-400/25">
+      <PanelHeader
+        icon={<Gavel size={15} />}
+        title={`ההחלטה המואצלת — פסק-דין בחוכמה (${d.grantedAt})`}
+        sub="הבעלים האציל את ההחלטה אל האורגניזם בדבריו עצמם — והאורגניזם החליט בכוח הראיות שנמדדו. ההרשאה והפסק-דין קפואים בקוד: מתוארכים, ניתנים לביקורת, לא ניתנים לערעור בשקט."
+        actions={<Pill tone="green">שער נעול — החלטה שנעשתה</Pill>}
+      />
+      <PanelBody className="space-y-4">
+        {/* ההרשאה — כלשונה, בציטוט */}
+        <blockquote className="relative rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-4 py-3 ps-5">
+          <span
+            aria-hidden
+            className="absolute inset-y-0 start-0 w-[3px] rounded-full bg-gradient-to-b from-amber-400/60 to-emerald-400/40"
+          />
+          <p className="text-[10.5px] font-semibold text-amber-300/80 mb-1">
+            ההרשאה — דברי הבעלים, כלשונם ({d.grantedAt}):
+          </p>
+          <p className="text-[13px] leading-relaxed text-amber-100 font-medium">
+            «{d.authorizationHe}»
+          </p>
+        </blockquote>
+
+        {/* הפסק-דין */}
+        <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/[0.05] px-4 py-3">
+          <p className="text-[10.5px] font-bold text-emerald-300 mb-1">פסק-הדין שנעשה בכוח ההרשאה:</p>
+          <p className="text-[12.5px] leading-relaxed text-emerald-100 font-semibold">{d.verdictHe}</p>
+        </div>
+
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {/* הראיות */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+              <ShieldCheck size={13} className="text-emerald-400/80" />
+              הראיות שעליהן ההחלטה עומדת ({d.evidenceHe.length}, נמדדו חי):
+            </p>
+            <ul className="space-y-1.5">
+              {d.evidenceHe.map((e, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="shrink-0 mt-1 h-1.5 w-1.5 rounded-full bg-emerald-400/70" aria-hidden />
+                  <p className="text-[11px] leading-relaxed text-zinc-400">{e}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* הנתיבים הפתוחים לבעלים */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+              <Vault size={13} className="text-amber-400/80" />
+              הנתיבים שנשארו פתוחים לבעלים ({d.openPathsHe.length}):
+            </p>
+            <ol className="space-y-2">
+              {d.openPathsHe.map((p, i) => (
+                <li
+                  key={i}
+                  className="rounded-lg border border-white/[0.07] bg-zinc-900/45 p-3 transition-colors hover:border-white/[0.12]"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span className="shrink-0 mt-0.5 w-5 h-5 rounded-md border border-amber-400/20 bg-amber-400/[0.06] text-amber-300/90 text-[10.5px] font-bold flex items-center justify-center">
+                      {["א", "ב", "ג", "ד", "ה"][i] ?? i + 1}
+                    </span>
+                    <p className="text-[11px] leading-relaxed text-zinc-300 min-w-0 break-words">
+                      <TextWithAddresses text={p} />
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+
+        {/* הפניית-החוכמה — הערת סיום */}
+        <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-4 py-2.5 border-t">
+          <p className="text-[10.5px] leading-relaxed text-zinc-500">
+            <span className="text-zinc-400 font-semibold">הפניית-החוכמה: </span>
+            {d.wiseRedirectHe}
+          </p>
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
 
 // ─── (4) שני מסלולי ההמרה ───────────────────────────────────────────────────
 
@@ -331,6 +443,9 @@ export function ConversionView() {
         <p className="font-bold text-amber-200 mb-1">פסק-דין — ההמרה על הרשת שלנו</p>
         {d.verdictHe}
       </Callout>
+
+      {/* (1.5) ההחלטה המואצלת — v69: הבעלים האציל, האורגניזם החליט */}
+      <DelegatedDecisionPanel d={d.decision} />
 
       {/* (2) מחוונים */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">

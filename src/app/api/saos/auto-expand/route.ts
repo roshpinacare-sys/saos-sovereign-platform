@@ -10,7 +10,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * GET  /api/saos/auto-expand          — המפקד: מצב ההתפשטות של כל 8 מסילות
+ * GET  /api/saos/auto-expand          — המפקד: מצב ההתפשטות של כל 9 מסילות
  *        ה-EVM (expanded | armed | dark), ההגדרה, והיריות האחרונים.
  * POST /api/saos/auto-expand          — THE FIRE: ירי הצינור לכל מסילה דרוכה
  *        (deploy → anchor דרך SAOSRelay). source=auto (השומר) מכבד את
@@ -105,10 +105,10 @@ export async function POST(req: Request) {
     const source = obj.source === "auto" ? ("auto" as const) : ("manual" as const);
     let chains: string[] | undefined;
     if (Array.isArray(obj.chains)) {
-      const whitelist = ["ethereum", "bsc", "polygon", "arbitrum", "optimism", "base", "avalanche", "gnosis"];
+      const whitelist = ["ethereum", "bsc", "polygon", "arbitrum", "optimism", "base", "avalanche", "gnosis", "skale"];
       chains = obj.chains.filter((c): c is string => typeof c === "string" && whitelist.includes(c));
       if (obj.chains.length > 0 && chains.length === 0) {
-        return NextResponse.json({ ok: false, error: "chains לא ברשימת-ההיתר (8 מסילות v51)" }, { status: 200 });
+        return NextResponse.json({ ok: false, error: "chains לא ברשימת-ההיתר (9 מסילות — 8 מ-v51 + SKALE v69)" }, { status: 200 });
       }
     }
 

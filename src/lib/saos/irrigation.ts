@@ -176,7 +176,17 @@ const ROUTES: Record<string, IrrigationRoute> = {
   bsc: { kind: "no-sovereign-route", estL1GasEth: 0, noteHe: "דורש BNB מקומי — אין מקור ריבוני; המרה או הפקדת-בעלים" },
   polygon: { kind: "no-sovereign-route", estL1GasEth: 0, noteHe: "דורש POL מקומי — אין מקור ריבוני; המרה או הפקדת-בעלים" },
   avalanche: { kind: "no-sovereign-route", estL1GasEth: 0, noteHe: "דורש AVAX מקומי — אין מקור ריבוני; המרה או הפקדת-בעלים" },
-  gnosis: { kind: "no-sovereign-route", estL1GasEth: 0, noteHe: "דורש xDAI מקומי — אין מקור ריבוני; המרה או הפקדת-בעלים" }
+  gnosis: { kind: "no-sovereign-route", estL1GasEth: 0, noteHe: "דורש xDAI מקומי — אין מקור ריבוני; המרה או הפקדת-בעלים" },
+  // v69 מסילה 9 — הדלת הזולה במערכה (מדוד חי, scripts/skale-gas-probe.ts):
+  // גז נומינלי 100000 wei — יעד-×2 של הדלת ≈ 0.000000112 יחידות-ETH-נומינליות
+  // (≈ $0.0003 — מודל-כנות), כ-400× מתחת לדלת EVM רגילה. אין פורטל ריבוני
+  // אליה — אבק-בעלים או ברז עתידי; ההתפשטות האוטומטית מוכנה מרגע שנוחת.
+  skale: {
+    kind: "no-sovereign-route",
+    estL1GasEth: 0,
+    noteHe:
+      "דורש יחידות-גז נומינליות (יעד-×2 ≈ 0.000000112 יחידות ≈ $0.0003 — הדלת הזולה במערכה, ~400× מתחת לדלת EVM) — אין מקור ריבוני; הפקדת-אבק-בעלים או ברז עתידי"
+  }
 };
 
 const L2_ENDPOINTS: Record<string, { url: string; chainId: number }> = {
@@ -352,7 +362,7 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
         spareNative: spare,
         spareUsd: spare > 0 && prices?.SOL != null ? Number((spare * (prices.SOL as number)).toFixed(4)) : null,
         state: "conversion-gated",
-        stateHe: "נעול מאחורי שער ההמרה — המרה לגז-EVM דורשת החלטת-בעלים על שירות ספציפי",
+        stateHe: "נעול מאחורי שער ההמרה — ההחלטה נעשתה (2026-09-11): לא להמיר עכשיו (ההרשאה הואצלה אל האורגניזם)",
         roleHe: "הוראת הבעלים: 'ויש לי בארנק סולנה תנסה להשתמש בזה איכשהו' — הניסיון נמדד, התשובה בשער-ההמרה"
       });
     }
@@ -367,7 +377,7 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
         spareNative: spare,
         spareUsd: spare > 0 && prices?.TRX != null ? Number((spare * (prices.TRX as number)).toFixed(4)) : null,
         state: "conversion-gated",
-        stateHe: "נעול מאחורי שער ההמרה — המרה לגז-EVM דורשת החלטת-בעלים על שירות ספציפי",
+        stateHe: "נעול מאחורי שער ההמרה — ההחלטה נעשתה (2026-09-11): לא להמיר עכשיו (ההרשאה הואצלה אל האורגניזם)",
         roleHe: "הוראת הבעלים: 'יש גם trx' — המאזן הגדול באוצר, ממתין לשער"
       });
     }
@@ -447,9 +457,15 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
     const fundableCount = doors.filter((d) => d.fundable).length;
 
     // סך-הפער ב-USD (חי) — מה שההמרה היתה סוגרת
+    // v69 — SKALE: היחידות נומינליות; תמחור במחיר ETH-אמיתי היה מגזים
+    // פי-1000. מודל-כנות מתועד: יעד-×2 ≈ $0.0003 (הערת המסלול) — לא מחיר שוק.
     let totalGapUsd: number | null = 0;
     for (const d of doors) {
       if (d.relayLive || d.gapNative == null || d.gapNative <= 0) continue;
+      if (d.chain === "skale") {
+        totalGapUsd = (totalGapUsd ?? 0) + 0.0003; // מודל-כנות מתועד — ראה הערה למעלה
+        continue;
+      }
       const p = d.symbol === "ETH" ? (prices?.ETH ?? null) : d.symbol === "BNB" ? (prices?.BNB ?? null) : d.symbol === "POL" ? (prices?.POL ?? null) : d.symbol === "AVAX" ? (prices?.AVAX ?? null) : d.symbol === "xDAI" ? 1 : null;
       if (p == null) { totalGapUsd = null; break; }
       totalGapUsd += d.gapNative * p;
@@ -494,10 +510,10 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
       fundableCount > 0
         ? `${fundableCount} דלת/ות מתוכננות לטפטוף אוטונומי — הגשש (:3005) יורה במחזור הבא שלו (10 דק'). העודף באת'ריום: ${ethSpare?.toFixed(7) ?? "?"} ETH מעל רצפת-עצמו.`
         : waitingSource > 0
-          ? `אף דלת לא מתוכננת כרגע — המקור (את'ריום) אינו מכסה את הפערים כולל גז-L1. ${waitingSource} דלת/ות ממתינות למקור; שער-ההמרה פתוח להחלטת-בעלים.`
+          ? `אף דלת לא מתוכננת כרגע — המקור (את'ריום) אינו מכסה את הפערים כולל גז-L1. ${waitingSource} דלת/ות ממתינות למקור; שער-ההמרה נעול כהחלטה (2026-09-11).`
           : doors.every((d) => d.relayLive)
             ? "כל הדלתות פרוצות — ההשקיה השלימה את ייעודה."
-            : "הדלתות שנותרו דורשות מטבעות מקומיים (BNB/POL/AVAX/xDAI) או נתיב מורכב — שער-ההמרה או הפקדת-בעלים.";
+            : "הדלתות שנותרו דורשות מטבעות מקומיים (BNB/POL/AVAX/xDAI — ו-SKALE באבק-נומינלי בלבד) או נתיב מורכב — הפקדת-בעלים; ההמרה הוחלט שלא לבצע עכשיו (2026-09-11).";
 
     return {
       ok: true,
@@ -538,7 +554,7 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
           }
         ],
         gateHe:
-          "השער נעול בקוד (כלל v65 מס' 3): אוצר ריבוני לא נשלח לשירות-חליפין/גשר-משמר בלי החלטת-בעלים על השירות הספציפי. הבעלים אישר לשלם — ההחלטה שנותרה היא רק על איזה שירות. מרגע שייקבע: ההמרה תכסה את כל סך-הפער."
+          "ההחלטה נעשתה (2026-09-11): לא להמיר עכשיו — השער נעול כהחלטה, לא כשאלה שממתינה. הבעלים האציל את ההחלטה אל האורגניזם ('אני מאשר לך להחליט בחוכמה עבורי') — הפסק-דין המתועד בחדר-ההמרה ('ההחלטה המואצלת'): שלושת שירותי-החליפין שנמדדו נעולים/בלתי-נגישים, העודף $7.18 מתחת למינימומים, וכלל v65 מס' 3 (אפס-צד-שלישי-משמר) נותר על-כנו. הנתיבים הפתוחים לבעלים פורסמו: הפקדת ~$0.40 ETH לכתובת הריבונית · מסירת מפתח-API לכספת · המתנה לצמיחת האוצר."
       },
       journal,
       counts: { fundable: fundableCount, waitingSource, locked, noRoute }

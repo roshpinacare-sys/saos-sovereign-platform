@@ -103,7 +103,12 @@ export const TRUSTED_HOSTS: TrustedHost[] = [
   { host: "eos.greymass.com", org: "Greymass (צומת EOS ציבורי)", tier: "major", role: "RPC EOS (מסילת-מודול · הרחבת הריבונות v58)" },
   { host: "nos.lol", org: "nos.lol (ריליי NOSTR ציבורי)", tier: "major", role: "שכבת-פרסום חינמית NOSTR (הרחבת הריבונות v58)" },
   { host: "relay.damus.io", org: "Damus (ריליי NOSTR ציבורי)", tier: "major", role: "שכבת-פרסום חינמית NOSTR (הרחבת הריבונות v58)" },
-  { host: "rpc.vara.network", org: "Vara Network (רשמי)", tier: "official", role: "RPC Vara — שרשרת ללא-עמלות WASM (הרחבת הריבונות v58)" }
+  { host: "rpc.vara.network", org: "Vara Network (רשמי)", tier: "official", role: "RPC Vara — שרשרת ללא-עמלות WASM (הרחבת הריבונות v58)" },
+  // v69 חישול-המודולים שלב-1 — מנוע UTXO (BTC/DOGE/LTC) + ההוכחה החיה על signet:
+  // ברזי-הsignet הציבוריים שמממנים את ההוכחה (מימון חיצוני חינמי — לא מהכספת).
+  { host: "kruwt.dk", org: "Kruwt (ברז signet ציבורי)", tier: "major", role: "ברז signet — הוכחת מנוע UTXO (v69)" },
+  { host: "signet.bitcoin.dev", org: "Bitcoin Core / Google Cloud — ברז signet ציבורי", tier: "official", role: "ברז signet — הוכחת מנוע UTXO (v69)" },
+  { host: "faucet.signet.bitcoin.dev", org: "Bitcoin Core / Google Cloud — ברז signet ציבורי", tier: "official", role: "ברז signet — הוכחת מנוע UTXO (v69)" }
 ];
 
 const HOST_INDEX = new Map(TRUSTED_HOSTS.map((t) => [t.host, t]));
@@ -144,7 +149,9 @@ export const DISPLAY_HOSTS: string[] = [
   "tzkt.io",
   "explorer.near.org",
   // — v51 בית-היוצר לגשרים: קישור תצוגה של נתיב קרדאנו (מתועד בלבד) —
-  "cardanoscan.io"
+  "cardanoscan.io",
+  // — v69 מסילה 9: אקספלורר Blockscout של SKALE אירופה (תצוגה בלבד) —
+  "blockscout.com"
 ];
 const DISPLAY_SET = new Set(DISPLAY_HOSTS);
 

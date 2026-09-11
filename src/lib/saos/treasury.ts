@@ -443,6 +443,13 @@ function metaCost(row: AnchorMetaRow): { native: number | null; symbol: string; 
       const c = typeof m.costXdai === "string" ? Number(m.costXdai) : null;
       return { native: c && c > 0 ? c : null, symbol: "xDAI", noteHe: c && c > 0 ? "מהמסלול (costXdai — סטייבל)" : null };
     }
+    // v69 מסילה 9 — SKALE אירופה: גז נומינלי. העלות מהקבלה (gasUsed × 100000 wei)
+    // תהיה זעירה — מוצגת ביחידות המקור (נומינלי) עם הערת-כנות; ה-ETH של
+    // אירופה מגושר מהמיינטנט, אז תמחור-USD במחיר ETH הוא מודל-כנות סביר.
+    case "SKALE": {
+      const c = typeof m.costSkale === "string" ? Number(m.costSkale) : null;
+      return { native: c && c > 0 ? c : null, symbol: "ETH", noteHe: c && c > 0 ? "מהמסלול (costSkale — נומינלי)" : null };
+    }
     default:
       return { native: null, symbol: "—", noteHe: null };
   }
@@ -462,7 +469,9 @@ const LIVE_NETWORK_HE: Record<string, string> = {
   OPTIMISM: "אופטימיזם",
   BASE: "בייס",
   AVALANCHE: "אבאלנש'",
-  GNOSIS: "נוסיס"
+  GNOSIS: "נוסיס",
+  // v69 מסילה 9
+  SKALE: "סקייל (אירופה)"
 };
 
 const LIVE_PURPOSE_HE: Record<string, string> = {
@@ -478,7 +487,9 @@ const LIVE_PURPOSE_HE: Record<string, string> = {
   OPTIMISM: "פעימת התפשטות חיה — מסילת OPTIMISM",
   BASE: "פעימת התפשטות חיה — מסילת BASE",
   AVALANCHE: "פעימת התפשטות חיה — מסילת AVAX",
-  GNOSIS: "פעימת התפשטות חיה — מסילת xDAI"
+  GNOSIS: "פעימת התפשטות חיה — מסילת xDAI",
+  // v69 מסילה 9 — הדלת הזולה (גז נומינלי)
+  SKALE: "פעימת התפשטות חיה — מסילת SKALE אירופה (גז נומינלי)"
 };
 
 /** v66 — פעימות relay (anchor דרך SAOSRelay) מקבלות תכלית משלהן */
@@ -490,7 +501,8 @@ const RELAY_PURPOSE_HE: Record<string, string> = {
   OPTIMISM: "עוגן-relay חי — SAOSRelay על אופטימיזם",
   BASE: "עוגן-relay חי — SAOSRelay על בייס",
   AVALANCHE: "עוגן-relay חי — SAOSRelay על אבאלנש'",
-  GNOSIS: "עוגן-relay חי — SAOSRelay על נוסיס"
+  GNOSIS: "עוגן-relay חי — SAOSRelay על נוסיס",
+  SKALE: "עוגן-relay חי — SAOSRelay על סקייל (אירופה, גז נומינלי)"
 };
 
 function explorerOf(network: string, txid: string): string | null {
@@ -508,6 +520,8 @@ function explorerOf(network: string, txid: string): string | null {
     case "BASE": return `https://basescan.org/tx/${txid}`;
     case "AVALANCHE": return `https://snowtrace.io/tx/${txid}`;
     case "GNOSIS": return `https://gnosisscan.io/tx/${txid}`;
+    // v69 מסילה 9 — Blockscout (החזיר 503 בזמן המדידה; הקבלות מהצומת)
+    case "SKALE": return `https://blockscout.com/apps/skale/europa/tx/${txid}`;
     default: return null;
   }
 }
@@ -520,7 +534,7 @@ async function liveExpenses(): Promise<TreasuryExpense[]> {
     const rows = await db.anchorTx.findMany({
       where: {
         kind: { in: ["weave", "relay", "irrigation"] },
-        network: { in: ["ETHEREUM", "BSC", "TRON", "XRPL", "SOLANA", "POLYGON", "ARBITRUM", "OPTIMISM", "BASE", "AVALANCHE", "GNOSIS"] },
+        network: { in: ["ETHEREUM", "BSC", "TRON", "XRPL", "SOLANA", "POLYGON", "ARBITRUM", "OPTIMISM", "BASE", "AVALANCHE", "GNOSIS", "SKALE"] },
         status: { in: ["anchored", "broadcast", "delivered"] },
         txid: { not: null }
       },

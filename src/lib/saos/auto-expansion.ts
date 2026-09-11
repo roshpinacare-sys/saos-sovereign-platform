@@ -66,7 +66,7 @@ export async function setAutoExpansionEnabled(enabled: boolean): Promise<boolean
   return enabled;
 }
 
-// ─── מפת-הרשתות — הרשתות שהמנוע יודע לפתוח (8 מסילות v51) ─────────────────
+// ─── מפת-הרשתות — 9 מסילות: 8 מ-v51 + SKALE אירופה (v69) ──────────────────
 
 const RAILS: Array<{ chain: RelayChain; network: string; heName: string; symbol: string }> = [
   { chain: "ethereum", network: "ETHEREUM", heName: "את'ריום", symbol: "ETH" },
@@ -76,13 +76,18 @@ const RAILS: Array<{ chain: RelayChain; network: string; heName: string; symbol:
   { chain: "optimism", network: "OPTIMISM", heName: "אופטימיזם", symbol: "ETH" },
   { chain: "base", network: "BASE", heName: "בייס", symbol: "ETH" },
   { chain: "avalanche", network: "AVALANCHE", heName: "אבאלנש'", symbol: "AVAX" },
-  { chain: "gnosis", network: "GNOSIS", heName: "נוסיס", symbol: "xDAI" }
+  { chain: "gnosis", network: "GNOSIS", heName: "נוסיס", symbol: "xDAI" },
+  // v69 מסילה 9 — הדלת הזולה במערכה: גז נומינלי (100000 wei, מדוד),
+  // יעד-×2 לכל הדלת ≈ 0.000000112 יחידות-ETH-נומינליות ≈ $0.0003 — כ-400×
+  // מתחת לדלת EVM רגילה. המנוע פורס ומעוגן כמו כל מסילה אחרת.
+  { chain: "skale", network: "SKALE", heName: "סקייל (אירופה)", symbol: "ETH" }
 ];
 
 /** שדה-העלות ב-meta לפי רשת — אותו קונבנציה שספר-האוצר קורא (v65) */
 const COST_FIELD: Record<string, string> = {
   ETHEREUM: "costEth", BSC: "costBnb", POLYGON: "costPol", ARBITRUM: "costEth",
-  OPTIMISM: "costEth", BASE: "costEth", AVALANCHE: "costAvax", GNOSIS: "costXdai"
+  OPTIMISM: "costEth", BASE: "costEth", AVALANCHE: "costAvax", GNOSIS: "costXdai",
+  SKALE: "costSkale" // v69 — נומינלי; הספר מציג ביחידות מקור עם הערת-כנות
 };
 
 // ─── המפקד — מצב ההתפשטות של כל מסילה ───────────────────────────────────────
@@ -236,7 +241,7 @@ export async function expansionCensus(opts: { force?: boolean } = {}): Promise<E
         : counts.expanded > 0 && counts.dark > 0
           ? `${counts.expanded} מסילות פרוצות · ${counts.dark} חשוכות ממתינות לגז — ההשקיה היא העברת-הבעלים, ההתפשטות אוטומטית.`
           : counts.expanded === RAILS.length
-            ? "כל 8 המסילות פרוצות — המרש חותם דרך relay חי בכל רשת."
+            ? `כל ${RAILS.length} המסילות פרוצות — המרש חותם דרך relay חי בכל רשת.`
             : "המסילות ממתינות להשקיה — כתובת-המימון פורסמה לרשת בשידור v65.";
 
     return {

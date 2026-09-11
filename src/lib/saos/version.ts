@@ -5,7 +5,7 @@
  * bump בכל מהדורה — package.json · shell · footer · overview — הכל מכאן.
  */
 
-export const SAOS_VERSION = "68.0.0";
+export const SAOS_VERSION = "69.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "בית-הזיכרון (THE HOUSE OF MEMORY)";
+export const SAOS_CODENAME = "ההחלטה המואצלת וחישול-המודולים (THE DELEGATED DECISION AND THE MODULE FORGE)";

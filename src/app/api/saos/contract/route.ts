@@ -34,7 +34,8 @@ export const dynamic = "force-dynamic";
 
 const NETWORK_OF: Record<RelayChain, string> = {
   ethereum: "ETHEREUM", bsc: "BSC", polygon: "POLYGON", arbitrum: "ARBITRUM",
-  optimism: "OPTIMISM", base: "BASE", avalanche: "AVALANCHE", gnosis: "GNOSIS"
+  optimism: "OPTIMISM", base: "BASE", avalanche: "AVALANCHE", gnosis: "GNOSIS",
+  skale: "SKALE" // v69 מסילה 9 — הדלת הזולה (גז נומינלי)
 };
 
 function safeParse(s: string | null): Record<string, unknown> | null {

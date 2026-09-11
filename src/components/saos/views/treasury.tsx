@@ -9,6 +9,8 @@
  * (יתרות × מחירי שוק) · כל ההוצאה שנעשתה אי-פעם (עלות חיה מהקבלות
  * של השרשראות ששילמו) · ההוצאות החיות מאז ההרשאה · תוכנית 7 הדלתות
  * עם כתובת-המימון · ומדיניות-ההוצאה שנגזרה מההוראה.
+ * v69 — נוסף פאנל חישול-המודולים (UTXO): BTC/DOGE/LTC נחשלו מאבן-הפינה,
+ * הוכחת BIP-143 מול וקטור הבדיקה הרשמי, ומסילת-ההוכחה על signet.
  */
 
 import { useState } from "react";
@@ -20,16 +22,20 @@ import {
   ExternalLink,
   Eye,
   Flame,
+  FlaskConical,
+  Hammer,
   Landmark,
   Receipt,
   Scale,
   ScrollText,
+  ShieldCheck,
   Sprout,
   Wallet
 } from "lucide-react";
 import {
   Btn,
   Callout,
+  CopyBtn,
   HashLine,
   Kpi,
   Panel,
@@ -40,11 +46,13 @@ import {
   Table,
   Tag,
   Td,
-  Th
+  Th,
+  cn
 } from "../ui";
 import { useLive, useTick } from "../lib";
 import { PageHead } from "../shell";
 import type { ExpansionData, TreasuryData, TreasuryExpense } from "../types";
+import type { UtxoForgeStatus } from "@/lib/saos/utxo-forge";
 
 // ─── עזרי-תצוגה ─────────────────────────────────────────────────────────────
 
@@ -134,6 +142,174 @@ function ExpenseRow({ e }: { e: TreasuryExpense }) {
   );
 }
 
+// ─── v69 חישול-המודולים — מנוע UTXO ───────────────────────────────────────────
+
+const UTXO_STATE_HE: Record<string, { shortHe: string; tone: "green" | "amber" | "zinc" }> = {
+  "forged-waiting-drip": { shortHe: "נחשל · ממתין לטפטוף", tone: "amber" },
+  funded: { shortHe: "ממומן", tone: "green" }
+};
+
+function CheckTag({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <Tag tone={ok ? "green" : "zinc"}>
+      {ok ? "✓" : "✗"} {label}
+    </Tag>
+  );
+}
+
+function UtxoForgePanel({ u }: { u: UtxoForgeStatus }) {
+  const st = u.selfTest;
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<Hammer size={15} />}
+        title="חישול-המודולים (UTXO) — BTC · DOGE · LTC נחשלו מאבן-הפינה"
+        sub="מנוע UTXO שלב-1: משפחה-גנרית (נתיב · סוג-סקריפט · hrp/גרסה) — הכתובות נגזרו מ-24 המילים של אבן-הפינה, ומנוע ה-sighash מוכח מול וקטור הבדיקה הרשמי של BIP-143 בכל קריאת מצב. הטפטוף בידי הבעלים — המנוע כבר דרוך."
+        tag={`${u.families.length} משפחות · BIP-143 ${st.passed ? "מוכח" : "נכשל"}`}
+        actions={<Pill tone={st.passed ? "green" : "rose"}>{st.passed ? "BIP-143 ✓ בייט-מול-בייט" : "BIP-143 ✗"}</Pill>}
+      />
+      <PanelBody className="p-0">
+        {/* (a) מחוונים */}
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3 px-4 pt-3 pb-2">
+          <Kpi
+            label="משפחות שנחשלו"
+            value={u.families.length}
+            icon={<Coins size={16} />}
+            tone="green"
+            hint={u.families.map((f) => f.symbol).join(" · ")}
+          />
+          <Kpi
+            label="BIP-143 — וקטור הבדיקה"
+            value={st.passed ? "✓ מוכח" : "✗ נכשל"}
+            icon={<ShieldCheck size={16} />}
+            tone={st.passed ? "green" : "rose"}
+            hint={st.digestOk ? "digest התאים בייט-מול-בייט" : "digest חלוק — fail-closed"}
+          />
+          <Kpi
+            label="הוכחת signet"
+            value={u.signet.proof ? "נורתה" : "ממתינה למימון"}
+            icon={<FlaskConical size={16} />}
+            tone={u.signet.proof ? "green" : "gold"}
+            hint={u.signet.proof ? "קבלה חיה מהשרשרת" : "ברזים ציבוריים — הוכחה ממתינה בכנות"}
+          />
+        </div>
+
+        {/* (b) המשפחות */}
+        <Table>
+          <thead>
+            <tr>
+              <Th>משפחה</Th>
+              <Th>כתובת נגזרת (מונו)</Th>
+              <Th>נתיב</Th>
+              <Th>מצב</Th>
+              <Th>יתרה (מקומי)</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {u.families.map((f) => {
+              const meta = UTXO_STATE_HE[f.state] ?? { shortHe: f.state, tone: "zinc" as const };
+              return (
+                <tr key={f.id} className="transition-colors hover:bg-white/[0.02]">
+                  <Td className="whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-200">{f.heName}</span>
+                      <Tag tone="zinc" dir="ltr">{f.symbol}</Tag>
+                    </div>
+                    <p className="text-[10px] text-zinc-600 mt-0.5" dir="ltr">{f.network} · {f.scriptType}</p>
+                    <p className="text-[10px] text-zinc-600 mt-0.5 max-w-[240px] leading-relaxed" title={f.noteHe}>{f.noteHe}</p>
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    <span dir="ltr" className="inline-flex items-center gap-1.5">
+                      <a
+                        href={f.explorerAddr}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-[10.5px] text-emerald-300/80 hover:text-emerald-200 transition-colors"
+                        title={f.address}
+                      >
+                        {f.address.slice(0, 10)}…{f.address.slice(-6)}
+                        <ExternalLink size={9} className="inline ms-0.5" />
+                      </a>
+                      <CopyBtn text={f.address} size={12} />
+                    </span>
+                  </Td>
+                  <Td dir="ltr" className="font-mono text-[10.5px] text-zinc-500 whitespace-nowrap">{f.path}</Td>
+                  <Td>
+                    <Pill tone={meta.tone}>{meta.shortHe}</Pill>
+                    <p className="text-[10px] text-zinc-600 mt-1 max-w-[220px] leading-relaxed">{f.stateHe}</p>
+                  </Td>
+                  <Td dir="ltr" className="font-mono whitespace-nowrap">
+                    <span className={f.balanceNative !== null && f.balanceNative > 0 ? "text-emerald-300/80" : "text-zinc-400"}>
+                      {fmtNative(f.balanceNative, f.symbol)}
+                    </span>
+                  </Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+
+        {/* (c) signet + (d) מבחן-עצמי BIP-143 */}
+        <div className="px-4 py-3 border-t border-white/[0.05] space-y-3">
+          <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 space-y-2">
+            <p className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+              <FlaskConical size={12} className="text-amber-400/80" />
+              מסילת-ההוכחה — BTC signet
+            </p>
+            <HashLine label="כתובת (signet)" value={u.signet.address} tone="gold" />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span dir="ltr" className="font-mono text-[10.5px] text-zinc-500">{u.signet.path}</span>
+              <span dir="ltr" className="font-mono text-[10.5px] text-zinc-400">{
+                fmtNative(u.signet.balanceNative, "sBTC")
+              }</span>
+            </div>
+            <p className="text-[10.5px] leading-relaxed text-amber-200/70">{u.signet.proofStateHe}</p>
+          </div>
+
+          <div
+            className={cn(
+              "rounded-lg border px-3 py-2.5 space-y-2.5",
+              st.passed ? "border-emerald-400/25 bg-emerald-400/[0.05]" : "border-rose-400/25 bg-rose-400/[0.05]"
+            )}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                <ShieldCheck size={12} />
+                מבחן-עצמי BIP-143 — וקטור הבדיקה הרשמי (bitcoin/bips)
+              </p>
+              <Pill tone={st.passed ? "green" : "rose"}>{st.passed ? "עבר ✓" : "נכשל ✗"}</Pill>
+              <span className="text-[10px] text-zinc-600">{timeAgo(st.at)}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <CheckTag ok={st.digestOk} label="digest בייט-מול-בייט" />
+              <CheckTag ok={st.officialSigVerifies} label="חתימת ה-BIP מאומתת" />
+              <CheckTag ok={st.sigByteExact} label={st.sigByteExact ? "חתימה זהה-בייט" : "חתימה תקינה · לא זהה-בייט"} />
+            </div>
+            <HashLine label="digest שנחשב" value={st.digestHex} tone="green" />
+            <HashLine label="sigHash צפוי (ה-BIP)" value={st.expectedSigHash} tone="gold" />
+            <p className="text-[10px] leading-relaxed text-zinc-500" dir="auto">{st.sourceHe}</p>
+            <p className="text-[10.5px] leading-relaxed text-zinc-400">{st.noteHe}</p>
+          </div>
+
+          {/* (e) גבול-האמת של המנוע */}
+          <div className="space-y-1">
+            <p className="text-[10.5px] font-semibold text-zinc-500">גבול-האמת של החישול:</p>
+            <ul className="space-y-0.5 list-disc pr-4">
+              {u.honestyHe.map((h, i) => (
+                <li key={i} className="text-[10px] leading-relaxed text-zinc-600">{h}</li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="text-[10px] text-zinc-600">
+            נמדד {timeAgo(u.at)} · מנוע v{u.version} · יעד החתימה היחיד בשלב זה: הכתובת הריבונית שלנו עצמה — אין נתיב קוד לאף כתובת אחרת.
+          </p>
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
+
 // ─── הוויו ───────────────────────────────────────────────────────────────────
 
 export function TreasuryView() {
@@ -143,15 +319,19 @@ export function TreasuryView() {
   const [fireMsg, setFireMsg] = useState<string | null>(null);
   const live = useLive<TreasuryData>("/api/saos/treasury", 60000);
   const expLive = useLive<ExpansionData>("/api/saos/auto-expand", 60000);
+  const utxoLive = useLive<UtxoForgeStatus>("/api/saos/utxo", 60000);
   const d = live.data;
   const exp = expLive.data;
+  const utxo = utxoLive.data;
 
   const doRefresh = async () => {
     setRefreshing(true);
     await fetch("/api/saos/treasury?force=1").catch(() => undefined);
     await fetch("/api/saos/auto-expand?force=1").catch(() => undefined);
+    await fetch("/api/saos/utxo?force=1").catch(() => undefined);
     live.refresh();
     expLive.refresh();
+    utxoLive.refresh();
     setRefreshing(false);
   };
 
@@ -268,7 +448,7 @@ export function TreasuryView() {
           tone={t.liveCount > 0 ? "gold" : "default"}
         />
         <Kpi
-          label="פער 7 הדלתות (USD)"
+          label={`פער ${d.doors.length} הדלתות (USD)`}
           value={fmtUsd(t.doorsGapUsdKnown)}
           hint={`${t.doorsWaiting} דלתות EVM מוכחות-צינור ממתינות לגז`}
           icon={<DoorOpen size={16} />}
@@ -401,7 +581,7 @@ export function TreasuryView() {
       <Panel>
         <PanelHeader
           icon={<DoorOpen size={15} />}
-          title="תוכנית הדלתות — 7 דלתות EVM מוכחות-צינור שממתינות לגז"
+          title={`תוכנית הדלתות — ${d.doors.length} דלתות EVM מוכחות-צינור`}
           tag={`סך הפער ${fmtUsd(t.doorsGapUsdKnown)} · כתובת-מימון אחת לכולן`}
         />
         <PanelBody className="p-0">
@@ -591,6 +771,9 @@ export function TreasuryView() {
           </PanelBody>
         </Panel>
       )}
+
+      {/* v69 חישול-המודולים — מנוע UTXO */}
+      {utxo && <UtxoForgePanel u={utxo} />}
 
       {/* מדיניות ההוצאה */}
       <Panel>

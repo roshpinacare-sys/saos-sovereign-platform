@@ -40,7 +40,10 @@ export type RelayChain =
   // v51 בית-היוצר לגשרים: אותו bytecode פורש על כל רשת EVM —
   // שש הדלתות החדשות ממפת-הרשתות v48 הופכות לנתיבי-relay
   // מלאים ברישום אחד. הפריסה נשארת מגודרת-כנות (readiness → funded).
-  | "polygon" | "arbitrum" | "optimism" | "base" | "avalanche" | "gnosis";
+  | "polygon" | "arbitrum" | "optimism" | "base" | "avalanche" | "gnosis"
+  // v69 מסילה 9 — SKALE Europa Hub: הדלת הזולה במערכה. אותו bytecode
+  // SAOSRelay, אותה כתובת ריבונית — גז נומינלי (מדוד חי, ראה nominalGas).
+  | "skale";
 
 const CHAINS: Record<RelayChain, {
   endpoints: string[];
@@ -48,6 +51,9 @@ const CHAINS: Record<RelayChain, {
   network: string;
   explorerTx: (txid: string) => string;
   explorerAddr: (addr: string) => string;
+  /** v69: מחיר-גז נומינלי (SKALE) — התמחור משתמש ב-eth_gasPrice הגולמי
+   *  של הצומת בלי רצפת 0.1gwei ובלי buffer; ראה הערת ה-skale למטה. */
+  nominalGas?: boolean;
 }> = {
   ethereum: {
     endpoints: ["https://ethereum-rpc.publicnode.com", "https://eth.drpc.org", "https://rpc.mevblocker.io"],
@@ -104,6 +110,24 @@ const CHAINS: Record<RelayChain, {
     network: "GNOSIS",
     explorerTx: (t) => `https://gnosisscan.io/tx/${t}`,
     explorerAddr: (a) => `https://gnosisscan.io/address/${a}`
+  },
+  // v69 מסילה 9 — SKALE Europa Hub (נמדד חי 2026-09-11, scripts/skale-gas-probe.ts):
+  //   chainId 2046399126 (eth_chainId 0x79f99296 ≡ net_version) · בלוק ~27.6M ·
+  //   eth_gasPrice = 100000 wei (נומינלי) · הכתובת הריבונית 0x01Bd…B37 — nonce 0, יתרה 0.
+  // ⚠️ הגז אינו חינם (מדוד): עסקת-אפס ממפתח חד-פעמי חסר-יתרה נדחתה פעמיים —
+  //   (1) code -32004 "Account balance is too low (balance < value + gas * gas price)"
+  //       ב-gasPrice 100000 · (2) "Transaction gas price lower than current eth_gasPrice"
+  //       ב-gasPrice 0. הצומת אוכף יתרה ≥ gasLimit×gasPrice — שערי ×2 נשארים פעילים.
+  // הערת-אמת לתצוגה: היחידות נקראות ETH אך הן נומינליות (ה-ETH של אירופה מגושר
+  //   מהמיינטנט — מחיר-USD בספר הוא מודל-כנות). Blockscout החזיר 503 בזמן המדידה —
+  //   הקבלות באות מהצומת בלבד.
+  skale: {
+    endpoints: ["https://mainnet.skalenodes.com/v1/europa"],
+    chainId: 2046399126,
+    network: "SKALE",
+    explorerTx: (t) => `https://blockscout.com/apps/skale/europa/tx/${t}`,
+    explorerAddr: (a) => `https://blockscout.com/apps/skale/europa/address/${a}`,
+    nominalGas: true
   }
 };
 
@@ -115,7 +139,9 @@ assertTrustedEndpoints(
     "https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org",
     "https://polygon-bor-rpc.publicnode.com", "https://arbitrum-one-rpc.publicnode.com",
     "https://optimism-rpc.publicnode.com", "https://base-rpc.publicnode.com",
-    "https://avalanche-c-chain-rpc.publicnode.com", "https://gnosis-rpc.publicnode.com"
+    "https://avalanche-c-chain-rpc.publicnode.com", "https://gnosis-rpc.publicnode.com",
+    // v69 מסילה 9 — SKALE Europa (המארח ברישום MAGEN מאז v58)
+    "https://mainnet.skalenodes.com/v1/europa"
   ],
   "relay-contract"
 );
@@ -142,7 +168,16 @@ const GAS_PRICE_BUFFER = 1.4;
 const GAS_PRICE_FLOOR_WEI = 100_000_000n; // 0.1 gwei floor (legacy txs)
 const BALANCE_MARGIN = 2n; // expected cost must fit ×2 — one action never drains
 
-function pricedGas(rawWei: bigint): bigint {
+/**
+ * v69 — תמחור-גז לפי שרשרת. למסילות "נומינליות" (SKALE): המחיר הגולמי של
+ * הצומת עצמו, בלי buffer ובלי רצפת 0.1gwei — הרצפה היתה מפחיתה… לא, היא
+ * היתה מגזימה את עלות SKALE פי-1000 (100000 wei נומינלי מול רצפת 100M wei).
+ * המחיר הנומינלי קבוע ויציב (מדוד) — buffer מיותר; הצומת דוחה מחיר נמוך
+ * משלו (מדוד), אז בדיוק מחיר-הצומת הוא הערך הכשיר והזול ביותר.
+ * שערי היתרה/×2 נשארים פעילים — הצומת אוכף יתרה ≥ gasLimit×gasPrice (מדוד, -32004).
+ */
+function pricedGas(rawWei: bigint, nominal = false): bigint {
+  if (nominal) return rawWei;
   const buffered = (rawWei * 140n) / 100n;
   return buffered > GAS_PRICE_FLOOR_WEI ? buffered : GAS_PRICE_FLOOR_WEI;
 }
@@ -169,7 +204,8 @@ export interface RelayReadiness {
 
 const NATIVE: Record<RelayChain, string> = {
   ethereum: "ETH", bsc: "BNB", polygon: "POL", arbitrum: "ETH",
-  optimism: "ETH", base: "ETH", avalanche: "AVAX", gnosis: "xDAI"
+  optimism: "ETH", base: "ETH", avalanche: "AVAX", gnosis: "xDAI",
+  skale: "ETH" // נומינלי — היחידות של אירופה הן ETH מגושר; הספר מציין זאת
 };
 
 export async function relayReadiness(chain: RelayChain): Promise<RelayReadiness> {
@@ -190,7 +226,7 @@ export async function relayReadiness(chain: RelayChain): Promise<RelayReadiness>
           provider.getBlockNumber()
         ]);
         provider.destroy();
-        const pg = pricedGas(BigInt(gasWei as string));
+        const pg = pricedGas(BigInt(gasWei as string), cfg.nominalGas === true);
         const deployCost = EXPECTED_DEPLOY_GAS * pg; // gate on EXPECTED gas — the tx limit is only safety headroom
         return {
           ok: true,
@@ -288,7 +324,7 @@ export async function deploySovereignRelay(chain: RelayChain): Promise<RelayDepl
         provider.getBalance(derived.address, "latest"),
         provider.send("eth_gasPrice", [])
       ]);
-      const pg = pricedGas(BigInt(gasWei as string));
+      const pg = pricedGas(BigInt(gasWei as string), cfg.nominalGas === true);
       const cost = EXPECTED_DEPLOY_GAS * pg; // expected-gas gate — the limit is safety headroom only
       if (balanceWei < cost * BALANCE_MARGIN) {
         throw new Error(
@@ -411,7 +447,7 @@ async function relayCall(
         provider.getBalance(derived.address, "latest"),
         provider.send("eth_gasPrice", [])
       ]);
-      const pg = pricedGas(BigInt(gasWei as string));
+      const pg = pricedGas(BigInt(gasWei as string), cfg.nominalGas === true);
       const cost = EXPECTED_CALL_GAS * pg; // expected-gas gate — the limit is safety headroom only
       if (balanceWei < cost * BALANCE_MARGIN) {
         throw new Error(
