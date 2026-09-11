@@ -19,6 +19,7 @@ import { ViewOverview } from "@/components/saos/views/overview";
 import { ViewWorth } from "@/components/saos/views/worth";
 import { TreasuryView } from "@/components/saos/views/treasury";
 import { IrrigationView } from "@/components/saos/views/irrigation";
+import { SnapshotView } from "@/components/saos/views/snapshot";
 import { RoastView } from "@/components/saos/views/roast";
 import { NetworkMapView } from "@/components/saos/views/networkmap";
 import { BridgesView } from "@/components/saos/views/bridges";
@@ -55,6 +56,7 @@ const TITLES: Record<ViewId, string> = {
   worth: "מימוש — שווי הרשת החי",
   treasury: "ספר האוצר — הכסף של הריבון, מתועד",
   irrigation: "ההשקיה החכמה — אוטונומית אבל בחוכמה",
+  snapshot: "עוגן-החוץ — שימור-האמת מחוץ לסנדבוקס",
   roast: "רוסט-אמת — חשיפה עצמית",
   networkmap: "מפת-רשתות — הארנק הרב-רשתי",
   bridges: "בית-היוצר לגשרים — תשתית לעוד רשתות",
@@ -117,6 +119,7 @@ export default function Home() {
         {view === "worth" && <ViewWorth />}
         {view === "treasury" && <TreasuryView />}
         {view === "irrigation" && <IrrigationView />}
+        {view === "snapshot" && <SnapshotView />}
         {view === "roast" && <RoastView />}
         {view === "networkmap" && <NetworkMapView />}
         {view === "bridges" && <BridgesView />}

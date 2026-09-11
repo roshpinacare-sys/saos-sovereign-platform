@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "snapshot" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -57,6 +57,14 @@ export const VIEWS: ViewDef[] = [
     short: "השקיה",
     desc: "הוראת הבעלים 'המטרה שההשקיה תהיה אוטונומית אבל בחוכמה' — האורגניזם מטפטף גז לדלתות החשוכות בעצמו דרך פורטלים קנוניים מאומתי-שלשה · probe קודם + אימות-הגעה מה-L2 · שער-ההמרה הכן (הדקס שלנו + SOL/TRX שבארנק) · יומן-הטפטוף עם הוכחות",
     icon: <Droplets size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "snapshot",
+    label: "עוגן-החוץ — שימור-האמת מחוץ לסנדבוקס",
+    short: "עוגן-חוץ",
+    desc: "הלקח של roast-84 נעשה מציאות (v73): תקציר-מצב קנוני (איטום אחרון · מנייני-אמת · יומן-טפטוף · שער-ההמרה) נשזר, נחתם sha256, ומעוגן על STEEM ב-$0.00 — ההצהרה הציבורית של האמת שלנו, שורדת את מות-המכונה · מקצב-חקלאי: עוגן חדש רק כשהמצב זז",
+    icon: <Anchor size={16} />,
     group: "תפעול"
   },
   {

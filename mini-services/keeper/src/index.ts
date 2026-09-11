@@ -157,6 +157,20 @@ const IRRIGATION_URL = "http://127.0.0.1:3000/api/saos/irrigation";
 const IRRIGATION_EVERY = 60; // every 60th cycle = 10 min
 const IRRIGATION_FIRST_AT = 6; // first scout 1 min after boot — אוטונומית מהרגע הראשון
 
+// v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
+// weave + the signing hand (vault gates · fail-closed self-verify · the
+// single whitelisted op custom_json saos.snapshot.v1 · inclusion proof from
+// live account history); the keeper owns the cadence: every hour it asks the
+// engine to anchor (source=auto) — the engine dedupes an UNCHANGED digest
+// (a still state keeps its existing public truth) and gates honestly on the
+// vault key. The keeper NEVER touches key material. Born from roast-84's
+// structural lesson (partner sandbox wiped: live folder, .env, chain db up
+// to h47,645 — the only copy that survives the death of the sandbox is the
+// one that lives on a public chain, $0.00).
+const SNAPSHOT_URL = "http://127.0.0.1:3000/api/saos/snapshot";
+const SNAPSHOT_EVERY = 360; // every 360th cycle = 1 hour
+const SNAPSHOT_FIRST_AT = 12; // first anchor attempt 2 min after boot
+
 // v70 — the reserve watcher (צופה-הרזרבות, הכנת חדר-ההמרה). The web tier
 // owns the measurement (custody↔mirror from the live census + the live
 // contract); the keeper owns the cadence: every 5 min it reads the chamber
@@ -238,6 +252,11 @@ interface KeeperEvent {
     | "irrigation-planned"
     | "irrigation-dripped"
     | "irrigation-off"
+    // v73 — the outer-anchor scout (עוגן-החוץ — שימור-חוץ של תקציר-המצב)
+    | "snapshot-anchored"
+    | "snapshot-watched"
+    | "snapshot-off"
+    | "snapshot-gated"
     // v70 — the reserve watcher (צופה-הרזרבות — הכנת חדר-ההמרה)
     | "reserve-watched"
     | "reserve-drift"
@@ -337,6 +356,18 @@ const S = {
     lastDripAt: null as string | null,
     drips: 0 as number,
     weathered: 0 as number
+  },
+  // v73 — the outer-anchor scout (עוגן-החוץ): web owns the weave + the
+  // signing hand behind every gate; keeper owns the cadence. The engine
+  // anchors only a CHANGED digest — a still state keeps its existing
+  // public truth. Honest gated state when the vault key is absent.
+  snapshot: {
+    lastCheckAt: null as string | null,
+    state: "boot" as "boot" | "watching" | "anchored" | "unchanged" | "off" | "gated" | "stale",
+    setting: null as boolean | null,
+    anchored: 0 as number,
+    lastAnchorAt: null as string | null,
+    lastDigest: null as string | null
   },
   // v70 — the reserve watcher (צופה-הרזרבות): reads custody↔mirror from the
   // web every 5 min; drift beyond threshold → journal alert (advisory — the
@@ -1012,6 +1043,100 @@ async function checkIrrigation(): Promise<void> {
   }
 }
 
+/** v73 — the outer-anchor scout (עוגן-החוץ). Reads the snapshot board,
+ *  and every hour asks the engine to anchor the current state digest
+ *  (source=auto). The engine dedupes UNCHANGED digests (a still state
+ *  keeps its existing public truth), gates on the vault key (honest gated
+ *  row, never a fabricated txid), signs ONE whitelisted op (custom_json
+ *  saos.snapshot.v1) behind fail-closed self-verify, and proves inclusion
+ *  from live account history. Web down = honest wait. */
+async function checkSnapshot(): Promise<void> {
+  try {
+    const r = await fetch(`${SNAPSHOT_URL}`, { signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) {
+      S.snapshot.state = "stale";
+      return;
+    }
+    const st = (await r.json().catch(() => null)) as {
+      ok?: boolean;
+      setting?: boolean;
+      digest?: string;
+      vaultKeyAvailable?: boolean;
+    } | null;
+    if (!st || st.ok !== true) {
+      S.snapshot.state = "stale";
+      return;
+    }
+    S.snapshot.lastCheckAt = new Date().toISOString();
+    S.snapshot.setting = st.setting === true;
+    S.snapshot.lastDigest = typeof st.digest === "string" ? st.digest : null;
+
+    if (st.setting !== true) {
+      if (S.snapshot.state !== "off") {
+        journal(
+          "snapshot-off",
+          "outer-anchor setting OFF — the digest is woven and shown, but no anchor is fired (control-plane, honest)"
+        );
+      }
+      S.snapshot.state = "off";
+      return;
+    }
+
+    if (st.vaultKeyAvailable !== true) {
+      if (S.snapshot.state !== "gated") {
+        journal(
+          "snapshot-gated",
+          "outer-anchor GATED — vault active key absent: the digest is woven and recorded as waiting, a txid is never fabricated"
+        );
+      }
+      S.snapshot.state = "gated";
+      return;
+    }
+
+    // THE ANCHOR — ask the engine to fire (it dedupes unchanged digests
+    // and re-checks every gate itself). The signing hand can take seconds
+    // (broadcast + inclusion proof from live history) — timeout long on
+    // purpose.
+    const res = await fetch(SNAPSHOT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "anchor", source: "auto" }),
+      signal: AbortSignal.timeout(120_000)
+    });
+    const out = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      anchored?: boolean;
+      skipped?: string;
+      digest?: string;
+      txid?: string | null;
+      confirmedByHistory?: boolean;
+      error?: string;
+    } | null;
+    if (out?.ok !== true) {
+      S.snapshot.state = "stale";
+      return;
+    }
+    if (out.anchored === true) {
+      S.snapshot.anchored += 1;
+      S.snapshot.lastAnchorAt = new Date().toISOString();
+      S.snapshot.state = "anchored";
+      journal(
+        "snapshot-anchored",
+        `outer-anchor FIRED — digest=${(out.digest ?? "").slice(0, 16)}… txid=${out.txid ?? "—"} inclusion=${out.confirmedByHistory === true ? "confirmed" : "pending-honest"} — the platform's truth now lives outside the sandbox ($0.00, the roast-84 lesson made real)`
+      );
+    } else {
+      S.snapshot.state = "unchanged";
+      const why = out.skipped ?? out.error ?? "—";
+      if (why !== "digest-unchanged") {
+        journal("snapshot-watched", `outer-anchor skipped: ${why} — honest wait, retried next hour`);
+      }
+    }
+  } catch {
+    // web down or engine slow = honest wait — the web revive owns recovery
+    S.snapshot.state = "stale";
+  }
+}
+
 /** v70 — the reserve watcher (צופה-הרזרבות). The web tier owns the chamber
  *  measurement (sovereign custody from the live census ↔ mirror from the
  *  live contract, both fail-closed honest); the keeper owns the cadence and
@@ -1404,6 +1529,14 @@ async function cycle(): Promise<void> {
     await checkIrrigation();
   }
 
+  // 12. v73 — the outer-anchor scout (עוגן-החוץ). Every hour: ask the
+  //     engine to anchor the state digest (source=auto). The engine owns
+  //     every gate (setting · vault key · digest-dedupe); the keeper owns
+  //     the cadence. Web down = honest wait.
+  if (RT.cycle === SNAPSHOT_FIRST_AT || (RT.cycle > SNAPSHOT_FIRST_AT && (RT.cycle - SNAPSHOT_FIRST_AT) % SNAPSHOT_EVERY === 0)) {
+    await checkSnapshot();
+  }
+
   // 11. v70 — the reserve watcher (צופה-הרזרבות). Every 5 min: read the
   //     live custody↔mirror KPIs from the conversion chamber; drift beyond
   //     the bound → journal alert. Advisory organ — the HQ actions are the
@@ -1443,6 +1576,7 @@ function statusJson() {
       recovery: { state: S.recovery.state, daysLeft: S.recovery.daysLeft, lastCheckAt: S.recovery.lastCheckAt, engine: "headcorner-ambush", account: "headcorner" },
       expansion: { state: S.expansion.state, armed: S.expansion.armed, setting: S.expansion.setting, lastCheckAt: S.expansion.lastCheckAt, lastFireAt: S.expansion.lastFireAt, fires: S.expansion.fires, engine: "auto-expansion (v66)", cadence: "10min" },
       irrigation: { state: S.irrigation.state, fundable: S.irrigation.fundable, setting: S.irrigation.setting, lastCheckAt: S.irrigation.lastCheckAt, lastDripAt: S.irrigation.lastDripAt, drips: S.irrigation.drips, engine: "wise-irrigation (v67)", cadence: "10min" },
+      snapshot: { state: S.snapshot.state, setting: S.snapshot.setting, anchored: S.snapshot.anchored, lastAnchorAt: S.snapshot.lastAnchorAt, lastDigest: S.snapshot.lastDigest, lastCheckAt: S.snapshot.lastCheckAt, engine: "outer-anchor (v73)", cadence: "1h", op: "custom_json saos.snapshot.v1 on STEEM ($0.00)" },
       reserves: { state: S.reserves.state, custodyUsd: S.reserves.custodyUsd, mirroredUsd: S.reserves.mirroredUsd, driftUsd: S.reserves.driftUsd, meshManaged: S.reserves.meshManaged, driftAlerts: S.reserves.driftAlerts, lastAlertAt: S.reserves.lastAlertAt, lastCheckAt: S.reserves.lastCheckAt, engine: "reserve-watcher (v70)", cadence: "5min", hands: "HQ-only (advisory organ)" },
       cheapRoutes: { gate: S.cheapRoutes.gate, routes: S.cheapRoutes.routes, openRoutes: S.cheapRoutes.openRoutes, jupiterUsdc: S.cheapRoutes.jupiterUsdc, lastCheckAt: S.cheapRoutes.lastCheckAt, openedAt: S.cheapRoutes.openedAt, engine: "cheap-route watcher (v72)", cadence: "5min", hands: "HQ-only (probe-first under the owner's standing authorization)" }
     },
