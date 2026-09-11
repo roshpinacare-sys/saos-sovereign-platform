@@ -5,7 +5,7 @@
  * bump בכל מהדורה — package.json · shell · footer · overview — הכל מכאן.
  */
 
-export const SAOS_VERSION = "59.0.0";
+export const SAOS_VERSION = "60.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "מרוץ הקבלות (THE RECEIPT RACE)";
+export const SAOS_CODENAME = "מסילת הפרובים (THE PROBES RAIL)";
