@@ -176,7 +176,7 @@ function RearmConsole() {
     <Panel accent>
       <PanelHeader icon={<KeyRound size={16} />} title="חימוש-מחדש ריבוני — הפתרון למה שמגביל" tag={armed ? <Pill tone="green">כספת חמושה</Pill> : <Pill tone="amber">מוכן לחימוש</Pill>} />
       <PanelBody>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
             <div className="text-xs text-zinc-500">1 · התמונה של הבעלים</div>
             <div className="mt-1 font-mono text-sm" dir="ltr">{data.photo.name}</div>
@@ -378,7 +378,8 @@ export function FlowView() {
       </Panel>
 
       {/* engines */}
-      <div className="grid gap-3 lg:grid-cols-3">
+      {/* v59 — grid-cols-1 מפורש למובייל: המסלול המרומז (auto) נמדד ב-max-content — שורת ההזנה "אורקל+סולם+שטיפה+קציר→קופת-עבודה" אינה-ניתנת-לשבירה (בלי +/→ אין נקודות-שבירה) דחפה את המסלול ל-380px בתוך 343px (sw=396 — נתפס במדידת מובייל). גם break-words על השורות הארוכות. */}
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
         {engines.map((e) => (
           <Panel key={e.id} accent={e.state === "live"}>
             <PanelHeader
@@ -387,9 +388,9 @@ export function FlowView() {
               tag={e.state === "live" ? <Pill tone="green">חי</Pill> : <Pill tone="amber">ממתין</Pill>}
             />
             <PanelBody>
-              <div className="text-sm font-semibold">{e.headline}</div>
-              <div className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">{e.capture}</div>
-              <div className="mt-2 text-xs text-zinc-500">{e.note}</div>
+              <div className="text-sm font-semibold break-words">{e.headline}</div>
+              <div className="mt-2 text-sm break-words text-emerald-600 dark:text-emerald-400">{e.capture}</div>
+              <div className="mt-2 text-xs break-words text-zinc-500">{e.note}</div>
             </PanelBody>
           </Panel>
         ))}

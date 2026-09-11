@@ -334,7 +334,7 @@ export function ViewMesh() {
       </Panel>
 
       {/* מזכיר + פתרונות */}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
         <Panel className="min-w-0">
           <PanelHeader
             title="המזכיר הריבוני — ללא עמלה"

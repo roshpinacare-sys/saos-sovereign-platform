@@ -174,7 +174,7 @@ export function Network360View() {
         </PanelBody>
       </Panel>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         {/* ─── achievements, chain-verified ───────────────────────────── */}
         <Panel>
           <PanelHeader

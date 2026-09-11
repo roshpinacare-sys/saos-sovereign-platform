@@ -69,7 +69,7 @@ const fmtLabEth = (v: string): string => {
 
 function RouteCards({ routes }: { routes: RouteCard[] }) {
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
       {routes.map((r) => (
         <article
           key={r.id}
@@ -238,7 +238,7 @@ function ProofPanel({ proof }: { proof: ProofRunResult | null }) {
         </Table>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
         <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.05] p-3">
           <p className="text-[11px] font-bold text-emerald-300 mb-1">בתוך הרשת שלנו (נמדד)</p>
           <p className="text-[11px] text-zinc-300 leading-relaxed">{proof.compare.internalHe}</p>

@@ -87,7 +87,7 @@ const TONE_DOT: Record<string, string> = {
 
 function InventoryGroups({ groups }: { groups: InvGroup[] }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
       {groups.map((g) => (
         <div
           key={g.id}
@@ -126,7 +126,7 @@ function InventoryGroups({ groups }: { groups: InvGroup[] }) {
 
 function ConstraintCards({ rows }: { rows: Constraint[] }) {
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
       {rows.map((c) => {
         const sev = SEVERITY_META[c.severity];
         return (
@@ -334,7 +334,7 @@ function IrrigationTable({ rows, totalHe, honestyHe }: { rows: IrrigationRow[]; 
 
 function SovereigntyPanel({ dims, score, verdictHe }: { dims: SovereigntyDim[]; score: number | null; verdictHe: string }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+    <div className="grid gap-4 grid-cols-1 lg:grid-cols-[240px_1fr]">
       <div className="rounded-xl border border-white/[0.07] bg-zinc-900/45 p-4 flex flex-col items-center justify-center text-center">
         <p className="text-[11px] text-zinc-500">ציון-ריבונות משוקלל</p>
         <p className="mt-1 text-5xl font-black tabular-nums text-amber-300" dir="ltr">

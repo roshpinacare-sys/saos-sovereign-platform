@@ -63,21 +63,67 @@ export function meshFastProvider(): ethers.JsonRpcProvider {
 // לפסק-זמן השרת. העסקה עשויה להיכרות מאוחר יותר — הקריאה מחזירה null
 // והמודול הקורא מדלג בכנות (הפעולות אידמפוטנטיות במחזור הבא).
 
+// v59 מרוץ-הקבלות: האמת מהראנר (הלוג החי) — השער השקט יורה בדיוק ב-15ש'
+// גם נגד anvil מקומי (automine — הקבלה קיימת מייד): מנוי-האירועים מת,
+// אבל setTimeout חי. גם בווב: לא לחכות לאירוע — לשאול את השרשרת.
+// מרוץ: אירוע ethers (מסלול מהיר) מול סקר-קבלה אקטיבי כל 200ms (בקשת
+// JSON-RPC רגילה, בלי מנויים; כל קריאה מוכרעת ב-2.5ש'). הצלה של הסקר
+// מתועדת ב-console — וכששניהם שותקים הדילוג הכן של v57 נשמר.
+
 /** דדליין-המתנה לעסקה אחת בצד-הווב — 15ש' כמו בראנר v56. */
 const WAIT_TX_MS = 15_000;
+/** קצב סקר-הקבלות האקטיבי. */
+const RECEIPT_POLL_MS = 200;
+/** תקציב לקריאת-קבלה בודדת (שקע תקוע בווב ננטש ב-2.5ש'). */
+const RECEIPT_CALL_MS = 2_500;
+
+function raceMs<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(null), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      () => { clearTimeout(t); resolve(null); }
+    );
+  });
+}
 
 /**
- * מחכה לקבלת עסקה תחת דדליין קשיח שתמיד מסתיים.
- * מחזיר את הקבלה, או null כששער-ההמתנה השקט נסגר בדדליין (דילוג כנה).
+ * מחכה לקבלת עסקה תחת דדליין קשיח שתמיד מסתיים — v59: במרוץ תלת-רגלי
+ * (אירוע · סקר-קבלה אקטיבי · דדליין). מחזיר את הקבלה, או null כששער-ההמתנה
+ * נסגר (דילוג כן; השרשרת היא הסמכות).
  */
 export async function waitTx(
   tx: ethers.TransactionResponse,
   ms: number = WAIT_TX_MS
 ): Promise<ethers.TransactionReceipt | null> {
-  try {
-    return await tx.wait(1, ms); // timeout ב-ms — אומת בקוד-המקור
-  } catch {
-    // TIMEOUT / replaced / ריעוף — דילוג כנה; השרשרת היא הסמכות
+  const t0 = Date.now();
+  const hash = tx.hash;
+  let stopped = false;
+  const poller = (async (): Promise<ethers.TransactionReceipt | null> => {
+    while (!stopped) {
+      const left = ms - (Date.now() - t0);
+      if (left <= 0) return null;
+      try {
+        const rc = await raceMs(tx.provider.getTransactionReceipt(hash), RECEIPT_CALL_MS);
+        if (rc) return rc;
+      } catch {
+        /* קריאה תקועה — מוכרעת ב-2.5ש' */
+      }
+      await new Promise((r) => setTimeout(r, Math.min(RECEIPT_POLL_MS, Math.max(0, ms - (Date.now() - t0)))));
+    }
     return null;
+  })();
+  const evWait = tx.wait(1, ms).then(
+    (rc) => ({ rc, via: "event" as const }),
+    () => ({ rc: null as ethers.TransactionReceipt | null, via: "gate" as const })
+  );
+  const taggedPoller = poller.then((rc) => ({ rc, via: rc ? ("poll" as const) : ("timeout" as const) }));
+  const winner = await Promise.race([evWait, taggedPoller]);
+  stopped = true;
+  if (winner.via === "poll") {
+    console.log(
+      `[saos] v59 receipt-race: ${hash.slice(0, 14)}… rescued by active poll (+${Date.now() - t0}ms) — the event-gate was silent, the chain had the receipt`
+    );
   }
+  return winner.rc;
 }

@@ -308,6 +308,24 @@ async function verifyTreasuryHomes(): Promise<void> {
 
 // ─── מדידות חיות (קריאה-בלבד, כנות-שנכשלת) ─────────────────────────────────
 
+// v59 — provider ציבורי מטומן לכל רשת EVM: כל מדידה יצרה provider טרי (חיבור
+// TLS קר מ-אפס לכל קריאה — נמדד חי: GET שלם 10.5ש' בפג-מטמון). מופע לכל
+// url+chainId על globalThis (שורד HMR) משמר את החיבור החי בין המדידות;
+// batchMaxCount: 1 נשאר — צומת ציבורי, הגבלות-קצב (שיעור v54).
+const GProviders = globalThis as unknown as {
+  __saosPublicEvmProviders?: Map<string, ethers.JsonRpcProvider>;
+};
+function publicEvmProvider(url: string, chainId: number): ethers.JsonRpcProvider {
+  if (!GProviders.__saosPublicEvmProviders) GProviders.__saosPublicEvmProviders = new Map();
+  const key = `${chainId}:${url}`;
+  let p = GProviders.__saosPublicEvmProviders.get(key);
+  if (!p) {
+    p = new ethers.JsonRpcProvider(url, chainId, { batchMaxCount: 1 });
+    GProviders.__saosPublicEvmProviders.set(key, p);
+  }
+  return p;
+}
+
 export interface EvmMeasure {
   ok: boolean;
   fromBalance: string; // 0x97Ad — המקור שעוד לא זז
@@ -320,7 +338,8 @@ export interface EvmMeasure {
 
 async function measureEvm(net: keyof typeof EVM_NETS): Promise<EvmMeasure> {
   const cfg = EVM_NETS[net];
-  const provider = new ethers.JsonRpcProvider(cfg.url, cfg.chainId, { batchMaxCount: 1 });
+  // v59 — provider מטומן (חיבור חי בין מדידות); אין destroy — משותף.
+  const provider = publicEvmProvider(cfg.url, cfg.chainId);
   try {
     const [fromBal, homeBal, gasPrice] = await Promise.all([
       provider.getBalance(CORNERSTONE_EVM, "latest"),
@@ -354,8 +373,6 @@ async function measureEvm(net: keyof typeof EVM_NETS): Promise<EvmMeasure> {
       canMove: false,
       note: `מדידת ${net} נכשלה (כנות-נתונים — נוסה שוב במחזור הבא)`
     };
-  } finally {
-    provider.destroy();
   }
 }
 
@@ -487,11 +504,8 @@ const LEGACY_FALLBACK: LegacyChainMeasure = {
 };
 
 async function measureLegacyEvm(): Promise<LegacyChainMeasure> {
-  const provider = new ethers.JsonRpcProvider(
-    EVM_NETS.ethereum.url,
-    EVM_NETS.ethereum.chainId,
-    { batchMaxCount: 1 }
-  );
+  // v59 — provider מטומן (אותה רשת ethereum כמו measureEvm — חיבור חי משותף)
+  const provider = publicEvmProvider(EVM_NETS.ethereum.url, EVM_NETS.ethereum.chainId);
   try {
     const [fromBal, homeBal, gasPrice] = await Promise.all([
       provider.getBalance(LEGACY_FLEET_EVM, "latest"),
@@ -513,8 +527,6 @@ async function measureLegacyEvm(): Promise<LegacyChainMeasure> {
     };
   } catch {
     return LEGACY_FALLBACK;
-  } finally {
-    provider.destroy();
   }
 }
 
@@ -1082,64 +1094,84 @@ async function verifyPending(): Promise<void> {
       orderBy: { id: "desc" },
       take: 3
     });
-    for (const p of pending) {
-      if (p.network === "XRPL") {
-        const t = await xrplRpc<{ validated?: boolean; meta?: { TransactionResult?: string } }>("tx", [
-          { transaction: p.txid }
-        ]);
-        if (t?.validated) {
-          await db.physicalMove.update({ where: { id: p.id }, data: { status: "confirmed" } });
-        }
-      } else if (p.network === "TRON") {
-        const t = await tronRpc<{ ret?: Array<{ contractRet?: string }> }>(
-          "wallet/gettransactionbyid",
-          { value: p.txid, visible: true }
-        );
-        if (t?.ret?.[0]?.contractRet === "SUCCESS") {
-          await db.physicalMove.update({ where: { id: p.id }, data: { status: "confirmed" } });
-        }
-      } else if (p.network === "SOLANA") {
-        const bal = await solBalanceLamports(LEGACY_FLEET_SOL);
-        // אימות-אמת כפול ל-SOL: sendAndConfirm כבר אישר בזמן הסוויפ; כאן נותר
-        // רק אימות שהמקור התרוקן (העסקה נכנסה לספר) — כנות-נתונים.
-        if (bal === 0) {
-          await db.physicalMove.update({ where: { id: p.id }, data: { status: "confirmed" } });
-        }
-      } else {
-        const net = p.network === "ETHEREUM" ? "ethereum" : "bsc";
-        const cfg = EVM_NETS[net];
-        // שני מקורות: publicnode (מאזן-עומס, לפעמים 403 על receipt) + הזרע
-        // הרשמי של הרשת. אחד מאשר = אושר. כל מקור ב-try/catch משלו —
-        // כישלון מקור אחד לא מפיל את האימות כולו (באג שנתפס חי).
-        const hosts = net === "bsc" ? [cfg.url, "https://bsc-dataseed.bnbchain.org"] : [cfg.url, "https://eth.drpc.org"];
-        for (const host of hosts) {
-          let provider: ethers.JsonRpcProvider | null = null;
+    if (pending.length === 0) return;
+    // v59 — המרוץ: האימום רץ על כל הממתינות במקביל (היה לולאה רציפה:
+    // ממתינה × מקור × provider טרי-לכל-קריאה — TLS קר בכל שלב; נמדד חי
+    // GET שלם 10.5ש'). העדכון עצמו חסין-מרוץ: updateMany עם שומר-סטטוס
+    // (עדכון שני על אותה שורה פוגע ב-0 שורות).
+    await Promise.all(pending.map((p) => verifyOnePending(p)));
+  } catch {
+    // אימות best-effort — המחזור הבא ינסה שוב
+  }
+}
+
+/** אימות תזוזה ממתינה אחת — כישלון שלה לא מפיל את האחרות. */
+async function verifyOnePending(
+  p: { id: number; network: string; txid: string }
+): Promise<void> {
+  const confirmOnce = async (status: "confirmed" | "failed") => {
+    await db.physicalMove.updateMany({
+      where: { id: p.id, status: "submitted" },
+      data: { status }
+    });
+  };
+  try {
+    if (p.network === "XRPL") {
+      const t = await xrplRpc<{ validated?: boolean; meta?: { TransactionResult?: string } }>("tx", [
+        { transaction: p.txid }
+      ]);
+      if (t?.validated) {
+        await confirmOnce("confirmed");
+      }
+    } else if (p.network === "TRON") {
+      const t = await tronRpc<{ ret?: Array<{ contractRet?: string }> }>(
+        "wallet/gettransactionbyid",
+        { value: p.txid, visible: true }
+      );
+      if (t?.ret?.[0]?.contractRet === "SUCCESS") {
+        await confirmOnce("confirmed");
+      }
+    } else if (p.network === "SOLANA") {
+      const bal = await solBalanceLamports(LEGACY_FLEET_SOL);
+      // אימות-אמת כפול ל-SOL: sendAndConfirm כבר אישר בזמן הסוויפ; כאן נותר
+      // רק אימות שהמקור התרוקן (העסקה נכנסה לספר) — כנות-נתונים.
+      if (bal === 0) {
+        await confirmOnce("confirmed");
+      }
+    } else {
+      const net = p.network === "ETHEREUM" ? "ethereum" : "bsc";
+      const cfg = EVM_NETS[net];
+      // שני מקורות: publicnode (מאזן-עומס, לפעמים 403 על receipt) + הזרע
+      // הרשמי של הרשת. אחד מאשר = אושר. v59: שניהם במקביל (היו רציפים)
+      // והראשי — provider מטומן (חיבור חי משותף עם המדידות).
+      const hosts = net === "bsc" ? [cfg.url, "https://bsc-dataseed.bnbchain.org"] : [cfg.url, "https://eth.drpc.org"];
+      await Promise.all(
+        hosts.map(async (host) => {
+          const isPrimary = host === cfg.url;
+          const provider = isPrimary
+            ? publicEvmProvider(host, cfg.chainId)
+            : new ethers.JsonRpcProvider(host, cfg.chainId, { batchMaxCount: 1 });
           try {
-            provider = new ethers.JsonRpcProvider(host, cfg.chainId, { batchMaxCount: 1 });
             const rec = await provider.getTransactionReceipt(p.txid);
             if (rec) {
-              await db.physicalMove.update({
-                where: { id: p.id },
-                data: { status: rec.status === 1 ? "confirmed" : "failed" }
-              });
-              break;
+              await confirmOnce(rec.status === 1 ? "confirmed" : "failed");
+              return;
             }
             // receipt לא נמצא במקור זה? ה-tx עצמו עם blockHash = נכרה
             const t = await provider.getTransaction(p.txid);
             if (t && t.blockHash) {
-              await db.physicalMove.update({ where: { id: p.id }, data: { status: "confirmed" } });
-              break;
+              await confirmOnce("confirmed");
             }
           } catch {
-            // מקור זה לא ענה (403/תם-זמן) — המקור הבא
+            // מקור זה לא ענה (403/תם-זמן) — המקור המקביל עוד חי
           } finally {
-            provider?.destroy();
+            if (!isPrimary) provider.destroy();
           }
-        }
-      }
+        })
+      );
     }
   } catch {
-    // אימות best-effort — המחזור הבא ינסה שוב
+    // ממתינה אחת נכשלה — האחרות לא נפגעות; המחזור הבא ינסה שוב
   }
 }
 
@@ -1268,52 +1300,78 @@ async function buildStatus(): Promise<PhysicalMoveStatus> {
   };
 }
 
+/** תשובת-שקיעה כנה — לעולם לא זורק. */
+function sinkingStatus(reason: string): PhysicalMoveStatus {
+  return {
+    ok: false,
+    directive: "הוא חייב לזוז פיזית — v30 תזוזה",
+    sources: { evm: CORNERSTONE_EVM, home: TREASURY_HOME, xrp: CORNERSTONE_XRP },
+    ethereum: {
+      ok: false, fromBalance: "0", homeBalance: "0", gasPriceGwei: "0", transferCost: "0",
+      canMove: false, note: "מדידת ETH נכשלה"
+    },
+    bsc: {
+      ok: false, fromBalance: "0", homeBalance: "0", gasPriceGwei: "0", transferCost: "0",
+      canMove: false, note: "מדידת BSC נכשלה"
+    },
+    xrp: {
+      ok: false, balance: "0", reserve: "0", spendable: "0", sequence: 0, ledgerIndex: 0,
+      baseFeeDrops: "0", note: "מדידת XRPL נכשלה"
+    },
+    legacy: {
+      note: "מדידת הארנקים הישנים נכשלה — כנות-נתונים",
+      evm: LEGACY_FALLBACK,
+      trx: LEGACY_FALLBACK,
+      sol: LEGACY_FALLBACK,
+      sources: { evm: LEGACY_FLEET_EVM, tron: LEGACY_FLEET_TRON, sol: LEGACY_FLEET_SOL },
+      homes: { evm: TREASURY_HOME, tron: TREASURY_HOME_TRON, sol: TREASURY_HOME_SOL }
+    },
+    journal: [],
+    stats: { movesConfirmed: 0, lastMoveAt: null, heartbeatCount: 0, xrpFeesBurnedDrops: 0 },
+    honesty: [reason],
+    measuredAt: new Date().toISOString()
+  };
+}
+
+// v59 מסילת-הרכבת של התזוזה — אותו דפוס האמת של status (v55): המשתמש לא מחכה
+// יותר מ-3ש' לעולם. בפג-מטמון: המדידה החיה ממשיכה ברקע וממלאת את המטמון
+// (כל המדידות כבר מקבילות + providers מטומנים — רוב הפעמים היא מספיקה בקלות),
+// והבקשה מקבלת מיד: את האמת האחרונה (גם אם התיישנה — עם שורת-כנות) או,
+// כשאין בכלל אמת קודמת — תשובת-שקיעה כנה. נמדד חי לפני התיקון: GET 10.5ש'.
+const STATUS_RAIL_MS = 3_000;
+
 export async function physicalMoveStatus(): Promise<PhysicalMoveStatus> {
   if (statusCache && Date.now() - statusCache.at < STATUS_TTL_MS) return statusCache.value;
-  if (statusInflight) return statusInflight;
-  statusInflight = buildStatus()
-    .then((v) => {
-      statusCache = { at: Date.now(), value: v };
-      return v;
-    })
-    .catch(() => {
-      // לעולם לא זורק — תשובת-שקיעה כנה
-      const fallback: PhysicalMoveStatus = {
-        ok: false,
-        directive: "הוא חייב לזוז פיזית — v30 תזוזה",
-        sources: { evm: CORNERSTONE_EVM, home: TREASURY_HOME, xrp: CORNERSTONE_XRP },
-        ethereum: {
-          ok: false, fromBalance: "0", homeBalance: "0", gasPriceGwei: "0", transferCost: "0",
-          canMove: false, note: "מדידת ETH נכשלה"
-        },
-        bsc: {
-          ok: false, fromBalance: "0", homeBalance: "0", gasPriceGwei: "0", transferCost: "0",
-          canMove: false, note: "מדידת BSC נכשלה"
-        },
-        xrp: {
-          ok: false, balance: "0", reserve: "0", spendable: "0", sequence: 0, ledgerIndex: 0,
-          baseFeeDrops: "0", note: "מדידת XRPL נכשלה"
-        },
-        legacy: {
-          note: "מדידת הארנקים הישנים נכשלה — כנות-נתונים",
-          evm: LEGACY_FALLBACK,
-          trx: LEGACY_FALLBACK,
-          sol: LEGACY_FALLBACK,
-          sources: { evm: LEGACY_FLEET_EVM, tron: LEGACY_FLEET_TRON, sol: LEGACY_FLEET_SOL },
-          homes: { evm: TREASURY_HOME, tron: TREASURY_HOME_TRON, sol: TREASURY_HOME_SOL }
-        },
-        journal: [],
-        stats: { movesConfirmed: 0, lastMoveAt: null, heartbeatCount: 0, xrpFeesBurnedDrops: 0 },
-        honesty: ["מצב שקוע — כנות-נתונים; המחזור הבא ימדוד שוב"],
-        measuredAt: new Date().toISOString()
-      };
-      statusCache = { at: Date.now(), value: fallback };
-      return fallback;
-    })
-    .finally(() => {
-      statusInflight = null;
-    });
-  return statusInflight;
+  if (!statusInflight) {
+    statusInflight = buildStatus()
+      .then((v) => {
+        statusCache = { at: Date.now(), value: v };
+        return v;
+      })
+      .catch(() => {
+        // לעולם לא זורק — תשובת-שקיעה כנה (והמטמון נשמר כדי לא לרדוף שקיעה)
+        const fallback = sinkingStatus("מצב שקוע — כנות-נתונים; המחזור הבא ימדוד שוב");
+        statusCache = { at: Date.now(), value: fallback };
+        return fallback;
+      })
+      .finally(() => {
+        statusInflight = null;
+      });
+  }
+  const rail = new Promise<null>((resolve) => {
+    const t = setTimeout(() => resolve(null), STATUS_RAIL_MS);
+    t.unref?.();
+  });
+  const winner = await Promise.race([statusInflight, rail]);
+  if (winner) return winner;
+  // המסילה נגמרה קודם — האמת האחרונה (אם יש) עם סימון-כנות; המדידה ממשיכה ברקע
+  if (statusCache) {
+    return {
+      ...statusCache.value,
+      honesty: [...statusCache.value.honesty, `תשובה מהאמת האחרונה — המדידה החיה עדיין רצה ברקע (מסילת ${STATUS_RAIL_MS / 1000}ש')`]
+    };
+  }
+  return sinkingStatus(`מסילת ${STATUS_RAIL_MS / 1000}ש' — עדיין אין מדידה ראשונה; היא רצה ברקע ותמלא את המטמון`);
 }
 
 /** רענון אחרי פעולה ידנית (הוויו מרענן — שיראה את האמת הטרייה). */

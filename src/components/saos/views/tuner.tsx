@@ -244,7 +244,7 @@ export function TunerView() {
               <div className="mt-1 text-[11px] text-zinc-600">כל tx.wait() ב-14 providers (ווב + ראנר)</div>
             </div>
           </div>
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
             {d.evidence.map((ev: EvidenceCard) => (
               <div key={ev.file} className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-4">
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -315,7 +315,7 @@ export function TunerView() {
       <Panel>
         <PanelHeader icon={<Users size={16} />} title="מקורות-האמת" sub="כל מספר בוויו הזה מגיע ממקור חי — או שהוא לא מגיע בכלל" tag={<Tag>read-only</Tag>} />
         <PanelBody>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {d.sources.map((s) => (
               <div key={s.nameHe} className="flex items-start gap-2.5 rounded-lg border border-zinc-800/70 bg-zinc-900/40 px-3 py-2.5">
                 {s.ok ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-500" /> : <TrendingDown size={15} className="mt-0.5 shrink-0 text-rose-500" />}

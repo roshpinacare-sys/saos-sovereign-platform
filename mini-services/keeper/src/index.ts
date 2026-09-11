@@ -66,7 +66,11 @@ const WEB_HEALTH = "http://127.0.0.1:3000/api/saos/live-probes";
 const ANVIL_RPC = "http://127.0.0.1:8545";
 const PROJECT_DIR = path.resolve(import.meta.dir, "..", "..", "..");
 const MESH_DIR = path.join(PROJECT_DIR, "mini-services", "evm-mesh");
-const RUNNER_LOG = path.join(MESH_DIR, "runner.log");
+// v59 — אמת-נתיב-היומן: הראנר שהשומר מחיה כותב לאותו קובץ קנוני שממנו ההתקנה
+// מזרימה (.zscripts/mini-service-evm-mesh.log). ההחייאה של 23:47 חשפה את
+// הפיצול: הראנר הטרי כתב ל-runner.log הישן שבתוך evm-mesh (קובץ מת מ-Task 53)
+// בזמן שהקובץ הקנוני השתתק — שני מקורות אמת אחד לראנר. מעתה: מקור אחד.
+const RUNNER_LOG = path.join(PROJECT_DIR, ".zscripts", "mini-service-evm-mesh.log");
 const STATE_DIR = path.resolve(import.meta.dir, "..", "state");
 const JOURNAL = path.join(STATE_DIR, "journal.jsonl");
 const JOURNAL_MAX_BYTES = 5 * 1024 * 1024; // rotate at 5 MB — hygiene, not deletion of truth
@@ -96,7 +100,7 @@ const SLOW_EVERY = 6; // runner + memory + rss-shed every 6th cycle (60s)
 const DEAD_STREAK = 3; // connection-refused ×3 = confirmed death
 const REVIVE_WINDOW_MS = 150_000; // only one revive attempt per window
 const PRESSURE_MB = 700; // early warning before the kernel acts (measured: kill at ~free<500)
-const ZOMBIE_MS = 10 * 60_000; // 10 min without a new block on a live chain = 3+ full missed cycles
+const ZOMBIE_MS = 6 * 60_000; // v59 — 10→6דק': מחזור בריא כבר 47-70ש' (מרוץ-הקבלות), 6דק' = 5+ מחזורים מוחמצים; החלון של 23:35→23:47 (ההקפאה שנסגרה בהחייאה) מתקצר ב-4דק'
 
 // v27 אחיזה — pre-OOM graceful recycle. Measured facts: the kernel killed
 // the web tier at 1.79 GB RSS (dmesg). 1500 MB on two consecutive 60s

@@ -408,7 +408,7 @@ export function BridgesView() {
           actions={<Pill tone="amber">5 מטרות</Pill>}
         />
         <PanelBody>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
             {d.goals.map((g) => (
               <div key={g.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-2">
                 <div className="flex items-center gap-2">
@@ -470,7 +470,7 @@ export function BridgesView() {
             }
           />
           <PanelBody>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
               {lanes.map((l) => (
                 <LaneCard key={l.id} lane={l} />
               ))}
