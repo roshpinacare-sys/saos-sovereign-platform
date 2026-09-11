@@ -1691,3 +1691,73 @@ export interface SecretSweepData {
   measuredAt: string;
   error?: string;
 }
+
+// ─── v65: Treasury (ספר האוצר — הכסף של הריבון, מתועד) ─────────────────────
+
+export interface TreasuryAuthorization {
+  grantedAt: string;
+  textHe: string;
+  scopeHe: string;
+  rulesHe: string[];
+}
+
+export interface TreasuryExpense {
+  id: string;
+  at: string | null;
+  network: string;
+  heName: string;
+  purposeHe: string;
+  amountNative: string | null;
+  symbol: string;
+  amountUsd: number | null;
+  txid: string | null;
+  explorer: string | null;
+  source: "onchain-history" | "live-pulse";
+  noteHe: string | null;
+}
+
+export interface TreasuryBalanceRow {
+  chain: string;
+  heName: string;
+  symbol: string;
+  balanceNative: number | null;
+  balanceUsd: number | null;
+  roleHe: string;
+  anchored: boolean;
+}
+
+export interface TreasuryDoorRow {
+  chain: string;
+  heName: string;
+  symbol: string;
+  purposeHe: string;
+  gapNative: number | null;
+  gapUsd: number | null;
+  fundingAddress: string;
+  relayLive: boolean | null;
+}
+
+export interface TreasuryTotals {
+  historicalCount: number;
+  liveCount: number;
+  spentUsdKnown: number | null;
+  liveSpentUsdKnown: number | null;
+  treasuryUsdKnown: number | null;
+  doorsWaiting: number;
+  doorsGapUsdKnown: number | null;
+}
+
+export interface TreasuryData {
+  ok: boolean;
+  at: string;
+  tookMs: number;
+  authorization: TreasuryAuthorization;
+  expenses: { historical: TreasuryExpense[]; live: TreasuryExpense[] };
+  balances: TreasuryBalanceRow[];
+  doors: TreasuryDoorRow[];
+  policy: string[];
+  totals: TreasuryTotals;
+  prices: { symbol: string; usd: number | null; source: string }[];
+  honestyHe: string[];
+  error?: string;
+}

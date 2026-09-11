@@ -17,6 +17,7 @@ import { useLive } from "@/components/saos/lib";
 import type { StatusData } from "@/components/saos/types";
 import { ViewOverview } from "@/components/saos/views/overview";
 import { ViewWorth } from "@/components/saos/views/worth";
+import { TreasuryView } from "@/components/saos/views/treasury";
 import { RoastView } from "@/components/saos/views/roast";
 import { NetworkMapView } from "@/components/saos/views/networkmap";
 import { BridgesView } from "@/components/saos/views/bridges";
@@ -51,6 +52,7 @@ import { ViewResearch } from "@/components/saos/views/research";
 const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
   worth: "מימוש — שווי הרשת החי",
+  treasury: "ספר האוצר — הכסף של הריבון, מתועד",
   roast: "רוסט-אמת — חשיפה עצמית",
   networkmap: "מפת-רשתות — הארנק הרב-רשתי",
   bridges: "בית-היוצר לגשרים — תשתית לעוד רשתות",
@@ -111,6 +113,7 @@ export default function Home() {
       <AppShell view={view} onNav={setView} status={status}>
         {view === "overview" && <ViewOverview status={status} onNav={setView} />}
         {view === "worth" && <ViewWorth />}
+        {view === "treasury" && <TreasuryView />}
         {view === "roast" && <RoastView />}
         {view === "networkmap" && <NetworkMapView />}
         {view === "bridges" && <BridgesView />}

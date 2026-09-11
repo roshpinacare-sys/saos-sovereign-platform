@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Lightbulb, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -41,6 +41,14 @@ export const VIEWS: ViewDef[] = [
     short: "מימוש",
     desc: "מה יש בידיים ומה הפוטנציאל האמיתי — מאזן חי מ-5 מקורות-אמת (ממומש · אחזקה · חמוש · מנוע) ופעימת מימוש שמבצעת ערך על הרשת עכשיו",
     icon: <Gem size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "treasury",
+    label: "ספר האוצר — הכסף מתועד",
+    short: "האוצר",
+    desc: "הוראת הבעלים 'אתה יכול להשתמש בכסף אין בעיה תעשה מה שצריך אבל שיהיה תיעוד ברור' — ההרשאה בקוד · מלאי האוצר החי · כל הוצאה אי-פעם (עלות חיה מהקבלות) · הוצאות מאז ההרשאה · תוכנית 7 הדלתות · מדיניות ההוצאה",
+    icon: <Landmark size={16} />,
     group: "תפעול"
   },
   {
