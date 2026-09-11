@@ -6,10 +6,15 @@
  * ניתן להמיר הכל על הרשת שלנו וליישם... לא באמת מוכן עדיין יש עוד הרבה מה
  * להכין... נסה להוכיח פריצת דרך אפשרית על הרשת שלנו... בצע ודחוף".
  *
- * שבע שכבות — הכל מדידה חיה, אפס מספר מומצא:
+ * שמונה שכבות — הכל מדידה חיה, אפס מספר מומצא:
  *   (1) פסק-דין — התשובה הישירה מהנתונים
  *   (1.5) ההחלטה המואצלת — v69: הבעלים האציל את ההחלטה בדבריו, האורגניזם
  *         פסק בכוח הראיות (ההרשאה כלשונה · הראיות · הנתיבים הפתוחים)
+ *   (1.7) הניסיון המאושר — v70: הבעלים אישר לנסות, האורגניזם ניסה — ההרשאה
+ *         הקפואה מעל הפקודה שרצה בפועל
+ *   (1.8) ההמרה הזולה — v72: הניסיון שנעשה קבוע — סורק-דרכים חי שמודד
+ *         בכל קריאה את כל מסלולי-ההמרה החיצוניים הזולים בלי מפתח; ההרשאה
+ *         העומדת של הבעלים ("נסה להמיר איכשהו בדרך זולה") קפואה בקוד
  *   (2) מחוונים — משמרת · מראה · פער · הוכחה · מוכנות
  *   (3) המשמרת הריבונית מול המראה — הכסף שבחוץ מול הייצוג על הרשת
  *   (4) שני מסלולי המרה — עטיפה-ריבונית (הפריצה) מול איחוד חיצוני
@@ -21,7 +26,7 @@
 import { useCallback, useState } from "react";
 import {
   ArrowLeftRight, BookOpenCheck, CheckCircle2, Coins, Database, Flame, Gavel,
-  Layers, ListChecks, Lock, Repeat, Rocket, ShieldCheck, Sparkles, Timer, Vault
+  Layers, ListChecks, Lock, Radar, Repeat, Rocket, ShieldCheck, Sparkles, Timer, Vault
 } from "lucide-react";
 import {
   Btn, Callout, CopyBtn, Kpi, Panel, PanelBody, PanelHeader, Pill,
@@ -34,6 +39,7 @@ import { cn } from "../ui";
 import type {
   ChamberActionResult, ConversionChamberData, DelegatedDecision, MintOrderResult, ProofRunResult, ReadinessItem, RouteCard, TryAuthorization
 } from "@/lib/saos/conversion-chamber";
+import type { CheapRoute, CheapRouteScan } from "@/lib/saos/cheap-routes";
 
 // ─── עזרי-תצוגה ─────────────────────────────────────────────────────────────
 
@@ -250,6 +256,121 @@ function AuthorizedTryPanel({ t, onMint, mintBusy }: { t: TryAuthorization; onMi
           <Btn variant="primary" size="sm" loading={mintBusy} onClick={onMint} title="הטבעת גירעון-המשמרת 1:1 (fail-closed)">
             הרץ פקודת הטבעה (1:1)
           </Btn>
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+// ─── (1.8) ההמרה הזולה — v72: הניסיון שנעשה קבוע ───────────────────────────
+
+function routeStatePill(s: CheapRoute["state"]): { tone: "green" | "amber" | "zinc"; he: string } {
+  if (s === "open") return { tone: "green", he: "פתוח ללא מפתח" };
+  if (s === "blocked") return { tone: "amber", he: "נעול במייל האחרון" };
+  return { tone: "zinc", he: "בלתי-נגיש" };
+}
+
+function CheapRoutesPanel({ scan }: { scan: CheapRouteScan }) {
+  const openCount = scan.routes.filter((r) => r.state === "open").length;
+  const kindHe = (k: CheapRoute["kind"]): string =>
+    k === "instant-exchange" ? "בורסת-מייד" : k === "solana-dex" ? "בורסת-רשת (לא-משמורתית)" : "גשר";
+  return (
+    <Panel accent className={scan.gate === "open" ? "border-emerald-400/40" : "border-teal-400/25"}>
+      <PanelHeader
+        icon={<Radar size={15} />}
+        title="ההמרה הזולה — הניסיון שנעשה קבוע (v72)"
+        sub="הוראת הבעלים הפכה למנגנון: כל מסלול-המרה חיצוני זול נמדד חי בכל סריקה — בלי מפתח, בלי חשבון, בכנות מלאה. הסביבה משתנה (SideShift היה בלתי-נגיש ב-v69 ונגיש ב-v72) — והסורק זז איתה."
+        actions={
+          <>
+            <Pill tone={scan.gate === "open" ? "green" : "amber"} pulse={scan.gate === "open"}>
+              {scan.gate === "open" ? "השער פתוח — probe-first מורשה" : "השער סגור — עובדה נמדדת"}
+            </Pill>
+            <Pill tone="zinc">{scan.routes.length} מסלולים · {(scan.tookMs / 1000).toFixed(1)} שניות</Pill>
+          </>
+        }
+      />
+      <PanelBody className="space-y-4">
+        {/* ההרשאה — כלשונה, בציטוט */}
+        <blockquote className="relative rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-4 py-3 ps-5">
+          <span
+            aria-hidden
+            className="absolute inset-y-0 start-0 w-[3px] rounded-full bg-gradient-to-b from-amber-400/60 to-teal-400/40"
+          />
+          <p className="text-[10.5px] font-semibold text-amber-300/80 mb-1">
+            ההרשאה העומדת — דברי הבעלים, כלשונם ({scan.authorization.grantedAt}):
+          </p>
+          <p className="text-[13px] leading-relaxed text-amber-100 font-medium">
+            «{scan.authorization.textHe}»
+          </p>
+          <p className="text-[11px] leading-relaxed text-zinc-400 mt-2">{scan.authorization.scopeHe}</p>
+        </blockquote>
+
+        {/* יופיטר — העובדה החיה היחידה שעובדת ללא מפתח */}
+        {scan.jupiter?.ok && scan.jupiter.usdcOut !== null && (
+          <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.05] p-3.5">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-1.5">
+              <p className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                <CheckCircle2 size={13} /> מה שכן עובד היום ללא מפתח — נמדד חי
+              </p>
+              <Pill tone="green">
+                {(scan.jupiter.solNative ?? 0).toFixed(9)} SOL ≈ {scan.jupiter.usdcOut.toFixed(3)} USDC
+              </Pill>
+            </div>
+            <p className="text-[11px] text-zinc-300 leading-relaxed">{scan.jupiter.detailHe}</p>
+          </div>
+        )}
+
+        {/* טבלת המסלולים */}
+        <div className="overflow-x-auto -mx-1 px-1">
+          <Table>
+            <thead>
+              <tr>
+                <Th>מסלול</Th>
+                <Th>סוג</Th>
+                <Th>מצב</Th>
+                <Th>מה חוסם</Th>
+                <Th>המדידה החיה</Th>
+                <Th>גז-EVM</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {scan.routes.map((r) => {
+                const st = routeStatePill(r.state);
+                return (
+                  <tr key={r.id} className="align-top">
+                    <Td className="whitespace-nowrap font-semibold">{r.he}</Td>
+                    <Td className="whitespace-nowrap text-zinc-400 text-[11px]">{kindHe(r.kind)}</Td>
+                    <Td className="whitespace-nowrap">
+                      <Pill tone={st.tone}>{st.he}</Pill>
+                      {r.httpStatus !== null && (
+                        <span className="ms-1.5 text-[10px] text-zinc-600 font-mono" dir="ltr">HTTP {r.httpStatus}</span>
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap text-[11px] text-zinc-400">{r.blockerHe ?? "—"}</Td>
+                    <Td className="text-[11px] text-zinc-400 leading-relaxed min-w-[220px]">{r.detailHe}</Td>
+                    <Td className="whitespace-nowrap">
+                      {r.reachesEvmGas ? <Tag tone="green">מגיע</Tag> : <Tag tone="zinc">לא — בתוך-הרשת</Tag>}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </div>
+
+        {/* פסק-דין הסריקה */}
+        <div className="rounded-lg border border-teal-400/25 bg-teal-400/[0.05] px-4 py-3">
+          <p className="text-[10.5px] font-bold text-teal-300 mb-1">פסק-דין הסריקה ({openCount} פתוחים · {scan.routes.length - openCount} נעולים/בלתי-נגישים)</p>
+          <p className="text-[11.5px] leading-relaxed text-zinc-300">{scan.verdictHe}</p>
+        </div>
+
+        {/* השער העומד */}
+        <div className={cn(
+          "rounded-lg border px-4 py-3",
+          scan.gate === "open" ? "border-emerald-400/40 bg-emerald-400/[0.06]" : "border-white/[0.07] bg-white/[0.02]"
+        )}>
+          <p className="text-[10.5px] font-bold text-zinc-400 mb-1">השער העומד</p>
+          <p className="text-[11.5px] leading-relaxed text-zinc-300">{scan.gateHe}</p>
         </div>
       </PanelBody>
     </Panel>
@@ -535,6 +656,9 @@ export function ConversionView() {
 
       {/* (1.7) הניסיון המאושר — v70: הבעלים אישר לנסות, האורגניזם ניסה */}
       <AuthorizedTryPanel t={d.try} mintBusy={mintBusy} onMint={() => void runAction("mint-order")} />
+
+      {/* (1.8) ההמרה הזולה — v72: הניסיון שנעשה קבוע */}
+      {d.cheapRoutes && <CheapRoutesPanel scan={d.cheapRoutes} />}
 
       {/* (2) מחוונים */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">

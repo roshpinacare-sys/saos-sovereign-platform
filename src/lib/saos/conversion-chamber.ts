@@ -38,6 +38,7 @@ import * as path from "path";
 import { ethers } from "ethers";
 import meshArtifact from "./generated/SAOSMesh.json";
 import { networkCensus } from "./multichain";
+import { cheapRouteScan, CHEAP_ROUTE_AUTHORIZATION, type CheapRouteScan } from "./cheap-routes";
 import { exchangeStatus } from "./exchange-live";
 import { assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
@@ -973,6 +974,8 @@ export interface ConversionChamberData {
   decision: DelegatedDecision;
   /** v70 — הניסיון המאושר: הבעלים אישר לנסות, האורגניזם ניסה (הרשאה קפואה + ביצוע מהחי) */
   try: TryAuthorization;
+  /** v72 — ההמרה הזולה: הניסיון שנעשה קבוע — סורק הדרכים החיצוניות הזולות, נמדד חי בכל קריאה */
+  cheapRoutes: CheapRouteScan;
   kpis: ChamberKpis;
   rails: CustodyRail[];
   routes: RouteCard[];
@@ -1098,13 +1101,14 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
   const measuredAt = new Date().toISOString();
 
   // שלושת מקורות-האמת במקביל — כל אחד עטוף, כישלון = נתון
-  const [custody, mirror, exchange, proof, lastSyncHe, lastMint] = await Promise.all([
+  const [custody, mirror, exchange, proof, lastSyncHe, lastMint, cheapRoutes] = await Promise.all([
     custodyBySymbol().catch(() => new Map<string, { custody: number | null; address: string | null; probeOk: boolean | null; explorer: string | null }>()),
     mirrorBySymbol().catch(() => new Map<string, bigint>()),
     exchangeStatus().catch(() => null),
     latestProof().catch(() => null),
     latestSyncSummary().catch(() => null),
-    latestMintSummary().catch(() => null)
+    latestMintSummary().catch(() => null),
+    cheapRouteScan({}).catch(() => null)
   ]);
 
   const priceOf = (wrap: string): number | null => {
@@ -1240,9 +1244,11 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
     {
       id: "external-route",
       he: "מסלול איחוד חיצוני (אופציונלי)",
-      status: "missing",
+      status: cheapRoutes?.gate === "open" ? "built" : "missing",
       actor: "owner",
-      detailHe: "חשבון בורסה + KYC + ספי-מינימום — נדרש רק אם רוצים לאחד לנכס אחד במקום עטיפה מקבילה",
+      detailHe: cheapRoutes?.gate === "open"
+        ? `v72 — הסורק החי מצא מסלול פתוח ללא מפתח שמגיע לגז-EVM (${cheapRoutes.routes.filter((r) => r.state === "open" && r.reachesEvmGas).map((r) => r.he).join(" · ")}) — ההרשאה העומדת של הבעלים מאפשרת ניסיון probe-first. מינימומים יימדדו בזמן אמת לפני כל טיפה.`
+        : `סריקת v72 מודדת חי את כל המסלולים החיצוניים הזולים בלי מפתח — נכון לסריקה האחרונה כולם נעולים במייל האחרון (מפתח · חשבון-אפיליאט · חומת-בוט). חשבון בורסה + KYC — נדרש רק אם רוצים לאחד לנכס אחד במקום עטיפה מקבילה`,
       unblocksHe: "גמישות נוספת — במחיר עלויות וסיכון שהעטיפה חוסכת"
     },
     {
@@ -1276,7 +1282,10 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
     (proof
       ? `הוכחת-הפריצה החיה על השרשרת: ${proof.stats.swaps} רגליים של המרת SOL↔TRX — ${proof.stats.allAtomic ? "כולן אטומיות" : "חלקן אטומיות"}, p50 ${proof.stats.p50Ms ?? "—"}ms, אפס משמרת חיצונית. `
       : "ההוכחה החיה טרם רצה — כפתור ההוכחה למטה מריץ מעגל SOL↔TRX על הרשת. ") +
-    `מה עוד מחכה: ${missingCount} הכנות מתוך ${readiness.length}${lastMint ? " — ההמרה על הרשת שלנו כבר רצה; שאר ההכנות הן חיזוקים (רב-חותמים · איגום-אריגה על המסילות · מסלול חוץ אופציונלי)" : " — בראשן פקודת ההטבעה"}.`;
+    `מה עוד מחכה: ${missingCount} הכנות מתוך ${readiness.length}${lastMint ? " — ההמרה על הרשת שלנו כבר רצה; שאר ההכנות הן חיזוקים (רב-חותמים · איגום-אריגה על המסילות · מסלול חוץ אופציונלי)" : " — בראשן פקודת ההטבעה"}. ` +
+    (cheapRoutes
+      ? `ההמרה הזולה (v72): ${cheapRoutes.routes.length} מסלולים חיצוניים נמדדים חי בכל סריקה — ${cheapRoutes.gate === "open" ? "השער פתוח: מסלול שמגיע לגז-EVM נמדד פתוח ללא מפתח" : "השער סגור כעובדה נמדדת — אף מסלול שמגיע לגז-EVM לא נמדד פתוח ללא מפתח"}${cheapRoutes.jupiter?.ok && cheapRoutes.jupiter.usdcOut !== null ? ` · מה שכן עובד: יופיטר בתוך-סולנה — ${cheapRoutes.jupiter.solNative?.toFixed(9)} SOL ≈ ${cheapRoutes.jupiter.usdcOut.toFixed(3)} USDC נזילים` : ""}.`
+      : "סריקת הדרכים הזולות לא חזרה בקריאה זו (כנה) — ננסה שוב בקריאה הבאה.");
 
   const tryLive: TryAuthorization = {
     ...TRY_AUTHORIZATION,
@@ -1292,6 +1301,17 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
     verdictHe,
     decision: DELEGATED_DECISION,
     try: tryLive,
+    cheapRoutes: cheapRoutes ?? {
+      ok: false,
+      measuredAt,
+      tookMs: 0,
+      authorization: CHEAP_ROUTE_AUTHORIZATION,
+      routes: [],
+      jupiter: null,
+      gate: "blocked",
+      gateHe: "הסריקה לא חזרה בקריאה זו — כישלון כנה, לא שקט",
+      verdictHe: "הסריקה לא חזרה בקריאה זו — כישלון כנה, לא שקט."
+    },
     kpis: {
       custodyUsd,
       mirroredUsd,

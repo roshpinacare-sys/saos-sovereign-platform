@@ -108,7 +108,21 @@ export const TRUSTED_HOSTS: TrustedHost[] = [
   // ברזי-הsignet הציבוריים שמממנים את ההוכחה (מימון חיצוני חינמי — לא מהכספת).
   { host: "kruwt.dk", org: "Kruwt (ברז signet ציבורי)", tier: "major", role: "ברז signet — הוכחת מנוע UTXO (v69)" },
   { host: "signet.bitcoin.dev", org: "Bitcoin Core / Google Cloud — ברז signet ציבורי", tier: "official", role: "ברז signet — הוכחת מנוע UTXO (v69)" },
-  { host: "faucet.signet.bitcoin.dev", org: "Bitcoin Core / Google Cloud — ברז signet ציבורי", tier: "official", role: "ברז signet — הוכחת מנוע UTXO (v69)" }
+  { host: "faucet.signet.bitcoin.dev", org: "Bitcoin Core / Google Cloud — ברז signet ציבורי", tier: "official", role: "ברז signet — הוכחת מנוע UTXO (v69)" },
+  // v72 ההמרה הזולה — סורק הדרכים: יעדי מדידה בלבד (read-only probing), בלי
+  // מפתח, בלי חשבון. כל אחד מהם נמדד חי בכל סריקה; הסיווג (פתוח/נעול/
+  // בלתי-נגיש) נקבע מהתשובה עצמה — לא מהרישום. הסתה של כסף אליהם תתכלה
+  // רק אחרי שמסלול יימדד פתוח + הרשאת הבעלים הקפואה בקוד (probe-first).
+  { host: "sideshift.ai", org: "SideShift", tier: "official", role: "סריקת ההמרה הזולה (v72) — מלאי + שער הזמנות" },
+  { host: "api.changenow.io", org: "ChangeNOW", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+  { host: "api.simpleswap.io", org: "SimpleSwap", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+  { host: "api.stealthex.io", org: "StealthEX", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+  { host: "api.trocador.app", org: "Trocador", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+  { host: "api.exolix.com", org: "Exolix", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+  { host: "api.changehero.io", org: "ChangeHero", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+  { host: "ff.io", org: "FixedFloat", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+  { host: "lite-api.jup.ag", org: "Jupiter (צביר הבורסות של סולנה)", tier: "official", role: "סריקת ההמרה הזולה (v72) — ציטוט SOL→USDC ללא מפתח" },
+  { host: "api.mayan.finance", org: "Mayan (גשר SOL→EVM)", tier: "official", role: "סריקת ההמרה הזולה (v72) — ציטוט גשר" }
 ];
 
 const HOST_INDEX = new Map(TRUSTED_HOSTS.map((t) => [t.host, t]));

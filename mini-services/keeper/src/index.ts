@@ -241,7 +241,10 @@ interface KeeperEvent {
     // v70 — the reserve watcher (צופה-הרזרבות — הכנת חדר-ההמרה)
     | "reserve-watched"
     | "reserve-drift"
-    | "reserve-recovered";
+    | "reserve-recovered"
+    // v72 — the cheap-route watcher (צופה-ההמרה-הזולה — הניסיון שנעשה קבוע)
+    | "cheap-route-watched"
+    | "cheap-route-opened";
   detail: string;
 }
 
@@ -347,6 +350,19 @@ const S = {
     meshManaged: 0 as number,
     driftAlerts: 0 as number,
     lastAlertAt: null as string | null
+  },
+  // v72 — the cheap-route watcher (צופה-ההמרה-הזולה): the owner's standing
+  // try ("נסה להמיר איכשהו בדרך זולה") made permanent — the web tier scans
+  // every external cheap route keylessly on every call; the keeper watches
+  // the standing gate and journals the moment it opens. Advisory only: the
+  // hands stay with the HQ probe-first flow, never with the watcher.
+  cheapRoutes: {
+    lastCheckAt: null as string | null,
+    gate: "unknown" as "unknown" | "blocked" | "open",
+    routes: 0 as number,
+    openRoutes: 0 as number,
+    jupiterUsdc: null as number | null,
+    openedAt: null as string | null
   },
   events: [] as KeeperEvent[]
 };
@@ -1023,6 +1039,12 @@ async function checkReserves(): Promise<void> {
         readinessTotal?: number;
       };
       sync?: { rows?: Array<{ wrap?: string; meshManaged?: boolean; needsBurn?: boolean }> };
+      cheapRoutes?: {
+        ok?: boolean;
+        gate?: "open" | "blocked";
+        routes?: Array<{ state?: string; reachesEvmGas?: boolean }>;
+        jupiter?: { ok?: boolean; usdcOut?: number | null } | null;
+      };
     } | null;
     if (!st || st.ok !== true) {
       S.reserves.state = "stale";
@@ -1033,6 +1055,34 @@ async function checkReserves(): Promise<void> {
     S.reserves.mirroredUsd = st.kpis?.mirroredUsd ?? null;
     S.reserves.driftUsd = st.kpis?.driftUsd ?? null;
     S.reserves.meshManaged = (st.sync?.rows ?? []).filter((x) => x.meshManaged === true).length;
+
+    // v72 — the cheap-route watcher: the standing try, watched. The scan is
+    // embedded in the same chamber response (no second request); the gate
+    // opening is the event the owner's standing authorization waits for.
+    const cr = st.cheapRoutes;
+    if (cr && cr.ok === true && Array.isArray(cr.routes)) {
+      const prevGate = S.cheapRoutes.gate;
+      const gate = cr.gate === "open" ? "open" : "blocked";
+      S.cheapRoutes.lastCheckAt = new Date().toISOString();
+      S.cheapRoutes.gate = gate;
+      S.cheapRoutes.routes = cr.routes.length;
+      S.cheapRoutes.openRoutes = cr.routes.filter(
+        (x) => x.state === "open" && x.reachesEvmGas === true
+      ).length;
+      S.cheapRoutes.jupiterUsdc = cr.jupiter?.usdcOut ?? null;
+      if (prevGate !== "open" && gate === "open") {
+        S.cheapRoutes.openedAt = new Date().toISOString();
+        journal(
+          "cheap-route-opened",
+          `cheap-route watcher: the standing gate OPENED — ${S.cheapRoutes.openRoutes} external route(s) measured keyless-open and reaching EVM gas (of ${S.cheapRoutes.routes} scanned). The owner's standing authorization (v72: "נסה להמיר מה שאתה צרכך איכשהו בדרך זולה") now permits a probe-first try: tiny drip, our address only, arrival verified from the receiving chain. The watcher speaks — the hands stay with HQ.`
+        );
+      } else if (prevGate === "unknown") {
+        journal(
+          "cheap-route-watched",
+          `cheap-route watcher LIVE: ${S.cheapRoutes.routes} external cheap routes scanned keylessly — gate ${gate === "open" ? "OPEN" : "blocked (measured fact, re-checked every scan)"}${S.cheapRoutes.jupiterUsdc !== null ? ` · Jupiter within-Solana: ${S.cheapRoutes.jupiterUsdc.toFixed(3)} USDC liquid for the sovereign SOL` : ""} — the standing try of v72, watched every 5 min`
+        );
+      }
+    }
 
     const prev = S.reserves.state;
     const drift = S.reserves.driftUsd;
@@ -1393,7 +1443,8 @@ function statusJson() {
       recovery: { state: S.recovery.state, daysLeft: S.recovery.daysLeft, lastCheckAt: S.recovery.lastCheckAt, engine: "headcorner-ambush", account: "headcorner" },
       expansion: { state: S.expansion.state, armed: S.expansion.armed, setting: S.expansion.setting, lastCheckAt: S.expansion.lastCheckAt, lastFireAt: S.expansion.lastFireAt, fires: S.expansion.fires, engine: "auto-expansion (v66)", cadence: "10min" },
       irrigation: { state: S.irrigation.state, fundable: S.irrigation.fundable, setting: S.irrigation.setting, lastCheckAt: S.irrigation.lastCheckAt, lastDripAt: S.irrigation.lastDripAt, drips: S.irrigation.drips, engine: "wise-irrigation (v67)", cadence: "10min" },
-      reserves: { state: S.reserves.state, custodyUsd: S.reserves.custodyUsd, mirroredUsd: S.reserves.mirroredUsd, driftUsd: S.reserves.driftUsd, meshManaged: S.reserves.meshManaged, driftAlerts: S.reserves.driftAlerts, lastAlertAt: S.reserves.lastAlertAt, lastCheckAt: S.reserves.lastCheckAt, engine: "reserve-watcher (v70)", cadence: "5min", hands: "HQ-only (advisory organ)" }
+      reserves: { state: S.reserves.state, custodyUsd: S.reserves.custodyUsd, mirroredUsd: S.reserves.mirroredUsd, driftUsd: S.reserves.driftUsd, meshManaged: S.reserves.meshManaged, driftAlerts: S.reserves.driftAlerts, lastAlertAt: S.reserves.lastAlertAt, lastCheckAt: S.reserves.lastCheckAt, engine: "reserve-watcher (v70)", cadence: "5min", hands: "HQ-only (advisory organ)" },
+      cheapRoutes: { gate: S.cheapRoutes.gate, routes: S.cheapRoutes.routes, openRoutes: S.cheapRoutes.openRoutes, jupiterUsdc: S.cheapRoutes.jupiterUsdc, lastCheckAt: S.cheapRoutes.lastCheckAt, openedAt: S.cheapRoutes.openedAt, engine: "cheap-route watcher (v72)", cadence: "5min", hands: "HQ-only (probe-first under the owner's standing authorization)" }
     },
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,

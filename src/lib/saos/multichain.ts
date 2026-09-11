@@ -703,14 +703,26 @@ async function probeXrp(address: string): Promise<ProbeOutcome> {
 }
 
 async function probeSol(address: string): Promise<ProbeOutcome> {
-  try {
-    const r = await rpcPost("https://api.mainnet-beta.solana.com", "getBalance", [address, { commitment: "confirmed" }]);
-    const val = (r.result as { value?: number } | undefined)?.value;
-    if (typeof val !== "number") return { balance: null, ok: false, error: "no value", endpoint: "api.mainnet-beta.solana.com" };
-    return { balance: Number((val / 1e9).toFixed(9)), ok: true, endpoint: "api.mainnet-beta.solana.com" };
-  } catch (e) {
-    return { balance: null, ok: false, error: e instanceof Error ? e.message : String(e), endpoint: "api.mainnet-beta.solana.com" };
+  // v72 — רוטציית-קריאה: הרשמי ואז publicnode. הצדקה נמדדת-חיה: ב-2026-09-11T21:31
+  // הנקודה הרשמית הפילה בדיקה (חדר-ההמרה הראה custody=null למסילת SOL בזמן
+  // שהשרשרת החזיקה בדיוק 23,966,117 למפורט — זהות המראה אפס-סחף) — בדיקת
+  // נקודה-יחידה הופכת רגע-חוסר של הצומת ל"לא-נמדד" כביכול של המשמרת.
+  // אותה רוטציה שמנוע העוגן (anchor-svm) כבר מאמת מאז v47.
+  let lastErr = "no attempt";
+  for (const ep of ["https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"]) {
+    try {
+      const r = await rpcPost(ep, "getBalance", [address, { commitment: "confirmed" }]);
+      const val = (r.result as { value?: number } | undefined)?.value;
+      if (typeof val !== "number") {
+        lastErr = `no value @ ${new URL(ep).hostname}`;
+        continue;
+      }
+      return { balance: Number((val / 1e9).toFixed(9)), ok: true, endpoint: new URL(ep).hostname };
+    } catch (e) {
+      lastErr = `${e instanceof Error ? e.message : String(e)} @ ${new URL(ep).hostname}`;
+    }
   }
+  return { balance: null, ok: false, error: lastErr, endpoint: "solana (rotated)" };
 }
 
 async function probeCosmos(address: string): Promise<ProbeOutcome> {
