@@ -1,24 +1,30 @@
 "use client";
 
 /**
- * SAOS v67 — ההשקיה החכמה (THE WISE IRRIGATION): הגז מטפטף לבד, בחוכמה.
+ * SAOS v71 — ההשקיה החכמה + עין-מזג-האוויר (THE WISE IRRIGATION · THE
+ * WEATHER-EYE): הגז מטפטף לבד, בחוכמה — ובזמן הנכון.
  *
  * הוראת הבעלים: "המטרה שההשקיה תהיה אוטונומית אבל בחוכמה" + "ויש לי
  * בארנק סולנה תנסה להשתמש בזה איכשהו… יש גם trx… אולי הדקס שלנו כבר
  * יכול להמיר… אני מאשר לשלם". הוויו הזה הוא הלוח החי: המקורות ×
- * הדלתות × המסלולים × התוכנית · שער-ההמרה (התשובה הכנה על הדקס שלנו
- * ועל ה-SOL/TRX שבארנק) · יומן-הטפטוף עם ההוכחות (txid + הגעה שנקראה
- * מה-L2) · והכללים החכמים שנגזרו מההוראה.
+ * הדלתות × המסלולים × התוכנית · עין-מזג-האוויר (v71 — לא משקים בצהריים:
+ * רגיעה/בריזה/סערה נמדדים חי מהצומת, דחיית-סערה בסבלנות עד 6 מחזורים
+ * ואז השקיה בחום) · שער-ההמרה · יומן-הטפטוף עם ההוכחות והמזג של כל
+ * טיפה · והכללים החכמים שנגזרו מההוראה.
  */
 
 import { useState } from "react";
 import {
   BadgeCheck,
+  CloudLightning,
+  CloudOff,
+  CloudSun,
   Crown,
   Droplets,
   ExternalLink,
   Eye,
   Flame,
+  Hourglass,
   Landmark,
   Lock,
   Receipt,
@@ -26,6 +32,7 @@ import {
   ScrollText,
   ShieldCheck,
   Sprout,
+  Sun,
   Wallet
 } from "lucide-react";
 import {
@@ -88,6 +95,33 @@ const ROUTE_LABEL: Record<string, string> = {
   "no-sovereign-route": "אין מקור ריבוני"
 };
 
+// v71 — עין-מזג-האוויר: גוונים לכל מזג
+const WEATHER_TONE: Record<string, "green" | "amber" | "rose" | "zinc"> = {
+  calm: "green",
+  breezy: "amber",
+  storm: "rose",
+  unknown: "zinc"
+};
+
+const WEATHER_ICON: Record<string, React.ReactNode> = {
+  calm: <Sun size={13} className="text-amber-200" />,
+  breezy: <CloudSun size={13} className="text-amber-300" />,
+  storm: <CloudLightning size={13} className="text-rose-300" />,
+  unknown: <CloudOff size={13} className="text-zinc-400" />
+};
+
+const WEATHER_LABEL: Record<string, string> = {
+  calm: "רגיעה",
+  breezy: "בריזה",
+  storm: "סערה",
+  unknown: "לא-נמדד"
+};
+
+const fmtGwei = (n: number | null): string => {
+  if (n === null) return "—";
+  return `${n < 0.1 ? n.toFixed(4) : n.toFixed(3)} gwei`;
+};
+
 export function IrrigationView() {
   const live = useLive<IrrigationData>("/api/saos/irrigation", 30_000);
   const [firing, setFiring] = useState<string | null>(null);
@@ -140,7 +174,7 @@ export function IrrigationView() {
       <main className="p-4 sm:p-6 space-y-4">
         <PageHead
           title="ההשקיה החכמה — אוטונומית אבל בחוכמה"
-          sub="v67 · הגז מטפטף לבד דרך הפורטלים הקנוניים המאומתים"
+          sub="v71 · הגז מטפטף לבד דרך הפורטלים הקנוניים המאומתים — ובמזג הנכון"
         />
         <Callout tone="rose" icon={<Flame size={15} />}>
           <p className="text-[11px] leading-relaxed">{live.error ?? d?.error ?? "—"}</p>
@@ -152,7 +186,7 @@ export function IrrigationView() {
   if (!d) {
     return (
       <main className="p-4 sm:p-6 space-y-4">
-        <PageHead title="ההשקיה החכמה — אוטונומית אבל בחוכמה" sub="v67 · טוען את הלוח החי…" />
+        <PageHead title="ההשקיה החכמה — אוטונומית אבל בחוכמה" sub="v71 · טוען את הלוח החי…" />
         <SkeletonPanel className="h-40" />
         <SkeletonPanel className="h-64" />
         <SkeletonPanel className="h-52" />
@@ -166,7 +200,7 @@ export function IrrigationView() {
     <main className="p-4 sm:p-6 space-y-4 pb-8">
       <PageHead
         title="ההשקיה החכמה — אוטונומית אבל בחוכמה"
-        sub="v67 · המטרה של הבעלים, מילה במילה: האורגניזם מטפטף גז לדלתות החשוכות בעצמו — דרך פורטלים קנוניים מאומתי-שלשה, עם חוקי-חוכמה קשיחים בקוד"
+        sub="v71 · המטרה של הבעלים, מילה במילה: האורגניזם מטפטף גז לדלתות החשוכות בעצמו — דרך פורטלים קנוניים מאומתי-שלשה, בחוקי-חוכמה קשיחים בקוד, ומעתה גם במזג הנכון (עין-מזג-האוויר: לא משקים בצהריים)"
       />
 
       {/* ההרשאה — דברי הבעלים */}
@@ -233,10 +267,93 @@ export function IrrigationView() {
           icon={<Receipt className="text-sky-300" size={15} />}
           label="טפטופים מתועדים"
           value={String(d.journal.length)}
-          hint="כל טיפה: txid + עלות מהקבלה + הגעה מה-L2"
+          hint="כל טיפה: txid + עלות מהקבלה + הגעה מה-L2 + המזג שלה"
           tone="default"
         />
       </div>
+
+      {/* v71 — עין-מזג-האוויר: לא משקים בצהריים */}
+      <Panel>
+        <PanelHeader
+          icon={<CloudSun className="text-sky-300" size={16} />}
+          title="עין-מזג-האוויר — הגז של עכשיו, נמדד חי מהצומת"
+          actions={
+            <span className="flex items-center gap-1.5">
+              {WEATHER_ICON[d.weather.state] ?? null}
+              <Pill tone={WEATHER_TONE[d.weather.state] ?? "zinc"}>
+                {WEATHER_LABEL[d.weather.state] ?? d.weather.state}
+              </Pill>
+            </span>
+          }
+        />
+        <PanelBody className="space-y-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+              <p className="text-[10px] text-zinc-500">מחיר-גז נוכחי</p>
+              <p dir="ltr" className="font-mono text-[15px] text-zinc-100 mt-1">
+                {fmtGwei(d.weather.gasPriceGwei)}
+              </p>
+              <p className="text-[10px] text-zinc-600 mt-0.5">מה שהיד היתה משלמת עכשיו</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+              <p className="text-[10px] text-zinc-500">חציון 40 הבלוקים האחרונים</p>
+              <p dir="ltr" className="font-mono text-[15px] text-zinc-300 mt-1">
+                {fmtGwei(d.weather.medianGwei)}
+              </p>
+              <p className="text-[10px] text-zinc-600 mt-0.5">הבסיס של &quot;מזג רגיל&quot;</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+              <p className="text-[10px] text-zinc-500">יחס נוכחי/חציון</p>
+              <p dir="ltr" className="font-mono text-[15px] text-zinc-100 mt-1">
+                {d.weather.spikeRatio != null ? `×${d.weather.spikeRatio.toFixed(2)}` : "—"}
+              </p>
+              <p className="text-[10px] text-zinc-600 mt-0.5">1.0 = שווה-מגמה · 3+ = נדנוד-רגעי</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+              <p className="text-[10px] text-zinc-500">עלות-טפטוף חזויה</p>
+              <p dir="ltr" className="font-mono text-[15px] text-zinc-100 mt-1">
+                {d.weather.estDripCostEth != null ? `${d.weather.estDripCostEth.toFixed(7)} ETH` : "—"}
+              </p>
+              <p className="text-[10px] text-zinc-600 mt-0.5">צינור: 110K גז × מחיר-חציץ ×1.4</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+              <p className="text-[10px] text-zinc-500">נמדד בבלוק</p>
+              <p dir="ltr" className="font-mono text-[15px] text-zinc-300 mt-1">
+                {d.weather.blockNumber != null ? `#${d.weather.blockNumber}` : "—"}
+              </p>
+              <p className="text-[10px] text-zinc-600 mt-0.5">
+                {d.weather.blocks != null ? `${d.weather.blocks} בלוקים בהיסטוריה` : "היסטוריה לא נמדדה"}
+              </p>
+            </div>
+          </div>
+          <p className="text-[11px] leading-relaxed text-zinc-300 rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
+            {WEATHER_ICON[d.weather.state]} {d.weather.verdictHe}
+          </p>
+          {d.weatherPatience.length > 0 && (
+            <div className="rounded-lg border border-amber-300/20 bg-amber-300/[0.04] p-3 space-y-2">
+              <p className="text-[11px] font-medium text-amber-200 flex items-center gap-1.5">
+                <Hourglass size={12} /> ספר-הסבלנות — דלתות בהמתנת-מזק (עד 6 מחזורים ואז השקיה בחום)
+              </p>
+              {d.weatherPatience.map((p) => (
+                <div key={p.chain} className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="text-zinc-200 font-mono">{p.chain}</span>
+                  <span className="text-amber-200/90">
+                    {p.count}/6 · מאז {timeAgo(p.since)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+            {d.weatherRulesHe.map((r, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
+                <ShieldCheck size={12} className="text-sky-300/80 mt-0.5 shrink-0" />
+                <p className="text-[10px] leading-relaxed text-zinc-400">{r}</p>
+              </div>
+            ))}
+          </div>
+        </PanelBody>
+      </Panel>
 
       {/* פסק-הדין החי */}
       <Callout tone={d.plan.fundableCount > 0 ? "green" : "gold"} icon={<Flame size={15} />}>
@@ -464,6 +581,7 @@ export function IrrigationView() {
                     <Th>נמסר</Th>
                     <Th>עלות (מהקבלה)</Th>
                     <Th>הגעה ב-L2</Th>
+                    <Th>מזג</Th>
                     <Th>מקור</Th>
                   </tr>
                 </thead>
@@ -510,6 +628,34 @@ export function IrrigationView() {
                           <span className="text-[11px] text-zinc-600">—</span>
                         )}
                         <p className="text-[10px] text-zinc-600 mt-0.5">{j.status}</p>
+                      </Td>
+                      <Td>
+                        {j.weatherState != null ? (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] ${
+                              j.weatherState === "storm"
+                                ? "text-rose-300"
+                                : j.weatherState === "breezy"
+                                  ? "text-amber-300"
+                                  : j.weatherState === "calm"
+                                    ? "text-emerald-300"
+                                    : "text-zinc-400"
+                            }`}
+                          >
+                            {WEATHER_ICON[j.weatherState] ?? null}
+                            {WEATHER_LABEL[j.weatherState] ?? j.weatherState}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-zinc-600">—</span>
+                        )}
+                        {j.gasGwei != null && (
+                          <p dir="ltr" className="text-[10px] text-zinc-600 mt-0.5 font-mono">
+                            {fmtGwei(j.gasGwei)}
+                          </p>
+                        )}
+                        {j.weatherDeferredCount != null && (
+                          <Tag tone="amber" className="mt-1">דחויה {j.weatherDeferredCount}/6</Tag>
+                        )}
                       </Td>
                       <Td>
                         <Tag tone={j.source === "auto" ? "green" : "zinc"}>{j.source ?? "—"}</Tag>

@@ -323,14 +323,17 @@ const S = {
   },
   // v67 — the wise-irrigation scout (ההשקיה החכמה): web owns the engine
   // (board + drip hand); keeper owns the cadence + the poke. ONE drip per
-  // cycle — דיסציפלינת-טפטוף.
+  // cycle — דיסציפלינת-טפטוף. v71: gas-storm deferral (עין-מזג-האוויר)
+  // journals as weathered — the engine waits for calm, the scout obeys and
+  // returns next cycle; after 6 deferrals the engine heatwave-waters anyway.
   irrigation: {
     lastCheckAt: null as string | null,
-    state: "boot" as "boot" | "watching" | "planned" | "dripped" | "off" | "stale",
+    state: "boot" as "boot" | "watching" | "planned" | "dripped" | "weathered" | "off" | "stale",
     fundable: 0 as number,
     setting: null as boolean | null,
     lastDripAt: null as string | null,
-    drips: 0 as number
+    drips: 0 as number,
+    weathered: 0 as number
   },
   // v70 — the reserve watcher (צופה-הרזרבות): reads custody↔mirror from the
   // web every 5 min; drift beyond threshold → journal alert (advisory — the
@@ -964,13 +967,25 @@ async function checkIrrigation(): Promise<void> {
         l2Verified?: boolean | null;
         error?: string;
         verdictHe?: string;
+        weather?: { state?: string; gasPriceGwei?: number | null } | null;
       } | null;
+      if (out?.error === "gas-storm-deferred") {
+        // v71 — the engine's weather-eye deferred the drip (storm/pipe-cost):
+        // not a failure, a wise wait. Journaled distinctly; retried next cycle.
+        S.irrigation.weathered += 1;
+        S.irrigation.state = "weathered";
+        journal(
+          "irrigation-weathered",
+          `wise-irrigation DEFERRED by weather-eye (${out.chain ?? "?"}) — gas=${out?.weather?.gasPriceGwei ?? "?"} gwei (${out?.weather?.state ?? "?"}) — ${(out?.verdictHe ?? "").slice(0, 120)} — calm returns in ~10 min; patience up to 6, then heatwave-watering`
+        );
+        return;
+      }
       S.irrigation.drips += 1;
       S.irrigation.lastDripAt = new Date().toISOString();
       S.irrigation.state = "dripped";
       journal(
         "irrigation-dripped",
-        `wise-irrigation DRIPPED ${out?.chain ?? "?"}${out?.probe === true ? " (probe)" : ""} — delivered=${out?.deliveredEth ?? "—"} txid=${out?.txid ?? "—"} l2Verified=${out?.l2Verified ?? "—"} ${(out?.error ?? "").slice(0, 60)} — proof or it never happened`
+        `wise-irrigation DRIPPED ${out?.chain ?? "?"}${out?.probe === true ? " (probe)" : ""} — delivered=${out?.deliveredEth ?? "—"} txid=${out?.txid ?? "—"} l2Verified=${out?.l2Verified ?? "—"} weather=${out?.weather?.state ?? "—"}@${out?.weather?.gasPriceGwei ?? "?"}gwei ${(out?.error ?? "").slice(0, 60)} — proof or it never happened`
       );
     } else {
       S.irrigation.state = "watching";

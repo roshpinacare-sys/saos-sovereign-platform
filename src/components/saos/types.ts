@@ -1856,6 +1856,27 @@ export interface IrrigationConversionOptionT {
   custodyHe: string;
 }
 
+/** v71 — עין-מזג-האוויר: המזג החי שבו פועלת ההשקיה */
+export interface GasWeatherT {
+  state: "calm" | "breezy" | "storm" | "unknown";
+  stateHe: string;
+  gasPriceGwei: number | null;
+  medianGwei: number | null;
+  spikeRatio: number | null;
+  blocks: number | null;
+  blockNumber: number | null;
+  estDripCostEth: number | null;
+  verdictHe: string;
+  error?: string;
+}
+
+export interface IrrigationWeatherPatienceRowT {
+  chain: string;
+  count: number;
+  since: string;
+  lastReasonHe: string;
+}
+
 export interface IrrigationDripRowT {
   id: string;
   at: string;
@@ -1870,6 +1891,12 @@ export interface IrrigationDripRowT {
   l2BalanceAfter: string | null;
   source: "auto" | "manual" | null;
   explorer: string | null;
+  /** v71 — המזג שבו נורתה/נדחתה הטיפה */
+  weatherState: "calm" | "breezy" | "storm" | "unknown" | null;
+  /** v71 — מחיר-הגז בעת הירי (gwei) */
+  gasGwei: number | null;
+  /** v71 — מספר-סבלנות שנצבר בדחיית-מזק-אוויר */
+  weatherDeferredCount: number | null;
 }
 
 export interface IrrigationData {
@@ -1879,6 +1906,11 @@ export interface IrrigationData {
   authorization: IrrigationAuthorization;
   setting: boolean;
   settingHe: string;
+  /** v71 — עין-מזג-האוויר: המזג החי שבו פועלת ההשקיה */
+  weather: GasWeatherT;
+  /** v71 — דלתות בהמתנה-מזק (ספר-סבלנות) */
+  weatherPatience: IrrigationWeatherPatienceRowT[];
+  weatherRulesHe: string[];
   sources: IrrigationSourceRowT[];
   doors: IrrigationDoorRowT[];
   plan: { fundableCount: number; totalGapUsd: number | null; verdictHe: string };
@@ -1913,6 +1945,13 @@ export interface IrrigationFireResultT {
   balanceBeforeEth: string | null;
   balanceAfterEth: string | null;
   receipt: string | null;
+  /** v71 — תמונת-מזג בעת הירי */
+  weather: {
+    state: "calm" | "breezy" | "storm" | "unknown";
+    gasPriceGwei: number | null;
+    medianGwei: number | null;
+    spikeRatio: number | null;
+  } | null;
   verdictHe: string;
   error?: string;
 }

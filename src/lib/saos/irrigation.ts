@@ -1,5 +1,6 @@
 /**
- * lib/saos/irrigation.ts — v67 ההשקיה החכמה (THE WISE IRRIGATION).
+ * lib/saos/irrigation.ts — v71 ההשקיה החכמה + עין-מזג-האוויר
+ * (THE WISE IRRIGATION · THE WEATHER-EYE).
  * =====================================================================
  * הוראת הבעלים (2026-09-11, שתי הודעות, הזו אחרי הזו):
  *   (1) "המטרה שההשקיה תהיה אוטונומית אבל בחוכמה תמשיך ודחוף"
@@ -14,13 +15,24 @@
  * מ-v67 ההשקיה עצמה אוטונומית: האורגניזם מזהה דלת חשוכה עם מקור ריבוני
  * זמין — ומטפטף לה גז בעצמו, דרך הגשרים הקנוניים המאומתים-שלשות.
  *
- * הארכיטקטורה — שלושה איברים, משמעת אחת:
+ * הארכיטקטורה — ארבעה איברים, משמעת אחת:
  *   (1) המפקד (GET, read-only) — מקורות (עודף-מעל-רצפה), דלתות (הפער
  *       ל-×2), מסלולים (מאומתים/נעולים/חסרים), והתוכנית החיה.
  *   (2) היד (POST) — טפטוף אחד לדלת אחת: שערים → גשש-בדיקה (probe
  *       קטן קודם, אימות-הגעה ב-L2) → השלמת הטפטוף → קבלות.
  *   (3) הגשש (השומר :3005) — מחזור 10-דק': קורא את המפקד, יורה את
  *       הדלת הראשונה המתוכננת (source=auto). השומר לא נוגע במפתחות.
+ *   (4) עין-מזג-האוויר (v71, gasWeather) — חוכמת-התזמון החקלאית: לא
+ *       משקים בצהריים. מודד חי מהצומת את מחיר-הגז הנוכחי מול החציון
+ *       של 40 הבלוקים האחרונים (eth_gasPrice + eth_feeHistory) ומסווג:
+ *       רגיעה / בריזה / סערה. סערה = הנוכחי פי-3 מהחציון מעל 2 gwei
+ *       (נדנוד-רגעי — הגשש חוזר בעוד 10 דק'), או צינור שעלותו עולה על
+ *       המים (עלות-הגז של הטפטוף > הפער שהוא נושא). האוטונומי נדחה
+ *       בסבלנות עד 6 מחזורים (~שעה) — ואז משקים גם בחום: הצמא גדול
+ *       מהחיסכון (רעב-נצחי הוא טיפשות, לא חוכמה). פקודת-מפעיל ידנית
+ *       עוקפת את מזג-האוויר — מחיר הדחיפות על המפעיל. מדידה שנכשלה =
+ *       רגיעה מתועדת: שער-תזמון נכשל-פתוח בתיעוד מלא; שערי-הכסף (מסלול /
+ *       רצפת-מקור / פער-מדויק / to=עצמנו) נכשלים-סגור כתמיד — הם לא זזים.
  *
  * המסלולים המאומתים (ראיות-השלשה, 2026-09-11, נמדד חי מהשרשרות):
  *   OPTIMISM portal = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed
@@ -86,7 +98,8 @@ export const IRRIGATION_AUTHORIZATION: IrrigationAuthorization = {
     "מסלול מאומת בלבד: רק פורטלים קנוניים שעברו אימות-שלשה חי (L2-CDM → L1-CDM → portal + systemConfig הדדי) — ורק אל הכתובת הריבונית שלנו. היד לא יכולה לחתום שום דבר אחר.",
     "גשש-בדיקה: הטפטוף הראשון בכל מסלול הוא probe קטן שנאמת בהגעתו על ה-L2 בטרם השלמת הסכום — האמת מהשרשרת-המקבלת, לא מהשולחת.",
     "כל טיפה עם קבלה: txid מהצומת, עלות מהקבלה, קבלה משורשרת, יומן — והגעה שנקראת חי מהיתרה ב-L2.",
-    "המרת SOL/TRX לגז-EVM נשארת נעולה עד החלטת-בעלים על שירות ספציפי (כלל v65 מס' 3 — אפס-צד-שלישי-משמר). הדקס שלנו נמדד ולא יכול. השער מתועד, לא נפרץ."
+    "המרת SOL/TRX לגז-EVM נשארת נעולה עד החלטת-בעלים על שירות ספציפי (כלל v65 מס' 3 — אפס-צד-שלישי-משמר). הדקס שלנו נמדד ולא יכול. השער מתועד, לא נפרץ.",
+    "(v71) עין-מזג-האוויר — לא משקים בצהריים: מזג-הגז נמדד חי מהצומת לפני כל ירי אוטונומי (הנוכחי מול חציון 40 הבלוקים האחרונים); סערה — נדנוד פי-3 מעל 2 gwei, או צינור שעלותו עולה על המים — דוחה את הטפטוף בסבלנות עד 6 מחזורים, ואז משקים בחום (הצמא גדול מהחיסכון). פקודת-מפעיל ידנית עוקפת מזג — מחיר הדחיפות על המפעיל, והמזג נרשם. שער-תזמון בלבד: מדידה שנכשלה = רגיעה מתועדת; שערי-הכסף לא זזים."
   ]
 };
 
@@ -218,6 +231,178 @@ function pricedGas(rawWei: bigint): bigint {
   return buffered > GAS_PRICE_FLOOR_WEI ? buffered : GAS_PRICE_FLOOR_WEI;
 }
 
+// ─── v71 — עין-מזג-האוויר (THE WEATHER-EYE): חוכמת-התזמון ───────────────────
+// חקלאות: לא משקים בצהריים. המודד מהצומת את מחיר-הגז הנוכחי מול החציון
+// של 40 הבלוקים האחרונים — סערת-רגע (spike) היא רגיעה בעוד דקות; הגשש
+// חוזר ממילא כל 10 דק'. הסבלנות קצורה: 6 מחזורי-המתנה (~שעה) — ואז משקים
+// גם בחום, כי רעב-נצחי הוא טיפשות. שער-תזמון, לא שער-כסף: מדידה שנכשלה
+// = רגיעה מתועדת (הטפטוף ממשיך; שערי-הכסף לא נגעו ולא ייגעו).
+
+const WEATHER_WINDOW_BLOCKS = "0x28"; // 40 בלוקים ≈ 13 דק' של היסטוריה
+const WEATHER_SPIKE_STORM_RATIO = 3; // סערה: הנוכחי פי-3 מהחציון
+const WEATHER_STORM_ABS_GWEI = 2; // …ורק מעל 2 gwei — מתחת לזה "סערה" היא רעש של אגורות
+const WEATHER_BREEZY_RATIO = 1.5; // בריזה: פי-1.5 — מצוין ביומן, לא עוצר טיפה
+const WEATHER_PATIENCE_CYCLES = 6; // 6 דחיות ≈ שעה — ואז משקים בחום (הצמא גדול מהחיסכון)
+const WEATHER_CACHE_MS = 90_000; // הלוח נקרא כל 10 דק' — 90 ש' מטמון מספיק לתצוגה
+const WEATHER_PATIENCE_PREFIX = "irrigationWeather:"; // ספר-הסבלנות, לדלת
+
+export type GasWeatherState = "calm" | "breezy" | "storm" | "unknown";
+
+export interface GasWeather {
+  state: GasWeatherState;
+  stateHe: string;
+  /** מחיר-הגז הנוכחי מהצומת (gwei) — מה שהיד היתה משלמת עכשיו */
+  gasPriceGwei: number | null;
+  /** החציון של 40 הבלוקים האחרונים (gwei) — הבסיס של "מזג רגיל" */
+  medianGwei: number | null;
+  /** הנוכחי ÷ החציון — 1.0 = שווה-מגמה, 3+ = נדנוד-רגעי */
+  spikeRatio: number | null;
+  blocks: number | null;
+  blockNumber: number | null;
+  /** עלות-גז חזויה לטפטוף אחד במזג הנוכחי (ETH) — EXPECTED_DEPOSIT_GAS × מחיר עם חציץ */
+  estDripCostEth: number | null;
+  verdictHe: string;
+  error?: string;
+}
+
+let weatherCache: { at: number; value: GasWeather } | null = null;
+
+const WEATHER_STATE_HE: Record<GasWeatherState, string> = {
+  calm: "רגיעה — מזג להשקיה בו",
+  breezy: "בריזה — קלה, משקים",
+  storm: "סערה — האוטונומי ממתין בסבלנות",
+  unknown: "לא-נמדד — מתועד בכנות"
+};
+
+/** כללי עין-מזג-האוויר — נגזרו מ"אוטונומית אבל בחוכמה", קשיחים בקוד */
+const WEATHER_RULES_HE: string[] = [
+  "לא משקים בצהריים: מזג-גז נמדד חי מהצומת לפני כל ירי אוטונומי — הנוכחי מול החציון של 40 הבלוקים האחרונים (eth_gasPrice + eth_feeHistory).",
+  `סערה = פי-${WEATHER_SPIKE_STORM_RATIO} מהחציון מעל ${WEATHER_STORM_ABS_GWEI} gwei (נדנוד-רגעי — הגשש חוזר בעוד 10 דק'), או צינור שעלותו עולה על המים (עלות-הגז של הטפטוף > הפער שהוא נושא).`,
+  `סבלנות קצורה: עד ${WEATHER_PATIENCE_CYCLES} מחזורי-המתנה (~שעה) — ואז משקים גם בחום, כי רעב-נצחי הוא טיפשות, לא חוכמה. כל ירי מוצלח מאפס את המונה.`,
+  "פקודת-מפעיל ידנית עוקפת את מזג-האוויר — מחיר הדחיפות על המפעיל, והמזג שנעקף נרשם ביומן בכל זאת.",
+  "שער-תזמון, לא שער-כסף: מדידה שנכשלה = רגיעה מתועדת והטפטוף ממשיך. שערי-הכסף (מסלול · רצפת-מקור · פער-מדויק · to=עצמנו) לא נגעו ולא ייגעו."
+];
+
+/**
+ * מדידת-מזג חיה: eth_gasPrice + eth_feeHistory (40 בלוקים, בסיס בלבד)
+ * מהצומת המהימן. קבוע מטומן 90 ש' לתצוגת-הלוח; היד (irrigateDoor) מכריח
+ * {force:true} — ברגע החתימה המזג נמדד מחדש, לא מהמטמון.
+ */
+export async function gasWeather(opts: { force?: boolean } = {}): Promise<GasWeather> {
+  if (!opts.force && weatherCache && Date.now() - weatherCache.at < WEATHER_CACHE_MS) {
+    return weatherCache.value;
+  }
+  const provider = new ethers.JsonRpcProvider("https://ethereum-rpc.publicnode.com", 1, { batchMaxCount: 1 });
+  try {
+    const [gasHex, fhRes, blockNum] = await Promise.all([
+      provider.send("eth_gasPrice", []),
+      provider.send("eth_feeHistory", [WEATHER_WINDOW_BLOCKS, "latest", []]),
+      provider.getBlockNumber()
+    ]);
+    const gasWei = BigInt(gasHex as string);
+    const gasGwei = Number(gasWei) / 1e9;
+    const baseFees = Array.isArray((fhRes as { baseFeePerGas?: unknown[] })?.baseFeePerGas)
+      ? ((fhRes as { baseFeePerGas: string[] }).baseFeePerGas ?? [])
+      : [];
+    const gweis = baseFees.map((h) => Number(BigInt(h)) / 1e9).filter((n) => Number.isFinite(n) && n > 0);
+    const median =
+      gweis.length > 0
+        ? [...gweis].sort((a, b) => a - b)[Math.floor((gweis.length - 1) / 2)]
+        : null;
+    const spikeRatio = median != null && median > 0 ? gasGwei / median : null;
+    const estDripCostEth = Number(ethers.formatEther(pricedGas(gasWei) * EXPECTED_DEPOSIT_GAS));
+
+    let state: GasWeatherState;
+    let verdictHe: string;
+    const isSpikeStorm =
+      spikeRatio != null && spikeRatio > WEATHER_SPIKE_STORM_RATIO && gasGwei > WEATHER_STORM_ABS_GWEI;
+    if (isSpikeStorm) {
+      state = "storm";
+      verdictHe = `סערת-גז נדנודית: ${gasGwei.toFixed(3)} gwei ≈ פי-${spikeRatio?.toFixed(2)} מהחציון (${median?.toFixed(3)} gwei · ${gweis.length} בלוקים) — הטפטוף האוטונומי נדחה; הגשש חוזר בעוד 10 דק' והרגיעה בדרך. עלות-טפטוף חזויה במזג זה: ${estDripCostEth.toFixed(7)} ETH.`;
+    } else if (spikeRatio != null && spikeRatio > WEATHER_BREEZY_RATIO && gasGwei > WEATHER_STORM_ABS_GWEI) {
+      state = "breezy";
+      verdictHe = `בריזה: ${gasGwei.toFixed(3)} gwei ≈ פי-${spikeRatio.toFixed(2)} מהחציון (${median?.toFixed(3)} gwei) — מעל המגמה אך זול בערך-מוחלט; משקים. עלות-טפטוף חזויה: ${estDripCostEth.toFixed(7)} ETH.`;
+    } else {
+      state = "calm";
+      verdictHe = `רגיעה: ${gasGwei.toFixed(3)} gwei מול חציון ${median?.toFixed(3) ?? "?"} gwei (${gweis.length} בלוקים · יחס ${spikeRatio?.toFixed(2) ?? "?"}) — מזג מצוין להשקיה. עלות-טפטוף חזויה: ${estDripCostEth.toFixed(7)} ETH.`;
+    }
+    const value: GasWeather = {
+      state,
+      stateHe: WEATHER_STATE_HE[state],
+      gasPriceGwei: Number(gasGwei.toFixed(4)),
+      medianGwei: median == null ? null : Number(median.toFixed(4)),
+      spikeRatio: spikeRatio == null ? null : Number(spikeRatio.toFixed(3)),
+      blocks: gweis.length,
+      blockNumber: blockNum,
+      estDripCostEth,
+      verdictHe
+    };
+    weatherCache = { at: Date.now(), value };
+    return value;
+  } catch (e) {
+    // שער-תזמון נכשל-פתוח בתיעוד: אין מזג → רגיעה-מתועדת. שערי-הכסף לא נגעו.
+    const value: GasWeather = {
+      state: "unknown",
+      stateHe: WEATHER_STATE_HE.unknown,
+      gasPriceGwei: null,
+      medianGwei: null,
+      spikeRatio: null,
+      blocks: null,
+      blockNumber: null,
+      estDripCostEth: null,
+      verdictHe: "עין-מזג-האוויר לא קיבלה מדידה מהצומת — מתועד בכנות. שער-תזמון (לא שער-כסף): הטפטוף ממשיך במשמעת-הכסף הרגילה.",
+      error: e instanceof Error ? e.message.slice(0, 140) : "weather probe failed"
+    };
+    weatherCache = { at: Date.now(), value };
+    return value;
+  } finally {
+    provider.destroy();
+  }
+}
+
+// ─── ספר-הסבלנות — כמה מחזורי-המתנה צברה דלת תחת מזק-אוויר גרוע ───────────
+
+interface WeatherPatience {
+  count: number;
+  since: string;
+  lastReasonHe: string;
+}
+
+async function getWeatherPatience(chain: string): Promise<WeatherPatience | null> {
+  try {
+    const row = await db.platformSetting.findUnique({ where: { key: WEATHER_PATIENCE_PREFIX + chain } });
+    if (!row) return null;
+    const v = safeParse(row.value);
+    if (!v || typeof v.count !== "number" || typeof v.since !== "string") return null;
+    return {
+      count: v.count as number,
+      since: v.since as string,
+      lastReasonHe: typeof v.lastReasonHe === "string" ? (v.lastReasonHe as string) : ""
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function bumpWeatherPatience(chain: string, reasonHe: string): Promise<WeatherPatience> {
+  const cur = (await getWeatherPatience(chain)) ?? { count: 0, since: new Date().toISOString(), lastReasonHe: "" };
+  const next: WeatherPatience = { count: cur.count + 1, since: cur.since, lastReasonHe: reasonHe };
+  await db.platformSetting.upsert({
+    where: { key: WEATHER_PATIENCE_PREFIX + chain },
+    update: { value: JSON.stringify(next) },
+    create: { key: WEATHER_PATIENCE_PREFIX + chain, value: JSON.stringify(next) }
+  });
+  return next;
+}
+
+async function clearWeatherPatience(chain: string): Promise<void> {
+  try {
+    await db.platformSetting.deleteMany({ where: { key: WEATHER_PATIENCE_PREFIX + chain } });
+  } catch {
+    /* ניקוי אופטימלי — ספר יתום לא חוסם כלום */
+  }
+}
+
 // ─── המפקד — הלוח החי: מקורות × דלתות × מסלולים × תוכנית ─────────────────────
 
 export interface IrrigationSourceRow {
@@ -258,6 +443,13 @@ export interface IrrigationConversionOption {
   custodyHe: string;
 }
 
+export interface IrrigationWeatherPatienceRow {
+  chain: string;
+  count: number;
+  since: string;
+  lastReasonHe: string;
+}
+
 export interface IrrigationBoard {
   ok: boolean;
   at: string;
@@ -265,6 +457,11 @@ export interface IrrigationBoard {
   authorization: IrrigationAuthorization;
   setting: boolean;
   settingHe: string;
+  /** v71 — עין-מזג-האוויר: המזג החי שבו פועלת ההשקיה */
+  weather: GasWeather;
+  /** v71 — דלתות שהצטבר להן ספר-סבלנות תחת מזק-אוויר (עד 6 ואז משקים בחום) */
+  weatherPatience: IrrigationWeatherPatienceRow[];
+  weatherRulesHe: string[];
   sources: IrrigationSourceRow[];
   doors: IrrigationDoorRow[];
   plan: { fundableCount: number; totalGapUsd: number | null; verdictHe: string };
@@ -295,6 +492,12 @@ export interface IrrigationDripRow {
   l2BalanceAfter: string | null;
   source: "auto" | "manual" | null;
   explorer: string | null;
+  /** v71 — המזג שבו נורתה/נדחתה הטיפה */
+  weatherState: GasWeatherState | null;
+  /** v71 — מחיר-הגז בעת הירי (gwei) */
+  gasGwei: number | null;
+  /** v71 — ציון דחיית-מזג-אוויר (מספר-סבלנות שנצבר) */
+  weatherDeferredCount: number | null;
 }
 
 function safeParse(s: string | null): Record<string, unknown> | null {
@@ -310,6 +513,38 @@ function safeParse(s: string | null): Record<string, unknown> | null {
 export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<IrrigationBoard> {
   const at = new Date().toISOString();
   const setting = await getIrrigationEnabled().catch(() => true);
+  // v71 — עין-מזג-האוויר: מדידה לתצוגת-הלוח (מטומן 90 ש'). השער הכספי לא נגער
+  // לכסף — רק לתזמון; כישלון מדידה = נתון-כנה, לא אפס.
+  const weather = await gasWeather().catch(
+    (): GasWeather => ({
+      state: "unknown",
+      stateHe: WEATHER_STATE_HE.unknown,
+      gasPriceGwei: null,
+      medianGwei: null,
+      spikeRatio: null,
+      blocks: null,
+      blockNumber: null,
+      estDripCostEth: null,
+      verdictHe: "המזג לא נמדד — הלוח מוסיף לרדת במשמעת-הכסף הרגילה",
+      error: "board-weather-failed"
+    })
+  );
+  // v71 — ספר-הסבלנות: אילו דלתות הצטבר להן מחזורי-המתנה תחת מזק-אוויר
+  const patienceRows = await db.platformSetting
+    .findMany({ where: { key: { startsWith: WEATHER_PATIENCE_PREFIX } } })
+    .catch(() => [] as Array<{ key: string; value: string }>);
+  const weatherPatience: IrrigationWeatherPatienceRow[] = patienceRows
+    .map((r) => {
+      const v = safeParse(r.value);
+      return {
+        chain: r.key.slice(WEATHER_PATIENCE_PREFIX.length),
+        count: typeof v?.count === "number" ? (v.count as number) : 0,
+        since: typeof v?.since === "string" ? (v.since as string) : "",
+        lastReasonHe: typeof v?.lastReasonHe === "string" ? (v.lastReasonHe as string) : ""
+      };
+    })
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count);
   try {
     const [bridge, multi, prices] = await Promise.all([
       bridgeCensus({ force: opts.force }),
@@ -489,6 +724,10 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
     };
     const journal: IrrigationDripRow[] = journalRows.map((r) => {
       const m = safeParse(r.meta);
+      const w =
+        m?.weather != null && typeof m.weather === "object"
+          ? (m.weather as { state?: unknown; gasGwei?: unknown })
+          : null;
       return {
         id: r.id,
         at: r.createdAt.toISOString(),
@@ -502,15 +741,23 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
         l2Verified: typeof m?.l2Verified === "boolean" ? (m.l2Verified as boolean) : null,
         l2BalanceAfter: typeof m?.l2BalanceAfter === "string" ? (m.l2BalanceAfter as string) : null,
         source: m?.source === "auto" || m?.source === "manual" ? (m.source as "auto" | "manual") : null,
-        explorer: typeof m?.explorer === "string" ? (m.explorer as string) : null
+        explorer: typeof m?.explorer === "string" ? (m.explorer as string) : null,
+        weatherState:
+          w != null && (w.state === "calm" || w.state === "breezy" || w.state === "storm" || w.state === "unknown")
+            ? (w.state as GasWeatherState)
+            : null,
+        gasGwei: w != null && typeof w.gasGwei === "number" ? (w.gasGwei as number) : null,
+        weatherDeferredCount: typeof m?.weatherDeferredCount === "number" ? (m.weatherDeferredCount as number) : null
       };
     });
 
     const verdictHe =
       fundableCount > 0
-        ? `${fundableCount} דלת/ות מתוכננות לטפטוף אוטונומי — הגשש (:3005) יורה במחזור הבא שלו (10 דק'). העודף באת'ריום: ${ethSpare?.toFixed(7) ?? "?"} ETH מעל רצפת-עצמו.`
+        ? weather.state === "storm"
+          ? `${fundableCount} דלת/ות מתוכננות לטפטוף אוטונומי — אך עין-מזג-האוויר רואה סערה (${weather.gasPriceGwei?.toFixed(3) ?? "?"} gwei ≈ פי-${weather.spikeRatio?.toFixed(2) ?? "?"} מהחציון): הטפטוף ידחה בסבלנות (עד ${WEATHER_PATIENCE_CYCLES} מחזורים ≈ שעה — ואז משקים בחום, הצמא גדול מהחיסכון). העודף באת'ריום: ${ethSpare?.toFixed(7) ?? "?"} ETH.`
+          : `${fundableCount} דלת/ות מתוכננות לטפטוף אוטונומי — הגשש (:3005) יורה במחזור הבא שלו (10 דק'). מזג-האוויר: ${weather.stateHe}. העודף באת'ריום: ${ethSpare?.toFixed(7) ?? "?"} ETH מעל רצפת-עצמו.`
         : waitingSource > 0
-          ? `אף דלת לא מתוכננת כרגע — המקור (את'ריום) אינו מכסה את הפערים כולל גז-L1. ${waitingSource} דלת/ות ממתינות למקור; שער-ההמרה נעול כהחלטה (2026-09-11).`
+          ? `אף דלת לא מתוכננת כרגע — המקור (את'ריום) אינו מכסה את הפערים כולל גז-L1. ${waitingSource} דלת/ות ממתינות למקור; שער-ההמרה נעול כהחלטה (2026-09-11). מזג-האוויר: ${weather.stateHe}.`
           : doors.every((d) => d.relayLive)
             ? "כל הדלתות פרוצות — ההשקיה השלימה את ייעודה."
             : "הדלתות שנותרו דורשות מטבעות מקומיים (BNB/POL/AVAX/xDAI — ו-SKALE באבק-נומינלי בלבד) או נתיב מורכב — הפקדת-בעלים; ההמרה הוחלט שלא לבצע עכשיו (2026-09-11).";
@@ -524,6 +771,9 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
       settingHe: setting
         ? "מופעל — ההשקיה אוטונומית: הגשש מטפטף בעצמו ברגע שהתוכנית מרוקנת"
         : "כבוי — טפטוף ידני בלבד (control-plane, הפיכר בפקודה)",
+      weather,
+      weatherPatience,
+      weatherRulesHe: WEATHER_RULES_HE,
       sources,
       doors,
       plan: { fundableCount, totalGapUsd, verdictHe },
@@ -567,6 +817,9 @@ export async function irrigationBoard(opts: { force?: boolean } = {}): Promise<I
       authorization: IRRIGATION_AUTHORIZATION,
       setting,
       settingHe: setting ? "מופעל" : "כבוי",
+      weather,
+      weatherPatience,
+      weatherRulesHe: WEATHER_RULES_HE,
       sources: [],
       doors: [],
       plan: { fundableCount: 0, totalGapUsd: null, verdictHe: "מפקד-ההשקיה נכשל — נתון, לא אפס" },
@@ -631,6 +884,13 @@ export interface IrrigationFireOut {
   balanceBeforeEth: string | null;
   balanceAfterEth: string | null;
   receipt: string | null;
+  /** v71 — תמונת-מזג בעת הירי (נמדדה חי מהצומת, לא מהמטמון) */
+  weather: {
+    state: GasWeatherState;
+    gasPriceGwei: number | null;
+    medianGwei: number | null;
+    spikeRatio: number | null;
+  } | null;
   verdictHe: string;
   error?: string;
 }
@@ -702,10 +962,21 @@ export async function irrigateDoor(opts: {
     balanceBeforeEth: null,
     balanceAfterEth: null,
     receipt: null,
+    weather: null,
     verdictHe: ""
   };
 
+  // v71 — תמונת-המזג של הירי: נמדדת בשער 3.5 (אחרי שערי-הכסף הזולים) ונרשמת
+  // בכל רשומה מאותו רגע. שערים 0-3 המקודמים לא מדדו מזג — null כנה, לא אפס.
+  let weatherSnap: IrrigationFireOut["weather"] = null;
+  // v71 — הערת-חום (heatwave-watering): נדבקת לפסק-הדין של ירי מוצלח שיצא
+  // אחרי שהסבלנות אזלה — האמת של "משקים בחום" מסומנת על הירי עצמו.
+  let heatwaveNoteHe = "";
+
   const record = async (out: IrrigationFireOut, metaExtras: Record<string, unknown>) => {
+    if (heatwaveNoteHe && out.ok) {
+      out.verdictHe = `${out.verdictHe} ${heatwaveNoteHe}`;
+    }
     const explorer = out.txid ? out.explorer ?? `https://etherscan.io/tx/${out.txid}` : null;
     await db.anchorTx.create({
       data: {
@@ -723,6 +994,7 @@ export async function irrigateDoor(opts: {
           source,
           probe: out.probe,
           explorer,
+          weather: out.weather ?? weatherSnap,
           ...metaExtras
         })
       }
@@ -742,7 +1014,7 @@ export async function irrigateDoor(opts: {
     }
     await logOp(
       "irrigation",
-      `door=${opts.chain} source=${source} ok=${out.ok} probe=${out.probe} delivered=${out.deliveredEth ?? "—"} txid=${out.txid ?? "—"} l2Verified=${out.l2Verified ?? "—"}`
+      `door=${opts.chain} source=${source} ok=${out.ok} probe=${out.probe} delivered=${out.deliveredEth ?? "—"} txid=${out.txid ?? "—"} l2Verified=${out.l2Verified ?? "—"} weather=${(out.weather ?? weatherSnap)?.state ?? "—"}`
     );
     return out;
   };
@@ -812,6 +1084,53 @@ export async function irrigateDoor(opts: {
         },
         {}
       );
+    }
+
+    // ─── שער 3.5 (v71): עין-מזג-האוויר — חוכמת-התזמון החקלאית ───
+    // לא משקים בצהריים. המזג נמדד חי מהצומת ברגע הירי (force — לא מהמטמון),
+    // ונרשם בכל רשומה מכאן והלאה. האוטונומי נדחה בסערה (spike או צינור-יקר
+    // מהמים) עד 6 מחזורים — ואז משקים בחום: הצמא גדול מהחיסכון. פקודת-
+    // מפעיל ידנית עוקפת את המזג (מחיר הדחיפות על המפעיל) — והעקיפה מתועדת.
+    // שער-תזמון, לא שער-כסף: מדידה שנכשלה = רגיעה מתועדת והיד ממשיכה.
+    {
+      const w = await gasWeather({ force: true });
+      weatherSnap = {
+        state: w.state,
+        gasPriceGwei: w.gasPriceGwei,
+        medianGwei: w.medianGwei,
+        spikeRatio: w.spikeRatio
+      };
+      if (source === "auto") {
+        const patience = await getWeatherPatience(opts.chain);
+        const patienceCount = patience?.count ?? 0;
+        const pipeCostEth = w.estDripCostEth; // EXPECTED_DEPOSIT_GAS × מחיר-חציץ — ערכא-על
+        const pipeCostsMoreThanWater = pipeCostEth != null && pipeCostEth > gapEth;
+        const isStorm = w.state === "storm" || pipeCostsMoreThanWater;
+        if (isStorm && patienceCount < WEATHER_PATIENCE_CYCLES) {
+          const reasonHe =
+            w.state === "storm"
+              ? `סערת-גז: ${w.gasPriceGwei?.toFixed(3) ?? "?"} gwei ≈ פי-${w.spikeRatio?.toFixed(2) ?? "?"} מהחציון (${w.medianGwei?.toFixed(3) ?? "?"} gwei)`
+              : `הצינור עולה על המים: עלות-גז חזויה ${pipeCostEth?.toFixed(7) ?? "?"} ETH > הפער ${gapEth.toFixed(7)} ETH`;
+          const next = await bumpWeatherPatience(opts.chain, reasonHe);
+          return record(
+            {
+              ...base,
+              weather: weatherSnap,
+              verdictHe: `שער מזג-אוויר (דחייה חכמה, לא כישלון): ${reasonHe} — הטפטוף האוטונומי נדחה (סבלנות ${next.count}/${WEATHER_PATIENCE_CYCLES}, מאז ${next.since.slice(0, 16)}Z). הגשש חוזר בעוד 10 דק' והרגיעה בדרך; אחרי ${WEATHER_PATIENCE_CYCLES} מחזורי-המתנה נשקה גם בחום — הצמא גדול מהחיסכון.`,
+              error: "gas-storm-deferred"
+            },
+            { weatherDeferredCount: next.count }
+          );
+        }
+        // עבר את שער-המזג — ספר-הסבלנות נסגר (ירי = ההמתנה הסתיימה)
+        await clearWeatherPatience(opts.chain);
+        if (isStorm) {
+          // heatwave-watering: הסבלנות אזלה — משקים בחום, והאמת נדבקת לירי
+          // עצמו (לא רשומה מוקדמת בלי ירי — יומן לא משקר).
+          heatwaveNoteHe = `[משקים בחום (heatwave-watering): הסבלנות אזלה אחרי ${patienceCount} מחזורי-המתנה — רעב-נצחי הוא טיפשות, לא חוכמה]`;
+        }
+      }
+      // manual: המפעיל פקד — המזג נמדד ונרשם, אך לא עוצר (מחיר הדחיפות על המפעיל)
     }
 
     // ─── היד: חתימה לפורטל הקנוני, אל עצמנו בלבד ───
