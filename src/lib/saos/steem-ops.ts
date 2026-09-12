@@ -31,6 +31,7 @@ type SteemLib = {
     wifToPublic(w: string): string;
     isWif(w: string): boolean;
     getPrivateKeys(name: string, password: string, roles: string[]): Record<string, string>;
+    signTransaction?(tx: unknown, keys: unknown): Record<string, unknown>;
   };
   broadcast: {
     // steem 0.7.x — generic multi-op send: send(tx={extensions,operations}, privKeys, cb)
@@ -39,7 +40,7 @@ type SteemLib = {
 };
 let steemSingleton: SteemLib | null = null;
 
-async function steemLib(): Promise<SteemLib> {
+export async function steemLib(): Promise<SteemLib> {
   if (!steemSingleton) {
     const mod = (await import('steem')) as unknown as { default?: SteemLib } & SteemLib;
     steemSingleton = (mod.default ?? mod) as SteemLib;
@@ -213,9 +214,64 @@ export function vestsToChainVests(vests: number, g: { total_vesting_fund_steem: 
 /* ── שידור-מודע-שרשרת: נעילה-סריאלית (קונפיג-סינגלטון גלובלי) ── */
 let broadcastLock: Promise<unknown> = Promise.resolve();
 
+/* 72-b: HIVE משודר-דרך-hive-js — גילוי-חי: ops-עם-נכסים (transfer) נדחים-על-HIVE
+ * ב-steem-js-0.7 (הסידור-הלגאצי-שלו ≠ hf26 — "failed to validate using both new
+ * and legacy serialization") בזמן-ש-vote-ללא-נכסים עובר. STEEM/BLURT ממשיכים-steem-js. */
+let hiveSingleton: SteemLib | null = null;
+async function hiveLib(): Promise<SteemLib> {
+  if (!hiveSingleton) {
+    const mod = (await import('@hiveio/hive-js')) as unknown as { default?: SteemLib } & SteemLib;
+    hiveSingleton = (mod.default ?? mod) as SteemLib;
+  }
+  return hiveSingleton;
+}
+
+/* 72-b: BLURT-שידור-גולמי — גילוי-חי: צמתי-BLURT מחזירים-כעת "Assert Exception: v.size()
+ * == 2 || 3"-על-בקשות-broadcast-של-steem-js (פורמט-call-ישן) בזמן-ש-jsonrpc-הסטנדרטי
+ * עובד-מוכח (כל-הקריאות-במנוע). פתרון: הרכבת-tx-ידנית (TAPOS מ-head_block_id) · חתימה
+ * בספרייה-הקיימת · שידור condenser_api.broadcast_transaction-דרך-condenser()-שלנו-עם-גלגול-צמתים. */
+async function sendOpsRawBlurt(ops: [string, Record<string, unknown>][], wif: string): Promise<{ ok: true; result?: unknown }> {
+  const lib = await steemLib();
+  if (!lib.auth?.signTransaction) throw new Error('blurt-raw: signTransaction חסר בספרייה (fail-closed)');
+  lib.config.set('chain_id', CHAIN_ID['blurt']);
+  let last = 'unknown';
+  for (const url of BLURT_NODES) {
+    try {
+      const props = await condenser(url, 'condenser_api.get_dynamic_global_properties', []);
+      const headId = String(props.head_block_id ?? '');
+      const headNum = Number(props.head_block_number ?? 0);
+      if (!/^[0-9a-f]{40}$/i.test(headId) || !headNum) throw new Error('props-חסרים');
+      const idBuf = Buffer.from(headId, 'hex');
+      const prefix = idBuf.readUInt32LE(4);
+      const tx = {
+        ref_block_num: headNum & 0xffff,
+        ref_block_prefix: prefix,
+        expiration: new Date(Date.now() + 65_000).toISOString().slice(0, -5),
+        operations: ops.map(([name, data]) => [name, data]),
+        extensions: [],
+      };
+      const signed = lib.auth.signTransaction(tx, { owner: wif });
+      // מסנן-יציאה: ops-מקוריים-שלנו (ערכים-נייטיביים) + מספרים-מאולצים — toObject-של-הספרייה
+      // עלול-להחזיר-מחרוזות-לשדות-מספריים-והצומת-מפענח-גרסה-שונה
+      const out = {
+        ref_block_num: Number(signed.ref_block_num ?? tx.ref_block_num),
+        ref_block_prefix: Number(signed.ref_block_prefix ?? tx.ref_block_prefix),
+        expiration: String(signed.expiration ?? tx.expiration),
+        operations: tx.operations,
+        extensions: [] as unknown[],
+        signatures: (Array.isArray(signed.signatures) ? signed.signatures : []).map((s: unknown) => String(s)),
+      };
+      await condenser(url, 'condenser_api.broadcast_transaction', [out]);
+      return { ok: true, result: out };
+    } catch (e) { last = String(e).slice(0, 200); }
+  }
+  throw new Error(`broadcast[blurt-raw] כל-${BLURT_NODES.length}-הצמתים-נפלו (אחרון: ${last})`);
+}
+
 function sendOpsOnce(chain: Chain3, url: string, ops: [string, Record<string, unknown>][], wif: string): Promise<{ ok: true; result?: unknown }> {
+  if (chain === 'blurt') return sendOpsRawBlurt(ops, wif);
   return new Promise<{ ok: true; result?: unknown }>((resolve, reject) => {
-    steemLib()
+    (chain === 'hive' ? hiveLib() : steemLib())
       .then((lib) => {
         lib.config.set('chain_id', CHAIN_ID[chain]); // חתימה על chain_id-הנכון — לא על ברירת-המחדל של STEEM
         lib.api.setOptions({ url });
@@ -285,6 +341,25 @@ export async function claimRewardsAs(account: string, chain: 'steem' | 'hive', r
     { account, reward_steem: parts[0], reward_sbd: parts[1], reward_vests: parts[2] },
   ]], wif);
   return { ok: true, claimed: parts.filter((p) => parseFloat(p) > 0).join(' + ') };
+}
+
+/** 72-b: העברת-נזילות-מחשבון-צי אל-האוצר — transfer-op נחתם-active (owner-גיבוי) מהכספת.
+ * הסכום-ביחידות-עשרוניות-של-המטבע-הראשי (STEEM/HIVE/BLURT) — מנוסח-ל-3-דיוק-כמקובל-בשרשרת. */
+export async function chainTransferAs(
+  account: string,
+  chain: Chain3,
+  opts: { to: string; amount: number; asset: 'STEEM' | 'HIVE' | 'BLURT' | 'SBD' | 'HBD'; memo?: string },
+): Promise<{ ok: true; amount: string }> {
+  const { to, asset } = opts;
+  const amt = Number(opts.amount);
+  if (!account || !to) throw new Error('transfer: account/to נדרשים');
+  if (!Number.isFinite(amt) || amt <= 0) throw new Error('transfer: סכום-לא-תקין');
+  if (!['STEEM', 'HIVE', 'BLURT', 'SBD', 'HBD'].includes(asset)) throw new Error('transfer: asset-לא-נתמך');
+  const amount = `${amt.toFixed(3)} ${asset}`;
+  let wif: string;
+  try { wif = await vaultWif(chain, 'active', account); } catch { wif = await vaultWif(chain, 'owner', account); }
+  await sendOps(chain, [['transfer', { from: account, to, amount, memo: opts.memo ?? 'flow-engine: fleet liquidity sweep' }]], wif);
+  return { ok: true, amount };
 }
 
 export async function hiveSavingsSweep(): Promise<{ ok: true; amount: string; apr: string }> {

@@ -40,6 +40,7 @@ interface AutopilotConfig {
   publishEnabled: boolean;
   fleetVoteEnabled: boolean;  // 71-i: curation from all key-verified fleet accounts
   fleetClaimEnabled: boolean; // 71-i: claim pending rewards for every fleet account
+  fleetSweepEnabled: boolean; // 72-b: sweep fleet liquid dust above threshold into the treasury (self-heals across cycles vs node throttling)
   publishHive: boolean;       // 71-i: multi-chain report — HIVE
   publishBlurt: boolean;      // 71-i: multi-chain report — BLURT
   votesPerCycle: number;      // 71-i: candidates per chain per cycle (1-5) — more curation tickets
@@ -47,7 +48,7 @@ interface AutopilotConfig {
 const DEFAULTS: AutopilotConfig = {
   enabled: true, intervalMin: 60, weightPct: 10,
   hiveWeightPct: 1, blurtWeightPct: 1, selfvoteEnabled: true, publishEnabled: true,
-  fleetVoteEnabled: true, fleetClaimEnabled: true, publishHive: true, publishBlurt: true,
+  fleetVoteEnabled: true, fleetClaimEnabled: true, fleetSweepEnabled: true, publishHive: true, publishBlurt: true,
   votesPerCycle: 2,
 };
 
@@ -59,7 +60,7 @@ interface Signals {
   blurt?: { vpPct?: number | null; claimable?: number | null };
 }
 
-interface Totals { claims: number; votes: number; selfvotes: number; publishes: number; fleetVotes: number; fleetClaims: number }
+interface Totals { claims: number; votes: number; selfvotes: number; publishes: number; fleetVotes: number; fleetClaims: number; fleetSweeps: number }
 interface Action { ts: number; kind: string; detail: string }
 interface State {
   ok: true; service: 'flow-autopilot'; bootTs: number;
@@ -79,7 +80,7 @@ let state: State = {
   lastCycleAt: null, nextCycleAt: null,
   intervalMin: DEFAULTS.intervalMin, weightPct: DEFAULTS.weightPct,
   voteAt: {},
-  totals: { claims: 0, votes: 0, selfvotes: 0, publishes: 0, fleetVotes: 0, fleetClaims: 0 },
+  totals: { claims: 0, votes: 0, selfvotes: 0, publishes: 0, fleetVotes: 0, fleetClaims: 0, fleetSweeps: 0 },
   lastActions: [], errors: [],
 };
 let running = false;
@@ -100,7 +101,7 @@ try {
         .filter(([, v]) => Number(v) > 0 && Number(v) <= nowMs + 300_000)
         .map(([k, v]) => [k, Number(v)]),
     );
-    state.totals = { claims: 0, votes: 0, selfvotes: 0, publishes: 0, fleetVotes: 0, fleetClaims: 0, ...(prev.totals ?? {}) };
+    state.totals = { claims: 0, votes: 0, selfvotes: 0, publishes: 0, fleetVotes: 0, fleetClaims: 0, fleetSweeps: 0, ...(prev.totals ?? {}) };
     state.lastActions = (prev.lastActions ?? []).slice(0, 30);
     state.errors = (prev.errors ?? []).slice(0, 12);
     log('boot', `state restored — cycles=${state.cycles} voteAt entries=${Object.keys(state.voteAt).length}`);
@@ -143,6 +144,7 @@ function readConfig(): AutopilotConfig {
       publishEnabled: typeof j.publishEnabled === 'boolean' ? j.publishEnabled : DEFAULTS.publishEnabled,
       fleetVoteEnabled: typeof j.fleetVoteEnabled === 'boolean' ? j.fleetVoteEnabled : DEFAULTS.fleetVoteEnabled,
       fleetClaimEnabled: typeof j.fleetClaimEnabled === 'boolean' ? j.fleetClaimEnabled : DEFAULTS.fleetClaimEnabled,
+      fleetSweepEnabled: typeof j.fleetSweepEnabled === 'boolean' ? j.fleetSweepEnabled : DEFAULTS.fleetSweepEnabled,
       publishHive: typeof j.publishHive === 'boolean' ? j.publishHive : DEFAULTS.publishHive,
       publishBlurt: typeof j.publishBlurt === 'boolean' ? j.publishBlurt : DEFAULTS.publishBlurt,
       votesPerCycle: clamp(j.votesPerCycle, 1, 5, DEFAULTS.votesPerCycle),
@@ -267,7 +269,8 @@ async function stepSelfvote(s: Signals): Promise<void> {
 }
 
 // ── 71-i: fleet steps — curation/claims from every key-verified fleet account ──
-async function stepFleetVote(chain: 'steem' | 'hive', weightPct: number): Promise<void> {
+async function stepFleetVote(chain: 'steem' | 'hive' | 'blurt', weightPct: number): Promise<void> {
+  if (weightPct <= 0) return; // 72-b: BLURT 0.9 fees + zero reward fund → operator sets blurtWeightPct=0 to skip
   const key = `fleet-${chain}`;
   if ((state.voteAt[key] ?? 0) > Date.now() + 300_000) state.voteAt[key] = 0; // defensive: corrupt future stamp
   const since = Date.now() - (state.voteAt[key] ?? 0);
@@ -325,6 +328,23 @@ async function stepPublishMulti(cfg: AutopilotConfig): Promise<void> {
   }
 }
 
+// ── 72-b: fleet liquidity sweep — dust above threshold → treasury (idempotent, self-heals vs node throttling) ──
+async function stepFleetSweep(): Promise<void> {
+  const res = await flowPost('fleet_sweep', {}, true);
+  if (res && res.ok) {
+    const rows = Array.isArray(res.result) ? (res.result as Array<{ ok: boolean }>) : [];
+    const okRows = rows.filter((x) => x.ok);
+    if (okRows.length > 0) {
+      state.totals.fleetSweeps += okRows.length;
+      log('fleet-sweep', `swept ${okRows.length} transfers into the treasury`);
+    } else log('fleet-sweep', 'no liquid above dust threshold (honest zero)');
+  } else {
+    const e = String(res?.error ?? 'no-response');
+    if (e.includes('אין-נזילות')) log('fleet-sweep', 'honest skip: no liquid above threshold');
+    else err('fleet-sweep', e.slice(0, 180));
+  }
+}
+
 // ── cycle ───────────────────────────────────────────────────────────────
 async function cycle(): Promise<void> {
   if (running) return;
@@ -362,9 +382,11 @@ async function cycle(): Promise<void> {
     await stepVote('hive', cfg.hiveWeightPct, s.hive?.vpPct, 'hive_vote');
     await stepVote('blurt', cfg.blurtWeightPct, s.blurt?.vpPct, 'blurt_vote');
     if (cfg.fleetClaimEnabled) await stepFleetClaim();
+    if (cfg.fleetSweepEnabled) await stepFleetSweep();
     if (cfg.fleetVoteEnabled) {
       await stepFleetVote('steem', cfg.weightPct);
       await stepFleetVote('hive', cfg.hiveWeightPct);
+      await stepFleetVote('blurt', cfg.blurtWeightPct);
     }
     await stepSelfvote(s);
     if (cfg.publishEnabled) await stepPublishMulti(cfg);
@@ -372,7 +394,7 @@ async function cycle(): Promise<void> {
     state.cycles += 1;
     state.lastCycleAt = Date.now();
     state.nextCycleAt = state.lastCycleAt + cfg.intervalMin * 60_000;
-    log('cycle', `#${state.cycles} done — claims=${state.totals.claims} votes=${state.totals.votes} fleetVotes=${state.totals.fleetVotes} fleetClaims=${state.totals.fleetClaims} selfvotes=${state.totals.selfvotes} publishes=${state.totals.publishes}`);
+    log('cycle', `#${state.cycles} done — claims=${state.totals.claims} votes=${state.totals.votes} fleetVotes=${state.totals.fleetVotes} fleetClaims=${state.totals.fleetClaims} fleetSweeps=${state.totals.fleetSweeps} selfvotes=${state.totals.selfvotes} publishes=${state.totals.publishes}`);
     persist();
   } catch (e) {
     err('cycle', String(e).slice(0, 200));

@@ -454,6 +454,8 @@ export async function flowOverview(): Promise<FlowOverview> {
   });
 
   // G. blurt-curation (71-e) — המסה-המצביעה-על-BLURT
+  // 72-b: BLURT 0.9 הפעיל-דמי-רשת (fee = 0.05 BLURT/op + 0.2/KB ≈ 0.1 BLURT/הצבעה) ובזמן-שקרן-הפרסים
+  // (total_reward_fund_blurt = 0) — כל-הצבעה = עלות-נקייה-ללא-הכנסה. ההצבעה-מושהית-עד-שקרן-הפרסים-יחזור.
   loops.push({
     id: 'blurt-curation', title: 'קיוריישן-BLURT (BLP מצביע)', engine: 'blurt · vote',
     status: blurtOwnerVerified && blurtBlp !== null && blurtBlp > 1 ? (blurtVoted ? 'live' : 'armed') : 'blocked',
@@ -462,12 +464,14 @@ export async function flowOverview(): Promise<FlowOverview> {
       { k: 'BLP', v: blurtBlp !== null ? fmt(blurtBlp, 0) : '—', hint: blurtBlp !== null && blurtPrice ? `~$${(blurtBlp * blurtPrice).toFixed(2)} מסה-מצביעה` : undefined },
       { k: 'נזיל', v: blurtLiquid !== null ? `${fmt(blurtLiquid)} BLURT` : '—' },
       { k: 'VP', v: blurtVp !== null ? `${(blurtVp / 100).toFixed(1)}%` : '—', hint: 'מתחדש ~20%/יום' },
+      { k: 'דמי-רשת-0.9', v: '~0.1 BLURT/הצבעה (0.05 flat + 0.2/KB)', hint: 'fee = operation_flat_fee × ops + bandwidth_kbytes_fee × גודל — נגבה-מהחתימה (72-b)' },
+      { k: 'שקרן-הפרסים', v: '0 BLURT — הצבעה-כרגע = עלות-נקייה', hint: 'total_reward_fund_blurt = 0 — ההצבעה-מושהית-עד-שהקרן-תחזור (כנות)' },
       { k: 'מפתח-חתימה', v: blurtOwnerVerified ? 'כספת · owner מאומת' : 'לא-מאומת — הרץ verify' },
     ],
     verdict: blurtOwnerVerified
       ? (blurtVoted
-        ? 'הלולאה חיה-ומוכחת-בשרשרת: הצבעת-BLURT-ראשונה שודרה (פקדה: flow-blurt-vote · rshares-חי>0) — BLP-מצביע. chain_id-BLURT (cd8d90f2… מ-blurtjs-רשמי). פאוורדאון-BLURT נדחה — 13-שבועות על-אבק.'
-        : 'BLP יושב-מנוצל. chain_id-BLURT (cd8d90f2… מ-blurtjs-רשמי) + צמתי-מוכחים. הצבעה-ראשונה תיצור-הוכחה. פאוורדאון-BLURT נדחה — 13-שבועות על-אבק.')
+        ? 'הלולאה חיה-ומוכחת-בשרשרת: הצבעות-BLURT שודרו (פקדה: flow-blurt-vote). 72-b: BLURT-0.9 הפעיל-דמי-רשת (~0.1/הצבעה) ושקרן-הפרסים-אפס — הצבעות-חדשות מושהות-עד-שהקרן-תחזור. פאוורדאון-BLURT נדחה — 13-שבועות על-אבק.'
+        : 'BLP יושב-מנוצל. 72-b: BLURT-0.9 הפעיל-דמי-רשת (~0.1/הצבעה) ושקרן-הפרסים-אפס — הצבעה-כרגע-הפסד-נקי. פאוורדאון-BLURT נדחה — 13-שבועות על-אבק.')
       : 'מפתח-owner-BLURT קיים-בכספת אך-טרם-אומת מול-השרשרת — הרץ אימות-כספת (fail-closed).',
     actions: blurtOwnerVerified ? ['blurt_vote', 'blurt_autovote_pick'] : [],
   });
@@ -572,7 +576,7 @@ export async function flowOverview(): Promise<FlowOverview> {
       : fleetExtraSignable > 0
         ? `הצי חי: ${fleetExtraSignable} חשבונות-צי עם הוכחת-מפתח-קריפטוגרפית (${fleetExtraActive} עם active-מאומת לתביעות). ${fleetVoted ? 'הצבעת-צי-ראשונה מאומתת-בשרשרת (פקדה: flow-fleet-vote).' : 'הצבעת-צי-ראשונה תיצור-הוכחת-שרשרת.'}`
         : `תוצאת-ביקורת-כנה: מתוך ${fleetExistsN} חשבונות-צי, אף-אחד-מעבר-לחשבון-הראשי לא עבר הוכחת-מפתח (wifToPublic↔key_auths — כל-מפתח-שמור נבדק מול-כל-רשאות). המפתחות-השמורים-בכספת עבור חברי-הצי לא-תואמים-למפתחות-החיים-בשרשרת — נגזרו-מ-סיסמאות-שונות-מהן-שהוגדרו-בחשבונות. fail-closed: המערכת לא מעמידה-פנים. דרך-הפתיחה (72): fleet_pass_sweep — כל-סוד-שהמפעיל-מוצא (סיסמה או מפתח-P5) נסרק-אוטומטית מול-כל-חשבונות-הצי × 3-שרשראות בלי-לסמוך-על-תוויות — ואוטם-את-כל-התואמים (הוכח-חי: קובץ-מ-2018 עם 12-מפתחות → 11-חשבונות נפתחו · 30-חתימות-צי).`,
-    actions: fleetExtraSignable > 0 ? ['fleet_scan', 'fleet_vote', 'fleet_claim'] : ['fleet_scan'],
+    actions: fleetExtraSignable > 0 ? ['fleet_scan', 'fleet_vote', 'fleet_claim', 'fleet_sweep'] : ['fleet_scan'],
   });
 
   /* ── פקדה ── */
@@ -580,7 +584,7 @@ export async function flowOverview(): Promise<FlowOverview> {
     // FIX(71-g): flow-steem-claim — route.ts רושם flow-${chain}-claim (היה-חסר-במסנן — תביעות-STEEM-לא-נראו-בפקדה)
     // FIX(71-h): flow-steem-vote — הצבעות-קיוריישן-STEEM לא-נראו-בפקדה (רק-hive/blurt) · + flow-publish · + flow-autopilot
     // 71-i: + פעולות-הצי (fleet-vote/fleet-claim) + פרסום-רב-שרשרת (hive/blurt-publish)
-    where: { action: { in: ['flow-vote', 'flow-powerdown', 'flow-savings', 'flow-energize', 'flow-claim', 'flow-selfvote', 'flow-hive-vote', 'flow-blurt-vote', 'flow-hive-claim', 'flow-steem-claim', 'flow-steem-vote', 'flow-publish', 'flow-autopilot', 'flow-fleet-vote', 'flow-fleet-claim', 'flow-fleet-heal', 'flow-hive-publish', 'flow-blurt-publish', 'wallet-sealed-trx', 'wallet-address-corrected'] } },
+    where: { action: { in: ['flow-vote', 'flow-powerdown', 'flow-savings', 'flow-energize', 'flow-claim', 'flow-selfvote', 'flow-hive-vote', 'flow-blurt-vote', 'flow-hive-claim', 'flow-steem-claim', 'flow-steem-vote', 'flow-publish', 'flow-autopilot', 'flow-fleet-vote', 'flow-fleet-claim', 'flow-fleet-sweep', 'flow-fleet-heal', 'flow-hive-publish', 'flow-blurt-publish', 'wallet-sealed-trx', 'wallet-address-corrected'] } },
     orderBy: { createdAt: 'desc' }, take: 12,
   });
 

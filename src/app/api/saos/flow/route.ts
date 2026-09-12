@@ -4,7 +4,7 @@ import { audit, relayBroadcast } from '@/lib/audit';
 import { flowOverview, type FlowOverview } from '@/lib/saos/flow';
 import {
   chainVote, hiveSavingsSweep, claimRewards, curationCandidates, postInfo,
-  getAccount, getGlobalProps, vestsToChainVests, ownBlogPosts, steemPublish, chainPublish, steemRcMana, getBlurtAccount, OPERATOR, chainVoteAs, claimRewardsAs, fleetScan, fleetHeal, fleetPasswordSweep, type Chain3,
+  getAccount, getGlobalProps, vestsToChainVests, ownBlogPosts, steemPublish, chainPublish, steemRcMana, getBlurtAccount, OPERATOR, chainVoteAs, claimRewardsAs, fleetScan, fleetHeal, fleetPasswordSweep, chainTransferAs, type Chain3,
 } from '@/lib/saos/steem-ops';
 import { trxEnergize, tronAccount, treasuryWallet } from '@/lib/saos/trx-ops';
 import { readAutopilotState, readAutopilotConfig, writeAutopilotConfig } from '@/lib/saos/autopilot-state';
@@ -213,6 +213,59 @@ async function fleetClaimAction(execute: boolean, ownerLabel: string) {
   return NextResponse.json({ ok: true, action: 'fleet_claim', dryRun: false, result: results });
 }
 
+/* ── 72-b: ריכוז-נזילות-הצי — transfer-מכל-חשבון-צי-עם-נזילות-מעל-רף-אבק אל-האוצר ──
+ * מקור-האמת: fleetScan (liquid מ-get_accounts-חי) · חתימה-active-מהכספת (owner-גיבוי).
+ * רף 0.002 — מנוע-שידורי-אבק-מיותרים. dry-run=רשימת-יעדים · execute=שידור-בפועל + פקדה. */
+async function fleetSweepAction(execute: boolean, ownerLabel: string) {
+  // 72-b fee-awareness: BLURT 0.9 charges fee = 0.05 BLURT/op + 0.2/KB (≈0.1 BLURT/tx) from the signer —
+  // sweeping balances below that fee fails on-chain (fail-honest). STEEM/HIVE: fee-free (RC model).
+  const MIN: Record<string, number> = { steem: 0.002, hive: 0.002, blurt: 0.12 };
+  const scan = await fleetScan().catch(() => null);
+  if (!scan) return NextResponse.json({ ok: false, action: 'fleet_sweep', error: 'fleet-scan failed — honest' });
+  const assetOf: Record<string, 'STEEM' | 'HIVE' | 'BLURT'> = { steem: 'STEEM', hive: 'HIVE', blurt: 'BLURT' };
+  const debtOf: Record<string, 'SBD' | 'HBD' | null> = { steem: 'SBD', hive: 'HBD', blurt: null }; // BLURT-ללא-מטבע-חוב
+  const targets: Array<{ account: string; chain: Chain3; amount: number; asset: 'STEEM' | 'HIVE' | 'BLURT' | 'SBD' | 'HBD' }> = [];
+  for (const c of scan.chains) {
+    const asset = assetOf[c.chain];
+    const debt = debtOf[c.chain];
+    if (!asset) continue;
+    for (const m of c.members) {
+      if (!m.exists || m.account === OPERATOR) continue;
+      const minCoin = MIN[c.chain] ?? 0.002;
+      const coin = Number(m.liquid?.coin ?? 0);
+      if (coin >= minCoin) targets.push({ account: m.account, chain: c.chain as Chain3, amount: coin, asset });
+      if (debt) {
+        const d = Number(m.liquid?.debt ?? 0);
+        if (d >= minCoin) targets.push({ account: m.account, chain: c.chain as Chain3, amount: d, asset: debt });
+      }
+    }
+  }
+  if (targets.length === 0) {
+    return NextResponse.json({ ok: true, action: 'fleet_sweep', dryRun: !execute, plan: { note: 'אין-נזילות-מעל-רף-האבק (כנות)', minCoin: 'STEEM/HIVE 0.002 · BLURT 0.12 (fee-aware 0.9)' } });
+  }
+  const totalCoin = targets.reduce((s, t) => s + t.amount, 0);
+  if (!execute) {
+    return NextResponse.json({
+      ok: true, action: 'fleet_sweep', dryRun: true,
+      plan: {
+        to: OPERATOR,
+        targets: targets.map((t) => `${t.account}@${t.chain}: ${t.amount.toFixed(3)} ${t.asset}`).join(' · ').slice(0, 220),
+        totalCoin: Number(totalCoin.toFixed(3)),
+        guard: 'transfer-op · active-מהכספת (owner-גיבוי) · רף: STEEM/HIVE 0.002 · BLURT 0.12 (דמי-רשת-0.9 ≈ 0.1) · fleetScan-חי',
+      },
+    });
+  }
+  const results: Array<{ account: string; chain: string; ok: boolean; amount?: string; error?: string }> = [];
+  for (const t of targets) {
+    try { const r = await chainTransferAs(t.account, t.chain, { to: OPERATOR, amount: t.amount, asset: t.asset }); results.push({ account: t.account, chain: t.chain, ok: true, amount: r.amount }); }
+    catch (e) { results.push({ account: t.account, chain: t.chain, ok: false, error: String(e instanceof Error ? e.message : e).slice(0, 110) }); }
+  }
+  const okN = results.filter((r) => r.ok).length;
+  await audit('flow-fleet-sweep', `fleet-sweep: ${okN}/${targets.length} העברות אל ${OPERATOR} — ${results.filter((r) => r.ok).map((r) => `${r.account}@${r.chain}:${r.amount}`).join(' · ')} by owner:${ownerLabel}`.slice(0, 300));
+  try { await relayBroadcast('vault', { type: 'flow-fleet-sweep', transfers: okN }); } catch { /* */ }
+  return NextResponse.json({ ok: true, action: 'fleet_sweep', dryRun: false, result: results });
+}
+
 /** פרסום-רב-שרשרת (71-i) — אותו-דוח-טלמטריה על HIVE/BLURT · chain_id-נכון-ב-sendOps */
 async function chainPublishAction(chain: 'hive' | 'blurt', action: string, p: Record<string, unknown>, execute: boolean, ownerLabel: string) {
   const latestOwn = (await ownBlogPosts(chain, 1).catch(() => []))[0] ?? null;
@@ -313,6 +366,11 @@ export async function POST(req: NextRequest) {
   if (action === 'fleet_claim' && execute !== true) {
     try { return await fleetClaimAction(false, ''); }
     catch (e) { return NextResponse.json({ ok: false, action, error: e instanceof Error ? e.message : 'fleet-claim dry-run failed' }, { status: 200 }); }
+  }
+  // 72-b: fleet_sweep dry-run — public data (fleetScan liquid balances). execute requires operator.
+  if (action === 'fleet_sweep' && execute !== true) {
+    try { return await fleetSweepAction(false, ''); }
+    catch (e) { return NextResponse.json({ ok: false, action, error: e instanceof Error ? e.message : 'fleet-sweep dry-run failed' }, { status: 200 }); }
   }
   // 71-i: multi-chain publish dry-run — open (public report preview).
   if ((action === 'hive_publish' || action === 'blurt_publish') && execute !== true) {
@@ -462,6 +520,10 @@ export async function POST(req: NextRequest) {
       case 'fleet_claim':
         return await fleetClaimAction(execute, owner.label);
 
+      /* ── 72-b: ריכוז-נזילות-הצי — transfer-אל-האוצר-מכל-חשבון-מאומת ── */
+      case 'fleet_sweep':
+        return await fleetSweepAction(execute, owner.label);
+
       /* ── 71-j: ריפוי-מפתחות-צי — סיסמת-אב → גזירה → הוכחה → אטימה-בכספת ──
        * תמיד-מאחורי-סשן-מפעיל (מכיל-סוד בגוף-הבקשה — אין-דרי-ראן-פומבי).
        * dry-run = בדיקה בלבד (בוליאנים, בלי-אטימה) · execute = אטימת-התפקידים-שעברו-התאמה.
@@ -527,7 +589,7 @@ export async function POST(req: NextRequest) {
       }
 
       default:
-        return NextResponse.json({ ok: false, error: 'action-not-allowed', actions: ['steem_vote', 'hive_vote', 'blurt_vote', 'steem_selfvote', 'steem_powerdown', 'hive_savings_sweep', 'steem_claim', 'hive_claim', 'trx_energize', 'steem_publish', 'hive_publish', 'blurt_publish', 'fleet_scan', 'fleet_vote', 'fleet_claim', 'fleet_heal', 'fleet_pass_sweep', 'autopilot_pause', 'autopilot_resume', 'autovote_pick', 'autopilot_signals'] }, { status: 200 });
+        return NextResponse.json({ ok: false, error: 'action-not-allowed', actions: ['steem_vote', 'hive_vote', 'blurt_vote', 'steem_selfvote', 'steem_powerdown', 'hive_savings_sweep', 'steem_claim', 'hive_claim', 'trx_energize', 'steem_publish', 'hive_publish', 'blurt_publish', 'fleet_scan', 'fleet_vote', 'fleet_claim', 'fleet_sweep', 'fleet_heal', 'fleet_pass_sweep', 'autopilot_pause', 'autopilot_resume', 'autovote_pick', 'autopilot_signals'] }, { status: 200 });
     }
   } catch (e) {
     return NextResponse.json({ ok: false, action, error: e instanceof Error ? e.message : 'flow action failed' }, { status: 200 });

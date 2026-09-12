@@ -239,7 +239,8 @@ export function FlowView({ authed, onNeedAuth }: { authed: boolean; onNeedAuth: 
           {d.loops.map((loop) => {
             const Icon = LOOP_ICON[loop.id] ?? Activity;
             const key = loop.actions[0] ?? loop.id;
-            const res = result[key];
+            // 72-b: הצגת-התוצאה-האחרונה-של-כל-פעולה-בכרטיס — לא-רק-הפעולה-הראשונה
+            const res = loop.actions.map((a) => result[a]).find((r) => r) ?? result[key];
             return (
               <div key={loop.id} className="dx-card p-4 min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -320,6 +321,15 @@ export function FlowView({ authed, onNeedAuth }: { authed: boolean; onNeedAuth: 
                             aria-label="הצבעת-צי אמת — כל-החשבונות-המאומתים על מועמד-טרי-שלא-הצבענו-בו"
                           >
                             {busy === a + '!exec' ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'הצבעת-צי-אמת'}
+                          </button>
+                        )}
+                        {a === 'fleet_sweep' && (
+                          <button
+                            onClick={() => run(a, true)}
+                            className="min-h-[32px] rounded-lg border border-[color:var(--green)] text-[color:var(--green)] px-2.5 py-1.5 text-xs hover:bg-black/30 transition-colors"
+                            aria-label="ריכוז-נזילות-הצי — העברת-כל-הנזיל-מעל-רף-האבק מחשבונות-הצי אל-האוצר"
+                          >
+                            {busy === a + '!exec' ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'ריכוז-נזילות-אמת'}
                           </button>
                         )}
                         {(a === 'hive_publish' || a === 'blurt_publish') && (
