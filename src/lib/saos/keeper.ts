@@ -246,7 +246,11 @@ export async function keeperStatus(force = false): Promise<KeeperStatus> {
     // the moment the keeper is dead is exactly the moment this view must
     // stay honest and alive.
     ok: true,
-    version: "36.0.0",
+    // r4-audit — the version is DERIVED from the keeper's own report (:3005),
+    // never frozen here. A hardcoded label is the exact stale-label disease
+    // the v44→v79 line keeps curing ("v39 for four versions", "v78 רוסט").
+    // When the keeper is unreachable we say so honestly instead of guessing.
+    version: raw?.version ?? "unmeasured-keeper-down",
     measuredAt,
     keeper: {
       reachable: !!raw?.ok,
