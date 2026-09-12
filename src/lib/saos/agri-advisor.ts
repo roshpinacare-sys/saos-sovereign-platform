@@ -1,11 +1,16 @@
 /**
- * SAOS v80 — השכבה השנייה: יועץ האגרונום (THE LLM AGRONOMIST).
+ * SAOS v81 — השכבה השנייה: יועץ האגרונום (THE LLM AGRONOMIST).
  *
- * z-ai-web-dev-sdk — בצד-השרת בלבד (לעולם לא בקליינט). היוען מקבל את
- * מלוא ההקשר — חלקה, קריאת חיישנים אחרונה, החלטת שכבת-הכללים והתחזית —
- * ומחזיר פסק JSON מובנה: אישור / כיוונון / גריעה, עם נימוק, סיכונים
- * וחלון השקיה מומלץ. הפסק נשמר על שורת ההחלטה (llmAdvice) — הביקורת
- * של השכבה השנייה נכנסת ליומן-הטיפה עצמו.
+ * z-ai-web-dev-sdk — בצד-השרת בלבד (לעולם לא בקליינט). היוען מקבל את מלוא
+ * ההקשר — חלקה, קריאת חיישנים, החלטת שכבת-הכללים והתחזית — ומחזיר פסק
+ * JSON מובנה: אישור / כיוונון / גריעה, עם נימוק, סיכונים וחלון השקיה
+ * מומלץ. הפסק נשמר על שורת ההחלטה (llmAdvice) — הביקורת של השכבה
+ * השנייה נכנסת ליומן-הטיפה עצמו.
+ *
+ * v81 — היועץ בלולאה: מלבד הקריאה הידנית (מסלול בלתי-מוגבל, כמקודם),
+ * נוסף מסלול אוטומטי — adviseOnDecision — שנקרא מתוך מחזור ההחלטה עצמו
+ * (tickAgri) לפני ביצוע השקיה משמעותית. המגבלות קפואות בקוד שם
+ * (agri.ts): המרב פסק אחד ל-10 דק' · פסק-זמן 10 שניות · גריעה בלבד.
  *
  * גבול-האמת: כשל SDK = שגיאה כנה כלפי ה-UI (ok:false). לעולם לא
  * "ייעוץ" מומצא; לעולם לא תשובה ריקה שמוצגת כפסק.
@@ -25,6 +30,7 @@ export interface AgriAdviceOut {
 
 const SYSTEM_PROMPT_HE = `אתה אגרונום מומחה להשקיה חכמה באקלים ים-תיכוני (ישראל). אתה השכבה השנייה של מנוע החלטות דו-שכבתי: השכבה הראשונה — כללים דטרמיניסטיים — כבר החליטה, ותפקידך לבחון את ההחלטה מול הנתונים ולהחזיר אחת משלוש: confirm (אישור), adjust (כיוונון מינון או תזמון), override (גריעה מונעת — רק כשהנתונים מחייבים).
 שקול: אידוי-התאיידות בשעות חום, מחלות-עלווה בלחות גבוהה בלילה, הצפת-שורשים, מליחות-הצטברות בלי שטיפה עונתית, וחלון ההשקיה הטוב (בדרך-כלל בוקר מוקדם או ערב).
+במצב "auto-in-loop" אתה נקרא לפני ביצוע ההשקיה: duration_min שלך יכול אך ורק להפחית את המינון שהשכבה הראשונה קבעה (לעולם לא להגדיל), ולעולם לא לגרוע השקיה כשהלחות מתחת לקו-העקה של הגידול — קו-העקה לפני הכל.
 החזר JSON בלבד, בלי שום טקסט מסביב, במבנה הזה בדיוק:
 {"verdict":"confirm|adjust|override","duration_min":<מספר שלם>,"rationale_he":"2-3 משפטים קצרים","risks_he":["סיכון קצר","סיכון קצר"],"window_he":"מתי להשקות"}`;
 
@@ -62,6 +68,39 @@ function parseAdvice(raw: string): AgriAdviceOut {
   };
 }
 
+/** ההקשר שהיועץ מקבל — ידני (החלטה אחרונה שנשמרה) או אוטומטי (החלטה תלויה, טרם בוצעה). */
+export interface AdvisorContext {
+  zone: Record<string, unknown>;
+  reading: Record<string, unknown> | null;
+  decision: Record<string, unknown> | null;
+  weather: object;
+  rulesHe: string[];
+  mode?: "manual" | "auto-in-loop";
+  noteHe?: string; // בקשת מפעיל במסלול הידני — היועץ עונה עליה בתוך הפסק
+}
+
+/**
+ * הקריאה הגולמית ל-LLM — מסלול משותף לידני ולאוטומטי.
+ * זורקת על כל כשל (429 · פסק-זמן · תשובה ריקה) — הכנות נשמרת אצל הקורא.
+ */
+export async function adviseOnDecision(ctx: AdvisorContext): Promise<AgriAdviceOut> {
+  const zai = await ZAI.create();
+  const payload = { ...ctx, mode: ctx.mode ?? "manual" };
+  const userContent = payload.noteHe
+    ? `${JSON.stringify(payload)}\n\nבקשת המפעיל (ענה עליה בתוך הפסק): ${payload.noteHe}`
+    : JSON.stringify(payload);
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: "assistant", content: SYSTEM_PROMPT_HE },
+      { role: "user", content: userContent }
+    ],
+    thinking: { type: "disabled" }
+  });
+  const raw = completion.choices[0]?.message?.content ?? "";
+  if (!raw.trim()) throw new Error("היועץ החזיר תשובה ריקה — אין פסק, אין המצאה");
+  return parseAdvice(raw);
+}
+
 export async function agriAdvisor(
   zoneId: string,
   note?: string
@@ -69,21 +108,15 @@ export async function agriAdvisor(
   const ctx = await buildAdvisorContext(zoneId);
   if (!ctx) throw new Error("zone not found");
 
-  const zai = await ZAI.create();
-  const userPayload = note && note.trim().length > 0
-    ? `${JSON.stringify(ctx)}\n\nבקשת המפעיל (ענה עליה בתוך הפסק): ${note.trim().slice(0, 300)}`
-    : JSON.stringify(ctx);
-
-  const completion = await zai.chat.completions.create({
-    messages: [
-      { role: "assistant", content: SYSTEM_PROMPT_HE },
-      { role: "user", content: userPayload }
-    ],
-    thinking: { type: "disabled" }
+  const advice = await adviseOnDecision({
+    zone: ctx.zone,
+    reading: ctx.reading,
+    decision: ctx.decision,
+    weather: ctx.weather,
+    rulesHe: ctx.rulesHe,
+    mode: "manual",
+    noteHe: note && note.trim().length > 0 ? note.trim().slice(0, 300) : undefined
   });
-
-  const raw = completion.choices[0]?.message?.content ?? "";
-  const advice = parseAdvice(raw);
   const stored = { ...advice, at: new Date().toISOString(), engine: "z-ai-llm", questionHe: note?.trim() ?? null };
 
   // הביקורת נכנסת לשורת ההחלטה עצמה — יומן-הטיפה המלא

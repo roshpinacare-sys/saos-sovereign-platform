@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS v80 — ההשקיה החקלאית: המנוע דו-השכבתי (THE DUAL-LAYER FIELD ENGINE).
+ * SAOS v81 — ההשקיה החקלאית: המנוע דו-השכבתי (THE DUAL-LAYER FIELD ENGINE).
  *
  * ההוראה שמולידה את הוויו: "המטרה שההשקיה תהיה אוטונומית אבל בחוכמה" —
  * v67 ענתה על הגז, v80 מרחיבה את אותה חוכמה אל השדה. שכבה 1: כללים
@@ -10,6 +10,11 @@
  * שכבה 2: יועץ אגרונום LLM — בוחן את ההחלטה, מאשר/מכוונן/גורע,
  * ופסקו נשמר ביומן-הטיפה עצמו. מזג-האוויר אמיתי (Open-Meteo חי;
  * ה-fallback כנה ולעולם לא ממציא גשם). החיישנים סימולטור — לא מוסתר.
+ *
+ * v81 — היועץ בלולאה: מעבר לקריאה הידנית, היועץ נשאל אוטומטית בתוך
+ * מחזור ההחלטה לפני ביצוע השקיה משמעותית — עם מגבלות קפואות (פסק
+ * ל-10 דק' · פסק-זמן 10ש' · גריעה עד 50% · קו-העקה קדוש) ו-control-plane
+ * חי בפאנל השכבה השנייה.
  *
  * הלוח החי: KPIs · עין-מזג-האוויר · קונסולת ההחלטות · כרטיסי החלקות
  * (מד-לחות עם סימוני קו-עקה/יעד · חיישנים · שסתום · החלטה אחרונה ·
@@ -91,6 +96,8 @@ function verdictTag(verdict: string): { tone: "green" | "amber" | "rose" | "zinc
       return { tone: "amber", label: "כיוונון מוצע" };
     case "override":
       return { tone: "rose", label: "גריעה מונעת" };
+    case "unavailable":
+      return { tone: "rose", label: "היועץ לא ענה" };
     default:
       return { tone: "zinc", label: "פסק חופשי" };
   }
@@ -228,7 +235,7 @@ function ZoneCard({
           </div>
         )}
 
-        {/* חוות-דעת היועץ (השכבה השנייה) */}
+        {/* חוות-דעת היועץ (השכבה השנייה — ידנית או מתוך הלולאה) */}
         {advice && vTag && (
           <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2.5">
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -236,9 +243,12 @@ function ZoneCard({
                 <BrainCircuit size={10} />
                 {vTag.label}
               </Tag>
-              {advice.duration_min !== undefined && (
-                <span className="text-[10px] text-zinc-500">מינון מוצע: {advice.duration_min} דק׳</span>
-              )}
+              <span className="flex items-center gap-2 text-[10px] text-zinc-500">
+                {advice.mode === "auto-in-loop" && <Tag tone="gold">מתוך הלולאה</Tag>}
+                {advice.duration_min !== undefined && advice.verdict !== "unavailable" && (
+                  <span>מינון מוצע: {advice.duration_min} דק׳</span>
+                )}
+              </span>
             </div>
             <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-300">{advice.rationale_he}</p>
             {advice.risks_he.length > 0 && (
@@ -290,6 +300,7 @@ export function AgriView() {
   const [advice, setAdvice] = useState<Record<string, AgriAdviceT>>({});
   const [adviceError, setAdviceError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [advisorToggling, setAdvisorToggling] = useState(false);
 
   const data = live.data;
 
@@ -300,6 +311,13 @@ export function AgriView() {
     if (r.ok && r.data) setTickResult(r.data);
     live.refresh();
     setTicking(false);
+  };
+
+  const toggleAutoAdvisor = async () => {
+    setAdvisorToggling(true);
+    await postJson("/api/saos/agri", { action: "advisor", enabled: !(data?.advisor.enabled ?? true) });
+    live.refresh();
+    setAdvisorToggling(false);
   };
 
   const toggleValve = async (zoneId: string, open: boolean) => {
@@ -359,7 +377,9 @@ export function AgriView() {
     <div className="space-y-4">
       <PageHead
         title="ההשקיה החקלאית — המנוע דו-השכבתי"
-        sub={`${data?.engineHe ?? ""} · החיישנים סימולטור (לא מוסתר) · התחזית ${
+        sub={`${data?.engineHe ?? ""} · היועץ בלולאה: ${
+          data?.advisor.enabled ? "נשאל אוטומטית לפני השקיה משמעותית" : "כבוי (control-plane)"
+        } · החיישנים סימולטור (לא מוסתר) · התחזית ${
           weatherIsLive ? "חיה מ-Open-Meteo" : "מודל-חלופי כנה (הרשת לא ענתה)"
         } · אפס עלות, אפס מפתחות`}
         actions={
@@ -403,7 +423,7 @@ export function AgriView() {
           value={`${data?.kpis.waterAppliedMm ?? 0} מ״מ`}
           icon={<Waves size={15} />}
           tone="gold"
-          hint={`הוספו ${data?.kpis.waterAppliedMm ?? 0} מ״מ · נדחו ${data?.kpis.waterAvoidedMm ?? 0} מ״מ בזכות הגשם`}
+          hint={`הוספו ${data?.kpis.waterAppliedMm ?? 0} מ״מ · נחסכו ${data?.kpis.waterAvoidedMm ?? 0} מ״מ בזכות הגשם והיועץ`}
         />
       </div>
 
@@ -532,7 +552,7 @@ export function AgriView() {
           </PanelBody>
         </Panel>
         <Panel accent>
-          <PanelHeader icon={<BrainCircuit size={16} />} title="שכבה 2 — יועץ האגרונום (LLM)" tag="מבקרת תמיד" />
+          <PanelHeader icon={<BrainCircuit size={16} />} title="שכבה 2 — יועץ האגרונום (LLM)" tag="מבקרת תמיד · בלולאה" />
           <PanelBody>
             <p className="text-[11px] leading-relaxed text-zinc-400">{data?.layersHe.advisor}</p>
             <div className="mt-3 space-y-2">
@@ -547,9 +567,50 @@ export function AgriView() {
                 </div>
               ))}
             </div>
+
+            {/* v81 — היועץ בלולאה: מצב חי + control-plane */}
+            {data?.advisor && (
+              <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2.5 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="flex items-center gap-2 text-[11px] font-semibold text-zinc-200">
+                    <BrainCircuit size={12} className="text-amber-300/80" />
+                    היועץ בלולאה — אוטומטי
+                    <Pill tone={data.advisor.enabled ? "green" : "zinc"} pulse={data.advisor.enabled}>
+                      {data.advisor.enabled ? "פעיל" : "כבוי"}
+                    </Pill>
+                  </span>
+                  <Btn
+                    size="xs"
+                    variant={data.advisor.enabled ? "secondary" : "primary"}
+                    loading={advisorToggling}
+                    onClick={toggleAutoAdvisor}
+                    title="control-plane — PlatformSetting, לעולם לא סוד"
+                  >
+                    {data.advisor.enabled ? "כבה יועץ-אוטומטי" : "הפעל יועץ-אוטומטי"}
+                  </Btn>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-zinc-500 tabular-nums">
+                  <span>נשאל היום: {data.kpis.advisorToday} פעמים</span>
+                  <span>פסקים שיושמו: {data.kpis.advisorAppliedToday}</span>
+                  <span>פסק אחרון: {data.advisor.lastConsultAt ? timeAgo(data.advisor.lastConsultAt) : "—"}</span>
+                  <span>קצב: אחד ל־{data.advisor.intervalMin} דק׳ המרב</span>
+                  <span>מינון מכריע: ≥{data.advisor.significantMm} מ״מ</span>
+                  <span>פסק-זמן: {data.advisor.timeoutSec} שנ׳</span>
+                </div>
+                <ul className="space-y-0.5">
+                  {data.advisor.guardrailsHe.map((g, i) => (
+                    <li key={i} className="text-[10px] leading-relaxed text-zinc-500 flex gap-1.5">
+                      <span className="text-amber-300/50 shrink-0">·</span>
+                      <span className="min-w-0">{g}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <p className="mt-3 text-[10px] leading-relaxed text-zinc-600">
               הפסק נשמר על שורת ההחלטה עצמה (llmAdvice) ונכנס ליומן-הטיפה. מנוע: z-ai-web-dev-sdk, צד-שרת
-              בלבד. כשל = שגיאה כנה — לעולם לא פסק מומצא.
+              בלבד. כשל = שגיאה כנה — לעולם לא פסק מומצא; השכבה הראשונה ממשיכה להחליט לבדה.
             </p>
           </PanelBody>
         </Panel>
@@ -598,9 +659,12 @@ export function AgriView() {
                       </Td>
                       <Td>
                         {h.llmAdvice ? (
-                          <Tag tone="gold" dir="auto">
-                            {h.llmAdvice.verdict}
-                          </Tag>
+                          <span className="flex items-center gap-1.5">
+                            <Tag tone={verdictTag(h.llmAdvice.verdict).tone}>{verdictTag(h.llmAdvice.verdict).label}</Tag>
+                            {h.llmAdvice.mode === "auto-in-loop" && (
+                              <span className="text-[9px] text-zinc-600">מתוך הלולאה</span>
+                            )}
+                          </span>
                         ) : (
                           <span className="text-zinc-600">—</span>
                         )}
@@ -622,7 +686,7 @@ export function AgriView() {
                               dir="ltr"
                               className="text-[9px] leading-relaxed text-zinc-500 bg-black/40 rounded-lg border border-white/[0.05] p-2 overflow-x-auto"
                             >
-                              {JSON.stringify({ ruleLayer: h.ruleLayer, weather: h.weather }, null, 1)}
+                              {JSON.stringify({ ruleLayer: h.ruleLayer, weather: h.weather, llmAdvice: h.llmAdvice }, null, 1)}
                             </pre>
                           </div>
                         </details>
@@ -642,7 +706,8 @@ export function AgriView() {
         החיישנים סימולטור (source=simulator) — לא מוסתר. התחזית{" "}
         {weatherIsLive ? "חיה מ-Open-Meteo" : "מודל-דטרמיניסטי כנה — שלעולם לא ממציא גשם שידחה השקיה"}. העולם מתקדם
         משתי פעימות: קריאת-הלוח (משיכה, ≥60ש') וסייר-השומר (דחיפה, כל 5 דק') — שתיהן מתועדות כ-auto. השכבה הראשונה
-        מחליטה תמיד; השנייה מבקרת תמיד. אפס מפתחות · אפס שרשרת · אפס עלות.
+        מחליטה תמיד; השנייה מבקרת תמיד — ומ־v81 גם בתוך הלולאה: נשאלת אוטומטית לפני השקיה משמעותית, גורעת
+        בלבד (עד 50%), וכשלהּ כנות מתועדת. אפס מפתחות · אפס שרשרת · אפס עלות.
       </Callout>
     </div>
   );

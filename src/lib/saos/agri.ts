@@ -1,10 +1,15 @@
 /**
- * SAOS v80 — ההשקיה החקלאית (THE DUAL-LAYER FIELD ENGINE).
+ * SAOS v81 — ההשקיה החקלאית (THE DUAL-LAYER FIELD ENGINE).
  *
  * הוראת הבעלים: "המטרה שההשקיה תהיה אוטונומית אבל בחוכמה" — v67 ענה על
  * הגז; v80 מרחיב את אותה חוכמה אל השדה: מנוע דו-שכבתי — שכבה 1: כללים
  * דטרמיניסטיים (מחליטה תמיד, מוסברת תמיד); שכבה 2: יועץ אגרונום LLM
  * (בוחן את ההחלטה, מאשר/מכוונן/גורע — לעולם לא מחליף את השכבה הראשונה).
+ *
+ * v81 — היועץ בלולאה: השכבה השנייה נכנסת לתוך מחזור ההחלטה עצמו — נשאלת
+ * אוטומטית לפני ביצוע השקיה משמעותית, עם מגבלות-זהירות קפואות: פסק
+ * ל-10 דק' המרב · פסק-זמן 10ש' · גריעה בלבד (עד 50%) · לא מתחת לקו-העקה.
+ * כשל LLM = כנות: ההחלטה יוצאת על הכללים בלבד והכישלון מתועד.
  *
  * גבולות-האמת המקודדים:
  *  · החיישנים סימולטור (source="simulator") — לא מוסתר, לא מומצא.
@@ -19,7 +24,7 @@
 
 import { db } from "@/lib/db";
 
-export const AGRI_VERSION = "80.0.0";
+export const AGRI_VERSION = "81.0.0";
 
 // ─── קבועים קשיחים (החוכמה בקוד, לא בראש) ───────────────────────────────────
 
@@ -35,6 +40,14 @@ const FLOW_LPM = 60; // ספיקת המערכת ליטר/דק'
 const MAX_DURATION_MIN = 60; // סבב מקסימום — ואז עוד מחזור
 const BATTERY_ALERT_PCT = 15; // חיישן גוסס = עצירה, לא השקיה עיוורת
 const TICK_STALE_MS = 60_000; // פעימת-המשיכה: העולם מתקדם אם איש לא הקיש דקה
+
+// v81 — היועץ בלולאה: השכבה השנייה בתוך מחזור ההחלטה עצמו
+const ADVISOR_SETTING_KEY = "agriAutoAdvisor"; // control-plane (PlatformSetting) — לעולם לא סוד
+const ADVISOR_LASTAT_KEY = "agriAdvisorLastAt"; // חותם-זמן גלובלי — נמדד חי: next-dev מריץ מספר workers וזיכרון-מודול נטען-מחדש בין בקשות; ה-DB הוא האמת היחידה
+const ADVISOR_MIN_INTERVAL_MS = 10 * 60 * 1000; // המרב פסק אחד ל-10 דק' — שורד סערות 429
+const ADVISOR_TIMEOUT_MS = 10_000; // פסק-זמן — הלוח לא בן-ערובה ליועץ איטי
+const ADVISOR_SIGNIFICANT_MM = 5; // רק מינון משמעותי מצדיק פסק אוטומטי
+const ADVISOR_REDUCE_FLOOR = 0.5; // היועץ גורע עד 50% מהמינון בלבד — לעולם לא מגדיל
 
 // ─── סוגים ───────────────────────────────────────────────────────────────────
 
@@ -63,6 +76,47 @@ interface ZoneShape {
   deferCount: number;
 }
 
+// שורת חלקה בלוח — הקריאה/ההחלטה מעובדות ל-JSON-בטוח (תאריכים כ-ISO)
+interface BoardReading {
+  id: string;
+  zoneId: string;
+  soilMoisture: number;
+  soilTemp: number;
+  airTemp: number;
+  airHumidity: number;
+  lightLux: number;
+  batteryPct: number;
+  source: string;
+  createdAt: string;
+}
+
+interface BoardDecision {
+  id: string;
+  decision: string;
+  durationMin: number;
+  waterMm: number;
+  reasons: string[];
+  ruleLayer: Record<string, unknown> | null;
+  weather: AgriWeatherOut | null;
+  llmAdvice: Record<string, unknown> | null;
+  source: string;
+  createdAt: string;
+}
+
+interface BoardZoneRow {
+  id: string;
+  name: string;
+  crop: string;
+  areaM2: number;
+  moistureTarget: number;
+  moistureCritical: number;
+  valveOpen: boolean;
+  auto: boolean;
+  deferCount: number;
+  reading: BoardReading | null;
+  decision: BoardDecision | null;
+}
+
 interface ReadingShape {
   soilMoisture: number;
   soilTemp: number;
@@ -89,12 +143,13 @@ export const AGRI_RULES_HE: string[] = [
   "רק נתוני-אמת דוחים — דחיית-גשם נחשבת רק מתחזית חיה (Open-Meteo); המודל-החלופי לעולם לא ממציא גשם.",
   "מינון לפי גרעון — כמות המים = המרחק ליעד × פקטור-קרקע, לא תקן קבוע; החישוב מפורש בכל שורת ביקורת.",
   "חיישן חשוד = עצירה — סוללה < 15% או ערכים בלתי-אפשריים: התראה, לא השקיה עיוורת.",
-  "כל טיפה מתועדת — לכל החלטה: העקבה המלאה, התחזית ששימשה, וחוות-דעת היועץ כשנתבקשה."
+  "כל טיפה מתועדת — לכל החלטה: העקבה המלאה, התחזית ששימשה, וחוות-דעת היועץ כשנתבקשה.",
+  "היועץ בלולאה — השקיה משמעותית (≥5 מ״מ) נבחנת על-ידי אגרונום-ה-LLM לפני הביצוע: מאשר, מגרע (עד 50%), או לא עונה — והכישלון מתועד בכנות. קו-העקה לפני הכל, גם נגד דעת היועץ."
 ];
 
 export const AGRI_LAYERS_HE = {
   rule: "שכבה 1 — כללים דטרמיניסטיים: מחליטה תמיד, מוסברת תמיד. ספים פר-גידול, מינון לפי גרעון, דחיית-גשם עם סבלנות.",
-  advisor: "שכבה 2 — יועץ אגרונום LLM: בוחן את ההחלטה מול הנתונים, מאשר/מכוונן/גורע. מוסיף על השכבה הראשונה — לעולם לא מחליף אותה."
+  advisor: "שכבה 2 — יועץ אגרונום LLM: נקרא אוטומטית בתוך המחזור לפני השקיה משמעותית (ותמיד זמין גם ידנית). מאשר/מגרע — מוסיף על השכבה הראשונה, לעולם לא מחליף אותה."
 };
 
 // ─── עין-מזג-האוויר האמיתי (Open-Meteo + fallback כנה) ─────────────────────
@@ -426,7 +481,126 @@ export async function resetAgri(): Promise<{ ok: boolean; zones: number }> {
   return { ok: true, zones: await db.agriZone.count() };
 }
 
-// ─── המחזור (tick) — קריאה → כללים → החלטה → שסתום, הכל מתועד ────────────
+// ─── v81 — היועץ בלולאה: הגדרה, שער-קצב ומגבלות-זהירות ─────────────────────
+
+let advisorSettingCache: { at: number; enabled: boolean } | null = null;
+let advisorLastAt = 0;
+let advisorInFlight = false;
+
+/** control-plane — PlatformSetting, ברירת-מחדל פעיל. לעולם לא סוד, לעולם לא מפתח. */
+export async function getAutoAdvisorEnabled(): Promise<boolean> {
+  if (advisorSettingCache && Date.now() - advisorSettingCache.at < 60_000) return advisorSettingCache.enabled;
+  const row = await db.platformSetting.findUnique({ where: { key: ADVISOR_SETTING_KEY } });
+  const enabled = row ? row.value === "on" : true;
+  advisorSettingCache = { at: Date.now(), enabled };
+  return enabled;
+}
+
+export async function setAutoAdvisorEnabled(enabled: boolean): Promise<boolean> {
+  await db.platformSetting.upsert({
+    where: { key: ADVISOR_SETTING_KEY },
+    update: { value: enabled ? "on" : "off" },
+    create: { key: ADVISOR_SETTING_KEY, value: enabled ? "on" : "off" }
+  });
+  advisorSettingCache = { at: Date.now(), enabled };
+  return enabled;
+}
+
+/** שער-הקצב: פסק אחד ל-10 דק' המרב, לא במקביל, ורק כשהאוטונומיה דלוקה. החותם-זמן ב-DB — אמת גלובלית חוצת-workers. */
+async function advisorGate(): Promise<{ ok: boolean; whyHe: string }> {
+  if (advisorInFlight) return { ok: false, whyHe: "פסק קודם עדיין רץ" };
+  if (!(await getAutoAdvisorEnabled())) return { ok: false, whyHe: "היועץ-האוטומטי כבוי (control-plane)" };
+  const last = await getAdvisorLastAt();
+  const since = Date.now() - last;
+  if (since < ADVISOR_MIN_INTERVAL_MS) {
+    const waitMin = Math.max(1, Math.ceil((ADVISOR_MIN_INTERVAL_MS - since) / 60_000));
+    return { ok: false, whyHe: `המתנת-קצב — הפסק הבא בעוד ~${waitMin} דק'` };
+  }
+  return { ok: true, whyHe: "" };
+}
+
+async function getAdvisorLastAt(): Promise<number> {
+  const row = await db.platformSetting.findUnique({ where: { key: ADVISOR_LASTAT_KEY } });
+  const n = row ? Number(row.value) : 0;
+  advisorLastAt = Number.isFinite(n) && n > 0 ? n : 0;
+  return advisorLastAt;
+}
+
+async function markAdvisorConsult(): Promise<void> {
+  const now = Date.now();
+  await db.platformSetting.upsert({
+    where: { key: ADVISOR_LASTAT_KEY },
+    update: { value: String(now) },
+    create: { key: ADVISOR_LASTAT_KEY, value: String(now) }
+  });
+  advisorLastAt = now; // מראה במודול לצורך תצוגה מיידית
+}
+
+/**
+ * מגבלות-הזהירות של היועץ (קפואות בקוד): גריעה בלבד, עד 50% לכל היותר;
+ * לעולם לא מגדיל מינון; לעולם לא גורע החלטה מתחת לקו-העקה.
+ * משנה את rule במקום — סיבות, החלטה, מינון והעקבה — הכל מתועד.
+ */
+function applyAdvisorGuardrails(
+  zone: ZoneShape,
+  rule: RuleLayerOut,
+  advice: { verdict: string; duration_min?: number; rationale_he: string }
+): void {
+  const notesHe: string[] = [];
+  const critical = rule.firedRules.includes("critical-irrigate");
+
+  if (advice.verdict === "confirm") {
+    notesHe.push("פסק היועץ: אישור — ההחלטה והמינון כמו שהם.");
+  } else if (advice.verdict === "adjust" && typeof advice.duration_min === "number") {
+    if (advice.duration_min >= rule.durationMin) {
+      notesHe.push(
+        `היועץ הציע ${advice.duration_min} דק' — אך השכבה הראשונה קובעת תקרה: מינון לא עולה, נשאר ${rule.durationMin} דק'.`
+      );
+    } else {
+      const floor = Math.max(2, Math.ceil(rule.durationMin * ADVISOR_REDUCE_FLOOR));
+      const adj = Math.max(floor, advice.duration_min);
+      if (adj >= rule.durationMin) {
+        notesHe.push(
+          `היועץ הציע ${advice.duration_min} דק' — מתחת לרצפת-הגריעה (${Math.round(ADVISOR_REDUCE_FLOOR * 100)}%): המינון נשאר ${rule.durationMin} דק'.`
+        );
+      } else {
+        const waterAdj = Math.round(((adj * FLOW_LPM) / (zone.areaM2 * IRRIGATED_FRACTION)) * 10) / 10;
+        notesHe.push(
+          `היועץ גרע: ${rule.durationMin} → ${adj} דק' (${rule.waterMm} → ${waterAdj} מ״מ) — רצפת-הגריעה ${Math.round(ADVISOR_REDUCE_FLOOR * 100)}% נשמרה.`
+        );
+        rule.durationMin = adj;
+        rule.waterMm = waterAdj;
+      }
+    }
+  } else if (advice.verdict === "override") {
+    if (critical) {
+      notesHe.push("היועץ ביקש גריעה מונעת — אך הלחות מתחת לקו-העקה: קו-העקה לפני הכל, ההשקיה יוצאת כמתוכנן.");
+    } else {
+      notesHe.push(
+        `היועץ גרע לחלוטין — ${advice.rationale_he.slice(0, 160)}${advice.rationale_he.length > 160 ? "…" : ""} — ${rule.waterMm} מ״מ נחסכו ונרשמו ביומן.`
+      );
+      rule.trace = { ...rule.trace, advisorAvoidedMm: rule.waterMm };
+      rule.decision = "SKIP";
+      rule.durationMin = 0;
+      rule.waterMm = 0;
+    }
+  }
+
+  // העקבה: מה הוצע, מה יושם, ומה המגבלות שכבלו את היועץ
+  rule.trace = {
+    ...rule.trace,
+    advisor: {
+      verdict: advice.verdict,
+      proposedDurationMin: advice.duration_min ?? null,
+      appliedDurationMin: rule.durationMin,
+      appliedWaterMm: rule.waterMm,
+      guardrails: { reduceOnly: true, reduceFloorPct: Math.round(ADVISOR_REDUCE_FLOOR * 100), criticalUntouchable: true }
+    }
+  };
+  for (const n of notesHe) rule.reasons.unshift(n);
+}
+
+// ─── המחזור (tick) — קריאה → כללים → יועץ → החלטה → שסתום, הכל מתועד ────────
 
 let tickInFlight: Promise<unknown> | null = null;
 let tickMemoAt = 0;
@@ -479,6 +653,87 @@ export async function tickAgri(source: "auto" | "manual"): Promise<{
     await db.agriReading.create({ data: { zoneId: zone.id, ...reading, source: "simulator" } });
 
     const rule = ruleLayer(zone, reading, weather, zone.deferCount);
+
+    // v81 — היועץ בלולאה: לפני שהמים זורמים, על מינון משמעותי בלבד.
+    // המגבלות קפואות למעלה: המרב פסק ל-10 דק' · פסק-זמן 10ש' · גריעה
+    // בלבד · לא נוגעים להחלטה מתחת לקו-העקה. כשל = כנות.
+    let llmAdviceJson: string | null = null;
+    if (rule.decision === "IRRIGATE" && rule.waterMm >= ADVISOR_SIGNIFICANT_MM) {
+      const gate = await advisorGate();
+      if (gate.ok) {
+        advisorInFlight = true;
+        await markAdvisorConsult(); // נרשם בירייה — ב-DB, גלובלי חוצת-workers; סערת-429 לא תקבל סבב חופשי
+        try {
+          const { adviseOnDecision } = await import("./agri-advisor");
+          const advice = await Promise.race([
+            adviseOnDecision({
+              zone: {
+                name: zone.name,
+                crop: zone.crop,
+                areaM2: zone.areaM2,
+                moistureTarget: zone.moistureTarget,
+                moistureCritical: zone.moistureCritical
+              },
+              reading: {
+                soilMoisturePct: reading.soilMoisture,
+                soilTempC: reading.soilTemp,
+                airTempC: reading.airTemp,
+                airHumidityPct: reading.airHumidity,
+                lightLux: reading.lightLux,
+                batteryPct: reading.batteryPct
+              },
+              decision: {
+                decision: rule.decision,
+                durationMin: rule.durationMin,
+                waterMm: rule.waterMm,
+                reasons: rule.reasons,
+                firedRules: rule.firedRules,
+                pendingExecution: true
+              },
+              weather: {
+                source: weather.source,
+                precipProb24h: weather.precipProb24h,
+                expectedRainMm24h: weather.expectedRainMm24h,
+                currentRainMm: weather.currentRainMm,
+                tempMax: weather.tempMax,
+                tempMean: weather.tempMean
+              },
+              rulesHe: AGRI_RULES_HE,
+              mode: "auto-in-loop"
+            }),
+            new Promise<never>((_, rej) =>
+              setTimeout(
+                () => rej(new Error(`פסק-זמן ${ADVISOR_TIMEOUT_MS / 1000} שניות — היועץ איטי מדי`)),
+                ADVISOR_TIMEOUT_MS
+              )
+            )
+          ]);
+          llmAdviceJson = JSON.stringify({
+            ...advice,
+            at: new Date().toISOString(),
+            engine: "z-ai-llm",
+            mode: "auto-in-loop"
+          });
+          applyAdvisorGuardrails(zone, rule, advice);
+        } catch (e) {
+          llmAdviceJson = JSON.stringify({
+            verdict: "unavailable",
+            rationale_he: `היועץ לא ענה — כשל כן (${e instanceof Error ? e.message : String(e)}). השכבה הראשונה החליטה לבדה, כרגיל.`,
+            risks_he: [],
+            at: new Date().toISOString(),
+            engine: "z-ai-llm",
+            mode: "auto-in-loop"
+          });
+          rule.reasons.unshift("היועץ לא ענה (כשל כן, מתועד) — ההחלטה על הכללים בלבד, כרגיל.");
+        } finally {
+          advisorInFlight = false;
+        }
+      } else if (source === "manual") {
+        // במחזור ידני חושפים את השער; באוטומטי שותקים — היומן לא צריך רעש
+        rule.reasons.push(`היועץ האוטומטי לא נשאל — ${gate.whyHe}.`);
+      }
+    }
+
     const irrigated = rule.decision === "IRRIGATE";
     const deferCount = rule.decision === "DEFER" ? zone.deferCount + 1 : 0;
 
@@ -503,6 +758,7 @@ export async function tickAgri(source: "auto" | "manual"): Promise<{
         reasons: JSON.stringify(rule.reasons),
         ruleLayer: JSON.stringify(rule.trace),
         weather: JSON.stringify(weather),
+        llmAdvice: llmAdviceJson,
         source
       }
     });
@@ -565,21 +821,7 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
   const weather = await getAgriWeather();
   const zones = await db.agriZone.findMany({ orderBy: { createdAt: "asc" } });
 
-  // explicit row type — the inferred evolving-array collapsed to `never` under
-  // strict TS (round-6 fix of v80's tsc gate; behavior unchanged)
-  const zoneRows: {
-    id: string;
-    name: string;
-    crop: string;
-    areaM2: number;
-    moistureTarget: number;
-    moistureCritical: number;
-    valveOpen: boolean;
-    auto: boolean;
-    deferCount: number;
-    reading: ({ soilMoisture: number } & Record<string, unknown>) | null;
-    decision: Record<string, unknown> | null;
-  }[] = [];
+  const zoneRows: BoardZoneRow[] = [];
   for (const z of zones) {
     const reading = await db.agriReading.findFirst({ where: { zoneId: z.id }, orderBy: { createdAt: "desc" } });
     const decision = await db.agriDecision.findFirst({ where: { zoneId: z.id }, orderBy: { createdAt: "desc" } });
@@ -619,12 +861,20 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
   const today = await db.agriDecision.findMany({ where: { createdAt: { gte: dayStart } } });
   const waterAppliedMm =
     Math.round(today.filter((d) => d.decision === "IRRIGATE").reduce((a, d) => a + d.waterMm, 0) * 10) / 10;
+  // v81 — חיסכון כפול וכנה: גשם שנדחה + גריעות היועץ — שניהם נמדדים מההעקבה
   const waterAvoidedMm =
     Math.round(
-      today
-        .filter((d) => d.decision === "DEFER")
-        .reduce((a, d) => a + (parseJsonField<{ deferredDoseMm?: number } | null>(d.ruleLayer, null)?.deferredDoseMm ?? 0), 0) * 10
+      today.reduce((a, d) => {
+        const t = parseJsonField<{ deferredDoseMm?: number; advisorAvoidedMm?: number } | null>(d.ruleLayer, null);
+        const rainAvoid = d.decision === "DEFER" ? (t?.deferredDoseMm ?? 0) : 0;
+        const advisorAvoid = t?.advisorAvoidedMm ?? 0;
+        return a + rainAvoid + advisorAvoid;
+      }, 0) * 10
     ) / 10;
+  const advisorToday = today.filter((d) => d.llmAdvice).length;
+  const advisorAppliedToday = today.filter(
+    (d) => parseJsonField<{ advisor?: unknown } | null>(d.ruleLayer, null)?.advisor != null
+  ).length;
   const avgMoisture =
     zoneRows.length > 0 && zoneRows.every((z) => z.reading)
       ? Math.round((zoneRows.reduce((a, z) => a + (z.reading?.soilMoisture ?? 0), 0) / zoneRows.length) * 10) / 10
@@ -650,7 +900,11 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
       RAIN_PATIENCE_CYCLES,
       BATTERY_ALERT_PCT,
       DOSE_PCT_PER_MM,
-      TICK_STALE_MS
+      TICK_STALE_MS,
+      ADVISOR_MIN_INTERVAL_MS,
+      ADVISOR_TIMEOUT_MS,
+      ADVISOR_SIGNIFICANT_MM,
+      ADVISOR_REDUCE_FLOOR_PCT: Math.round(ADVISOR_REDUCE_FLOOR * 100)
     },
     zones: zoneRows,
     kpis: {
@@ -659,7 +913,24 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
       decisionsToday: today.length,
       irrigatedToday: today.filter((d) => d.decision === "IRRIGATE").length,
       waterAppliedMm,
-      waterAvoidedMm
+      waterAvoidedMm,
+      advisorToday,
+      advisorAppliedToday
+    },
+    advisor: {
+      enabled: await getAutoAdvisorEnabled(),
+      lastConsultAt: (await getAdvisorLastAt()) > 0 ? new Date(advisorLastAt).toISOString() : null,
+      intervalMin: Math.round(ADVISOR_MIN_INTERVAL_MS / 60_000),
+      significantMm: ADVISOR_SIGNIFICANT_MM,
+      timeoutSec: ADVISOR_TIMEOUT_MS / 1000,
+      reduceFloorPct: Math.round(ADVISOR_REDUCE_FLOOR * 100),
+      guardrailsHe: [
+        "גריעה בלבד — היועץ מפחית מינון עד 50% לכל היותר; לעולם לא מגדיל.",
+        "קו-העקה קדוש — החלטה מתחת לקו-העקה יוצאת לפועל גם נגד דעת היועץ.",
+        "פסק אחד ל-10 דק' המרב — סערת-429 בשירות לא תקבל סבב חופשי.",
+        "פסק-זמן 10 שניות — הלוח לא בן-ערובה ליועץ איטי.",
+        "כשל = כנות — שכבת-הכללים מחליטה לבדה והכישלון מתועד כמו שהוא."
+      ]
     },
     history: history.map((d) => ({
       id: d.id,
@@ -675,7 +946,7 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
       createdAt: d.createdAt.toISOString()
     })),
     usage:
-      "GET — הלוח (מקדם את העולם אם דומם ≥60ש') · POST {action:'tick'} — מחזור עכשיו · POST {action:'valve', zoneId, open} — שסתום ידני · POST {action:'reset'} — זריעה מחדש · POST /api/saos/agri/advisor {zoneId, note?} — חוות-דעת האגרונום"
+      "GET — הלוח (מקדם את העולם אם דומם ≥60ש') · POST {action:'tick'} — מחזור עכשיו (היועץ-בלולאה נשאל על השקיה משמעותית) · POST {action:'valve', zoneId, open} — שסתום ידני · POST {action:'advisor', enabled} — היועץ-בלולאה הדלקה/כיבוי · POST {action:'reset'} — זריעה מחדש · POST /api/saos/agri/advisor {zoneId, note?} — חוות-דעת ידנית"
   };
 }
 
@@ -697,7 +968,7 @@ export async function buildAdvisorContext(zoneId: string): Promise<{
   zone: Record<string, unknown>;
   reading: Record<string, unknown> | null;
   decision: (Record<string, unknown> & { id: string }) | null;
-  weather: AgriWeatherOut;
+  weather: Pick<AgriWeatherOut, "source" | "precipProb24h" | "expectedRainMm24h" | "currentRainMm" | "tempMax" | "tempMean" | "fetchedAt">;
   rulesHe: string[];
 } | null> {
   const zone = await db.agriZone.findUnique({ where: { id: zoneId } });

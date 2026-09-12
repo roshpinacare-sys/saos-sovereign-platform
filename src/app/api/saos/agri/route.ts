@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { agriBoard, tickAgri, setValve, resetAgri, ensureSeeded } from "@/lib/saos/agri";
+import { agriBoard, tickAgri, setValve, resetAgri, ensureSeeded, setAutoAdvisorEnabled } from "@/lib/saos/agri";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +8,10 @@ export const dynamic = "force-dynamic";
  *        קריאות אחרונות × החלטות × KPIs × יומן-ביקורת × הכללים.
  *        פעימת-משיכה: אם העולם דומם ≥60ש' — מקדם מחזור אחד (source=auto,
  *        מתועד). סייר-השומר דוחף פעימה נוספת כל 5 דק'.
- * POST {action:'tick', source:'auto'|'manual'}  — מחזור החלטה עכשיו.
+ * POST {action:'tick', source:'auto'|'manual'}  — מחזור החלטה עכשיו (v81: על
+ *        השקיה משמעותית היועץ-בלולאה נשאל לפני הביצוע — מגבלות קפואות).
  * POST {action:'valve', zoneId, open}           — שסתום ידני (control-plane).
+ * POST {action:'advisor', enabled:bool}         — v81 control-plane: הדלקה/כיבוי של היועץ-בלולאה.
  * POST {action:'reset'}                         — זריעה מחדש של השדה.
  *
  * גבול-האמת: אין כאן יד, אין מפתח, אין שרשרת — רק המנוע, היומן
@@ -37,6 +39,7 @@ export async function POST(req: Request) {
       zoneId?: unknown;
       open?: unknown;
       source?: unknown;
+      enabled?: unknown;
     };
     const action = typeof obj.action === "string" ? obj.action : "";
 
@@ -60,6 +63,19 @@ export async function POST(req: Request) {
       });
     }
 
+    if (action === "advisor") {
+      const enabled = obj.enabled === true;
+      const now = await setAutoAdvisorEnabled(enabled);
+      return NextResponse.json({
+        ok: true,
+        action: "advisor",
+        advisorAuto: now,
+        message: now
+          ? "היועץ בלולאה מופעל — על השקיה משמעותית (≥5 מ״מ) יישאל האגרונום לפני הביצוע: פסק ל-10 דק' המרב, גריעה עד 50% בלבד, קו-העקה קדוש"
+          : "היועץ בלולאה כבוי — שכבת הכללים מחליטה לבדה; חוות-דעת ידנית תמיד זמינה"
+      });
+    }
+
     if (action === "reset") {
       const out = await resetAgri();
       return NextResponse.json({
@@ -76,7 +92,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "action לא מוכר — השתמש ב: tick · valve · reset · seed (היועץ: POST /api/saos/agri/advisor)"
+        error: "action לא מוכר — השתמש ב: tick · valve · advisor · reset · seed (היועץ הידני: POST /api/saos/agri/advisor)"
       },
       { status: 200 }
     );

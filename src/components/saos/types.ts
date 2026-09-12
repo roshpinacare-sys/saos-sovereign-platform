@@ -2000,7 +2000,7 @@ export interface AgriWeatherT {
 }
 
 export interface AgriAdviceT {
-  verdict: "confirm" | "adjust" | "override" | "raw";
+  verdict: "confirm" | "adjust" | "override" | "raw" | "unavailable";
   duration_min?: number;
   rationale_he: string;
   risks_he: string[];
@@ -2008,6 +2008,7 @@ export interface AgriAdviceT {
   at?: string;
   engine?: string;
   questionHe?: string | null;
+  mode?: "manual" | "auto-in-loop";
 }
 
 export interface AgriReadingT {
@@ -2062,6 +2063,16 @@ export interface AgriHistoryRowT {
   createdAt: string;
 }
 
+export interface AgriAdvisorInfoT {
+  enabled: boolean;
+  lastConsultAt: string | null;
+  intervalMin: number;
+  significantMm: number;
+  timeoutSec: number;
+  reduceFloorPct: number;
+  guardrailsHe: string[];
+}
+
 export interface AgriData {
   ok: boolean;
   at: string;
@@ -2072,6 +2083,7 @@ export interface AgriData {
   rulesHe: string[];
   constantsHe: Record<string, number>;
   zones: AgriZoneRowT[];
+  advisor: AgriAdvisorInfoT;
   kpis: {
     zones: number;
     avgMoisture: number | null;
@@ -2079,6 +2091,8 @@ export interface AgriData {
     irrigatedToday: number;
     waterAppliedMm: number;
     waterAvoidedMm: number;
+    advisorToday: number;
+    advisorAppliedToday: number;
   };
   history: AgriHistoryRowT[];
   usage?: string;

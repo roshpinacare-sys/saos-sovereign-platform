@@ -149,10 +149,18 @@ const RSS_SHED_READINGS = 2;
 // 06:21 incident proved the kernel kills even under our boot-grace (RSS
 // 1893MB, web ~12min old, recycle "armed" waiting for reading 2/2). At this
 // line the recycle fires the same cycle — grace included.
-const RSS_KILL_LINE_MB = 1790;
+// v44.2 — split kill lines (the v81-session evidence): the kernel struck 4×
+// today at 1595–1728MB anon-rss — all MATURE webs on the gradual-growth
+// march, between patrol cycles, before the old 1790 line could fire. Mature
+// webs now recycle at 1500 (planned ~40s beats a ~3min kernel kill). Young
+// webs (< boot-grace) keep the classic 1790 headroom: v55 proved lower lines
+// + post-revive compile storms = recycle loops (the storm legitimately peaks
+// at 1.6–1.7GB), and the 06:21 kernel kill of a young web was at 1893MB.
+const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
+const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "44.1.0";
+const KEEPER_VERSION = "44.2.0";
 const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
@@ -1627,12 +1635,20 @@ async function cycle(): Promise<void> {
       );
     }
     const webAnswering = web.alive && !S.degraded;
-    if (rss >= RSS_KILL_LINE_MB && webAnswering && Date.now() > S.webReviveDeadline) {
+    // v44.2 — the kill line is age-dependent: mature webs recycle at 1500
+    // (today's kernel kills were all gradual-growth mature webs); young webs
+    // keep 1790 so the post-revive compile storm (legit 1.6–1.7GB peak) never
+    // loops us — the v55 lesson, honored on both lines.
+    const killLine = ageMs < RSS_BOOT_GRACE_MS ? RSS_KILL_LINE_YOUNG_MB : RSS_KILL_LINE_MB;
+    if (rss >= killLine && webAnswering && Date.now() > S.webReviveDeadline) {
       // v43 — lesson of 06:21: the kernel does not honor our boot-grace. At
       // or above the measured kill line there is no margin for a 2nd reading
       // — recycle NOW, same cycle, grace or not (a planned recycle is ~40s
       // of planned darkness; tonight's kernel kill cost ~3min).
-      journal("pressure", `RSS ${rss}MB ≥ קו-ההרג הנמדד ${RSS_KILL_LINE_MB}MB — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)`);
+      journal(
+        "pressure",
+        `RSS ${rss}MB ≥ קו-ההרג ${killLine}MB (${ageMs < RSS_BOOT_GRACE_MS ? "ווב צעיר — סערה חריגה" : "ווב בוגר — מסע-זיכרון הדרגתי"}) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)`
+      );
       recycleWeb();
     } else if (rss >= RSS_SHED_MB && webAnswering) {
       if (ageMs < RSS_BOOT_GRACE_MS) {
