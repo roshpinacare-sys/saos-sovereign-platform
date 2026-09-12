@@ -18,6 +18,7 @@
 import { db } from '@/lib/db';
 import { OPERATOR, getAccount, getGlobalProps, vestsToChainVests, condenser, getBlurtAccount, getBlurtProps, ownBlogPosts, steemRcMana, fleetScan } from '@/lib/saos/steem-ops';
 import { treasuryWallet, doorWallet, tronAccount } from '@/lib/saos/trx-ops';
+import { walletScan } from '@/lib/saos/wallet-scan';
 import { planEnergize } from '@/lib/saos/tron-energize';
 import { readAutopilotState, readAutopilotConfig } from '@/lib/saos/autopilot-state';
 
@@ -618,13 +619,47 @@ export async function flowOverview(): Promise<FlowOverview> {
     actions: ['vault_drip'],
   });
 
+  /* ── Task 74: ראוטר-נזילות-רב-שרשרת — סריקת-ארנקים-אמת (מונער-Coinomi × 8 נתיבים + ארנקות-הצי) ── */
+  try {
+    const ws = await walletScan(false);
+    const ageMin = Math.round((Date.now() - ws.ts) / 60000);
+    const treasuryRows: Array<{ k: string; v: string; hint?: string }> = [
+      { k: 'מונער-Coinomi (8 נתיבים)', v: `$${ws.totalUsd !== null ? ws.totalUsd.toFixed(4) : '—'}`, hint: 'TRON·195 + ETH·60 + MATIC·966 + BNB·714 + BSC + BCH·145 + SmartBCH + BTC·44/84 — כולם נגזרים-מקומית, נסרקים-חי על-השרשרת' },
+      { k: 'נזיל-בר-הוצאה', v: `$${ws.movableUsd !== null ? ws.movableUsd.toFixed(4) : '—'}`, hint: 'מעל-סף-דלק-מינימלי (TRX: 0.268-שריפה · ETH: 0.0005) — השאר אבק-על-שרשרת' },
+      { k: 'ארנקות-הצי', v: `${ws.fleet.length} כתובות · $${ws.fleet.reduce((s, r) => s + (r.usd ?? 0), 0).toFixed(4)}`, hint: `tron+evm+btc לכל-חשבונות-הצי — ${ws.fleet.filter((f) => (f.native ?? 0) > 0).length} עם-יתרה (אבק/דאסט)` },
+      { k: 'סריקה-אחרונה', v: `${ageMin}-דק׳ זמינה`, hint: 'wallet_rescan — dry-run=מטמון-10ד׳ · execute=סריקה-טרייה (מפעיל)' },
+    ];
+    const th = ws.treasury;
+    if (th.smartbch.note?.includes('מתים')) treasuryRows.push({ k: 'SmartBCH', v: 'רשת-מתה', hint: 'כל-ה-RPC-הציבוריים-מתים — לא-ניתן-לבדוק/לשחרר. מה שהיה-שם עגון-ללא-גישה (כנות)' });
+    if (th.tron.active === false && th.tron.native === 0) treasuryRows.push({ k: 'TRON', v: 'אפס-מוכח', hint: 'ארנק-מעולם-לא-הופעל-על-השרשרת — אין-היסטוריה, אין-מטבעות' });
+    if (th.evmStd.txCount === 0 && (th.evmStd.tokens?.length ?? 0) === 0) treasuryRows.push({ k: 'ETH/MATIC/BNB', v: 'אפס-מוכח', hint: 'nonce=0 + אפס-טוקנים (Blockscout) + בדיקת-טוקנים-מובילים-על-BSC — אפס-היסטוריה בכל-הנתיבים' });
+    if (ws.seedsLocked > 0) treasuryRows.push({ k: 'זרעים-סגורים', v: `${ws.seedsLocked}`, hint: 'זרעים-ישנים בכספת מוצפנים-תחת-סוד-כספת-קודם (ייבוא-האחות) — לא-ניתנים-לנגיזה-מהמכונה-הזו (כנות)' });
+    loops.push({
+      id: 'wallet-scan', title: 'ראוטר-נזילות-רב-שרשרת (סריקת-אמת של כל-הארנקים)', engine: 'wallet-scan · 8-נתיבי-נגיזה + 3-שרשראות-צי',
+      status: (ws.totalUsd ?? 0) > 1 ? 'live' : 'armed',
+      statusLabel: ws.totalUsd !== null ? `נסרק-אמת · שווי-$${ws.totalUsd.toFixed(4)} · נזיל-$${ws.movableUsd?.toFixed(4) ?? '—'}${(ws.totalUsd ?? 0) <= 1 ? ' · אפס-מוכח' : ''}` : 'סריקה-חלקית (API-חיצוני-נפל — כנות)',
+      numbers: treasuryRows,
+      verdict: 'סטטוס-האוצר עתה ראייתי ולא תקווה: כל-כתובת שלנו נגזרת-מקומית (אף-מפתח-לא-יוצא) ונסרקת-חי — מה שאפס, מוכח-אפס עם-timestamp; ההזרמה-האמתית נשארת: פאוורדאון→טפטוף · קיוריישן · הפקדות-מפעיל.',
+      actions: ['wallet_rescan'],
+    });
+  } catch (e) {
+    loops.push({
+      id: 'wallet-scan', title: 'ראוטר-נזילות-רב-שרשרת (סריקת-אמת של כל-הארנקים)', engine: 'wallet-scan · 8-נתיבי-נגיזה + 3-שרשראות-צי',
+      status: 'blocked',
+      statusLabel: `סריקה-נפלה — ${e instanceof Error ? e.message.slice(0, 80) : 'שגיאה'}`,
+      numbers: [{ k: 'מצב', v: 'fail-honest' }],
+      verdict: 'אין-סימולציה: הסריקה-נפלה וזה מה שמוצג. הרץ wallet_rescan לניסיון-חוזר.',
+      actions: ['wallet_rescan'],
+    });
+  }
+
   /* ── פקדה ── */
   const ledger = await db.auditLog.findMany({
     // FIX(71-g): flow-steem-claim — route.ts רושם flow-${chain}-claim (היה-חסר-במסנן — תביעות-STEEM-לא-נראו-בפקדה)
     // FIX(71-h): flow-steem-vote — הצבעות-קיוריישן-STEEM לא-נראו-בפקדה (רק-hive/blurt) · + flow-publish · + flow-autopilot
     // 71-i: + פעולות-הצי (fleet-vote/fleet-claim) + פרסום-רב-שרשרת (hive/blurt-publish)
     // 73: + מרכז-הנזילות (econ-*) — הפקדות/משיכות/טפטוף/הפניות
-    where: { action: { in: ['flow-vote', 'flow-powerdown', 'flow-savings', 'flow-energize', 'flow-claim', 'flow-selfvote', 'flow-hive-vote', 'flow-blurt-vote', 'flow-hive-claim', 'flow-steem-claim', 'flow-steem-vote', 'flow-publish', 'flow-autopilot', 'flow-fleet-vote', 'flow-fleet-claim', 'flow-fleet-sweep', 'flow-fleet-heal', 'flow-hive-publish', 'flow-blurt-publish', 'wallet-sealed-trx', 'wallet-address-corrected', 'econ-pot-deposit', 'econ-pot-withdraw', 'econ-vault-drip', 'econ-referral-create', 'econ-referral-convert', 'econ-referral-settle'] } },
+    where: { action: { in: ['flow-vote', 'flow-powerdown', 'flow-savings', 'flow-energize', 'flow-claim', 'flow-selfvote', 'flow-hive-vote', 'flow-blurt-vote', 'flow-hive-claim', 'flow-steem-claim', 'flow-steem-vote', 'flow-publish', 'flow-autopilot', 'flow-fleet-vote', 'flow-fleet-claim', 'flow-fleet-sweep', 'flow-fleet-heal', 'flow-hive-publish', 'flow-blurt-publish', 'wallet-sealed-trx', 'wallet-address-corrected', 'wallet-rescan', 'econ-pot-deposit', 'econ-pot-withdraw', 'econ-vault-drip', 'econ-referral-create', 'econ-referral-convert', 'econ-referral-settle'] } },
     orderBy: { createdAt: 'desc' }, take: 12,
   });
 

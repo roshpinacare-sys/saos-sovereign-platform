@@ -7,6 +7,7 @@ import {
   getAccount, getGlobalProps, vestsToChainVests, ownBlogPosts, steemPublish, chainPublish, steemRcMana, getBlurtAccount, OPERATOR, chainVoteAs, claimRewardsAs, fleetScan, fleetHeal, fleetPasswordSweep, chainTransferAs, type Chain3,
 } from '@/lib/saos/steem-ops';
 import { trxEnergize, tronAccount, treasuryWallet } from '@/lib/saos/trx-ops';
+import { walletScan } from '@/lib/saos/wallet-scan';
 import { vaultDrip } from '@/lib/saos/econ';
 import { readAutopilotState, readAutopilotConfig, writeAutopilotConfig } from '@/lib/saos/autopilot-state';
 
@@ -566,6 +567,17 @@ export async function POST(req: NextRequest) {
 
       case 'blurt_publish':
         return await chainPublishAction('blurt', action, p, execute, owner.label);
+
+      /* ── Task 74: סריקת-נזילות-רב-שרשרת — dry-run=מטמון · execute=סריקה-טרייה ── */
+      case 'wallet_rescan': {
+        const report = await walletScan(execute);
+        if (execute) {
+          const detail = `wallet_rescan (fresh): totalUsd=${report.totalUsd?.toFixed(4) ?? 'null'} · movableUsd=${report.movableUsd?.toFixed(4) ?? 'null'} · fleetRows=${report.fleet.length} · seedsLocked=${report.seedsLocked} by owner:${owner.label}`;
+          await audit('wallet-rescan', detail);
+          try { await relayBroadcast('wallet_rescan', { ts: report.ts, totalUsd: report.totalUsd, movableUsd: report.movableUsd }); } catch { /* */ }
+        }
+        return NextResponse.json({ ok: true, action, dryRun: !execute, report });
+      }
 
       /* ── אנרגיז-TRX ── */
       case 'trx_energize': {

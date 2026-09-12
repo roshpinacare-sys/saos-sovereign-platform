@@ -450,20 +450,20 @@ export async function yieldRouter(): Promise<RouterPlan> {
       note: 'חסום-כלכלית: דמי-רשת 0.9 + שקרן-פרסים אפס → כל-הצבעה/העברה = הפסד-נקי',
     });
   }
-  // TRX/USDT — ממתין-הפקדה (כנות)
+  // TRX/USDT — ממתין-הפקדה (כנות) · Task 74: עתה עם ראייה — סריקת-רב-שרשרת הוכיחה אפס
   rows.push({
     key: 'trx-treasury', label: 'TRX · ארנק-המערכת', asset: 'TRX',
     balance: balances.trx, usd: usdOf(balances.trx ?? 0, 'TRX'),
     aprPct: null, aprLabel: '—',
     status: 'waiting-deposit', flowAction: 'trx_energize', flowLabel: 'אנרגיז (הקפאת-TRX)',
-    note: 'הפקדת-המפעיל תנעל-אוטומטית את לולאת-האנרגיה (USDT-settlements)',
+    note: 'סריקת-אמת-74: אפס-מוכח על-כל-הנתיבים (מונער×8 + צי) — ראה-לולאת wallet-scan · הפקדת-המפעיל תנעל-אוטומטית את לולאת-האנרגיה',
   });
   rows.push({
     key: 'usdt-treasury', label: 'USDT · ארנק-המערכת', asset: 'USDT',
     balance: balances.usdt, usd: balances.usdt,
     aprPct: null, aprLabel: '—',
     status: 'waiting-deposit', flowAction: null, flowLabel: null,
-    note: 'מאגר-הבאונטי של רשת-ההפניות + דלק-עסקאות — ממתין-הפקדה',
+    note: 'מאגר-הבאונטי של רשת-ההפניות + דלק-עסקאות — סריקת-אמת-74: TRC20 אפס-מוכח · ממתין-הפקדה',
   });
 
   const totalUsd = rows.every((r) => r.usd === null) ? null : rows.reduce((s, r) => s + (r.usd ?? 0), 0);
@@ -639,7 +639,7 @@ export async function econOverview(): Promise<EconOverview> {
     { id: 'curation', label: 'קיוריישן STEEM/HIVE (צי 33-חתימות)', aprPct: null, aprLabel: 'ראשי-משתנה', status: 'live', note: 'הצבעות-צי חיות — תלוי-מסה-ומחזור' },
     { id: 'vault', label: 'קרן-התשואה (מסלול-חדש)', aprPct: apyPct, aprLabel: apyPct !== null ? `${apyPct.toFixed(1)}% APY` : '—', status: 'live', note: 'משתף-את-כל-הזרמים למפקידים לפי-משקל-מוגבר' },
     { id: 'blurt', label: 'BLURT', aprPct: null, aprLabel: '—', status: 'blocked', note: 'דמי-רשת 0.9 + שקרן-אפס → חסום-כלכלית (כנות)' },
-    { id: 'trx', label: 'TRX אנרגיה', aprPct: null, aprLabel: '—', status: 'waiting-deposit', note: 'ממתין-הפקדת-מפעיל (נדחה-בהודעה)' },
+    { id: 'trx', label: 'TRX אנרגיה', aprPct: null, aprLabel: '—', status: 'waiting-deposit', note: 'סריקת-אמת-74: אפס-נזיל-על-שרשרת (מוכח) — נדרשת-הפקדת-מפעיל' },
   ];
 
   const positionsView = positions.map((p) => {
