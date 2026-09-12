@@ -102,10 +102,14 @@ assertTrustedEndpoints(
 
 async function jsonRpc<T>(url: string, method: string, params: unknown): Promise<T | null> {
   try {
+    // R8 ביקורת: ה-primitive הזה היה קריאת-הרשת היחידה בלי פסק-זמן — כל
+    // אתרי-הקריאה סביבו קיבלו 12s/30s והלב נשכח. נמדד ותוקן: 12 שניות,
+    // כמו שאר מסילות-ה-MAGEN; נתקע = null כנה, לא תליית-בקשה.
     const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      signal: AbortSignal.timeout(12_000)
     });
     const j = (await res.json()) as { result?: T };
     return j.result ?? null;

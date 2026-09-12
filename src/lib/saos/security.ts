@@ -58,6 +58,9 @@ export interface TrustedHost {
 export const TRUSTED_HOSTS: TrustedHost[] = [
   // — רשמיים: הגוף עצמו מפעיל —
   { host: "api.binance.com", org: "Binance", tier: "official", role: "אורקל מחירים (טיקר חי)" },
+  // R8 ביקורת: התכונה החקלאית (v82) קוראת ל-Open-Meteo מאז נחיתתה והמארח
+  // לא היה ברישום — פער-רישום אמיתי; נסגר: המארח רשמי, קריאה בלבד.
+  { host: "api.open-meteo.com", org: "Open-Meteo (רשמי)", tier: "official", role: "תחזית גשם/חום חקלאית (v82 agri)" },
   { host: "api.coingecko.com", org: "CoinGecko", tier: "official", role: "אורקל מחירים (BLURT)" },
   { host: "api.github.com", org: "GitHub", tier: "official", role: "מדידת האורגניזם (11 ריפואים)" },
   { host: "raw.githubusercontent.com", org: "GitHub", tier: "official", role: "כתובות פומביות בלבד (קריאה)" },

@@ -39,6 +39,7 @@ import {
 } from "@/lib/vault-seal";
 import { logOp } from "./oplog";
 import { restoreDatabaseIfWiped, mirrorDatabaseFast } from "./backups";
+import { assertTrustedEndpoints } from "./security";
 
 const SHA256 = (b: Buffer) => createHash("sha256").update(b).digest();
 const RIPEMD160 = (b: Buffer) => createHash("ripemd160").update(b).digest();
@@ -49,6 +50,23 @@ const EVM_ENDPOINTS = {
   ethereum: { url: "https://ethereum-rpc.publicnode.com", chainId: 1, symbol: "ETH" },
   bsc: { url: "https://bsc-rpc.publicnode.com", chainId: 56, symbol: "BNB" }
 } as const;
+
+// R8 ביקורת: אכיפת MAGEN — כל קריאות-החוץ של המודול (STEEM/HIVE/EVM/TRON/
+// XRPL/GitHub/SOL) נאמתות מול הרישום המהימנים בטעינה (fail-closed), כמו
+// שאר האיברים; כל המארחים כבר רשומים — אפס שינוי-התנהגות.
+assertTrustedEndpoints(
+  [
+    STEEM_RPC,
+    HIVE_RPC,
+    EVM_ENDPOINTS.ethereum.url,
+    EVM_ENDPOINTS.bsc.url,
+    "https://api.trongrid.io",
+    "https://xrplcluster.com",
+    "https://api.github.com",
+    "https://solana-rpc.publicnode.com"
+  ],
+  "smartvault"
+);
 
 // ─── public view types ─────────────────────────────────────────────────────
 
@@ -168,11 +186,23 @@ async function measure(): Promise<SmartVaultStatus> {
   }
   const keys: SmartKeyView[] = rows;
   const agents = await db.agentIdentity.findMany({ orderBy: { createdAt: "desc" } });
-  const agentViews: { name: string; role: string; active: boolean; lastSeenAt: string | null; messages: number }[] = [];
-  for (const a of agents) {
-    const messages = await db.agentMessage.count({ where: { author: a.name } });
-    agentViews.push({ name: a.name, role: a.role, active: a.active, lastSeenAt: a.lastSeenAt?.toISOString() ?? null, messages });
-  }
+  // R8 ביקורת: היה N+1 — count נפרד לכל סוכן; מוזג ל-groupBy אחד.
+  // אותה אמת, שאילתה אחת במקום N.
+  const msgCounts = (await db.agentMessage
+    .groupBy({ by: ["author"], _count: { _all: true } })
+    .catch(() => [] as Array<{ author: string; _count: { _all: number } }>)) as Array<{
+    author: string;
+    _count: { _all: number };
+  }>;
+  const countByAuthor = new Map(msgCounts.map((c) => [c.author, c._count._all]));
+  const agentViews: { name: string; role: string; active: boolean; lastSeenAt: string | null; messages: number }[] =
+    agents.map((a) => ({
+      name: a.name,
+      role: a.role,
+      active: a.active,
+      lastSeenAt: a.lastSeenAt?.toISOString() ?? null,
+      messages: countByAuthor.get(a.name) ?? 0
+    }));
   const messageCount = await db.agentMessage.count();
   const stats = {
     total: keys.length,

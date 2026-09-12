@@ -39,6 +39,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { db } from "@/lib/db";
+import { assertTrustedEndpoints } from "./security";
 
 const execFileAsync = promisify(execFile);
 
@@ -174,6 +175,10 @@ export const AGRI_LAYERS_HE = {
 
 const OM_URL =
   "https://api.open-meteo.com/v1/forecast?latitude=32.0853&longitude=34.7818&hourly=precipitation_probability,precipitation,temperature_2m&forecast_days=2&timezone=Asia%2FJerusalem";
+
+// R8 ביקורת: אכיפת MAGEN — קריאת-החוץ היחידה של המודול נאמתת מול הרישום
+// המהימנים בטעינה (fail-closed), כמו שאר האיברים; open-meteo נוסף לרישום באותו סבב.
+assertTrustedEndpoints([OM_URL], "agri");
 
 let weatherCache: { at: number; data: AgriWeatherOut } | null = null;
 let weatherInFlight: Promise<AgriWeatherOut> | null = null;
