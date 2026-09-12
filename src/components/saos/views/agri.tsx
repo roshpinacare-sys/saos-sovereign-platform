@@ -23,6 +23,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   BatteryWarning,
   BrainCircuit,
@@ -37,11 +38,22 @@ import {
   ListChecks,
   Play,
   RotateCcw,
+  Ruler,
   Sprout,
+  TerminalSquare,
   ThermometerSun,
   Timer,
   Waves
 } from "lucide-react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
 import {
   Btn,
   Callout,
@@ -62,12 +74,34 @@ import { PageHead } from "../shell";
 import type {
   AgriAdvisorResultT,
   AgriAdviceT,
+  AgriChartPointT,
   AgriData,
   AgriTickResultT,
   AgriZoneRowT
 } from "../types";
 
 const MOISTURE_SCALE_MAX = 60; // סקאלת מד-הלחות (VWC %)
+
+// v82 — קו-הלחות: צבעי בית (אמרלד · ענבר · ורוד) לשלוש החלקות — אף פעם לא כחול
+const ZONE_KEYS = ["z0", "z1", "z2"] as const;
+const ZONE_DEC_KEYS = ["d0", "d1", "d2"] as const;
+const ZONE_COLORS = ["#10b981", "#f59e0b", "#f43f5e"];
+
+/** נקודות הגרף: מודגשות במחזורי השקיה, עדינות בשאר */
+function dotFor(i: number) {
+  return (props: { cx?: number; cy?: number; payload?: unknown }) => {
+    const { cx, cy, payload } = props;
+    const p = payload as AgriChartPointT | undefined;
+    const v = p ? p[ZONE_KEYS[i]] : null;
+    if (v == null || cx == null || cy == null) return <g />;
+    const irrigated = p != null && p[ZONE_DEC_KEYS[i]] === "IRRIGATE";
+    return irrigated ? (
+      <circle cx={cx} cy={cy} r={3.2} fill={ZONE_COLORS[i]} stroke="rgba(255,255,255,0.85)" strokeWidth={1} />
+    ) : (
+      <circle cx={cx} cy={cy} r={1.6} fill="rgba(255,255,255,0.28)" />
+    );
+  };
+}
 
 function moistureTone(m: number, critical: number, target: number): string {
   if (m < critical) return "bg-rose-500";
@@ -349,6 +383,19 @@ export function AgriView() {
 
   const weatherLive = data?.weather;
   const weatherIsLive = weatherLive?.source === "open-meteo";
+  const calib = data?.calibration;
+  const py = data?.pythonEngine;
+
+  // v82 — קו-הלחות: הנתונים מוכנים לגרף (תווית-זמן עברית קצרה)
+  const chartData = useMemo(
+    () =>
+      (data?.chart.points ?? []).map((p) => ({
+        ...p,
+        label: new Date(p.t).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })
+      })),
+    [data]
+  );
+  const zoneNames = data?.chart.zones ?? [];
 
   const historyDecision = useMemo(() => {
     const map: Record<string, { tone: "green" | "zinc" | "amber" | "rose"; label: string }> = {};
@@ -483,6 +530,69 @@ export function AgriView() {
         </PanelBody>
       </Panel>
 
+      {/* v82 — קו-הלחות: השדה לאורך זמן */}
+      <Panel>
+        <PanelHeader
+          icon={<Activity size={16} />}
+          title="קו-הלחות — השדה לאורך זמן"
+          sub={`${zoneNames.length} חלקות · ${chartData.length} מחזורים אחרונים · נקודות מודגשות = מחזורי השקיה`}
+        />
+        <PanelBody>
+          <div dir="ltr" className="h-56 w-full">
+            {chartData.length >= 2 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 10, right: 14, left: -16, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: "#71717a", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={{ stroke: "rgba(255,255,255,0.08)" }}
+                    minTickGap={30}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    domain={[0, MOISTURE_SCALE_MAX]}
+                    tick={{ fill: "#71717a", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={38}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(24,24,27,0.96)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 10,
+                      fontSize: 11
+                    }}
+                    labelStyle={{ color: "#a1a1aa" }}
+                    itemStyle={{ color: "#e4e4e7" }}
+                  />
+                  {ZONE_KEYS.map((key, i) => (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      name={zoneNames[i] ?? key}
+                      stroke={ZONE_COLORS[i]}
+                      strokeWidth={1.8}
+                      dot={dotFor(i)}
+                      activeDot={{ r: 3.5, strokeWidth: 0 }}
+                      connectNulls
+                      isAnimationActive={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="pt-16 text-center text-[11px] text-zinc-500">
+                פחות משתי נקודות — הגרף ייוולד אחרי המחזורים הבאים.
+              </p>
+            )}
+          </div>
+        </PanelBody>
+      </Panel>
+
       {/* תוצאת המחזור האחרון */}
       {tickResult && (
         <Callout
@@ -532,6 +642,138 @@ export function AgriView() {
           />
         ))}
       </div>
+
+      {/* v82 — המעגל הנמדד: המודל מול השדה */}
+      <Panel accent>
+        <PanelHeader
+          icon={<Ruler size={16} />}
+          title="המעגל הנמדד — מודל המינון מול השדה"
+          sub="כל השקיה: קריאה לפניה · מנה · קריאה אחריה — הרווח בפועל נאסף כראיה חיה"
+          tag={calib ? `${calib.events} מדידות` : undefined}
+        />
+        <PanelBody>
+          {calib && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11px] text-zinc-500">המודל מנבא</p>
+                  <p className="text-xl font-bold tabular-nums text-zinc-100">
+                    {calib.modelPctPerMm}%<span className="text-xs text-zinc-500">/מ״מ</span>
+                  </p>
+                  <p className="text-[10px] text-zinc-600">DOSE_PCT_PER_MM — קפוא בקוד, מחליט בפועל</p>
+                </div>
+                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2.5">
+                  <p className="text-[11px] text-zinc-500">השדה מדד</p>
+                  <p className="text-xl font-bold tabular-nums text-amber-200">
+                    {calib.measuredAvgPctPerMm !== null ? `${calib.measuredAvgPctPerMm}%` : "—"}
+                    <span className="text-xs text-zinc-500">/מ״מ</span>
+                  </p>
+                  <p className="text-[10px] text-zinc-600">ממוצע {calib.events} מדידות לולאה-סגורה</p>
+                </div>
+              </div>
+              <p className="mt-3 text-[11px] leading-relaxed text-zinc-400">{calib.verdictHe}</p>
+              {calib.samples.length > 0 && (
+                <div className="mt-3 max-h-56 overflow-y-auto">
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>זמן</Th>
+                        <Th>חלקה</Th>
+                        <Th>מנה</Th>
+                        <Th>לפני → אחרי</Th>
+                        <Th>רווח</Th>
+                        <Th>%/מ״מ</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {calib.samples.map((s, i) => (
+                        <tr key={i}>
+                          <Td>{timeAgo(s.at)}</Td>
+                          <Td>{s.zone.split("—")[0]}</Td>
+                          <Td>
+                            <span dir="ltr" className="tabular-nums">
+                              {s.waterMm}mm
+                            </span>
+                          </Td>
+                          <Td>
+                            <span dir="ltr" className="tabular-nums">
+                              {s.beforePct.toFixed(1)}% → {s.afterPct.toFixed(1)}%
+                            </span>
+                          </Td>
+                          <Td>
+                            <span
+                              className={`tabular-nums font-medium ${s.gainPct > 0 ? "text-emerald-300" : "text-rose-300"}`}
+                            >
+                              {s.gainPct > 0 ? "+" : ""}
+                              {s.gainPct}%
+                            </span>
+                          </Td>
+                          <Td>
+                            <span dir="ltr" className="tabular-nums">
+                              {s.pctPerMm}
+                            </span>
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* v83 — מנוע הקצה: התאום בפייתון, בריאותו נמדדת חיה */}
+      <Panel>
+        <PanelHeader
+          icon={<TerminalSquare size={16} />}
+          title="מנוע הקצה — פייתון v1.1 (THE EDGE ENGINE)"
+          sub="תאום מלא למנוע הזה, ספריית-סטנדרט בלבד, למכשיר-קצה — ההבטחה מ-13 סשנים כקובץ אמיתי"
+          tag={py?.selftest.ok ? `selftest ירוק ${py.selftest.passed}/${py.selftest.checks}` : "selftest לא ירוק"}
+        />
+        <PanelBody>
+          {py && (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill tone={py.exists ? "green" : "rose"}>{py.exists ? "הקובץ קיים בריפו" : "הקובץ חסר בריפו"}</Pill>
+                <Pill tone={py.selftest.ok ? "green" : "rose"} pulse={py.selftest.ok}>
+                  {py.selftest.ok
+                    ? `ירוק — ${py.selftest.passed}/${py.selftest.checks} · ${py.selftest.durationMs}מ״ש`
+                    : "כישלון — מוצג כשלו"}
+                </Pill>
+                {py.selftest.version && (
+                  <Tag>
+                    <span dir="ltr">v{py.selftest.version} · {py.selftest.parityWith}</span>
+                  </Tag>
+                )}
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11px] text-zinc-500">נתיב המנוע</p>
+                  <p dir="ltr" className="mt-0.5 font-mono text-[12px] text-zinc-200">
+                    {py.path}
+                  </p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                    שכבה 1 כללים · שכבה 2 יועץ-HTTP (מוכן להתחבר ליועץ של הקונסולה) · שסתום מדומה בלולאה-סגורה · עצם-MQTT כן · יומן JSONL · דטרמיניסטי לבדיקה
+                  </p>
+                </div>
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11px] text-zinc-500">מדידה אחרונה</p>
+                  <p className="mt-0.5 text-[12px] text-zinc-200">{timeAgo(py.selftest.at)}</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">{py.derivedHe}</p>
+                  {!py.selftest.ok && py.selftest.errorHe && (
+                    <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{py.selftest.errorHe}</p>
+                  )}
+                </div>
+              </div>
+              <p dir="ltr" className="mt-3 overflow-x-auto rounded-lg border border-white/[0.06] bg-black/40 px-3 py-2 font-mono text-[10.5px] leading-relaxed text-zinc-400">
+                python3 python/irrigation_engine.py selftest · demo · rules · tick --offline
+              </p>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
 
       {/* שתי השכבות */}
       <div className="grid gap-4 md:grid-cols-2">

@@ -83,3 +83,6 @@ mini-services/evm-mesh/runner.log
 mini-services/gate-agent/state/
 mini-services/gate-agent/herald.log
 mini-services/*/state/
+
+# SAOS edge engine — מצב ויומן מקומיים (לא לגיט)
+python/data/

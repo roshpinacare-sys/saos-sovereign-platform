@@ -1,5 +1,5 @@
 /**
- * SAOS v81 — ההשקיה החקלאית (THE DUAL-LAYER FIELD ENGINE).
+ * SAOS v82 — ההשקיה החקלאית (THE DUAL-LAYER FIELD ENGINE).
  *
  * הוראת הבעלים: "המטרה שההשקיה תהיה אוטונומית אבל בחוכמה" — v67 ענה על
  * הגז; v80 מרחיב את אותה חוכמה אל השדה: מנוע דו-שכבתי — שכבה 1: כללים
@@ -10,6 +10,18 @@
  * אוטומטית לפני ביצוע השקיה משמעותית, עם מגבלות-זהירות קפואות: פסק
  * ל-10 דק' המרב · פסק-זמן 10ש' · גריעה בלבד (עד 50%) · לא מתחת לקו-העקה.
  * כשל LLM = כנות: ההחלטה יוצאת על הכללים בלבד והכישלון מתועד.
+ *
+ * v82 — המעגל הנמדד: הלולאה הסגורה כבר מודדת (כל השקיה — קריאה לפניה
+ * וקריאה אחריה); מעתה המדידה נאספת לכלל ראיה חיה: כיול מודל-המינון
+ * (המודל מנבא +0.9%/מ״מ — השדה מודד ומוצג, הפער גלוי) + קו-לחות
+ * לאורך זמן. המנוע עדיין מחליט לפי המודל; הראיות מצטברות לכיול עתידי.
+ *
+ * v83 — מנוע הקצה: תאום הפייתון (python/irrigation_engine.py v1.1) נוחת
+ * כקובץ אמיתי — אותם קבועים, אותו סדר כללים, אותה כנות — למכשיר-קצה
+ * (ספריית-סטנדרט בלבד, אפס pip). הקונסולה מציגה את בריאותו בנגזר-מדידה
+ * חיה: selftest 12 בדיקות דטרמיניסטיות רץ מחדש כל 10 דק' והתוצאה נשמרת
+ * ב-DB (לקח v81: ה-DB הוא האמת הגלובלית חוצת-workers) — לא תווית
+ * קפואה (לקח v79).
  *
  * גבולות-האמת המקודדים:
  *  · החיישנים סימולטור (source="simulator") — לא מוסתר, לא מומצא.
@@ -22,9 +34,15 @@
  *  · אפס מפתחות · אפס שרשרת · אפס עלות.
  */
 
+import { execFile } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { promisify } from "node:util";
 import { db } from "@/lib/db";
 
-export const AGRI_VERSION = "81.0.0";
+const execFileAsync = promisify(execFile);
+
+export const AGRI_VERSION = "83.0.0";
 
 // ─── קבועים קשיחים (החוכמה בקוד, לא בראש) ───────────────────────────────────
 
@@ -815,6 +833,109 @@ function parseJsonField<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
+// ─── v83 — מנוע הקצה: פריטיות נמדדת, לא מוצהרת ──────────────────────────────
+// הקובץ python/irrigation_engine.py הוא תאום-הקצה של המנוע הזה. הבריאות
+// שלו נמדדת חיה: selftest דטרמיניסטי רץ מחדש כשהחותם בן-יותר מ-10 דק',
+// התוצאה ב-PlatformSetting (אמת גלובלית חוצת-workers) — וכל כישלון
+// מוצג כשלו, לא מוסתר.
+
+const PY_ENGINE_REL = "python/irrigation_engine.py";
+const PY_SELFTEST_KEY = "agriPythonSelftest";
+const PY_SELFTEST_STALE_MS = 10 * 60 * 1000;
+const PY_SELFTEST_TIMEOUT_MS = 8_000;
+
+export interface PySelftestOut {
+  ok: boolean;
+  version: string;
+  parityWith: string;
+  checks: number;
+  passed: number;
+  failed: number;
+  at: string;
+  durationMs: number;
+  errorHe?: string;
+}
+
+async function runPySelftest(): Promise<PySelftestOut> {
+  const pyPath = path.join(process.cwd(), PY_ENGINE_REL);
+  try {
+    const { stdout } = await execFileAsync("python3", [pyPath, "selftest", "--json"], {
+      timeout: PY_SELFTEST_TIMEOUT_MS,
+      maxBuffer: 1_024 * 1_024
+    });
+    const j = JSON.parse(stdout) as Record<string, unknown>;
+    return {
+      ok: j.ok === true,
+      version: String(j.version ?? ""),
+      parityWith: String(j.parityWith ?? ""),
+      checks: Number(j.checks ?? 0),
+      passed: Number(j.passed ?? 0),
+      failed: Number(j.failed ?? 0),
+      at: String(j.at ?? new Date().toISOString()),
+      durationMs: Number(j.durationMs ?? 0)
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message.slice(0, 180) : "לא ידוע";
+    return {
+      ok: false,
+      version: "",
+      parityWith: "",
+      checks: 0,
+      passed: 0,
+      failed: 0,
+      at: new Date().toISOString(),
+      durationMs: 0,
+      errorHe: `הרצת ה-selftest נכשלה (${msg}) — כנות, לא הסתרה`
+    };
+  }
+}
+
+async function pythonEngineStatus(): Promise<{
+  path: string;
+  exists: boolean;
+  selftest: PySelftestOut;
+  derivedHe: string;
+}> {
+  const pyPath = path.join(process.cwd(), PY_ENGINE_REL);
+  const exists = fs.existsSync(pyPath);
+  const row = await db.platformSetting.findUnique({ where: { key: PY_SELFTEST_KEY } });
+  let cached: PySelftestOut | null = null;
+  if (row) {
+    try {
+      cached = JSON.parse(row.value) as PySelftestOut;
+    } catch {
+      cached = null;
+    }
+  }
+  const stale =
+    !cached || !cached.at || Date.now() - new Date(cached.at).getTime() > PY_SELFTEST_STALE_MS;
+  let selftest = cached;
+  if (stale) {
+    selftest = await runPySelftest();
+    await db.platformSetting.upsert({
+      where: { key: PY_SELFTEST_KEY },
+      update: { value: JSON.stringify(selftest) },
+      create: { key: PY_SELFTEST_KEY, value: JSON.stringify(selftest) }
+    });
+  }
+  return {
+    path: PY_ENGINE_REL,
+    exists,
+    selftest: selftest ?? {
+      ok: false,
+      version: "",
+      parityWith: "",
+      checks: 0,
+      passed: 0,
+      failed: 0,
+      at: new Date().toISOString(),
+      durationMs: 0,
+      errorHe: "לא נמדד"
+    },
+    derivedHe: "נגזר-מדידה חיה — selftest 12 בדיקות רץ מחדש כל 10 דק'; כישלון מוצג כשלו, לא מוסתר."
+  };
+}
+
 export async function agriBoard(): Promise<Record<string, unknown>> {
   await ensureSeeded();
   await maybeAutoTick();
@@ -886,6 +1007,83 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
     include: { zone: { select: { name: true } } }
   });
 
+  // v82 — המעגל הנמדד: כיול מודל-המינון מזוגות לולאה-סגורה + קו-לחות לתצוגה.
+  // כל מחזור כותב קריאה-ואז-החלטה לכל חלקה — ולכן: קריאה_k (לפני) ← החלטה_k
+  // (IRRIGATE עם מנה) ← קריאה_{k+1} (אחרי, כולל המנה+הדעיכה) = זוג מדידה אמיתי.
+  const SERIES_POINTS = 36;
+  const aligned: Array<Array<{ m: number; at: Date; decision: string | null; waterMm: number }>> = [];
+  const calibEvents: Array<{
+    zone: string;
+    at: string;
+    waterMm: number;
+    beforePct: number;
+    afterPct: number;
+    gainPct: number;
+    pctPerMm: number;
+  }> = [];
+
+  for (const z of zones) {
+    const reads = await db.agriReading.findMany({ where: { zoneId: z.id }, orderBy: { createdAt: "desc" }, take: 48 });
+    const decs = await db.agriDecision.findMany({ where: { zoneId: z.id }, orderBy: { createdAt: "desc" }, take: 48 });
+    const readsAsc = [...reads].reverse();
+    const decsAsc = [...decs].reverse();
+
+    // אות-לתי-קריאה/החלטה: ההחלטה של אותו מחזור נוצרה מיד אחרי הקריאה
+    const pairs: Array<{ m: number; at: Date; decision: string | null; waterMm: number }> = [];
+    let di = 0;
+    for (const r of readsAsc) {
+      while (di < decsAsc.length && decsAsc[di]!.createdAt < r.createdAt) di += 1;
+      const d = di < decsAsc.length ? decsAsc[di]! : null;
+      pairs.push({ m: r.soilMoisture, at: r.createdAt, decision: d?.decision ?? null, waterMm: d?.waterMm ?? 0 });
+    }
+    aligned.push(pairs);
+
+    // הכיול: כל IRRIGATE עם מנה, והקריאה העוקבת מודדת את הרווח בפועל
+    for (let i = 0; i < pairs.length - 1; i++) {
+      const p = pairs[i]!;
+      if (p.decision !== "IRRIGATE" || p.waterMm <= 0) continue;
+      const next = pairs[i + 1]!;
+      const gain = Math.round((next.m - p.m) * 10) / 10;
+      calibEvents.push({
+        zone: z.name,
+        at: p.at.toISOString(),
+        waterMm: p.waterMm,
+        beforePct: p.m,
+        afterPct: next.m,
+        gainPct: gain,
+        pctPerMm: Math.round((gain / p.waterMm) * 100) / 100
+      });
+    }
+  }
+
+  // קו-הלחות לתצוגה — מיושר מהסוף (כל מחזור כותב קריאה לכל חלקה)
+  const minLen = Math.min(...aligned.map((a) => a.length), SERIES_POINTS);
+  const chartRows: Array<{
+    t: string;
+    z0: number | null;
+    z1: number | null;
+    z2: number | null;
+    d0: string | null;
+    d1: string | null;
+    d2: string | null;
+  }> = [];
+  for (let o = minLen - 1; o >= 0; o--) {
+    const cells = aligned.map((a) => a[a.length - 1 - o]!);
+    chartRows.push({
+      t: (cells[0]?.at ?? new Date()).toISOString(),
+      z0: cells[0]?.m ?? null,
+      z1: cells[1]?.m ?? null,
+      z2: cells[2]?.m ?? null,
+      d0: cells[0]?.decision ?? null,
+      d1: cells[1]?.decision ?? null,
+      d2: cells[2]?.decision ?? null
+    });
+  }
+  const calibMeasured =
+    calibEvents.length > 0
+      ? Math.round((calibEvents.reduce((a, e) => a + e.pctPerMm, 0) / calibEvents.length) * 100) / 100
+      : null;
+
   return {
     ok: true,
     at: new Date().toISOString(),
@@ -945,6 +1143,23 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
       llmAdvice: parseJsonField<Record<string, unknown> | null>(d.llmAdvice, null),
       createdAt: d.createdAt.toISOString()
     })),
+    // v82 — המעגל הנמדד: המודל מול השדה, במספרים חיים
+    calibration: {
+      modelPctPerMm: DOSE_PCT_PER_MM,
+      measuredAvgPctPerMm: calibMeasured,
+      events: calibEvents.length,
+      samples: calibEvents.slice(-10).reverse(),
+      verdictHe:
+        calibEvents.length === 0
+          ? "אין עדיין זוגות מדידה — כל השקיה שלפניה קריאה ואחריה קריאה תצטבר כראיה."
+          : `המודל מנבא ${DOSE_PCT_PER_MM}%/מ״מ; השדה מדד ${calibMeasured}%/מ״מ בממוצע (${calibEvents.length} מדידות). הפער — הדעיכה שבין הטיפות ותקרת-הספיגה במנות גדולות — נמדד ומוצג, לא מוסתר. המנוע עדיין מחליט לפי המודל; הראיות מצטברות לכיול עתידי.`
+    },
+    chart: {
+      points: chartRows,
+      zones: zoneRows.map((z) => z.name)
+    },
+    // v83 — מנוע הקצה: התאום בפייתון, בריאותו נמדדת חיה
+    pythonEngine: await pythonEngineStatus(),
     usage:
       "GET — הלוח (מקדם את העולם אם דומם ≥60ש') · POST {action:'tick'} — מחזור עכשיו (היועץ-בלולאה נשאל על השקיה משמעותית) · POST {action:'valve', zoneId, open} — שסתום ידני · POST {action:'advisor', enabled} — היועץ-בלולאה הדלקה/כיבוי · POST {action:'reset'} — זריעה מחדש · POST /api/saos/agri/advisor {zoneId, note?} — חוות-דעת ידנית"
   };

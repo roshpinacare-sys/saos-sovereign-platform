@@ -2073,6 +2073,55 @@ export interface AgriAdvisorInfoT {
   guardrailsHe: string[];
 }
 
+// v82 — המעגל הנמדד
+export interface AgriCalibrationEventT {
+  zone: string;
+  at: string;
+  waterMm: number;
+  beforePct: number;
+  afterPct: number;
+  gainPct: number;
+  pctPerMm: number;
+}
+
+export interface AgriCalibrationT {
+  modelPctPerMm: number;
+  measuredAvgPctPerMm: number | null;
+  events: number;
+  samples: AgriCalibrationEventT[];
+  verdictHe: string;
+}
+
+export interface AgriChartPointT {
+  t: string;
+  z0: number | null;
+  z1: number | null;
+  z2: number | null;
+  d0: string | null;
+  d1: string | null;
+  d2: string | null;
+}
+
+// v83 — מנוע הקצה (פייתון)
+export interface AgriPythonSelftestT {
+  ok: boolean;
+  version: string;
+  parityWith: string;
+  checks: number;
+  passed: number;
+  failed: number;
+  at: string;
+  durationMs: number;
+  errorHe?: string;
+}
+
+export interface AgriPythonEngineT {
+  path: string;
+  exists: boolean;
+  selftest: AgriPythonSelftestT;
+  derivedHe: string;
+}
+
 export interface AgriData {
   ok: boolean;
   at: string;
@@ -2084,6 +2133,9 @@ export interface AgriData {
   constantsHe: Record<string, number>;
   zones: AgriZoneRowT[];
   advisor: AgriAdvisorInfoT;
+  calibration: AgriCalibrationT;
+  chart: { points: AgriChartPointT[]; zones: string[] };
+  pythonEngine: AgriPythonEngineT;
   kpis: {
     zones: number;
     avgMoisture: number | null;
