@@ -802,6 +802,29 @@ export async function authAgent(name: string, apiKey: string): Promise<AgentAuth
   return { ok: true, agent: { id: row.id, name: row.name, role: row.role } };
 }
 
+// ─── v76 מסלול ההנפקה-מחדש (THE REISSUE PATH) ─────────────────────────────
+// הוראת הבעלים "תמשיך ודחוף… תמשיך עוד לעבוד על הכל" + עניין 002 בפנקס
+// העניינים: ה-401 ממשפחת פער-הדורות ("identity exists, hash differs — the
+// owner must reissue") נתקע כי אין לבעלים דרך-קונסולה להסיר זהות מידעת.
+// הסרה כאן = יד-בעלים בלבד: הנחיל יתחמש מחדש לבד בסקר הבא (join כן → מפתח
+// חדש נחתם בכספת). ההיסטוריה בצ'אט נשמרת — ההודעות נשארות עם שם הסוכן
+// (agentId → null), רק שורת-הזהות המידעת יורדת. מתועד ב-OpLog תמיד.
+
+export async function removeAgent(name: string): Promise<{ ok: boolean; name?: string; error?: string }> {
+  const clean = name.trim().toLowerCase().replace(/[^a-z0-9-_.]/g, "");
+  if (!clean) return { ok: false, error: "שם סוכן נדרש" };
+  const row = await db.agentIdentity.findUnique({ where: { name: clean } });
+  if (!row) return { ok: false, error: "סוכן לא נמצא" };
+  await db.agentIdentity.delete({ where: { id: row.id } });
+  cache = null;
+  await logOp("agents.remove", {
+    ok: true,
+    agent: clean,
+    note: "owner reissue path (v76, issue 002) — the swarm re-arms itself on the next poll (~45s), new key sealed in the vault"
+  });
+  return { ok: true, name: clean };
+}
+
 export interface AgentSayResult {
   ok: boolean;
   message?: { id: string; author: string; kind: string; content: string; createdAt: string };

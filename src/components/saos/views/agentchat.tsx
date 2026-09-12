@@ -16,15 +16,16 @@
 import { useEffect, useRef, useState } from "react";
 import {
   MessageSquare, Users, UserPlus, Send, KeyRound, RefreshCcw,
-  Terminal, Copy, ShieldCheck, Bot, Crown, Cog
+  Terminal, Copy, ShieldCheck, Bot, Crown, Cog, ClipboardList,
+  AlertTriangle, Trash2, Plus
 } from "lucide-react";
 import { useLive, timeAgo, postJson, fmtInt, short } from "../lib";
 import {
   Panel, PanelHeader, PanelBody, Kpi, Pill, Callout,
-  SkeletonPanel, ErrorNotice, Btn, Tag, Field, Input, CopyBtn, useToast
+  SkeletonPanel, Skeleton, ErrorNotice, Btn, Tag, Field, Input, CopyBtn, useToast
 } from "../ui";
 import { PageHead } from "../shell";
-import type { AgentChatData, ChatMessageView } from "../types";
+import type { AgentChatData, ChatMessageView, AgentsIssuesData, AgentsIssueView } from "../types";
 
 const ROLE_META: Record<string, { icon: typeof Bot; tone: "gold" | "green" | "zinc"; label: string }> = {
   owner: { icon: Crown, tone: "gold", label: "בעלים" },
@@ -57,8 +58,79 @@ function MessageBubble({ m }: { m: ChatMessageView }) {
   );
 }
 
+function IssueCard({
+  i,
+  expanded,
+  onToggle,
+  onClose,
+  closing
+}: {
+  i: AgentsIssueView;
+  expanded: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  closing: boolean;
+}) {
+  const statusPill =
+    i.status === "closed"
+      ? { tone: "zinc" as const, label: "סגור" }
+      : i.ownerAction
+        ? { tone: "gold" as const, label: "דורש פעולת בעלים" }
+        : { tone: "green" as const, label: "פתוח" };
+  return (
+    <div
+      className={`rounded-xl border p-3.5 transition-colors ${
+        i.status === "closed"
+          ? "border-white/[0.04] bg-white/[0.01] opacity-70"
+          : i.ownerAction
+            ? "border-amber-400/25 bg-amber-400/[0.04]"
+            : "border-white/[0.06] bg-white/[0.015]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <span dir="ltr" className="font-mono text-[11px] text-amber-300/90 bg-amber-400/[0.08] border border-amber-400/20 rounded px-1.5 py-0.5 tabular-nums">
+            #{String(i.id).padStart(3, "0")}
+          </span>
+          <span className="text-[13px] font-bold text-zinc-100">{i.title}</span>
+          {i.priority === "high" && <Pill tone="rose">דחוף</Pill>}
+        </div>
+        <Pill tone={statusPill.tone}>{statusPill.label}</Pill>
+      </div>
+      <p className="mt-1.5 text-[11px] text-zinc-400 leading-relaxed">{i.summary}</p>
+      <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 text-[10px] text-zinc-600 flex-wrap tabular-nums">
+          <span>
+            הועלה ע"י {i.raisedBy === "owner" ? "הבעלים" : i.raisedBy === "engineer" ? "המהנדס" : "סוכן"} · {timeAgo(new Date(i.raisedAt).getTime())}
+          </span>
+          <span dir="ltr" className="font-mono">{i.file}</span>
+          {i.status === "closed" && i.closedAt && <span>· נסגר {timeAgo(new Date(i.closedAt).getTime())}</span>}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Btn variant="ghost" size="xs" onClick={onToggle}>
+            {expanded ? "סגור גוף" : "גוף מלא"}
+          </Btn>
+          {i.status === "open" && (
+            <Btn variant="ghost" size="xs" onClick={onClose} disabled={closing}>
+              {closing ? <RefreshCcw size={11} className="animate-spin" /> : null} סגור עניין
+            </Btn>
+          )}
+        </div>
+      </div>
+      {expanded && (
+        <div className="mt-2.5 max-h-96 overflow-y-auto scroll-slim rounded-lg border border-zinc-800/60 bg-zinc-950/60 p-3">
+          <div className="text-[11px] text-zinc-300 leading-relaxed whitespace-pre-wrap break-words" dir="auto">
+            {i.body}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AgentChatView() {
   const live = useLive<AgentChatData>("/api/saos/agents-gateway", 6000);
+  const ledger = useLive<AgentsIssuesData>("/api/saos/agents-issues", 15000);
   const toast = useToast();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -68,6 +140,19 @@ export function AgentChatView() {
   const [issued, setIssued] = useState<{ name: string; apiKey: string } | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+
+  // v76 · פנקס העניינים — טופס העלאה + מצב תצוגה
+  const [formOpen, setFormOpen] = useState(false);
+  const [issueTitle, setIssueTitle] = useState("");
+  const [issueBody, setIssueBody] = useState("");
+  const [issuePriority, setIssuePriority] = useState<"high" | "normal" | "low">("normal");
+  const [issueOwnerAction, setIssueOwnerAction] = useState(false);
+  const [raiseBusy, setRaiseBusy] = useState(false);
+  const [issueBusy, setIssueBusy] = useState<number | null>(null);
+  const [expandedIssue, setExpandedIssue] = useState<number | null>(null);
+  // v76 · מסלול ההנפקה-מחדש — הסרת זהות מידעת מהסגל (עניין 002)
+  const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
 
   useEffect(() => {
     const el = feedRef.current;
@@ -111,6 +196,61 @@ export function AgentChatView() {
     }
   };
 
+  // v76 · פנקס העניינים — סגירת עניין (יד-בעלים)
+  const closeIssueFn = async (id: number) => {
+    setIssueBusy(id);
+    const res = await postJson<{ ok: boolean; error?: string }>("/api/saos/agents-issues", { action: "close", id });
+    setIssueBusy(null);
+    if (res.ok) {
+      ledger.refresh();
+      toast.push({ title: `עניין #${id} נסגר — הנחיל יתעד את השינוי בסיור הבא`, tone: "green" });
+    } else {
+      toast.push({ title: res.data?.error ?? res.error ?? "הסגירה נכשלה", tone: "rose" });
+    }
+  };
+
+  // v76 · פנקס העניינים — העלאת סוגיה לתיקיית הסוכנים (יד-בעלים)
+  const raiseFn = async () => {
+    if (!issueTitle.trim() || !issueBody.trim()) {
+      toast.push({ title: "כותרת וגוף העניין נדרשים", tone: "rose" });
+      return;
+    }
+    setRaiseBusy(true);
+    const res = await postJson<{ ok: boolean; issue?: { id: number }; error?: string }>("/api/saos/agents-issues", {
+      action: "raise",
+      title: issueTitle.trim(),
+      body: issueBody.trim(),
+      priority: issuePriority,
+      ownerAction: issueOwnerAction
+    });
+    setRaiseBusy(false);
+    if (res.ok) {
+      setIssueTitle("");
+      setIssueBody("");
+      setIssuePriority("normal");
+      setIssueOwnerAction(false);
+      setFormOpen(false);
+      ledger.refresh();
+      toast.push({ title: `עניין #${res.data?.issue?.id} הועלה לתיקיית הסוכנים — הנחיל יראה אותו בסיור הבא`, tone: "green" });
+    } else {
+      toast.push({ title: res.data?.error ?? res.error ?? "ההעלאה נכשלה", tone: "rose" });
+    }
+  };
+
+  // v76 · מסלול ההנפקה-מחדש — הסרת זהות מידעת (עניין 002)
+  const removeAgentFn = async (name: string) => {
+    setRemoveBusy(true);
+    const res = await postJson<{ ok: boolean; name?: string; error?: string }>("/api/saos/agents-gateway", { op: "remove", name });
+    setRemoveBusy(false);
+    if (res.ok) {
+      setRemoveConfirm(null);
+      live.refresh();
+      toast.push({ title: `הזהות הישנה של "${name}" הוסרה — הנחיל יתחמש לבד בסקר הבא (~45 ש') עם מפתח חדש בכספת`, tone: "green" });
+    } else {
+      toast.push({ title: res.data?.error ?? res.error ?? "ההסרה נכשלה", tone: "rose" });
+    }
+  };
+
   if (live.error) return <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />;
   if (!live.data) {
     return (
@@ -140,6 +280,129 @@ export function AgentChatView() {
         <Kpi label="פקודות-עבודה מסוכנים" value={fmtInt(d.messages.filter((m) => m.kind === "order").length)} icon={<Cog size={15} />} hint="מבוצעות בשרשרת" tone="gold" />
         <Kpi label="מנגנון האימות" value="מפתח אישי" icon={<KeyRound size={15} />} hint="SHA-256 + עותק חתום בכספת" />
       </div>
+
+      {/* v76 · פנקס העניינים — הסוגיות שהועלו לתיקיית הסוכנים */}
+      <Panel className="mb-4">
+        <PanelHeader
+          icon={<ClipboardList size={15} />}
+          title="פנקס העניינים — הסוגיות שהועלו לתיקיית הסוכנים"
+          sub={"הוראת הבעלים: 'תעלה את הסוגיה בתיקיה של הסוכנים' — הסוגיות חיות בתיקייה של הנחיל עצמו (mini-services/swarm-agents/issues), נקראות מהקובץ בכל סיור (10 דק') ומוחלפות לגיט"}
+          tag="v76"
+          actions={
+            <span className="flex items-center gap-2">
+              {ledger.data && (
+                <span className="flex items-center gap-1.5">
+                  <Pill tone="gold">פתוחות {ledger.data.counts.open}</Pill>
+                  {ledger.data.counts.ownerAction > 0 && <Pill tone="rose">דורשות-בעלים {ledger.data.counts.ownerAction}</Pill>}
+                  {ledger.data.counts.closed > 0 && <Pill tone="zinc">סגורות {ledger.data.counts.closed}</Pill>}
+                </span>
+              )}
+              <Btn variant="ghost" size="xs" onClick={() => ledger.refresh()}>
+                <RefreshCcw size={11} /> רענון
+              </Btn>
+            </span>
+          }
+        />
+        <PanelBody className="space-y-3">
+          {ledger.loading && !ledger.data ? (
+            <div className="space-y-2">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Skeleton key={i} className="h-[110px] rounded-xl" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {ledger.data && !ledger.data.ok && (
+                <Callout tone="rose">
+                  <span className="font-bold">קריאת הפנקס נכשלה (כנות):</span> {ledger.data.error ?? "שגיאה לא ידועה"} — לא מוצגים נתונים מפוברקים.
+                </Callout>
+              )}
+
+              {(ledger.data?.issues ?? []).length === 0 ? (
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-5 text-center">
+                  <p className="text-[12px] text-zinc-400">הפנקס ריק — אף סוגיה לא הועלתה עדיין לתיקיית הסוכנים.</p>
+                  <p className="mt-1 text-[11px] text-zinc-600">העלה את הראשונה מהטופס למטה; הנחיל יראה אותה בסיור הבא.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {(ledger.data?.issues ?? []).map((i) => (
+                    <IssueCard
+                      key={i.id}
+                      i={i}
+                      expanded={expandedIssue === i.id}
+                      onToggle={() => setExpandedIssue(expandedIssue === i.id ? null : i.id)}
+                      onClose={() => void closeIssueFn(i.id)}
+                      closing={issueBusy === i.id}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* טופס העלאה — יד-בעלים */}
+              {formOpen ? (
+                <div className="space-y-2.5 rounded-xl border border-amber-400/25 bg-amber-400/[0.03] p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="flex items-center gap-1.5 text-[11px] font-bold text-amber-200/90">
+                      <Plus size={12} /> העלאת סוגיה חדשה לתיקיית הסוכנים
+                    </p>
+                    <Btn variant="ghost" size="xs" onClick={() => setFormOpen(false)}>ביטול</Btn>
+                  </div>
+                  <Field label="כותרת" hint="2-120 תווים">
+                    <Input value={issueTitle} onChange={setIssueTitle} placeholder="למשל: החלטה על מסלול ההמרה" maxLength={120} />
+                  </Field>
+                  <Field label="גוף העניין" hint="עד 6000 תווים — מספרים נמדדים בלבד, אפס סודות">
+                    <textarea
+                      value={issueBody}
+                      onChange={(e) => setIssueBody(e.target.value)}
+                      rows={5}
+                      dir="auto"
+                      placeholder="מה נמדד, מה נדרש, ממי — הסוכנים יקראו את זה בסיור הבא"
+                      className="w-full rounded-md border border-zinc-700/80 bg-zinc-950/60 px-3 py-2 text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:border-amber-400/50 focus:outline-none resize-none"
+                    />
+                  </Field>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-zinc-500">עדיפות:</span>
+                      <div className="flex gap-1.5">
+                        {(["high", "normal", "low"] as const).map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setIssuePriority(p)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] border transition-colors ${issuePriority === p ? "border-amber-400/50 bg-amber-400/10 text-amber-200" : "border-zinc-700/60 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200"}`}
+                          >
+                            {p === "high" ? "דחופה" : p === "normal" ? "רגילה" : "נמוכה"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIssueOwnerAction(!issueOwnerAction)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] border transition-colors ${issueOwnerAction ? "border-rose-400/50 bg-rose-400/10 text-rose-200" : "border-zinc-700/60 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200"}`}
+                    >
+                      <AlertTriangle size={11} />
+                      דורש פעולת בעלים {issueOwnerAction ? "✓" : ""}
+                    </button>
+                  </div>
+                  <Btn size="sm" onClick={raiseFn} disabled={raiseBusy}>
+                    {raiseBusy ? <RefreshCcw size={13} className="animate-spin" /> : <ClipboardList size={13} />}
+                    העלה לפנקס הסוכנים
+                  </Btn>
+                </div>
+              ) : (
+                <Btn variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
+                  <Plus size={13} /> העלה סוגיה לתיקיית הסוכנים
+                </Btn>
+              )}
+
+              <Callout tone="zinc">
+                <span className="font-bold">גבול-האמת של הפנקס:</span> אפס סודות — עניינים ציבוריים בלבד · כתיבה אטומית + OpLog + read-back · הסוכנים קוראים מהקובץ בכל סיור — גם כשה-401 חוסם את הצ'אט · עניין שמסומן "דורש פעולת בעלים" הוא תפריט לבעלים בלבד, אף סוכן לא מזיז כסף לבד · התיקייה מחויבת לגיט ושורדת את מות-המכונה.
+              </Callout>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* the chat */}
@@ -284,6 +547,21 @@ export function AgentChatView() {
                         <div className="flex items-center gap-1.5 shrink-0">
                           <Tag>{meta.label}</Tag>
                           {a.lastSeenAt ? <span className="text-[9px] text-zinc-600">ראה {timeAgo(new Date(a.lastSeenAt).getTime())}</span> : null}
+                          {removeConfirm === a.name ? (
+                            <span className="flex items-center gap-1">
+                              <Btn variant="danger" size="xs" onClick={() => void removeAgentFn(a.name)} disabled={removeBusy}>
+                                {removeBusy ? <RefreshCcw size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                                וודא הסרה
+                              </Btn>
+                              <Btn variant="ghost" size="xs" onClick={() => setRemoveConfirm(null)}>ביטול</Btn>
+                            </span>
+                          ) : (
+                            <span title="מסלול ההנפקה-מחדש (עניין 002 בפנקס): הסרת הזהות המידעת — הנחיל יתחמש לבד בסקר הבא עם מפתח חדש שנחתם בכספת">
+                              <Btn variant="ghost" size="xs" onClick={() => setRemoveConfirm(a.name)}>
+                                <Trash2 size={11} />
+                              </Btn>
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -296,10 +574,11 @@ export function AgentChatView() {
       </div>
 
       <Callout tone="green" icon={<Bot size={15} />} className="mt-4">
-        <b>נחיל-הריבונים v38 — שלושה סוכנים עובדים יחד למען מטרה אחת: צמיחת הרשת הריבונית.</b>{" "}
+        <b>נחיל-הריבונים v39 — שלושה סוכנים עובדים יחד למען מטרה אחת: צמיחת הרשת הריבונית.</b>{" "}
         שליח-השער (gate-herald) — האוזן בשער: נוכחות, פעימות והוראות בעלים (<code className="font-mono" dir="ltr">@gate-herald</code>).{" "}
         סייר-הזהב (gold-scout) — הכלכלן: מדי שעה דו"ח בינה אמיתי על נתוני הרשת (מנוע ZAI, מספרים מהנתונים בלבד), וכשהכלכלה שקטה מעל 6 שעות — הוא מזמין פקודת-עבודה אמיתית: החייל מבצע ומשולם מהקופה (<code className="font-mono" dir="ltr">@gold-scout דווח</code> · <code className="font-mono" dir="ltr">@gold-scout נתח {"<נושא>"}</code>).{" "}
         סייר-הלילה (night-scout) — המשמר: סיור איברים כל 10 דק' דרך סטטוס השומר, אזעקה על חריגה, הסרה בהחלמה, ופקודת-אבטחה בשרשרת באירוע קריטי (<code className="font-mono" dir="ltr">@night-scout סרוק</code>).{" "}
+        מ-v76 הנחיל קורא גם את <b>פנקס העניינים</b> — תיקיית issues שלו — בכל סיור: עניין פתוח עם "דורש פעולת בעלים" הופך לדגל סיור קבוע, ועניין חדש נרשם ביומן (ה-401 של הצ'אט לא יכול לעוור אותם).{" "}
         כולם מחוברים אך ורק דרך ה-API של השער עם מפתח אישי (0600, נחתם בכספת), השומר מחייה אותם (צעד 7 · :3007) והם קמים לבד בכל בנייה. אם מנוע הבינה לא עונה — דו"ח כנה מהנתונים, לעולם לא שקר.
       </Callout>
 

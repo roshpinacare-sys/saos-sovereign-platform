@@ -1,5 +1,5 @@
 /**
- * mini-services/swarm-agents — v38 נחיל-הריבונים (SOVEREIGN SWARM).
+ * mini-services/swarm-agents — v39 נחיל-הריבונים (SOVEREIGN SWARM).
  * =====================================================================
  * הוראת הבעלים 2026-09-09: "מה לגבי הצ'אט סוכנים שלך יש עוד צ'אט סוכנים
  * בתיקיות תבחן הכל שהכל יעבוד ביחד למען אותה מטרה... ותפעיל את הסוכנים
@@ -34,6 +34,13 @@
  *
  *   · both hear the owner in the chat: @gold-scout דווח/נתח/שלום ·
  *     @night-scout סרוק/דווח/שלום.
+ *
+ * v76 · פנקס העניינים (THE ISSUES LEDGER): הוראת הבעלים "תעלה את
+ * הסוגיה בתיקיה של הסוכנים" — הסוגיות חיות בתיקייה שלנו (issues/),
+ * ואנחנו קוראים אותן ממערכת-הקבצים בכל אתחול ובכל סיור. עניין
+ * פתוח חדש נרשם ביומן; עניין פתוח עם owner-action הופך לדגל סיור
+ * קבוע; שינוי-מצב מתועד. ה-401 של הצ'אט יכול להשתיק את הפה שלנו
+ * — לעולם לא את העיניים: הפנקס נקרא גם כשהשער סגור.
  *
  * DOCTRINE (inherited from the herald, v36): HTTP + personal key ONLY —
  * this host never touches the DB, the vault or the chain directly. Keys
@@ -76,6 +83,7 @@ const NET_STATUS = `${WEB}/api/saos/status`;
 const MESH_STATUS = `${WEB}/api/saos/mesh`;
 const KEY_HOME_DIR = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".gate-agents");
 const STATE_DIR = path.resolve(import.meta.dir, "..", "state");
+const ISSUES_DIR = path.resolve(import.meta.dir, "..", "issues"); // v76 — התיקייה שלנו: פנקס העניינים
 const JOURNAL = path.join(STATE_DIR, "journal.jsonl");
 const JOURNAL_MAX_BYTES = 2 * 1024 * 1024; // rotate at 2 MB
 
@@ -207,6 +215,87 @@ function journal(agent: string, kind: string, detail: string): void {
   } catch {
     /* the journal must never break the work loops */
   }
+}
+
+// ─── v76 פנקס העניינים (THE ISSUES LEDGER) — the agents' own folder ───────
+// הוראת הבעלים: "תעלה את הסוגיה בתיקיה של הסוכנים" — the issues live in OUR
+// folder (issues/), and we read them from the file system on every boot and
+// patrol. The 401 of the chat can blind our mouth, never our eyes: the
+// ledger is read even when the gate is closed. Zero secrets — public issues
+// only; the format is the contract (see issues/README.md).
+
+interface LedgerIssue {
+  id: number;
+  title: string;
+  status: "open" | "closed";
+  priority: "high" | "normal" | "low";
+  ownerAction: boolean;
+  summary: string;
+  file: string;
+}
+
+function readIssues(): LedgerIssue[] {
+  try {
+    const files = fs
+      .readdirSync(ISSUES_DIR)
+      .filter((f) => f.endsWith(".md") && f !== "README.md")
+      .sort();
+    const out: LedgerIssue[] = [];
+    for (const f of files) {
+      try {
+        const raw = fs.readFileSync(path.join(ISSUES_DIR, f), "utf8");
+        const title = (/^#\s+(.+)$/m.exec(raw) ?? [])[1]?.trim();
+        const field = (k: string): string =>
+          (new RegExp(`^-\\s*${k}:\\s*(.*)$`, "m").exec(raw) ?? [])[1]?.trim() ?? "";
+        const id = Number(field("id"));
+        if (!title || !Number.isFinite(id) || id <= 0) continue; // torn file — skipped honestly
+        const priorityRaw = field("priority");
+        out.push({
+          id,
+          title,
+          status: field("status") === "closed" ? "closed" : "open",
+          priority: priorityRaw === "high" || priorityRaw === "low" ? priorityRaw : "normal",
+          ownerAction: /^yes$/i.test(field("owner-action")),
+          summary: field("summary").slice(0, 160),
+          file: f
+        });
+      } catch {
+        /* one torn file never breaks the patrol */
+      }
+    }
+    return out.sort((a, b) => a.id - b.id);
+  } catch {
+    return []; // no folder yet — an empty ledger is an honest ledger
+  }
+}
+
+const LEDGER = {
+  seen: new Map<number, string>() // id -> status (change detection across patrols)
+};
+
+function observeLedger(): {
+  issues: LedgerIssue[];
+  open: LedgerIssue[];
+  ownerAction: LedgerIssue[];
+  fresh: LedgerIssue[];
+  changed: LedgerIssue[];
+} {
+  const issues = readIssues();
+  const fresh: LedgerIssue[] = [];
+  const changed: LedgerIssue[] = [];
+  for (const i of issues) {
+    const prev = LEDGER.seen.get(i.id);
+    if (prev === undefined) fresh.push(i);
+    else if (prev !== i.status) changed.push(i);
+    LEDGER.seen.set(i.id, i.status);
+  }
+  return {
+    issues,
+    open: issues.filter((i) => i.status === "open"),
+    ownerAction: issues.filter((i) => i.status === "open" && i.ownerAction),
+    fresh,
+    changed
+  };
 }
 
 // ─── key home (survivable, gitignored, 0600, atomic) ──────────────────────
@@ -510,8 +599,18 @@ function buildGoldData(keeper: KeeperStatus | null, net: NetStatus | null, mesh:
   const statuses = net?.matrix?.map((m) => `${m.network}:${m.status}`) ?? [];
   const ordersInFeed = feed.filter((m) => m.kind === "order").length;
   const lastOrderAgeMin = GOLD.lastOrderSeenAt ? Math.round((Date.now() - GOLD.lastOrderSeenAt) / 60_000) : null;
+  // v76 — the issues ledger is part of the TRUE network state: what the owner
+  // asked the swarm to watch lives in our own folder
+  const ledger = readIssues();
+  const ledgerOpen = ledger.filter((i) => i.status === "open");
+  const ledgerOwnerAction = ledgerOpen.filter((i) => i.ownerAction);
   return {
     reportNumber: goldReportNumber(),
+    issuesLedger: {
+      open: ledgerOpen.length,
+      ownerAction: ledgerOwnerAction.length,
+      topOwnerAction: ledgerOwnerAction.slice(0, 3).map((i) => `#${i.id} ${i.title.slice(0, 70)}`)
+    },
     chain: {
       block: mesh?.blockNumber ?? null,
       runs: mesh?.stats?.runs ?? null,
@@ -672,6 +771,27 @@ async function nightPatrol(): Promise<void> {
   const patrolNo = SWARM.night.patrols;
   const [keeper, mesh] = await Promise.all([fetchJson<KeeperStatus>(KEEPER_STATUS), fetchJson<MeshStatus>(MESH_STATUS)]);
   const flags = patrolFlags(keeper, mesh);
+
+  // v76 · פנקס העניינים — the owner's own asks, raised in OUR folder: a new
+  // issue is journaled the moment we see it; an open owner-action issue is a
+  // standing patrol flag (non-critical — the owner decides, we watch); a
+  // status change is documented. Read from the file system — the 401 of the
+  // chat cannot blind the patrol.
+  const ledger = observeLedger();
+  for (const fi of ledger.fresh) {
+    journal("night-scout", "issue-raised", `issue #${fi.id} raised in our folder: "${fi.title.slice(0, 90)}" (priority ${fi.priority}${fi.ownerAction ? " · owner-action" : ""})`);
+  }
+  for (const ch of ledger.changed) {
+    journal("night-scout", "issue-changed", `issue #${ch.id} status → ${ch.status}: "${ch.title.slice(0, 90)}"`);
+  }
+  for (const oi of ledger.open) {
+    flags.push({
+      key: `issue-${oi.id}`,
+      text: `עניין #${oi.id} פתוח בתיקיית הסוכנים: ${oi.title.slice(0, 80)}${oi.ownerAction ? " — דורש פעולת בעלים" : ""}`,
+      critical: false
+    });
+  }
+
   const flagKeys = new Set(flags.map((f) => f.key));
 
   journal(
@@ -847,15 +967,23 @@ function agentStatus(a: AgentState): Record<string, unknown> {
 }
 
 function statusJson(): Record<string, unknown> {
+  const ledger = readIssues();
   return {
     ok: true,
     service: "swarm-agents",
-    version: "38.0.0",
+    version: "39.0.0",
     pid: process.pid,
     bootedAt: SWARM.bootedAt,
     uptimeSec: Math.round((Date.now() - Date.parse(SWARM.bootedAt)) / 1000),
     doctrine: "HTTP + personal key ONLY (the agents gate) — never touches DB/vault/chain directly; keys sealed in upload/.gate-agents (0600)",
     agents: [agentStatus(GOLD), agentStatus(NIGHT)],
+    issuesLedger: {
+      folder: "mini-services/swarm-agents/issues",
+      open: ledger.filter((i) => i.status === "open").length,
+      ownerAction: ledger.filter((i) => i.status === "open" && i.ownerAction).length,
+      total: ledger.length,
+      note: "v76 — read from OUR folder every patrol; the chat 401 cannot blind us"
+    },
     llm: { engine: "z-ai-web-dev-sdk (backend only)", ok: SWARM.llm.ok, fail: SWARM.llm.fail, lastOkAt: SWARM.llm.lastOkAt, lastLatencyMs: SWARM.llm.lastLatencyMs, lastMode: SWARM.llm.lastMode },
     journalFile: "mini-services/swarm-agents/state/journal.jsonl"
   };
@@ -926,7 +1054,17 @@ Bun.serve({
 
 // ─── main ──────────────────────────────────────────────────────────────────
 
-journal("system", "boot", `NECHIL HA-RIBONIM (swarm-agents) v38 up on :${PORT} — two dormant chat agents woke up with real sovereign work: gold-scout (LLM economist, hourly intelligence + real work orders) and night-scout (organ patrol, alerts + security orders). Gate-only doctrine, keeper watches :3007, /start.sh raises me on every cold boot`);
+journal("system", "boot", `NECHIL HA-RIBONIM (swarm-agents) v39 up on :${PORT} — two dormant chat agents woke up with real sovereign work: gold-scout (LLM economist, hourly intelligence + real work orders) and night-scout (organ patrol, alerts + security orders). Gate-only doctrine, keeper watches :3007, /start.sh raises me on every cold boot`);
+
+// v76 — the issues ledger load: announced at boot, watched at every patrol
+{
+  const bootLedger = observeLedger();
+  journal(
+    "system",
+    "issues-ledger",
+    `פנקס העניינים נטען מהתיקייה שלנו — ${bootLedger.issues.length} עניינים · ${bootLedger.open.length} פתוחים · ${bootLedger.ownerAction.length} דורשים פעולת בעלים (ה-401 של הצ'אט לא יכול לעוור אותנו — הפנקס נקרא מהקובץ)`
+  );
+}
 
 void (async () => {
   for (const a of [GOLD, NIGHT]) {

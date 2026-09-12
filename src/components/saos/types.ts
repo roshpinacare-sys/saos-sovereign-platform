@@ -1558,6 +1558,36 @@ export interface AgentChatData {
   error?: string;
 }
 
+// ─── v76: פנקס העניינים (THE ISSUES LEDGER — תיקיית הסוכנים) ────────────────
+
+export interface AgentsIssueView {
+  id: number;
+  slug: string;
+  title: string;
+  status: "open" | "closed";
+  priority: "high" | "normal" | "low";
+  raisedBy: string;
+  raisedAt: string;
+  ownerAction: boolean;
+  summary: string;
+  closedAt: string | null;
+  closedBy: string | null;
+  body: string;
+  file: string;
+  bytes: number;
+  mtime: string;
+}
+
+export interface AgentsIssuesData {
+  ok: boolean;
+  at: string;
+  dir: string;
+  dirHe: string;
+  issues: AgentsIssueView[];
+  counts: { open: number; ownerAction: number; closed: number; total: number; unparsable: number };
+  error?: string;
+}
+
 // ─── v43: Worth (מימוש — שווי-הרשת החי ופעימת המימוש) ─────────────────────
 
 export interface WorthRow {
