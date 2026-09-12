@@ -1,5 +1,5 @@
 {
-  "_comment": "partner-reports manifest — what EVERY partner repo must hold under docs/reports (blob shas). consumed by scripts/verify-partner-pulses.mjs. audit round 2 (trace 1a09443708103201) — includes R2 pulse",
+  "_comment": "partner-reports manifest — what EVERY partner repo must hold under docs/reports (blob shas). consumed by scripts/verify-partner-pulses.mjs. round 4 (trace 1a09482bbe4668a1) — includes v79 preview audit (gap closed) + R3 pulse; 17 files × 11 = 187",
   "org": "roshpinacare-sys",
   "dir": "docs/reports",
   "repos": [
@@ -30,6 +30,8 @@
     "SAOS-PULSE-2026-09-12-H25-NINTH-CYCLE.md": "53d1ee227aec5abd6ca9fc57d7a521e318f509c1",
     "SAOS-PULSE-2026-09-12-H26-TENTH-CYCLE.md": "b1b30445c3e885cb0dd4c9af9f01b7db538cd3c9",
     "TOKEN-DOSSIER-2026-09-12-V77.md": "74bf34ac2c2d9e51d5b2ad28e07fd634c58264a5",
-    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R2.md": "2f677e56594eb31fc795c7f67b2d47da01c851f9"
+    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R2.md": "2f677e56594eb31fc795c7f67b2d47da01c851f9",
+    "CLAIMS-AUDIT-PREVIEW-2026-09-12.md": "c7a8362519f2a3798710a9115ff6139422613c1a",
+    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R3.md": "8b49c6702241624efc8448d8ea5b26d0aa3d6731"
   }
 }
