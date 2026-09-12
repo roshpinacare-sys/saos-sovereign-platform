@@ -385,3 +385,63 @@ model TuneSnapshot {
   verdictHe   String
   payload     String // canonical JSON מלא (פרופיל + דלתא)
 }
+
+// ─── v80: Agri smart irrigation (ההשקיה החקלאית — מנוע דו-שכבתי) ──────────────
+// The dual-layer agricultural engine: deterministic rule layer + LLM
+// agronomy advisor. Sensor-shaped rows (simulator source, honestly
+// labeled), real 24h weather (Open-Meteo; fallback honestly labeled and
+// NEVER invents rain), and an audit trail for every drop — reasons, full
+// rule trace, the forecast snapshot that was used, and the advisor
+// verdict when asked. Zero secrets · zero chain · zero cost.
+
+model AgriZone {
+  id               String         @id @default(cuid())
+  name             String // חלקה א׳ — עגבניות
+  crop             String // הגידול (קובע ספים)
+  areaM2           Float          @default(800)
+  moistureTarget   Float          @default(38) // יעד לחות קרקע % (VWC) — פר-גידול
+  moistureCritical Float          @default(22) // קו-עקה % (VWC) — פר-גידול
+  valveOpen        Boolean        @default(false)
+  auto             Boolean        @default(true) // אוטונומיה פר-חלקה
+  deferCount       Int            @default(0) // סבלנות-גשם (כמו סבלנות-הסערה v71)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  readings         AgriReading[]
+  decisions        AgriDecision[]
+
+  @@index([createdAt])
+}
+
+model AgriReading {
+  id           String   @id @default(cuid())
+  zoneId       String
+  zone         AgriZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  soilMoisture Float // VWC %
+  soilTemp     Float // °C
+  airTemp      Float // °C
+  airHumidity  Float // %
+  lightLux     Float
+  batteryPct   Float
+  source       String   @default("simulator") // simulator — כנות מקודדת
+  createdAt    DateTime @default(now())
+
+  @@index([zoneId, createdAt])
+}
+
+model AgriDecision {
+  id          String   @id @default(cuid())
+  zoneId      String
+  zone        AgriZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  decision    String // IRRIGATE | SKIP | DEFER | ALERT
+  durationMin Int      @default(0)
+  waterMm     Float    @default(0)
+  reasons     String // JSON string[] — עברית, קריא-אדם
+  ruleLayer   String // JSON — העקבה הדטרמיניסטית המלאה (קלט, ספים, כללים שנורו, חישוב-מינון)
+  weather     String? // JSON — צילום התחזית ששימשה את ההחלטה
+  llmAdvice   String? // JSON — פסק היועץ (השכבה השנייה), null עד שנתבקש
+  source      String   @default("auto") // auto | manual
+  createdAt   DateTime @default(now())
+
+  @@index([zoneId, createdAt])
+  @@index([createdAt])
+}

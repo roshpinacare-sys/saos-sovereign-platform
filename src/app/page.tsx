@@ -19,6 +19,7 @@ import { ViewOverview } from "@/components/saos/views/overview";
 import { ViewWorth } from "@/components/saos/views/worth";
 import { TreasuryView } from "@/components/saos/views/treasury";
 import { IrrigationView } from "@/components/saos/views/irrigation";
+import { AgriView } from "@/components/saos/views/agri";
 import { SnapshotView } from "@/components/saos/views/snapshot";
 import { SyncRadarView } from "@/components/saos/views/syncradar";
 import { RoastView } from "@/components/saos/views/roast";
@@ -58,6 +59,7 @@ const TITLES: Record<ViewId, string> = {
   worth: "מימוש — שווי הרשת החי",
   treasury: "ספר האוצר — הכסף של הריבון, מתועד",
   irrigation: "ההשקיה החכמה — אוטונומית אבל בחוכמה",
+  agri: "ההשקיה החקלאית — מנוע דו-שכבתי",
   snapshot: "עוגן-החוץ — שימור-האמת מחוץ לסנדבוקס",
   syncradar: "מכ\"ם-הסנכרון — האמת האחרונה מול גיטהאב",
   roast: "רוסט-אמת — חשיפה עצמית",
@@ -94,7 +96,9 @@ const TITLES: Record<ViewId, string> = {
 };
 
 export default function Home() {
-  const [view, setView] = useState<ViewId>("overview");
+  // v80 — ברירת-מחדל: השדה החי. המנוע החקלאי הדו-שכבתי נולד — והבעלים
+  // רואה אותו מיד. שאר הפלטפורמה במקומה (סרגל · Alt+1..9).
+  const [view, setView] = useState<ViewId>("agri");
   const status = useLive<StatusData>("/api/saos/status", 12000);
 
   // קיצורי-מקלדת: Alt+1..9 לניווט מהיר
@@ -123,6 +127,7 @@ export default function Home() {
         {view === "worth" && <ViewWorth />}
         {view === "treasury" && <TreasuryView />}
         {view === "irrigation" && <IrrigationView />}
+        {view === "agri" && <AgriView />}
         {view === "snapshot" && <SnapshotView />}
         {view === "syncradar" && <SyncRadarView />}
         {view === "roast" && <RoastView />}

@@ -1985,3 +1985,129 @@ export interface IrrigationFireResultT {
   verdictHe: string;
   error?: string;
 }
+
+// ─── v80: ההשקיה החקלאית — מנוע דו-שכבתי (AGRI DUAL-LAYER ENGINE) ───────────
+
+export interface AgriWeatherT {
+  source: "open-meteo" | "fallback";
+  precipProb24h: number;
+  expectedRainMm24h: number;
+  currentRainMm: number;
+  tempMax: number | null;
+  tempMean: number | null;
+  fetchedAt: string;
+  fallbackNoteHe?: string;
+}
+
+export interface AgriAdviceT {
+  verdict: "confirm" | "adjust" | "override" | "raw";
+  duration_min?: number;
+  rationale_he: string;
+  risks_he: string[];
+  window_he?: string;
+  at?: string;
+  engine?: string;
+  questionHe?: string | null;
+}
+
+export interface AgriReadingT {
+  soilMoisture: number;
+  soilTemp: number;
+  airTemp: number;
+  airHumidity: number;
+  lightLux: number;
+  batteryPct: number;
+  source: string;
+  createdAt: string;
+}
+
+export interface AgriDecisionT {
+  id: string;
+  decision: "IRRIGATE" | "SKIP" | "DEFER" | "ALERT";
+  durationMin: number;
+  waterMm: number;
+  reasons: string[];
+  ruleLayer: Record<string, unknown> | null;
+  weather: AgriWeatherT | null;
+  llmAdvice: AgriAdviceT | null;
+  source: string;
+  createdAt: string;
+}
+
+export interface AgriZoneRowT {
+  id: string;
+  name: string;
+  crop: string;
+  areaM2: number;
+  moistureTarget: number;
+  moistureCritical: number;
+  valveOpen: boolean;
+  auto: boolean;
+  deferCount: number;
+  reading: AgriReadingT | null;
+  decision: AgriDecisionT | null;
+}
+
+export interface AgriHistoryRowT {
+  id: string;
+  zone: string;
+  decision: string;
+  durationMin: number;
+  waterMm: number;
+  source: string;
+  reasons: string[];
+  ruleLayer: Record<string, unknown> | null;
+  weather: AgriWeatherT | null;
+  llmAdvice: AgriAdviceT | null;
+  createdAt: string;
+}
+
+export interface AgriData {
+  ok: boolean;
+  at: string;
+  version: string;
+  engineHe: string;
+  weather: AgriWeatherT;
+  layersHe: { rule: string; advisor: string };
+  rulesHe: string[];
+  constantsHe: Record<string, number>;
+  zones: AgriZoneRowT[];
+  kpis: {
+    zones: number;
+    avgMoisture: number | null;
+    decisionsToday: number;
+    irrigatedToday: number;
+    waterAppliedMm: number;
+    waterAvoidedMm: number;
+  };
+  history: AgriHistoryRowT[];
+  usage?: string;
+  error?: string;
+}
+
+export interface AgriTickResultT {
+  ok: boolean;
+  ticked: number;
+  irrigated: number;
+  deferred: number;
+  skipped: number;
+  alerts: number;
+  at: string;
+  weather: { source: string; precipProb24h: number; expectedRainMm24h: number };
+  rows: Array<{
+    zone: string;
+    decision: "IRRIGATE" | "SKIP" | "DEFER" | "ALERT";
+    waterMm: number;
+    durationMin: number;
+    reasons: string[];
+    valveOpened: boolean;
+  }>;
+  error?: string;
+}
+
+export interface AgriAdvisorResultT {
+  ok: boolean;
+  zone: string;
+  advice: AgriAdviceT;
+  error?: string;
+}

@@ -152,7 +152,7 @@ const RSS_SHED_READINGS = 2;
 const RSS_KILL_LINE_MB = 1790;
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "43.0.0";
+const KEEPER_VERSION = "44.1.0";
 const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
@@ -180,6 +180,16 @@ const EXPANSION_FIRST_AT = 12; // first scout 2 min after boot
 const IRRIGATION_URL = "http://127.0.0.1:3000/api/saos/irrigation";
 const IRRIGATION_EVERY = 60; // every 60th cycle = 10 min
 const IRRIGATION_FIRST_AT = 6; // first scout 1 min after boot — אוטונומית מהרגע הראשון
+
+// v80 — the agri-field scout (סייר-השדה). The web tier owns the dual-layer
+// engine (rule layer decides always + LLM agronomist reviews always, real
+// Open-Meteo weather, honest simulator sensors, audit per drop); the keeper
+// owns the cadence: every 5 min it fires ONE tick POST (source=auto) — the
+// field advances even when nobody watches. Web down = honest wait. Zero
+// keys, zero chain, zero cost — the same discipline, a different field.
+const AGRI_URL = "http://127.0.0.1:3000/api/saos/agri";
+const AGRI_EVERY = 30; // every 30th cycle = 5 min
+const AGRI_FIRST_AT = 4; // first tick 40s after boot
 
 // v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
 // weave + the signing hand (vault gates · fail-closed self-verify · the
@@ -301,7 +311,12 @@ interface KeeperEvent {
     | "reserve-recovered"
     // v72 — the cheap-route watcher (צופה-ההמרה-הזולה — הניסיון שנעשה קבוע)
     | "cheap-route-watched"
-    | "cheap-route-opened";
+    | "cheap-route-opened"
+    // v80 — the agri-field scout (סייר-השדה — ההשקיה החקלאית דו-השכבתית)
+    | "agri-tick"
+    | "agri-dripped"
+    | "agri-alert"
+    | "agri-error";
   detail: string;
 }
 
@@ -1104,6 +1119,65 @@ async function checkIrrigation(): Promise<void> {
   }
 }
 
+/** v80 — the agri-field scout (סייר-השדה). The web tier owns the dual-layer
+ *  engine; the keeper owns the cadence: every 5 min it fires ONE tick POST
+ *  (source=auto). The engine decides (rule layer) and documents everything;
+ *  the keeper only pokes. Journal on irrigation events — the drip trail of
+ *  the field, same discipline as the gas irrigation journal. Web down =
+ *  honest wait. */
+async function checkAgri(): Promise<void> {
+  try {
+    const res = await fetch(AGRI_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "tick", source: "auto" }),
+      signal: AbortSignal.timeout(30_000)
+    });
+    if (!res.ok) {
+      journal("agri-error", `agri-field tick non-OK HTTP ${res.status} — honest wait, next window in 5 min`);
+      return;
+    }
+    const out = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      ticked?: number;
+      irrigated?: number;
+      deferred?: number;
+      alerts?: number;
+      weather?: { source?: string; precipProb24h?: number; expectedRainMm24h?: number };
+      rows?: Array<{ zone?: string; decision?: string; waterMm?: number; durationMin?: number }>;
+      error?: string;
+    } | null;
+    if (!out || out.ok !== true) {
+      journal(
+        "agri-error",
+        `agri-field tick failed honestly: ${out?.error ?? "non-JSON/unparseable response"} — the engine keeps its own audit; next window in 5 min`
+      );
+      return;
+    }
+    const w = out.weather;
+    journal(
+      "agri-tick",
+      `agri-field tick — ${out.ticked ?? 0} zone(s): ${out.irrigated ?? 0} irrigated · ${out.deferred ?? 0} deferred · ${out.alerts ?? 0} alert(s) · weather=${w?.source ?? "?"} (rain prob ${w?.precipProb24h ?? "?"}%, ${w?.expectedRainMm24h ?? "?"}mm expected)`
+    );
+    for (const row of out.rows ?? []) {
+      if (row.decision === "IRRIGATE") {
+        journal(
+          "agri-dripped",
+          `agri-field WATERED ${row.zone ?? "?"} — ${row.waterMm ?? 0}mm · ${row.durationMin ?? 0}min (rule layer decided · audit row written)`
+        );
+      }
+      if (row.decision === "ALERT") {
+        journal("agri-alert", `agri-field SENSOR ALERT ${row.zone ?? "?"} — irrigation stopped, sensor suspect (honest stop)`);
+      }
+    }
+  } catch (e) {
+    // web down or engine slow = honest wait — the web revive owns recovery.
+    // v44.1 — כנות-הסייר: גם כשל-רשת נרשם (בעבר נבלע בשתיקה — לא עוד).
+    const msg = e instanceof Error ? e.message : String(e);
+    journal("agri-error", `agri-field scout fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
+  }
+}
+
 /** v73 — the outer-anchor scout (עוגן-החוץ). Reads the snapshot board,
  *  and every hour asks the engine to anchor the current state digest
  *  (source=auto). The engine dedupes UNCHANGED digests (a still state
@@ -1702,6 +1776,14 @@ async function cycle(): Promise<void> {
   //    honest wait.
   if (RT.cycle === IRRIGATION_FIRST_AT || (RT.cycle > IRRIGATION_FIRST_AT && (RT.cycle - IRRIGATION_FIRST_AT) % IRRIGATION_EVERY === 0)) {
     await checkIrrigation();
+  }
+
+  // 10.5. v80 — the agri-field scout (סייר-השדה). Every 5 min: fire ONE tick
+  //      POST (source=auto) — the dual-layer field engine advances the world
+  //      even when nobody watches. The engine owns every decision and its
+  //      audit; the keeper owns the cadence. Web down = honest wait.
+  if (RT.cycle === AGRI_FIRST_AT || (RT.cycle > AGRI_FIRST_AT && (RT.cycle - AGRI_FIRST_AT) % AGRI_EVERY === 0)) {
+    await checkAgri();
   }
 
   // 12. v73 — the outer-anchor scout (עוגן-החוץ). Every hour: ask the

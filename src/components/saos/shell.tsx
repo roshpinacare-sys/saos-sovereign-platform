@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -57,6 +57,14 @@ export const VIEWS: ViewDef[] = [
     short: "השקיה",
     desc: "הוראת הבעלים 'המטרה שההשקיה תהיה אוטונומית אבל בחוכמה' — האורגניזם מטפטף גז לדלתות החשוכות בעצמו דרך פורטלים קנוניים מאומתי-שלשה · probe קודם + אימות-הגעה מה-L2 · שער-ההמרה הכן (הדקס שלנו + SOL/TRX שבארנק) · יומן-הטפטוף עם הוכחות",
     icon: <Droplets size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "agri",
+    label: "ההשקיה החקלאית — מנוע דו-שכבתי",
+    short: "אגרו",
+    desc: "אותה חוכמה, שדה אחר: חיישני-קרקע × מזג-אוויר אמיתי (Open-Meteo חי) × שכבה 1 של כללים דטרמיניסטיים (ספים פר-גידול · מינון לפי גרעון · דחיית-גשם עם סבלנות 6 מחזורים · חיישן חשוד = עצירה) × שכבה 2 של יועץ אגרונום LLM · יומן-ביקורת לכל טיפה",
+    icon: <Sprout size={16} />,
     group: "תפעול"
   },
   {
