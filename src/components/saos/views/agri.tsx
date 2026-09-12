@@ -94,16 +94,26 @@ const ZONE_COLORS = ["#10b981", "#f59e0b", "#f43f5e"];
 
 /** נקודות הגרף: מודגשות במחזורי השקיה, עדינות בשאר */
 function dotFor(i: number) {
-  return (props: { cx?: number; cy?: number; payload?: unknown }) => {
-    const { cx, cy, payload } = props;
+  return (props: { cx?: number; cy?: number; payload?: unknown; index?: number }) => {
+    const { cx, cy, payload, index } = props;
     const p = payload as AgriChartPointT | undefined;
     const v = p ? p[ZONE_KEYS[i]] : null;
-    if (v == null || cx == null || cy == null) return <g />;
+    // React-דיוק: כל-נקודה-זה-ילד-ברשימה → מפתח-ייחודי מנקודת-הזמן (t) עם אינדקס-גיבוי
+    const dotKey = `zone-${i}-dot-${p?.t ?? index ?? "x"}`;
+    if (v == null || cx == null || cy == null) return <g key={dotKey} />;
     const irrigated = p != null && p[ZONE_DEC_KEYS[i]] === "IRRIGATE";
     return irrigated ? (
-      <circle cx={cx} cy={cy} r={3.2} fill={ZONE_COLORS[i]} stroke="rgba(255,255,255,0.85)" strokeWidth={1} />
+      <circle
+        key={dotKey}
+        cx={cx}
+        cy={cy}
+        r={3.2}
+        fill={ZONE_COLORS[i]}
+        stroke="rgba(255,255,255,0.85)"
+        strokeWidth={1}
+      />
     ) : (
-      <circle cx={cx} cy={cy} r={1.6} fill="rgba(255,255,255,0.28)" />
+      <circle key={dotKey} cx={cx} cy={cy} r={1.6} fill="rgba(255,255,255,0.28)" />
     );
   };
 }

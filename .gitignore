@@ -86,3 +86,8 @@ mini-services/*/state/
 
 # SAOS edge engine — מצב ויומן מקומיים (לא לגיט)
 python/data/
+
+# R9: the vault home symlink (agent → ~/.secrets/keys-restored/agent) is a SYMLINK,
+# which git classifies as a file — the /agent/ dir-pattern alone does not match it.
+# Both patterns required so keys can NEVER be committed.
+/agent

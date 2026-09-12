@@ -125,7 +125,11 @@ export const TRUSTED_HOSTS: TrustedHost[] = [
   { host: "api.changehero.io", org: "ChangeHero", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
   { host: "ff.io", org: "FixedFloat", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
   { host: "lite-api.jup.ag", org: "Jupiter (צביר הבורסות של סולנה)", tier: "official", role: "סריקת ההמרה הזולה (v72) — ציטוט SOL→USDC ללא מפתח" },
-  { host: "api.mayan.finance", org: "Mayan (גשר SOL→EVM)", tier: "official", role: "סריקת ההמרה הזולה (v72) — ציטוט גשר" }
+  { host: "api.mayan.finance", org: "Mayan (גשר SOL→EVM)", tier: "official", role: "סריקת ההמרה הזולה (v72) — ציטוט גשר" },
+  // R9 פריצת-האפס — Z Chain (Zero Network, chainId 9369): רשת EVM ראשית שבה
+  // eth_gasPrice מדוד 0x0 — עגינת-נתונים אמיתית בעלות אפס. המדידה החיה
+  // (2026-09-12): 3 טרנזקציות אמיתיות אושרו (status 0x1) מכתובת באיזון 0.
+  { host: "rpc.zero.tech", org: "Zero Network · Z Chain (רשמי)", tier: "official", role: "RPC Z Chain — עגינת EVM בגז-אפס (R9 פריצת-האפס)" }
 ];
 
 const HOST_INDEX = new Map(TRUSTED_HOSTS.map((t) => [t.host, t]));
@@ -172,7 +176,10 @@ export const DISPLAY_HOSTS: string[] = [
   // — v74 סוויפת-QA: אקספלורר STEEM — מופיע בקוד כ-href תצוגה בלבד
   //   (lib/saos/treasury.ts: קישורי txid של האוצר); לא יעד fetch של השרת —
   //   ביקורת-היציאות תסווג אותו כנה כתצוגה במקום חריגה —
-  "steemblockexplorer.com"
+  "steemblockexplorer.com",
+  // — R9 פריצת-האפס: אקספלוררי Z Chain (קישורי תצוגה בלבד) —
+  "zscan.live",
+  "explorer.zero.tech"
 ];
 const DISPLAY_SET = new Set(DISPLAY_HOSTS);
 

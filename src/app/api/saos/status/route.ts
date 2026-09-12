@@ -51,6 +51,12 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       select: { txid: true, createdAt: true, meta: true }
     });
+    // R9 פריצת-האפס — the Z Chain rail joins the same honest ledger read
+    const dbZero = db.anchorTx.findFirst({
+      where: { kind: "weave", network: "ZERO", txid: { not: null }, status: "anchored" },
+      orderBy: { createdAt: "desc" },
+      select: { txid: true, createdAt: true, meta: true }
+    });
     const dbStats = Promise.all([
       db.sealRecord.findMany({
         orderBy: { createdAt: "desc" },
@@ -116,12 +122,13 @@ export async function GET() {
       error: `דד-ליין ${RAIL_DEADLINE_MS / 1000}ש' — שורת STEEM נשארת על המצב החי האחרון`
     };
 
-    const [hiveRc, tronLive, steemChain, evmAnchor, solAnchor, stats] = await Promise.all([
+    const [hiveRc, tronLive, steemChain, evmAnchor, solAnchor, zeroAnchor, stats] = await Promise.all([
       railDeadline(probes.then((p) => p.hiveRc), hiveSentinel),
       railDeadline(probes.then((p) => p.tronLive), tronSentinel),
       railDeadline(probeSteemWeaveHistory(), steemSentinel),
       dbAnchors,
       dbSol,
+      dbZero,
       dbStats
     ]);
     const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = stats;
@@ -165,6 +172,18 @@ export async function GET() {
           ? `הוראת Memo יחידה (zero lamports) מהמפתח הריבוני · חתימה אחרונה ${shortTx(solAnchor.txid)}`
           : "זרע-הכספת מאומת (ed25519(sha256(seed|sol|headcorner))), מאזן מדוד — המודול מוכן, חתימה בלחיצת אדם",
         recovery: solAnchor ? null : "POST /api/saos/anchor/svm — עוגן חי בלחיצה"
+      },
+      {
+        // R9 פריצת-האפס — Z Chain (Zero Network, chainId 9369): רשת EVM ראשית
+        // בגז-אפס מדוד (eth_gasPrice = 0x0). עגינת-נתונים אמיתית בעלות אפס —
+        // אין מאזן, אין ברז, אין המרה; זו הפריצה שהבעלים ביקש.
+        network: "ZERO",
+        status: zeroAnchor ? "anchored" : "pending",
+        gate: zeroAnchor ? null : "awaiting-first-pulse (חינם — אין שער-מאזן, אין ברז, אין המרה)",
+        detail: zeroAnchor
+          ? `עוגן גז-אפס (selector-prefix מדוד + weave) · טרנזקציה אחרונה ${shortTx(zeroAnchor.txid)}`
+          : "gasPrice מדוד 0x0 על Z Chain — עגינה אמיתית בעלות אפס, הפעימה מוכנה",
+        recovery: zeroAnchor ? null : "POST /api/saos/anchor/zero — פעימה חינם (מאומתת חי)"
       }
     );
 

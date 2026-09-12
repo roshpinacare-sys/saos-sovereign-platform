@@ -11,7 +11,8 @@
 export interface ChainGate {
   // v37 — widened honestly: the status route appends the EVM/SVM rails
   // (ETHEREUM · SOLANA) to the same matrix since v12; the type must say so.
-  network: "STEEM" | "BLURT" | "HIVE" | "TRON" | "ETHEREUM" | "SOLANA";
+  // R9 — ZERO joins: the zero-gas EVM mainnet (Z Chain) rail, measured live.
+  network: "STEEM" | "BLURT" | "HIVE" | "TRON" | "ETHEREUM" | "SOLANA" | "ZERO";
   status: "anchored" | "pending" | "gated" | "transit";
   gate: string | null;
   detail: string;
