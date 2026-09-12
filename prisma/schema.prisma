@@ -15,7 +15,10 @@ datasource db {
 
 model SealRecord {
   id          String       @id @default(cuid())
-  height      Int          @unique @default(0) // chain height at seal time
+  // FIX(73): height אינו ייחודי — 1,191 חותמות-מורשת (2026-09-07) נרשמו עם height=0
+  // והקוד קורא tip דרך orderBy(height desc) בלבד. הייחודיות-האמתית = root (מרקל) @unique.
+  // היה-כאן @unique שה-DB מעולם-לא-קיבל — כל-db:push נכשל (UNIQUE failed) וחסם-מיגרציות.
+  height      Int          @default(0) // chain height at seal time
   root        String       @unique // merkle root of the batch (hex)
   leavesCount Int
   stateRoot   String // sha256 of canonical kernel state
@@ -27,6 +30,7 @@ model SealRecord {
   receipts    EvidenceReceipt[]
 
   @@index([createdAt])
+  @@index([height])
 }
 
 model SealLeaf {
@@ -222,4 +226,80 @@ model GuardState {
   ownerLock Boolean  @default(true) // ON = no owner-authority mutations ever without explicit operator unlock
   note      String   @default("")
   updatedAt DateTime @updatedAt
+}
+
+// ─── Liquidity Hub (מרכז-הנזילות · 73) — מנועי-משיכה-נזילות מוכחים ──────────
+// קרן-תשואה משתפת-הכנסות-אמת (מודל pricePerShare מונוטוני — Yearn/Aave proven) +
+// רשת-הפניות (מנוע-צמיחה מוכח) + ראוטר-תשואה (מקצה-הון — Yearn/Beefy proven).
+
+model YieldPot {
+  id           String   @id @default(cuid())
+  asset        String   @unique // STEEM | HBD | HIVE | BLURT | TRX | USDT
+  shares       Float    @default(0) // total shares outstanding (pricePerShare = assets/shares)
+  assets       Float    @default(0) // underlying units incl. accrued revenue
+  accruedTotal Float    @default(0) // lifetime revenue accrued (units)
+  // אמת-יתרה: תמונת-מצב של יתרת-האוצר בשרשרת בטיק-הטפטוף האחרון (דלתא-מאוזנת
+  // מול-הפקדות/משיכות שנרשמו בין-טיקים — אפס-ספירה-כפולה, אפס-המצאה)
+  lastBalance  Float?
+  lastTickAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  positions    YieldPosition[]
+  ticks        YieldTick[]
+}
+
+model YieldPosition {
+  id          String    @id @default(cuid())
+  potId       String
+  pot         YieldPot  @relation(fields: [potId], references: [id], onDelete: Cascade)
+  owner       String // session label (owner:headcorner / agent:name)
+  shares      Float
+  lockTier    Int       @default(0) // 0=flex ×1.0 · 1=30d ×1.3 · 2=90d ×1.8 · 3=180d ×2.5 (מודל-boost מוכח)
+  boost       Float     @default(1)
+  lockedUntil DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([potId])
+  @@index([owner])
+}
+
+model YieldTick {
+  id        String   @id @default(cuid())
+  potId     String
+  pot       YieldPot @relation(fields: [potId], references: [id], onDelete: Cascade)
+  source    String // balance-delta | savings-interest | powerdown | sweep | referral
+  units     Float // asset units accrued this tick
+  usd       Float? // usd value at tick time (CoinGecko — honest null when unpriced)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([potId, createdAt])
+}
+
+model ReferralCode {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  owner            String // session label that created it
+  note             String?
+  clicks           Int      @default(0)
+  conversions      Int      @default(0)
+  bountyPendingUsd Float    @default(0)
+  bountyPaidUsd    Float    @default(0)
+  createdAt        DateTime @default(now())
+  events           ReferralEvent[]
+}
+
+model ReferralEvent {
+  id        String       @id @default(cuid())
+  codeId    String
+  code      ReferralCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  kind      String // click | signup | deposit | swap
+  anonId    String? // anon visitor id (no PII)
+  detail    String?
+  bountyUsd Float        @default(0)
+  createdAt DateTime     @default(now())
+
+  @@index([codeId, createdAt])
+  @@index([kind])
 }

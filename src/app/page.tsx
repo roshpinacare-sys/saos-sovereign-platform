@@ -24,6 +24,7 @@ import { SwapView } from '@/components/dex/swap-view';
 import { ProView } from '@/components/dex/pro-view';
 import { PoolsView } from '@/components/dex/pools-view';
 import { EconomyView } from '@/components/dex/economy-view';
+import { LiquidityView } from '@/components/dex/liquidity-view';
 import { PortfolioView } from '@/components/dex/portfolio-view';
 import { EstateView } from '@/components/dex/estate-view';
 import { AnchorsView } from '@/components/dex/anchors-view';
@@ -129,6 +130,15 @@ export default function SovereignDex() {
     sock.on('task', () => void refreshTasks());
     sock.on('agent', () => void refresh());
     sock.on('guard', () => void refresh());
+    // 73: לכידת-הפניה (?ref=slug) — קליק-פומבי חד-פעמי-ל-24h + זיכרון-מקומי לייחוס-המרות
+    try {
+      const ref = new URLSearchParams(window.location.search).get('ref');
+      if (ref && /^[a-zA-Z0-9\u05d0-\u05ea-]{1,40}$/.test(ref)) {
+        localStorage.setItem('saos_ref', ref);
+        const anon = localStorage.getItem('saos_anon') || (localStorage.setItem('saos_anon', Math.random().toString(36).slice(2) + Date.now().toString(36)), localStorage.getItem('saos_anon'));
+        void fetch('/api/saos/econ', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'referral_click', slug: ref, anonId: anon }) }).catch(() => { /* קליק הוא fire-and-forget */ });
+      }
+    } catch { /* */ }
     return () => { clearTimeout(boot); sock.close(); };
   }, [refresh, refreshTasks, refreshSaos]);
 
@@ -271,6 +281,12 @@ export default function SovereignDex() {
           <PortfolioView world={world} onNeedAuth={() => { setLoginMsg(null); setLoginOpen(true); }} onDone={refetchNow} />
         )}
         {view === 'revenue' && <RevenueView />}
+        {view === 'liquidity' && (
+          <LiquidityView
+            onNeedAuth={() => { if (getToken()) return true; setLoginMsg({ ok: false, text: 'התחבר דרך "חבר ארנק" כדי להפקיד, לטפטף ולנהל הפניות.' }); setLoginOpen(true); return false; }}
+            onDone={refetchNow}
+          />
+        )}
         {view === 'estate' && <EstateView />}
         {view === 'anchors' && <AnchorsView world={world} />}
         {view === 'door' && (

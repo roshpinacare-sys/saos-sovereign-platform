@@ -7,6 +7,7 @@ import {
   getAccount, getGlobalProps, vestsToChainVests, ownBlogPosts, steemPublish, chainPublish, steemRcMana, getBlurtAccount, OPERATOR, chainVoteAs, claimRewardsAs, fleetScan, fleetHeal, fleetPasswordSweep, chainTransferAs, type Chain3,
 } from '@/lib/saos/steem-ops';
 import { trxEnergize, tronAccount, treasuryWallet } from '@/lib/saos/trx-ops';
+import { vaultDrip } from '@/lib/saos/econ';
 import { readAutopilotState, readAutopilotConfig, writeAutopilotConfig } from '@/lib/saos/autopilot-state';
 
 /** דוח-מערכת-חי לפרסום (מנוע-התוכן · 71-h) — כל-מספר מתוך flowOverview (אפס-המצאה) */
@@ -588,8 +589,22 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      /* ── 73: טפטוף-קרן-התשואה — dry-run פומבי · execute למפעיל (אוטופיילוט-מקושר) ── */
+      case 'vault_drip': {
+        const exec = await vaultDrip(execute);
+        if (execute) {
+          await audit('econ-vault-drip', `flow-execute · totalUsd=${exec.totalUsd ?? '—'} · lines=${exec.lines.map((l) => `${l.asset}:${l.revenue.toFixed(6)}`).join(' ')}`);
+          await relayBroadcast('econ', { action: 'vault_drip', totalUsd: exec.totalUsd });
+        }
+        return NextResponse.json({
+          ok: true, action, dryRun: !execute,
+          plan: { lines: exec.lines, totalUsd: exec.totalUsd, note: exec.note },
+          ...(execute ? { result: { executed: true, totalUsd: exec.totalUsd } } : {}),
+        });
+      }
+
       default:
-        return NextResponse.json({ ok: false, error: 'action-not-allowed', actions: ['steem_vote', 'hive_vote', 'blurt_vote', 'steem_selfvote', 'steem_powerdown', 'hive_savings_sweep', 'steem_claim', 'hive_claim', 'trx_energize', 'steem_publish', 'hive_publish', 'blurt_publish', 'fleet_scan', 'fleet_vote', 'fleet_claim', 'fleet_sweep', 'fleet_heal', 'fleet_pass_sweep', 'autopilot_pause', 'autopilot_resume', 'autovote_pick', 'autopilot_signals'] }, { status: 200 });
+        return NextResponse.json({ ok: false, error: 'action-not-allowed', actions: ['steem_vote', 'hive_vote', 'blurt_vote', 'steem_selfvote', 'steem_powerdown', 'hive_savings_sweep', 'steem_claim', 'hive_claim', 'trx_energize', 'steem_publish', 'hive_publish', 'blurt_publish', 'fleet_scan', 'fleet_vote', 'fleet_claim', 'fleet_sweep', 'fleet_heal', 'fleet_pass_sweep', 'autopilot_pause', 'autopilot_resume', 'autovote_pick', 'autopilot_signals', 'vault_drip'] }, { status: 200 });
     }
   } catch (e) {
     return NextResponse.json({ ok: false, action, error: e instanceof Error ? e.message : 'flow action failed' }, { status: 200 });

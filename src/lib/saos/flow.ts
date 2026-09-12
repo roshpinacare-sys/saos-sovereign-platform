@@ -51,7 +51,8 @@ export interface FlowOverview {
   ok: true; ts: number;
   wallet: { sealed: boolean; address: string | null; fp: string | null; verified: boolean; source: string | null; note: string };
   treasury: {
-    rows: Array<{ chain: string; label: string; items: Array<{ k: string; v: string }>; usd: number | null; ok: boolean }>;
+    // FIX(73): items המכיל hint (מוצג-ב-UI) — היה-חסר-בטיפוס (10-שגיאות-tsc)
+    rows: Array<{ chain: string; label: string; items: Array<{ k: string; v: string; hint?: string }>; usd: number | null; ok: boolean }>;
     totalUsd: number | null; inReleaseUsd: number | null; note: string;
   };
   loops: FlowLoop[];
@@ -579,12 +580,51 @@ export async function flowOverview(): Promise<FlowOverview> {
     actions: fleetExtraSignable > 0 ? ['fleet_scan', 'fleet_vote', 'fleet_claim', 'fleet_sweep'] : ['fleet_scan'],
   });
 
+  // L. vault-drip (73) — קרן-תשואה משתפת-הכנסות-אמת: טפטוף-דלתא-יתרה → מניות-מוגברות-משקל
+  // נתוני-הקרן נקראים-ישירות-מה-DB + מחירים-מהמטמון-הקיים (אפס-קריאות-שרשרת נוספות)
+  const [vaultPots, vaultLastTick, vaultPositions, vaultDeposits] = await Promise.all([
+    db.yieldPot.findMany({ include: { positions: true }, orderBy: { createdAt: 'asc' } }),
+    db.yieldTick.findFirst({ where: { source: 'balance-delta' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true, usd: true } }),
+    db.yieldPosition.count(),
+    db.auditLog.findFirst({ where: { action: 'econ-pot-deposit' }, select: { createdAt: true, detail: true } }),
+  ]);
+  const vaultPrices = await pricesUsd();
+  const potUsd = (asset: string, units: number): number | null => {
+    const p = asset === 'HBD' ? 1 : vaultPrices?.[asset.toLowerCase()];
+    return typeof p === 'number' ? units * p : null;
+  };
+  const vaultTvlUsd = vaultPots.length ? vaultPots.reduce((s, p) => s + (potUsd(p.asset, p.assets) ?? 0), 0) : 0;
+  const vaultAccruedUsd = vaultPots.length ? vaultPots.reduce((s, p) => s + (potUsd(p.asset, p.accruedTotal) ?? 0), 0) : 0;
+  const vaultAssetsList = vaultPots.map((p) => `${p.asset} ${(p.assets).toFixed(3)}${p.shares > 0 ? ` (pps ${(p.assets / p.shares).toFixed(4)})` : ''}`).join(' · ');
+  const vaultBoostedWeight = vaultPots.reduce((s, p) => s + p.positions.reduce((w, x) => w + x.shares * x.boost, 0), 0);
+  loops.push({
+    id: 'vault-drip', title: 'קרן-התשואה (טפטוף-הכנסות-אמת למפקידים)', engine: 'econ · pricePerShare מונוטוני',
+    status: vaultPots.length === 0 ? 'waiting-deposit' : vaultLastTick ? 'live' : 'armed',
+    statusLabel: vaultPots.length === 0 ? 'ממתין-הפקדה ראשונה' : vaultLastTick ? 'חי — טפטוף-דלתא-יתרה' : 'חמוש — קרנות-פתוחות, טיק-ראשון יקבע תמונת-מצב',
+    numbers: vaultPots.length === 0 ? [
+      { k: 'מצב', v: 'אין-קרנות — ההפקדה-הראשונה תפתח (תצוגת-נזילות)' },
+      { k: 'מקור-התשואה', v: 'דלתא-יתרת-אוצר חיה', hint: 'פאוורדאון · תביעות · סוויפ-צי · ריבית-חיסכון — כל-כניסה-לארנק-האוצר נזקפת כהכנסה למפקידים (מנוכות-הפקדות-חיצוניות שסופגו-בזמן-רישומן)' },
+      { k: 'מודל', v: 'pricePerShare מונוטוני + boost-נעילה', hint: 'מוכח-הנדסית: Yearn/Aave (pps) · Curve-gauge (boost-משקל) — הנעולים-ארוך מרוויחים יותר' },
+    ] : [
+      { k: 'TVL', v: `$${vaultTvlUsd.toFixed(4)}`, hint: `נזיל-מקופד בקרן · ${vaultPositions} עמדות · משקל-מוגבר Σ ${vaultBoostedWeight.toFixed(2)}` },
+      { k: 'קרנות', v: vaultAssetsList || '—', hint: 'pps = assets/shares — עולה-רק עם-הכנסות (מונוטוני)' },
+      { k: 'הכנסות-שהצטברו', v: `$${vaultAccruedUsd.toFixed(4)}`, hint: 'מצטבר-כל-החיים — נזקף דרך טיקי-טפטוף (דלתא-יתרה חיה)' },
+      { k: 'טיק-אחרון', v: vaultLastTick ? `${Math.round((Date.now() - vaultLastTick.createdAt.getTime()) / 60000)}-דק׳ זמין (${vaultLastTick.usd !== null ? `$${vaultLastTick.usd.toFixed(4)}` : 'ללא-מחיר'})` : 'טרם-רץ', hint: 'vault_drip — dry-run פומבי · execute למפעיל · גם-דרך-האוטופיילוט' },
+      { k: 'הפקדה-ראשונה', v: vaultDeposits ? `${Math.round((Date.now() - vaultDeposits.createdAt.getTime()) / 3600000)}-שע׳ זמין` : '—', hint: vaultDeposits?.detail?.slice(0, 120) ?? undefined },
+    ],
+    verdict: vaultPots.length === 0
+      ? 'קרן-התשואה מוכנה ומחכה-לנזיל-הראשון: מסלול-משיכת-נזילות מוכח (Yearn-model) שמשתף-את-כל-הכנסות-המערכת-האמתיות (פאוורדאון · קיוריישן · סוויפ-צי · ריבית-HBD) עם-המפקידים, במשקל-מוגבר לנעולים-ארוך. ההפקדה = סיווג-נזיל-האוצר לקרן (אמת-יתרה נבדקת-חיה).'
+      : 'הקרן-חיה: כל-טיק-קורא דלתא-יתרה-חיה מהשרשרת, מנכה הפקדות-חיצוניות שסופגו (אנטי-דאבל-קאונט), ומטפטף את הנטו למפקידים — מניות-חדשות לפי משקל-מוגבר. מה שנכנס-לארנק-האוצר עובד-למפקידים.',
+    actions: ['vault_drip'],
+  });
+
   /* ── פקדה ── */
   const ledger = await db.auditLog.findMany({
     // FIX(71-g): flow-steem-claim — route.ts רושם flow-${chain}-claim (היה-חסר-במסנן — תביעות-STEEM-לא-נראו-בפקדה)
     // FIX(71-h): flow-steem-vote — הצבעות-קיוריישן-STEEM לא-נראו-בפקדה (רק-hive/blurt) · + flow-publish · + flow-autopilot
     // 71-i: + פעולות-הצי (fleet-vote/fleet-claim) + פרסום-רב-שרשרת (hive/blurt-publish)
-    where: { action: { in: ['flow-vote', 'flow-powerdown', 'flow-savings', 'flow-energize', 'flow-claim', 'flow-selfvote', 'flow-hive-vote', 'flow-blurt-vote', 'flow-hive-claim', 'flow-steem-claim', 'flow-steem-vote', 'flow-publish', 'flow-autopilot', 'flow-fleet-vote', 'flow-fleet-claim', 'flow-fleet-sweep', 'flow-fleet-heal', 'flow-hive-publish', 'flow-blurt-publish', 'wallet-sealed-trx', 'wallet-address-corrected'] } },
+    // 73: + מרכז-הנזילות (econ-*) — הפקדות/משיכות/טפטוף/הפניות
+    where: { action: { in: ['flow-vote', 'flow-powerdown', 'flow-savings', 'flow-energize', 'flow-claim', 'flow-selfvote', 'flow-hive-vote', 'flow-blurt-vote', 'flow-hive-claim', 'flow-steem-claim', 'flow-steem-vote', 'flow-publish', 'flow-autopilot', 'flow-fleet-vote', 'flow-fleet-claim', 'flow-fleet-sweep', 'flow-fleet-heal', 'flow-hive-publish', 'flow-blurt-publish', 'wallet-sealed-trx', 'wallet-address-corrected', 'econ-pot-deposit', 'econ-pot-withdraw', 'econ-vault-drip', 'econ-referral-create', 'econ-referral-convert', 'econ-referral-settle'] } },
     orderBy: { createdAt: 'desc' }, take: 12,
   });
 
