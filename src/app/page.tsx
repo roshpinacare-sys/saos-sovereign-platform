@@ -45,6 +45,7 @@ import { AgentChatView } from "@/components/saos/views/agentchat";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
 import { MicrogridView } from "@/components/saos/views/microgrid";
+import CoinView from "@/components/saos/views/coin";
 import { ExchangeView } from "@/components/saos/views/exchange";
 import { FlowView } from "@/components/saos/views/flow";
 import { RosesView } from "@/components/saos/views/roses";
@@ -83,6 +84,7 @@ const TITLES: Record<ViewId, string> = {
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
   microgrid: "מיקרו-גריד",
+  coin: "המטבע — SAOS-M · כרטיס-זהות",
   exchange: "בורסת SAOS",
   flow: "נזילות וזרימה",
   roses: "שושנים",
@@ -147,6 +149,7 @@ export default function Home() {
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}
         {view === "microgrid" && <MicrogridView />}
+        {view === "coin" && <CoinView />}
         {view === "exchange" && <ExchangeView />}
         {view === "flow" && <FlowView />}
         {view === "roses" && <RosesView />}

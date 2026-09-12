@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -274,6 +274,14 @@ export const VIEWS: ViewDef[] = [
     short: "מיקרו-גריד",
     desc: "GRID-98 על השרשרת — החוזה התשיעי: אורקל מחירי-DEX אמיתיים · סולם 1.2% · רווח שנשטף לקופת העבודה · עומק DEX",
     icon: <Zap size={16} />,
+    group: "כלכלה ואנרגיה"
+  },
+  {
+    id: "coin",
+    label: "המטבע — SAOS-M",
+    short: "המטבע",
+    desc: "כרטיס-זהות מלא של SAOS-M — זהות · אספקה (מדיניות מול חי) · מגורים על שתי שרשרות · גיבוי 1:1 · 5 בריכות · כלכלה · שערי-כנות — התשובה ל-\"צריך לדעת עליו הכל מהכל\"",
+    icon: <Coins size={16} />,
     group: "כלכלה ואנרגיה"
   },
   {
