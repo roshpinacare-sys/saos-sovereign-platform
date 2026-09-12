@@ -165,7 +165,11 @@ export const DISPLAY_HOSTS: string[] = [
   // — v51 בית-היוצר לגשרים: קישור תצוגה של נתיב קרדאנו (מתועד בלבד) —
   "cardanoscan.io",
   // — v69 מסילה 9: אקספלורר Blockscout של SKALE אירופה (תצוגה בלבד) —
-  "blockscout.com"
+  "blockscout.com",
+  // — v74 סוויפת-QA: אקספלורר STEEM — מופיע בקוד כ-href תצוגה בלבד
+  //   (lib/saos/treasury.ts: קישורי txid של האוצר); לא יעד fetch של השרת —
+  //   ביקורת-היציאות תסווג אותו כנה כתצוגה במקום חריגה —
+  "steemblockexplorer.com"
 ];
 const DISPLAY_SET = new Set(DISPLAY_HOSTS);
 
@@ -717,6 +721,11 @@ export interface SecurityStatus {
   ok: boolean;
   version: string;
   measuredAt: string;
+  /**
+   * v74 תצוגה-מדברת-אמת: כש-ok:false השדה נושא את האבחנה המדויקת
+   * (ממצאי-חומרה + מארחים לא-רשומים) — ה-UI לא יציג עוד "שגיאה לא ידועה".
+   */
+  error?: string;
   gates: {
     phishing: { armed: boolean; hosts: number; note: string };
     tokens: { armed: boolean; verified: number; total: number; note: string };
@@ -796,8 +805,17 @@ export async function securityScan(force = false): Promise<SecurityStatus> {
     history.findings.filter((f) => f.severity === "high").length +
     devlog.findings.filter((f) => f.severity === "high").length;
 
+  // v74 כשל הוא נתון — האבחנה המדויקת נושאת את עצמה בכנות (עברית, ספציפית):
+  const verdictError =
+    highCount > 0
+      ? `ממצאי-חומרה (${highCount}) — תרחיש עצירה עד טיפול`
+      : outbound.unknownHosts.length > 0
+        ? `מארחים לא-רשומים ביציאות: ${outbound.unknownHosts.join(", ")} — נדרשת החלטת ארכיטקט (רישום-מהימן או סיווג תצוגה)`
+        : undefined;
+
   const data: SecurityStatus = {
     ok: highCount === 0 && outbound.unknownHosts.length === 0,
+    error: verdictError,
     version: "v25.0.0",
     measuredAt: new Date().toISOString(),
     gates: {

@@ -294,10 +294,19 @@ async function measure(): Promise<SovereignKeyStatus> {
     });
   }
 
+  // v74 כשל הוא נתון — אבחנה מדויקת בכנות כשאין על מה להעיד (בלי הצלחה-מדומה):
+  const statusOk = sealMeta.present || Boolean(enlistRow);
+  const verdictError = statusOk
+    ? undefined
+    : vault.present
+      ? "מעטפת הכספת נוכחת אך מטא-המפתח המעוגן חסר בתוכה — נדרש איטום-מפתח מחדש מהבעלים"
+      : "מפתח-המפעיל לא מגובה באף ראיה חיה: הכספת נשרפה מהדיסק (פקודת-השמדה 2026-09-08) וגם הוכחת ה-Enlist אינה ב-DB הנוכחי — המפתח החי נמצא אצל הבעלים בלבד; איטום-כספת חדש (זרע 12 המילים) יחזיר את החדר לחיים. עד אז: מצב-ראיות.";
+
   return {
-    ok: sealMeta.present || Boolean(enlistRow),
+    ok: statusOk,
     agent: AGENT,
     mode: vault.present ? "vault-live" : "evidence",
+    error: verdictError,
     vault,
     anchored: vault.present
       ? sealMeta

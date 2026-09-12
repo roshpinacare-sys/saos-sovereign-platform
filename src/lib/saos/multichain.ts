@@ -29,7 +29,7 @@ import { Keypair } from "@solana/web3.js";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { blake2b } from "@noble/hashes/blake2.js";
-import { withVaultMember } from "@/lib/vault-seal";
+import { withVaultMember, sealAvailability } from "@/lib/vault-seal";
 import { CORNERSTONE_MEMBER, slip10Ed25519 } from "./cornerstone-derive";
 import { probeTronVault } from "./tron-live";
 import { assertTrustedEndpoints } from "./security";
@@ -781,7 +781,14 @@ export async function networkCensus(opts: { force?: boolean } = {}): Promise<Net
       identities = r.map;
       declaredXrp = r.declaredXrp;
     } catch (e) {
-      deriveError = e instanceof Error ? e.message : String(e);
+      const raw = e instanceof Error ? e.message : String(e);
+      // v74 תצוגה-מדברת-אמת: כשל-גזירה לא זורק ENOENT גולמי לממשק —
+      // אם הכספת לא נוכחת (נשרפה בפקודת-השמדה 2026-09-08) האבחנה הכנה
+      // והמדויקת עולה במקומו (כישלון הוא נתון, בלי סודות ובלי רעש).
+      const avail = await sealAvailability();
+      deriveError = avail.present
+        ? raw
+        : `גזירת-הזהויות חסומה: כל 24 הזהויות נגזרות מאבן-הפינה בתוך כספת-הצי, והכספת לא נוכחת באף בית (נשרפה מהדיסק בפקודת-השמדה 2026-09-08) — המפקד ממתין לאיטום-כספת חדש מהבעלים; עד אז מצב-ראיות (סיבה טכנית: ${raw.slice(0, 80)})`;
     }
 
     const rows: ChainRow[] = [];

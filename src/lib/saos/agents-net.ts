@@ -15,10 +15,17 @@ import { access, readFile } from "fs/promises";
 import path from "path";
 import { trustedFetch } from "./security";
 
-/** Candidate locations for the operator token (cwd differs dev/next). */
+/**
+ * Candidate locations for the operator token (cwd differs dev/next/docker).
+ * v74 QA sweep: cwd-יחסי בלבד לא הספיק — בסנדבוקז הזה process.cwd() =
+ * /home/z/platform-latest בזמן שהטוקן חי ב-/home/z/my-project/upload.
+ * קובץ-אמת אחד, מסלולים-מועמדים; הראשון שנמצא וקריא — זוכה.
+ */
 const TOKEN_PATHS = [
   path.join(process.cwd(), "upload", "Roshcaregt.txt"),
-  path.join(process.cwd(), "..", "upload", "Roshcaregt.txt")
+  path.join(process.cwd(), "..", "upload", "Roshcaregt.txt"),
+  // מסלול-מוחלט קנוני (משמרת-המעלה) — תמיד אחרון, כגיבוי-אמת:
+  "/home/z/my-project/upload/Roshcaregt.txt"
 ];
 
 let cachedToken: string | null = null;
@@ -32,6 +39,8 @@ export async function readToken(): Promise<string | null> {
       const raw = (await readFile(p, "utf8")).trim();
       if (raw.length > 10) {
         cachedToken = raw;
+        // שקיפות-מסלול בלבד — התוכן לעולם לא נכנס ללוג ולא לתשובה
+        console.log(`[agents-net] operator token resolved from: ${p}`);
         return raw;
       }
     } catch {
@@ -39,6 +48,14 @@ export async function readToken(): Promise<string | null> {
     }
   }
   return null;
+}
+
+/**
+ * v74 — אבחנה כנה כשהטוקן לא נמצא: מסלולי-המועמדים בלבד (אף תוכן),
+ * כדי שהמפעיל יראה בדיוק איפה חיפשנו ולא "שגיאה לא ידועה".
+ */
+export function tokenSearchPathsHe(): string {
+  return TOKEN_PATHS.join(" · ");
 }
 
 // ─── role map — the organism's roles (v58: 12 repos · 8→12 expansion) ──────
@@ -139,7 +156,7 @@ export async function probeAgentsNet(opts: { force?: boolean } = {}): Promise<Ag
     try {
       const token = await readToken();
       if (!token) {
-        return { ok: false, owner: null, repos: [], activeNow: 0, active24h: 0, lastPushAt: null, measuredAt: new Date().toISOString(), error: "טוקן המפעיל לא נמצא (upload/Roshcaregt.txt)" };
+        return { ok: false, owner: null, repos: [], activeNow: 0, active24h: 0, lastPushAt: null, measuredAt: new Date().toISOString(), error: `טוקן המפעיל לא נמצא (נבדקו: ${tokenSearchPathsHe()})` };
       }
 
       const user = await gh<{ login?: string }>("/user", token);

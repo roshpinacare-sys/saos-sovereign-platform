@@ -322,13 +322,31 @@ const POLICY: ExchangePolicy = {
     "שווי-מדיניות נמוך בכוונה (לא 3$): יחידות רבות לכל דולר גיבוי = בריכות רבות ועומק אמיתי לכל צמד — החלטת הבעלים"
 };
 
-const NOT_LIVE_ERROR = "SAOSExchange לא פרוס (SAOS-EVM למעלה? deployment.json עדיין v3?) — הרץ deployMesh v4";
+/**
+ * v74 תצוגה-מדברת-אמת: האבחנה נמדדת מהדיסק בכל קריאה ולא נחתמת-מראש —
+ * חסר / פגום / בלי SAOSExchange / גרסה-ישנה מול הארטיפקט הקנוני.
+ * כישלון הוא נתון: המפעיל רואה בדיוק מה לא בסדר ומה הפקודה שמתקנת.
+ */
+function notLiveError(): string {
+  try {
+    const st = JSON.parse(fs.readFileSync(STATE_PATH, "utf8")) as DeploymentState;
+    if (!st.ok || !st.contracts?.SAOSExchange) {
+      return "deployment.json קיים אך אינו מכיל SAOSExchange תקין — הרץ deployMesh מחדש (mini-services/evm-mesh)";
+    }
+    if (st.artifactVersion !== ARTIFACT.version) {
+      return `deployment.json עדיין ${st.artifactVersion} בזמן שהארטיפקט הקנוני ${ARTIFACT.version} — הרץ deployMesh מחדש`;
+    }
+    return "SAOSExchange רשום בקובץ-הפריסה אך החוזה לא נטען — הרץ deployMesh מחדש";
+  } catch {
+    return "deployment.json חסר (mini-services/evm-mesh/state/) — ה-mesh לא נפרס על שרשרת-המעבדה (anvil :8545) — הרץ: cd mini-services/evm-mesh && bun run src/deploy-only.ts";
+  }
+}
 
 async function buildStatus(): Promise<ExchangeStatus> {
   const state = readState();
-  if (!state) return notDeployed(ARTIFACT.version);
+  if (!state) return notDeployed(ARTIFACT.version, notLiveError());
   const xc = exchangeContract(state);
-  if (!xc) return notDeployed(state.artifactVersion);
+  if (!xc) return notDeployed(state.artifactVersion, notLiveError());
 
   const provider = getProvider();
   const radar = await fetchRadarRows();
@@ -551,7 +569,7 @@ async function buildStatus(): Promise<ExchangeStatus> {
   }
 }
 
-function notDeployed(artifactVersion: string): ExchangeStatus {
+function notDeployed(artifactVersion: string, reason: string): ExchangeStatus {
   return {
     ok: false,
     chain: "SAOS-EVM",
@@ -565,8 +583,8 @@ function notDeployed(artifactVersion: string): ExchangeStatus {
     traders: [],
     recentSwaps: [],
     treasury: { address: "—", label: "אוצר-הבורסה", balances: {}, harvested: {}, sweptToPayrollSaos: "0" },
-    server: { gatewayOk: null, blockNumber: null, chainId: null, note: NOT_LIVE_ERROR },
-    error: NOT_LIVE_ERROR
+    server: { gatewayOk: null, blockNumber: null, chainId: null, note: reason },
+    error: reason
   };
 }
 
@@ -635,7 +653,7 @@ export async function exchangeQuote(
   amount: number
 ): Promise<ExchangeQuoteResult> {
   const state = readState();
-  if (!state) return { ok: false, amountIn: "0", amountOut: "0", effectivePrice: "0", devPct: 0, error: NOT_LIVE_ERROR };
+  if (!state) return { ok: false, amountIn: "0", amountOut: "0", effectivePrice: "0", devPct: 0, error: notLiveError() };
   if (!Number.isFinite(amount) || amount <= 0) {
     return { ok: false, amountIn: "0", amountOut: "0", effectivePrice: "0", devPct: 0, error: "סכום לא חוקי (חייב מספר חיובי)" };
   }
@@ -726,7 +744,7 @@ export async function exchangeAction(body: {
   }
 
   const state = readState();
-  if (!state) return { ok: false, action, error: NOT_LIVE_ERROR };
+  if (!state) return { ok: false, action, error: notLiveError() };
 
   try {
     const provider = getProvider();

@@ -140,8 +140,11 @@ export function NetworkMapView() {
         </div>
       ) : !data.data?.ok ? (
         <Panel>
-          <PanelBody className="py-10 text-center text-xs text-zinc-500">
-            המפקד לא הצליח להיגזר כרגע {data.data?.error ? `(${data.data.error})` : ""} — נסה שוב.
+          <PanelBody className="py-10 text-center text-xs text-zinc-500 space-y-2">
+            <p>המפקד לא הצליח להיגזר כרגע — כישלון הוא נתון, וזו האבחנה המדויקת:</p>
+            <p className="max-w-3xl mx-auto leading-relaxed text-zinc-400">
+              {data.error ?? data.data?.error ?? "שגיאה לא ידועה"}
+            </p>
           </PanelBody>
         </Panel>
       ) : (

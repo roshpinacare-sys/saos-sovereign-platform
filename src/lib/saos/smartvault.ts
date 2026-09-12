@@ -192,8 +192,13 @@ async function measure(): Promise<SmartVaultStatus> {
   } catch {
     // honest: never breaks the status rail
   }
+  // v74 כשל הוא נתון — אבחנה מדויקת (עברית) כשהחותם לא נוכח, בלי הצלחה-מדומה:
+  const verdictError = seal.present
+    ? undefined
+    : `חותם-הכספת לא נוכח באף בית (agent/keys · ~/saos-vault/agent-keys · upload/.agent-keys): הכספת נשרפה מהדיסק (פקודת-השמדה 2026-09-08) — ייבוא מפתחות חדשים או איטום-כספת מהבעלים יחזיר את החדר לחיים. עד אז: מצב-ראיות (DB + שרשרת).`;
   return {
     ok: seal.present,
+    error: verdictError,
     seal,
     homes,
     keys,

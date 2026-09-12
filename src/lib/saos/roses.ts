@@ -447,6 +447,11 @@ export interface RoseEvent {
 
 export interface RosesStatus {
   ok: boolean;
+  /**
+   * v74 תצוגה-מדברת-אמת: כש-ok:false השדה נושא את האבחנה המדויקת
+   * (זרע לא אטום / mesh לא חי) — ה-UI לא יציג עוד "שגיאה לא ידועה".
+   */
+  error?: string;
   seed: SeedProvision;
   frontier: FrontierArm[];
   needs: NeedItem[];
@@ -879,8 +884,16 @@ async function measureStatus(): Promise<RosesStatus> {
   const ledger = await buildLedger(history);
   const state = readMeshState();
 
+  // v74 כשל הוא נתון — האבחנה המדויקת (עברית, ספציפית), בלי הצלחה-מדומה:
+  const verdictError = !member?.phrase
+    ? `הזרע (אבן-הפינה, 24 מילים) לא אטום — הכספת נשרפה מהדיסק (פקודת-השמדה 2026-09-08) ואין עדיין איטום-זרע חדש מהבעלים (cornerstone seal); פריחות-שושנה וחתימות-עצמיות של הסוכנים ממתינות לו. מצב-ראיות פעיל: הגבול, הצרכים והיומן נמדדים ומוצגים כנה.`
+    : !mesh.live
+      ? `הזרע אטום אך שרשרת SAOS-NET לא חיה כרגע (anvil :8545 למטה? deployment.json חסר?) — הפרחה עוגנת על ריצות חיות; הרץ את ה-mesh runner`
+      : undefined;
+
   return {
     ok: Boolean(member?.phrase) && mesh.live,
+    error: verdictError,
     seed,
     frontier,
     needs,
