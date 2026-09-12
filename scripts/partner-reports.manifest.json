@@ -1,5 +1,5 @@
 {
-  "_comment": "partner-reports manifest — what partner repos must hold under docs/reports (blob shas). consumed by scripts/verify-partner-pulses.mjs. round 5 (trace 1a094997ceec1305): +2 uniform (h20-consolidation-2, roast-78-addendum — caught never-delivered), NEW 'targeted' section (partner-specific reports delivered ONLY to their designated repo — a gap class the uniform matrix was blind to, all were 404), NEW 'repoLocal' (main-repo-internal docs, by design not broadcast). 19 uniform × 11 = 209 + 3 targeted = 212 cells | NOTE (measured): H20-CONSOLIDATION-2.md is byte-identical (sha 6b8bc9e4…) to H20-CONSOLIDATION.md — the content was already at all 11 under the canonical name; only the duplicate FILENAME was missing. The real content gaps this round were roast-78-addendum + the 3 targeted partner reports. | h27 cycle (same round): +1 uniform (H27-ELEVENTH-CYCLE) → 20 uniform × 11 = 220 + 3 targeted = 223 cells",
+  "_comment": "partner-reports manifest — what partner repos must hold under docs/reports (blob shas). consumed by scripts/verify-partner-pulses.mjs. round 5 (trace 1a094997ceec1305): +2 uniform (h20-consolidation-2, roast-78-addendum — caught never-delivered), NEW 'targeted' section (partner-specific reports delivered ONLY to their designated repo — a gap class the uniform matrix was blind to, all were 404), NEW 'repoLocal' (main-repo-internal docs, by design not broadcast). 19 uniform × 11 = 209 + 3 targeted = 212 cells | NOTE (measured): H20-CONSOLIDATION-2.md is byte-identical (sha 6b8bc9e4…) to H20-CONSOLIDATION.md — the content was already at all 11 under the canonical name; only the duplicate FILENAME was missing. The real content gaps this round were roast-78-addendum + the 3 targeted partner reports. | h27 cycle (same round): +1 uniform (H27-ELEVENTH-CYCLE) → 20 uniform × 11 = 220 + 3 targeted = 223 cells | R7 (trace 1a094dfdfc89f151, conversion-verdict round): +1 uniform (CONVERSION-VERDICT-H28) → 22 uniform × 11 = 242 + 3 targeted = 245 cells",
   "org": "roshpinacare-sys",
   "dir": "docs/reports",
   "repos": [
@@ -36,7 +36,8 @@
     "SAOS-PULSE-2026-09-11-H20-FULL-MATRIX-CONSOLIDATION-2.md": "6b8bc9e42eb16109b8ca2a198021518e0affb693",
     "2026-09-11-roast-78-addendum.md": "f8047b14e4f0293bfbbbae2a3b46373caf16f16e",
     "SAOS-PULSE-2026-09-12-H27-ELEVENTH-CYCLE.md": "599239a4f897df08894d222c763b9c04de81af8a",
-    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R6.md": "a854ee214df7463b196da31f31e86869d6109d22"
+    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R6.md": "a854ee214df7463b196da31f31e86869d6109d22",
+    "SAOS-PULSE-2026-09-12-CONVERSION-VERDICT-H28.md": "c5bf654b00d25187e55b81a955bb94d07ee7e0fb"
   },
   "targeted": {
     "Adsmarket": {
