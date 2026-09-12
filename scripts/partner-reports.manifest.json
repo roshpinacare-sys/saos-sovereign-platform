@@ -1,0 +1,35 @@
+{
+  "_comment": "partner-reports manifest — what EVERY partner repo must hold under docs/reports (blob shas). consumed by scripts/verify-partner-pulses.mjs. audit round 2 (trace 1a09443708103201) — includes R2 pulse",
+  "org": "roshpinacare-sys",
+  "dir": "docs/reports",
+  "repos": [
+    "roshpina",
+    "Saosmartwallet",
+    "steem",
+    "saos-jummper",
+    "saos-sovereign-foundry",
+    "saos-control-center",
+    "saos-dex",
+    "Adsmarket",
+    "Sdk",
+    "anchor-baseline",
+    "Project-files"
+  ],
+  "files": {
+    "CLAIMS-AUDIT-2026-09-12.md": "a4d1ccb0a80a582b50c89b8167d8eed487ccc95b",
+    "SAOS-DAILY-REPORT-2026-09-11.md": "4a6f235ec69632f8bb4ef3a780be3e693f021ef4",
+    "SAOS-PULSE-2026-09-11-H16-COMPLETE.md": "7dca8c86ad03bbb2af797d55836410ef512c8488",
+    "SAOS-PULSE-2026-09-11-H16-SIX-OF-SIX.md": "f085abb70930a6cf1402c1f3418f3034c6866aff",
+    "SAOS-PULSE-2026-09-11-H17-REPEAT.md": "9d6c47cc0f3acf144b4f2f5eee8932f9dd05c3b0",
+    "SAOS-PULSE-2026-09-11-H18-THIRD-CYCLE.md": "ee0f64af7a45f1984e8fe979e4894e6dcb114562",
+    "SAOS-PULSE-2026-09-11-H19-FOURTH-CYCLE.md": "a81df73e929df44ab5a93957d226e1359b7cc447",
+    "SAOS-PULSE-2026-09-11-H20-FULL-MATRIX-CONSOLIDATION.md": "6b8bc9e42eb16109b8ca2a198021518e0affb693",
+    "SAOS-PULSE-2026-09-11-H21-SIXTH-CYCLE.md": "11ec30942bbba144bddfd83d6ee45db3967c11fa",
+    "SAOS-PULSE-2026-09-11-H22-H23-AUTOMATION.md": "a973bb27b0be0b3ed3e427165d50f19afd4cec43",
+    "SAOS-PULSE-2026-09-11-H24-EIGHTH-CYCLE.md": "2dd3b7d46b6340bb2aa5e53deea427ff0f840fd8",
+    "SAOS-PULSE-2026-09-12-H25-NINTH-CYCLE.md": "53d1ee227aec5abd6ca9fc57d7a521e318f509c1",
+    "SAOS-PULSE-2026-09-12-H26-TENTH-CYCLE.md": "b1b30445c3e885cb0dd4c9af9f01b7db538cd3c9",
+    "TOKEN-DOSSIER-2026-09-12-V77.md": "74bf34ac2c2d9e51d5b2ad28e07fd634c58264a5",
+    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R2.md": "2f677e56594eb31fc795c7f67b2d47da01c851f9"
+  }
+}

@@ -47,7 +47,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "relative rounded-xl border bg-zinc-900/45 backdrop-blur-sm",
+        "relative min-w-0 rounded-xl border bg-zinc-900/45 backdrop-blur-sm",
         accent
           ? "border-amber-400/25 shadow-[0_0_0_1px_rgba(230,177,63,0.04),0_8px_32px_-12px_rgba(0,0,0,0.6)]"
           : "border-white/[0.07] shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_8px_28px_-14px_rgba(0,0,0,0.55)]",
