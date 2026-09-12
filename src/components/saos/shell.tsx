@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "snapshot" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -65,6 +65,14 @@ export const VIEWS: ViewDef[] = [
     short: "עוגן-חוץ",
     desc: "הלקח של roast-84 נעשה מציאות (v73): תקציר-מצב קנוני (איטום אחרון · מנייני-אמת · יומן-טפטוף · שער-ההמרה) נשזר, נחתם sha256, ומעוגן על STEEM ב-$0.00 — ההצהרה הציבורית של האמת שלנו, שורדת את מות-המכונה · מקצב-חקלאי: עוגן חדש רק כשהמצב זז",
     icon: <Anchor size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "syncradar",
+    label: "מכ\"ם-הסנכרון — האמת האחרונה מול גיטהאב",
+    short: "מכ\"ם-סנכרון",
+    desc: "המכונה שנופלת לא יודעת שנפלה — נמדד חי בפתיחת v74 (המקומי ב-v73 בעוד origin החזיק r36). מעתה האורגניזם מודד בעצמו: fetch קריאה-בלבד מול origin/main בכל מחזור · סיווג כנה (מסונכרן · מפגר · מקדים · מפוצל · עץ-מלוכלך · לא-נמדד) · ריפוי ff-only בלבד כשהעץ נקי — אין merge, אין rebase, אין push, אין כפייה",
+    icon: <Radar size={16} />,
     group: "תפעול"
   },
   {

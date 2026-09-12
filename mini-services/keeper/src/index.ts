@@ -171,6 +171,20 @@ const SNAPSHOT_URL = "http://127.0.0.1:3000/api/saos/snapshot";
 const SNAPSHOT_EVERY = 360; // every 360th cycle = 1 hour
 const SNAPSHOT_FIRST_AT = 12; // first anchor attempt 2 min after boot
 
+// v74 — the sync-radar scout (מכ"ם-הסנכרון). Born from the live finding at
+// the opening of this very round: the sandbox fell and was restored to the
+// v73 image while origin/main already held r36 (d9ce8eb) — the fallen
+// machine did not know it had fallen until the owner asked. The web tier
+// owns the measurement (read-only git fetch + honest classification) and
+// THE ONLY hand (git pull --ff-only, behind clean-tree gates: no merge, no
+// rebase, no push, no force — there is no code path for any of them); the
+// keeper owns the cadence: every 10 min it reads the radar board and fires
+// the heal (source=auto) only when the door is open (clean · behind ·
+// ff-only). Dirty tree or local-ahead = an honest finding, never an action.
+const SYNC_RADAR_URL = "http://127.0.0.1:3000/api/saos/sync-radar";
+const SYNC_RADAR_EVERY = 30; // every 30th cycle = 10 min
+const SYNC_RADAR_FIRST_AT = 4; // first sweep 40s after boot — currency from minute one
+
 // v70 — the reserve watcher (צופה-הרזרבות, הכנת חדר-ההמרה). The web tier
 // owns the measurement (custody↔mirror from the live census + the live
 // contract); the keeper owns the cadence: every 5 min it reads the chamber
@@ -368,6 +382,20 @@ const S = {
     anchored: 0 as number,
     lastAnchorAt: null as string | null,
     lastDigest: null as string | null
+  },
+  // v74 — the sync-radar scout (מכ"ם-הסנכרון): web owns the measurement and
+  // the ff-only hand; keeper owns the cadence. Honest classification every
+  // sweep — synced / behind-ffable / ahead-unpushed / diverged / dirty-tree /
+  // unmeasured. The heal fires ONLY behind the full gate stack.
+  syncRadar: {
+    lastCheckAt: null as string | null,
+    state: "boot" as "boot" | "watching" | "healed" | "behind-waiting" | "drifted" | "gated" | "stale",
+    setting: null as boolean | null,
+    classification: null as string | null,
+    ahead: null as number | null,
+    behind: null as number | null,
+    heals: 0 as number,
+    lastHealAt: null as string | null
   },
   // v70 — the reserve watcher (צופה-הרזרבות): reads custody↔mirror from the
   // web every 5 min; drift beyond threshold → journal alert (advisory — the
@@ -1137,6 +1165,111 @@ async function checkSnapshot(): Promise<void> {
   }
 }
 
+/** v74 — the sync-radar scout (מכ"ם-הסנכרון). Reads the radar board every
+ *  10 min. The web tier owns the measurement (read-only git fetch, honest
+ *  classification — a failed fetch is "unmeasured", never a fabricated
+ *  "synced") and the ONLY hand: git pull --ff-only behind the full gate
+ *  stack (clean tree · behind · ff-only · setting). Dirty tree, local-ahead
+ *  or divergence = honest findings, never actions — the hands on local
+ *  history stay with the engineer and the owner. Web down = honest wait. */
+async function checkSyncRadar(): Promise<void> {
+  try {
+    const r = await fetch(`${SYNC_RADAR_URL}`, { signal: AbortSignal.timeout(25_000) });
+    if (!r.ok) {
+      S.syncRadar.state = "stale";
+      return;
+    }
+    const st = (await r.json().catch(() => null)) as {
+      ok?: boolean;
+      setting?: boolean;
+      healable?: boolean;
+      state?: {
+        classification?: string;
+        ahead?: number | null;
+        behind?: number | null;
+        dirtyCount?: number;
+      };
+    } | null;
+    if (!st || st.ok !== true) {
+      S.syncRadar.state = "stale";
+      return;
+    }
+    S.syncRadar.lastCheckAt = new Date().toISOString();
+    S.syncRadar.setting = st.setting === true;
+    S.syncRadar.classification = st.state?.classification ?? null;
+    S.syncRadar.ahead = st.state?.ahead ?? null;
+    S.syncRadar.behind = st.state?.behind ?? null;
+
+    // autonomy off — the measurement keeps living, the hand does not
+    if (st.setting !== true) {
+      if (S.syncRadar.state !== "gated") {
+        journal(
+          "sync-gated",
+          "sync-radar autonomy OFF — the radar keeps measuring every sweep, but the ff-only hand stays with the operator (control-plane, honest)"
+        );
+      }
+      S.syncRadar.state = "gated";
+      return;
+    }
+
+    // THE HEAL — fire only when the web tier says the full gate stack is open
+    // (clean tree · behind · ff-only). The pull itself can take seconds.
+    if (st.healable === true) {
+      const res = await fetch(SYNC_RADAR_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "heal", source: "auto" }),
+        signal: AbortSignal.timeout(120_000)
+      });
+      const out = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        healed?: boolean;
+        skipped?: string;
+        behind?: number | null;
+        to?: string | null;
+        error?: string;
+      } | null;
+      if (out?.healed === true) {
+        S.syncRadar.heals += 1;
+        S.syncRadar.lastHealAt = new Date().toISOString();
+        S.syncRadar.state = "healed";
+        journal(
+          "sync-healed",
+          `sync-radar HEALED — pulled ${out.behind ?? "?"} commits ff-only to ${(out.to ?? "").slice(0, 12)} — the fallen machine now knows it fell, by itself (v74, the live lesson of df49fef→d9ce8eb)`
+        );
+      } else {
+        S.syncRadar.state = "behind-waiting";
+        const why = out?.skipped ?? out?.error ?? "—";
+        journal("sync-behind-waiting", `sync-radar behind but heal refused honestly: ${why} — retried next sweep`);
+      }
+      return;
+    }
+
+    // honest classification without action
+    const cls = st.state?.classification ?? "—";
+    if (cls === "synced") {
+      if (S.syncRadar.state !== "watching" && S.syncRadar.state !== "boot") {
+        journal("sync-clean", "sync-radar: the live copy IS the latest truth (0/0) — the owner's question answered by the organism itself");
+      }
+      S.syncRadar.state = "watching";
+    } else if (cls === "dirty-tree" || cls === "ahead-unpushed" || cls === "diverged") {
+      if (S.syncRadar.state !== "drifted") {
+        journal(
+          "sync-drifted",
+          `sync-radar finding: ${cls} (ahead=${S.syncRadar.ahead ?? "?"} behind=${S.syncRadar.behind ?? "?"}${cls === "dirty-tree" ? ` · ${st.state?.dirtyCount ?? "?"} uncommitted files — engineer work in flight` : ""}) — honest finding, never an action; the hands on local history stay in HQ`
+        );
+      }
+      S.syncRadar.state = "drifted";
+    } else {
+      // behind-ffable with setting on but healable false (race), or unmeasured — honest wait
+      S.syncRadar.state = "behind-waiting";
+    }
+  } catch {
+    // web down or engine slow = honest wait — the web revive owns recovery
+    S.syncRadar.state = "stale";
+  }
+}
+
 /** v70 — the reserve watcher (צופה-הרזרבות). The web tier owns the chamber
  *  measurement (sovereign custody from the live census ↔ mirror from the
  *  live contract, both fail-closed honest); the keeper owns the cadence and
@@ -1537,6 +1670,14 @@ async function cycle(): Promise<void> {
     await checkSnapshot();
   }
 
+  // 10.5. v74 — the sync-radar scout (מכ"ם-הסנכרון). Every 10 min: read the
+  //      live drift board; when the full gate stack is open (clean · behind ·
+  //      ff-only) fire the heal through the web engine (source=auto). Dirty
+  //      tree / local-ahead / divergence = honest findings, never actions.
+  if (RT.cycle === SYNC_RADAR_FIRST_AT || (RT.cycle > SYNC_RADAR_FIRST_AT && (RT.cycle - SYNC_RADAR_FIRST_AT) % SYNC_RADAR_EVERY === 0)) {
+    await checkSyncRadar();
+  }
+
   // 11. v70 — the reserve watcher (צופה-הרזרבות). Every 5 min: read the
   //     live custody↔mirror KPIs from the conversion chamber; drift beyond
   //     the bound → journal alert. Advisory organ — the HQ actions are the
@@ -1552,7 +1693,7 @@ function statusJson() {
   return {
     ok: true,
     service: "shomer",
-    version: "41.0.0",
+    version: "42.0.0",
     pid: process.pid,
     startedAt: S.startedAt,
     uptimeSec: Math.round((Date.now() - Date.parse(S.startedAt)) / 1000),
@@ -1577,6 +1718,7 @@ function statusJson() {
       expansion: { state: S.expansion.state, armed: S.expansion.armed, setting: S.expansion.setting, lastCheckAt: S.expansion.lastCheckAt, lastFireAt: S.expansion.lastFireAt, fires: S.expansion.fires, engine: "auto-expansion (v66)", cadence: "10min" },
       irrigation: { state: S.irrigation.state, fundable: S.irrigation.fundable, setting: S.irrigation.setting, lastCheckAt: S.irrigation.lastCheckAt, lastDripAt: S.irrigation.lastDripAt, drips: S.irrigation.drips, engine: "wise-irrigation (v67)", cadence: "10min" },
       snapshot: { state: S.snapshot.state, setting: S.snapshot.setting, anchored: S.snapshot.anchored, lastAnchorAt: S.snapshot.lastAnchorAt, lastDigest: S.snapshot.lastDigest, lastCheckAt: S.snapshot.lastCheckAt, engine: "outer-anchor (v73)", cadence: "1h", op: "custom_json saos.snapshot.v1 on STEEM ($0.00)" },
+      syncRadar: { state: S.syncRadar.state, setting: S.syncRadar.setting, classification: S.syncRadar.classification, ahead: S.syncRadar.ahead, behind: S.syncRadar.behind, heals: S.syncRadar.heals, lastHealAt: S.syncRadar.lastHealAt, lastCheckAt: S.syncRadar.lastCheckAt, engine: "sync-radar (v74)", cadence: "10min", hand: "git pull --ff-only only (no merge/rebase/push — no code path)" },
       reserves: { state: S.reserves.state, custodyUsd: S.reserves.custodyUsd, mirroredUsd: S.reserves.mirroredUsd, driftUsd: S.reserves.driftUsd, meshManaged: S.reserves.meshManaged, driftAlerts: S.reserves.driftAlerts, lastAlertAt: S.reserves.lastAlertAt, lastCheckAt: S.reserves.lastCheckAt, engine: "reserve-watcher (v70)", cadence: "5min", hands: "HQ-only (advisory organ)" },
       cheapRoutes: { gate: S.cheapRoutes.gate, routes: S.cheapRoutes.routes, openRoutes: S.cheapRoutes.openRoutes, jupiterUsdc: S.cheapRoutes.jupiterUsdc, lastCheckAt: S.cheapRoutes.lastCheckAt, openedAt: S.cheapRoutes.openedAt, engine: "cheap-route watcher (v72)", cadence: "5min", hands: "HQ-only (probe-first under the owner's standing authorization)" }
     },
