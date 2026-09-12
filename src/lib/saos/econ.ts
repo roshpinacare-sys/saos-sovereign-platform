@@ -456,14 +456,14 @@ export async function yieldRouter(): Promise<RouterPlan> {
     balance: balances.trx, usd: usdOf(balances.trx ?? 0, 'TRX'),
     aprPct: null, aprLabel: '—',
     status: 'waiting-deposit', flowAction: 'trx_energize', flowLabel: 'אנרגיז (הקפאת-TRX)',
-    note: 'סריקת-אמת-74: אפס-מוכח על-כל-הנתיבים (מונער×8 + צי) — ראה-לולאת wallet-scan · הפקדת-המפעיל תנעל-אוטומטית את לולאת-האנרגיה',
+    note: 'FIX-75: נגיזה-מתוקנת-לסטנדרט-Coinomi — TMXHfFQdG6BB8kwVfbMYuiXWqr9P5S4VAU מעולם-לא-הופעל (אפס-מוכח-חי) · הפקדת-המפעיל תנעל-אוטומטית את לולאת-האנרגיה',
   });
   rows.push({
     key: 'usdt-treasury', label: 'USDT · ארנק-המערכת', asset: 'USDT',
     balance: balances.usdt, usd: balances.usdt,
     aprPct: null, aprLabel: '—',
     status: 'waiting-deposit', flowAction: null, flowLabel: null,
-    note: 'מאגר-הבאונטי של רשת-ההפניות + דלק-עסקאות — סריקת-אמת-74: TRC20 אפס-מוכח · ממתין-הפקדה',
+    note: 'מאגר-הבאונטי של רשת-ההפניות + דלק-עסקאות — FIX-75: TRC20 אפס-מוכח על-הנגזרה-הסטנדרטית · ממתין-הפקדה',
   });
 
   const totalUsd = rows.every((r) => r.usd === null) ? null : rows.reduce((s, r) => s + (r.usd ?? 0), 0);

@@ -27,20 +27,24 @@ function tronAddrFromPriv(priv: Buffer): string {
 
 function ckd(k: Buffer, c: Buffer, idx: number): { k: Buffer; c: Buffer } {
   const hardened = idx >= 0x80000000;
-  const data = hardened
-    ? Buffer.concat([Buffer.from([0]), k, Buffer.alloc(4)])
-    : Buffer.from(secp256k1.getPublicKey(k, true));
   const idxBuf = Buffer.alloc(4); idxBuf.writeUInt32BE(idx);
-  const I2 = crypto.createHmac('sha512', c).update(Buffer.concat([data, idxBuf])).digest();
+  // FIX(75): BIP32-סטנדרטי — hardened: 0x00||k||idx · non-hardened: pub||idx
+  // (היה-כאן: אינדקס-כפול-ב-hardened + חסר-אינדקס-ב-non-hardened + חסר-HMAC-מאסטר)
+  const data = hardened
+    ? Buffer.concat([Buffer.from([0]), k, idxBuf])
+    : Buffer.concat([Buffer.from(secp256k1.getPublicKey(k, true)), idxBuf]);
+  const I2 = crypto.createHmac('sha512', c).update(data).digest();
   const il = BigInt('0x' + Buffer.from(I2.slice(0, 32)).toString('hex'));
   const kn = BigInt('0x' + k.toString('hex'));
   return { k: Buffer.from(((il + kn) % N).toString(16).padStart(64, '0'), 'hex'), c: Buffer.from(I2.slice(32)) };
 }
 
-/** מונער-24-מילים → מפתח-פרטי TRON (m/44'/195'/0'/0/0) */
+/** מונער-24-מילים → מפתח-פרטי TRON (m/44'/195'/0'/0/0) — BIP32 סטנדרטי מלא */
 function mnemonicToTronPriv(mnemonic: string): Buffer {
   const seed = crypto.pbkdf2Sync(mnemonic.normalize('NFKD'), 'mnemonic', 2048, 64, 'sha512');
-  let cur = { k: Buffer.from(seed.slice(0, 32)), c: Buffer.from(seed.slice(32)) };
+  // FIX(75-b): BIP32-מאסטר — HMAC-SHA512('Bitcoin seed', seed); קודם-ה-seed-עצמו שימש-כ-(k,c)
+  const MI = crypto.createHmac('sha512', Buffer.from('Bitcoin seed', 'ascii')).update(seed).digest();
+  let cur = { k: Buffer.from(MI.slice(0, 32)), c: Buffer.from(MI.slice(32)) };
   for (const idx of [44 + 0x80000000, 195 + 0x80000000, 0x80000000, 0, 0]) cur = ckd(cur.k, cur.c, idx);
   return cur.k;
 }
@@ -108,6 +112,46 @@ async function tronPost(path: string, body: Record<string, unknown>): Promise<Re
   return (await r.json()) as Record<string, unknown>;
 }
 
+/** העברת-TRX פשוטה — מארנק-האוצר לכל-כתובת (מימון-דלתות-רליי · תנועת-נזילות) */
+export async function trxTransfer(toAddress: string, amountTrx: number): Promise<{ ok: true; txid: string; from: string; to: string; amount: number } | { ok: false; error: string }> {
+  const w = await treasuryWallet();
+  if (!w || !w.address) return { ok: false, error: 'treasury: ארנק-המערכת לא אטום בכספת' };
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(toAddress)) return { ok: false, error: `כתובת-יעד-לא-תקינה: ${toAddress.slice(0, 6)}…` };
+  if (!Number.isFinite(amountTrx) || amountTrx <= 0) return { ok: false, error: 'סכום-לא-תקין' };
+  const info = await tronAccount(w.address);
+  const burn = info?.active ? 0.27 : 0.9; // bandwidth-burn ללא-הקפאה (~0.268) + עמוד-ביטחון
+  if (!info || !info.active || info.balance < amountTrx + burn) {
+    return { ok: false, error: `יתרת-האוצר ${(info?.balance ?? 0).toFixed(4)} TRX לא-מכסה ${amountTrx}+${burn}-דלק (fail-honest)` };
+  }
+  const row = await db.vaultKey.findFirst({ where: { account: 'headcorner', chain: 'tron', role: 'treasury' }, orderBy: { updatedAt: 'desc' } });
+  if (!row) return { ok: false, error: 'treasury: שורת-כספת נעלמה' };
+  const priv = mnemonicToTronPriv(decryptSecret(row.cipher));
+  const tx = await tronPost('/wallet/createtransaction', {
+    owner_address: w.address,
+    to_address: toAddress,
+    amount: Math.round(amountTrx * 1e6),
+    visible: true,
+  });
+  if (tx.Error || tx.result) return { ok: false, error: `build: ${String(tx.Error ?? (tx.result as { code?: string })?.code ?? 'unknown').slice(0, 140)}` };
+  const rawHex = String(tx.raw_data_hex ?? '');
+  if (!rawHex) return { ok: false, error: 'build: raw_data_hex חסר' };
+  // FIX(75-c · הוכח-חי txid 8d84e63…): חותמים על txID (32B) · פורמט-65B = r||s||(recovery+27) · שידור-מלא עם visible:true
+  const txidHex = String(tx.txID ?? '');
+  const msg = txidHex ? Buffer.from(txidHex, 'hex') : sha256(Buffer.from(rawHex, 'hex'));
+  const sig = secp256k1.sign(msg, priv, { prehash: false });
+  const c64 = sig.toCompactRawBytes();
+  const sigBytes = new Uint8Array(65);
+  sigBytes.set(c64, 0);
+  sigBytes[64] = (sig.recovery ?? 0) + 27;
+  const fullTx = { ...tx, signature: [Buffer.from(sigBytes).toString('hex')] } as Record<string, unknown>;
+  const bres = await tronPost('/wallet/broadcasttransaction', fullTx);
+  if (bres.result === true && typeof bres.txid === 'string') return { ok: true, txid: bres.txid, from: w.address, to: toAddress, amount: amountTrx };
+  const rawMsg = String((bres as { message?: string }).message ?? (bres.result as { message?: string })?.message ?? '');
+  let decoded = rawMsg;
+  try { decoded = Buffer.from(rawMsg, 'hex').toString('utf8'); } catch { /* keep raw */ }
+  return { ok: false, error: `broadcast: ${decoded || JSON.stringify(bres).slice(0, 120)}`.slice(0, 260) };
+}
+
 /** freezeBalanceV2 + חתימה + שידור — הצעד-האמת הראשון של ארנק-המערכת */
 export async function trxEnergize(amountTrx: number, resource: 'ENERGY' | 'BANDWIDTH' = 'ENERGY'): Promise<{ ok: true; txid: string; address: string } | { ok: false; error: string }> {
   const w = await treasuryWallet();
@@ -137,16 +181,23 @@ export async function trxEnergize(amountTrx: number, resource: 'ENERGY' | 'BANDW
   }
   const rawHex = String(tx.raw_data_hex ?? '');
   if (!rawHex) return { ok: false, error: 'freezebuild: raw_data_hex חסר' };
-  const digest = sha256(Buffer.from(rawHex, 'hex'));
-  const sig = secp256k1.sign(digest, priv, { prehash: false, lowS: true });
-  const sig65 = Buffer.concat([sig.toCompactRawBytes(), Buffer.from([sig.recovery ?? 0])]).toString('hex');
-  const signed = { ...tx, signatures: [sig65], visible: true };
-  const bres = await tronPost('/wallet/broadcasttransaction', signed);
+  // FIX(75-c): פורמט-מוכח-חי — חותמים על txID · 65B = r||s||(recovery+27) · שידור-מלא עם visible:true
+  const txidHexE = String(tx.txID ?? '');
+  const msgE = txidHexE ? Buffer.from(txidHexE, 'hex') : sha256(Buffer.from(rawHex, 'hex'));
+  const sig = secp256k1.sign(msgE, priv, { prehash: false });
+  const c64E = sig.toCompactRawBytes();
+  const sigBytes = new Uint8Array(65);
+  sigBytes.set(c64E, 0);
+  sigBytes[64] = (sig.recovery ?? 0) + 27;
+  const fullTxE = { ...tx, signature: [Buffer.from(sigBytes).toString('hex')] } as Record<string, unknown>;
+  const bres = await tronPost('/wallet/broadcasttransaction', fullTxE);
   if (bres.result === true && typeof bres.txid === 'string') {
     return { ok: true, txid: bres.txid, address: w.address };
   }
-  const code = String((bres.result as { code?: string; message?: string })?.code ?? bres.code ?? 'broadcast-failed');
-  return { ok: false, error: `broadcast: ${code} ${(bres.result as { message?: string })?.message ?? ''}`.slice(0, 200) };
+  const rawMsgE = String((bres as { message?: string }).message ?? (bres.result as { message?: string })?.message ?? '');
+  let decodedE = rawMsgE;
+  try { decodedE = Buffer.from(rawMsgE, 'hex').toString('utf8'); } catch { /* keep raw */ }
+  return { ok: false, error: `broadcast: ${decodedE || String(bres.code ?? 'broadcast-failed')}`.slice(0, 220) };
 }
 
 /** הצבעת-SR (Stake 2.0: TRX ממומש יכול להצביע — תשואה ~4.5% APR) */
@@ -165,10 +216,15 @@ export async function trxVoteWitness(srAddress: string): Promise<{ ok: true; txi
     visible: true,
   });
   if (tx.Error || tx.result) return { ok: false, error: `votebuild: ${String(tx.Error ?? (tx.result as { code?: string })?.code ?? 'unknown').slice(0, 120)}` };
-  const digest = sha256(Buffer.from(String(tx.raw_data_hex), 'hex'));
-  const sig = secp256k1.sign(digest, priv, { prehash: false, lowS: true });
-  const signed = { ...tx, signatures: [Buffer.concat([sig.toCompactRawBytes(), Buffer.from([sig.recovery ?? 0])]).toString('hex')], visible: true };
-  const bres = await tronPost('/wallet/broadcasttransaction', signed);
+  const txidHex2 = String(tx.txID ?? '');
+  const msg2 = txidHex2 ? Buffer.from(txidHex2, 'hex') : sha256(Buffer.from(String(tx.raw_data_hex), 'hex'));
+  const sig2 = secp256k1.sign(msg2, priv, { prehash: false });
+  const c64b = sig2.toCompactRawBytes();
+  const sigBytes2 = new Uint8Array(65);
+  sigBytes2.set(c64b, 0);
+  sigBytes2[64] = (sig2.recovery ?? 0) + 27;
+  const fullTx2 = { ...tx, signature: [Buffer.from(sigBytes2).toString('hex')] } as Record<string, unknown>;
+  const bres = await tronPost('/wallet/broadcasttransaction', fullTx2);
   if (bres.result === true && typeof bres.txid === 'string') return { ok: true, txid: bres.txid };
   return { ok: false, error: `broadcast: ${String((bres.result as { code?: string })?.code ?? bres.code ?? 'failed')}` };
 }

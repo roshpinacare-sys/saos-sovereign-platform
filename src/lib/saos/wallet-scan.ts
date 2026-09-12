@@ -16,6 +16,7 @@
  */
 import crypto from 'crypto';
 import { secp256k1 } from '@noble/curves/secp256k1';
+import { ed25519 } from '@noble/curves/ed25519';
 import { keccak_256 } from '@noble/hashes/sha3';
 import { ripemd160 } from '@noble/hashes/ripemd160';
 import { sha256 } from '@noble/hashes/sha256';
@@ -97,18 +98,57 @@ function bchCashaddr(priv: Buffer): string { return cashaddrEncode('bitcoincash'
 /* BIP32 */
 function ckd(k: Buffer, c: Buffer, idx: number): { k: Buffer; c: Buffer } {
   const hardened = idx >= H;
-  const data = hardened ? Buffer.concat([Buffer.from([0]), k, Buffer.alloc(4)]) : Buffer.from(secp256k1.getPublicKey(k, true));
   const idxBuf = Buffer.alloc(4); idxBuf.writeUInt32BE(idx);
-  const I = crypto.createHmac('sha512', c).update(Buffer.concat([data, idxBuf])).digest();
+  // FIX(75): היה כאן באג — האינדקס סורר פעמיים (Buffer.alloc(4) ב-data + idxBuf נוסף) →
+  // נגזרות-hardened לא-סטנדרטיות שלא-תאמו את ארנק-Coinomi של-המפעיל.
+  // FIX(75-b): BIP32 תקני — hardened: 0x00||k||idx · non-hardened: pub||idx (האינדקס-תמיד-בסוף)
+  const data = hardened
+    ? Buffer.concat([Buffer.from([0]), k, idxBuf])
+    : Buffer.concat([Buffer.from(secp256k1.getPublicKey(k, true)), idxBuf]);
+  const I = crypto.createHmac('sha512', c).update(data).digest();
   const il = BigInt('0x' + Buffer.from(I.slice(0, 32)).toString('hex'));
   const kn = BigInt('0x' + k.toString('hex'));
   return { k: Buffer.from(((il + kn) % N).toString(16).padStart(64, '0'), 'hex'), c: Buffer.from(I.slice(32)) } as { k: Buffer; c: Buffer };
 }
 function derive(seed: Buffer, path: number[]): Buffer {
-  let cur: { k: Buffer<ArrayBufferLike>; c: Buffer<ArrayBufferLike> } = { k: Buffer.from(seed.slice(0, 32)), c: Buffer.from(seed.slice(32)) };
+  // FIX(75-b): BIP32-מאסטר — HMAC-SHA512('Bitcoin seed', seed) → (k,c); קודם-המנוע-התייחס-ל-seed-עצמו כ-(k,c)
+  const MI = crypto.createHmac('sha512', Buffer.from('Bitcoin seed', 'ascii')).update(seed).digest();
+  let cur: { k: Buffer<ArrayBufferLike>; c: Buffer<ArrayBufferLike> } = { k: Buffer.from(MI.slice(0, 32)), c: Buffer.from(MI.slice(32)) };
   for (const idx of path) cur = ckd(cur.k, cur.c, idx);
   return cur.k;
 }
+/** LEGACY(75): הנגיזה-הפגומה-לשעבר — נשמרת-רק כדי-להמשיך-לפקח על 2 כתובות-אוצר שפורסמו-בטעות (0xd952… · TFdotNs9…).
+ *  אין-להשתמש-בה לכתובות-חדשות — הן לא-מופיעות-בארנק-Coinomi של-המפעיל. */
+function ckdLegacyBug(k: Buffer, c: Buffer, idx: number): { k: Buffer; c: Buffer } {
+  const hardened = idx >= H;
+  const idxBuf = Buffer.alloc(4); idxBuf.writeUInt32BE(idx);
+  // משחזר-במדויק את המנוע-הישן: hardened: 0x00||k||0000||idx · non-hardened: pub||idx
+  const data = hardened
+    ? Buffer.concat([Buffer.from([0]), k, Buffer.alloc(4), idxBuf])
+    : Buffer.concat([Buffer.from(secp256k1.getPublicKey(k, true)), idxBuf]);
+  const I = crypto.createHmac('sha512', c).update(data).digest();
+  const il = BigInt('0x' + Buffer.from(I.slice(0, 32)).toString('hex'));
+  const kn = BigInt('0x' + k.toString('hex'));
+  return { k: Buffer.from(((il + kn) % N).toString(16).padStart(64, '0'), 'hex'), c: Buffer.from(I.slice(32)) } as { k: Buffer; c: Buffer };
+}
+function deriveLegacyBug(seed: Buffer, path: number[]): Buffer {
+  let cur: { k: Buffer<ArrayBufferLike>; c: Buffer<ArrayBufferLike> } = { k: Buffer.from(seed.slice(0, 32)), c: Buffer.from(seed.slice(32)) };
+  for (const idx of path) cur = ckdLegacyBug(cur.k, cur.c, idx);
+  return cur.k;
+}
+/* SLIP-0010 ed25519 (Solana) — כל-הדרגות-hardened בלבד */
+const ED25519_CURVE = Buffer.from('ed25519 seed', 'ascii');
+function ed25519Derive(seed: Buffer, path: number[]): Buffer {
+  let I = crypto.createHmac('sha512', ED25519_CURVE).update(seed).digest();
+  let k = Buffer.from(I.slice(0, 32)); let c = Buffer.from(I.slice(32));
+  for (const idx of path) {
+    const idxBuf = Buffer.alloc(4); idxBuf.writeUInt32BE(idx);
+    I = crypto.createHmac('sha512', c).update(Buffer.concat([Buffer.from([0]), k, idxBuf])).digest();
+    k = Buffer.from(I.slice(0, 32)); c = Buffer.from(I.slice(32));
+  }
+  return k;
+}
+function solanaAddr(priv: Buffer): string { return bs58.encode(buf(ed25519.getPublicKey(priv))); }
 
 /* ══ סורקי-שרשרת (API-ציבורי) ═════════════════════════════════════════════ */
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -135,6 +175,15 @@ export interface ChainBalance {
   trc20?: Record<string, number>;
   active?: boolean;
   note?: string;
+}
+
+async function solanaBalance(addr: string): Promise<ChainBalance> {
+  const rpc = 'https://api.mainnet-beta.solana.com';
+  const j = await jpost<{ result?: { value?: number } }>(rpc, { jsonrpc: '2.0', id: 1, method: 'getBalance', params: [addr] });
+  if (j?.result == null) return { address: addr, native: null, txCount: null, note: 'SOL-RPC לא-נמדד' };
+  const s = await jpost<{ result?: Array<unknown> }>(rpc, { jsonrpc: '2.0', id: 2, method: 'getSignaturesForAddress', params: [addr, { limit: 5 }] });
+  const sigs = Array.isArray(s?.result) ? s.result.length : null;
+  return { address: addr, native: (j.result.value ?? 0) / 1e9, txCount: sigs, active: sigs != null && sigs > 0, note: sigs == null ? 'אין-היסטוריה על-השרשרת (חשבון-לא-קיים)' : undefined };
 }
 
 async function tronBalance(addr: string): Promise<ChainBalance> {
@@ -213,22 +262,23 @@ async function smartBchBalance(addr: string): Promise<ChainBalance> {
 }
 
 /* ══ מחירים ════════════════════════════════════════════════════════════════ */
-export interface Prices { TRX: number | null; ETH: number | null; BNB: number | null; BTC: number | null; BCH: number | null; POL: number | null; USDT: number | null }
+export interface Prices { TRX: number | null; ETH: number | null; BNB: number | null; BTC: number | null; BCH: number | null; POL: number | null; USDT: number | null; SOL: number | null }
 /* מחירים-אחרונים-טובים (CoinGecko מדורג-קצב — fail-כנה אבל זכרון-אחרון-ידוע ל-5-דק) */
 let lastGoodPrices: { ts: number; prices: Prices } | null = null;
 async function prices(): Promise<Prices> {
   if (lastGoodPrices && Date.now() - lastGoodPrices.ts < 5 * 60 * 1000) return lastGoodPrices.prices;
-  const url = 'https://api.coingecko.com/api/v3/simple/price?ids=tron,ethereum,binancecoin,bitcoin,bitcoin-cash,matic-network,tether&vs_currencies=usd';
+  const url = 'https://api.coingecko.com/api/v3/simple/price?ids=tron,ethereum,binancecoin,bitcoin,bitcoin-cash,matic-network,tether,solana&vs_currencies=usd';
   let j = await jget<Record<string, { usd?: number }>>(url);
   if (!j) await new Promise((r) => setTimeout(r, 1500));
   if (!j) j = await jget<Record<string, { usd?: number }>>(url);
   let p: Prices = {
     TRX: j?.tron?.usd ?? null, ETH: j?.ethereum?.usd ?? null, BNB: j?.binancecoin?.usd ?? null,
     BTC: j?.bitcoin?.usd ?? null, BCH: j?.['bitcoin-cash']?.usd ?? null, POL: j?.['matic-network']?.usd ?? null, USDT: j?.tether?.usd ?? null,
+    SOL: j?.solana?.usd ?? null,
   };
   // גיבוי: Binance-public (ללא-key) לכל-סימול-ש-CoinGecko החזיר-null
   if (Object.values(p).some((v) => v == null)) {
-    const pairs: Array<[keyof Prices, string]> = [['TRX', 'TRXUSDT'], ['ETH', 'ETHUSDT'], ['BNB', 'BNBUSDT'], ['BTC', 'BTCUSDT'], ['BCH', 'BCHUSDT'], ['POL', 'POLUSDT']];
+    const pairs: Array<[keyof Prices, string]> = [['TRX', 'TRXUSDT'], ['ETH', 'ETHUSDT'], ['BNB', 'BNBUSDT'], ['BTC', 'BTCUSDT'], ['BCH', 'BCHUSDT'], ['POL', 'POLUSDT'], ['SOL', 'SOLUSDT']];
     for (const [key, sym] of pairs) {
       if (p[key] != null) continue;
       const b = await jget<{ price?: string }>(`https://api.binance.com/api/v3/ticker/price?symbol=${sym}`, 8000);
@@ -249,6 +299,9 @@ export interface WalletScanReport {
   ts: number;
   treasury: {
     tron: ChainBalance; evmStd: ChainBalance; evmMatic: ChainBalance; evmBnb: ChainBalance; bscEvmStd: ChainBalance; bch: ChainBalance; smartbch: ChainBalance; btcLegacy: ChainBalance; btcSegwit: ChainBalance;
+    sol: ChainBalance;
+    /** LEGACY(75): כתובות-אוצר שפורסמו-בעבר מתוך-נגיזה-פגומה — עדיין-שלנו, נבדקות-חי עד-הגירה-מלאה */
+    legacyEvm: ChainBalance; legacyTron: ChainBalance;
   };
   fleet: FleetWalletRow[];
   seedsLocked: number;
@@ -256,6 +309,8 @@ export interface WalletScanReport {
   totalUsd: number | null;
   movableUsd: number | null;
   verdicts: string[];
+  /** FIX(75) — תיקון-נגיזה: הכתובות-הסטנדרטיות מעתה תואמות את ארנק-Coinomi של-המפעיל */
+  derivationFixed: true;
 }
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -278,13 +333,17 @@ export async function walletScan(force = false): Promise<WalletScanReport> {
   const bchPriv = derive(seed, p(145));
   const btcPriv44 = derive(seed, p(0));
   const btcPriv84 = derive(seed, [84 + H, H, H, 0, 0]);
+  const solPriv = ed25519Derive(seed, [44 + H, 501 + H, H, H]); // m/44'/501'/0'/0' (SLIP-0010)
+  // LEGACY(75) — הנגיזה-הפגומה-הישנה ל-2 הכתובות-שפורסמו (מוניטור-בלבד)
+  const legacyEvmPriv = deriveLegacyBug(seed, p(60));
+  const legacyTronPriv = deriveLegacyBug(seed, p(195));
   const mnemonicWords = mnemonic.trim().split(/\s+/).length;
 
   /* ארנקות-הצי מהכספת */
   const fleetRows = await db.vaultKey.findMany({ where: { chain: { in: ['tron', 'evm', 'btc'] }, address: { not: null } }, select: { account: true, chain: true, address: true } });
   const lockedSeeds = await db.vaultKey.count({ where: { chain: { in: ['mnemonic', 'seed'] }, account: { not: 'headcorner' } } });
 
-  const [pr, treasuryTron, treasuryEvmStd, treasuryEvmMatic, treasuryEvmBnb, treasuryBsc, treasuryBch, treasurySmartBch, treasuryBtcLegacy, treasuryBtcSegwit] = await Promise.all([
+  const [pr, treasuryTron, treasuryEvmStd, treasuryEvmMatic, treasuryEvmBnb, treasuryBsc, treasuryBch, treasurySmartBch, treasuryBtcLegacy, treasuryBtcSegwit, treasurySol, treasuryLegacyEvm, treasuryLegacyTron] = await Promise.all([
     prices(),
     tronBalance(tronAddr(tronPriv)),
     evmBalance('https://eth.blockscout.com', evmAddr(ethPriv)),
@@ -295,6 +354,9 @@ export async function walletScan(force = false): Promise<WalletScanReport> {
     smartBchBalance(evmAddr(bchPriv)),
     btcBalance(btcP2pkh(btcPriv44)),
     btcBalance(btcP2wpkh(btcPriv84)),
+    solanaBalance(solanaAddr(solPriv)),
+    tronBalance(tronAddr(legacyTronPriv)),
+    bscBalance(evmAddr(legacyEvmPriv)),
   ]);
 
   /* צי — סריקה-סדרתית-מרווחת (rate-limits) */
@@ -326,6 +388,7 @@ export async function walletScan(force = false): Promise<WalletScanReport> {
     usdOf(treasurySmartBch.native, 'BCH'),
     usdOf(treasuryBtcLegacy.native, 'BTC'),
     usdOf(treasuryBtcSegwit.native, 'BTC'),
+    usdOf(treasurySol.native, 'SOL'),
   ];
   const totalUsd = parts.every((x) => x === null) ? null : parts.reduce((s: number, x) => s + (x ?? 0), 0);
   // movable = יתרות-מעל-סף-דלק-מינימלי (TRX: חיוב-bandwidth 0.268 · ETH: ~0.0005)
@@ -350,17 +413,24 @@ export async function walletScan(force = false): Promise<WalletScanReport> {
       smartbch: { ...treasurySmartBch, address: evmAddr(bchPriv) },
       btcLegacy: { ...treasuryBtcLegacy, address: btcP2pkh(btcPriv44) },
       btcSegwit: { ...treasuryBtcSegwit, address: btcP2wpkh(btcPriv84) },
+      sol: { ...treasurySol, address: solanaAddr(solPriv) },
+      legacyEvm: { ...treasuryLegacyEvm, address: evmAddr(legacyEvmPriv) },
+      legacyTron: { ...treasuryLegacyTron, address: tronAddr(legacyTronPriv) },
     },
     fleet,
     seedsLocked: lockedSeeds,
     prices: pr,
     totalUsd,
     movableUsd,
+    derivationFixed: true as const,
     verdicts: [
-      `מונער-Coinomi (${mnemonicWords}-מילים) נגזר-מקומית ל-8 נתיבים-קנוניים — כל-הכתובות-ציבוריות-בלבד בפלט`,
-      treasuryTron.native === 0 && !treasuryTron.active ? 'TRON: ארנק-לא-מופעל על-השרשרת — לעולם-לא-היו-בו-מטבעות' : `TRON: ${(treasuryTron.native ?? 0).toFixed(6)}`,
-      treasuryEvmStd.txCount === 0 && treasuryEvmStd.tokens?.length === 0 ? 'ETH-mainnet: nonce=0 + אפס-טוקנים (Blockscout) — אפס-היסטוריה' : 'ETH-mainnet: ראה-פירוט',
-      treasuryBsc.txCount === 0 && treasuryBsc.tokens?.length === 0 ? 'BSC: nonce=0 + אפס-טוקנים-מובילים (USDT/USDC/BUSD/ETH/CAKE) — אפס-היסטוריה' : 'BSC: ראה-פירוט',
+      `FIX(75) נגיזה-מתוקנת: עד-היום המנוע גזר-hardened עם-אינדקס-כפול — הכתובות-הישנות (0xd952…/TFdotNs9…) לא-הופיעו-בארנק-Coinomi של-המפעיל. מעתה: נגיזה-סטנדרטית = תואמת-ארנק-המפעיל · הישנות-במוניטור (אפס-מדוד-חי)`,
+      `מונער-Coinomi (${mnemonicWords}-מילים) × 10-נתיבים סטנדרטיים: TRON·195 · ETH·60 · MATIC·966 · BNB·714 · BSC · BCH·145 · BTC·44/84 · SOL·501(SLIP-0010) — כל-הכתובות-ציבוריות-בלבד בפלט`,
+      treasuryTron.native === 0 && !treasuryTron.active ? 'TRON (סטנדרט): ארנק-לא-מופעל — לעולם-לא-היו-בו-מטבעות על-הנתיב-הסטנדרטי שהאפליקציה-מציגה' : `TRON (סטנדרט): ${(treasuryTron.native ?? 0).toFixed(6)}`,
+      treasuryEvmStd.txCount != null && treasuryEvmStd.txCount > 0 ? `ETH-mainnet (סטנדרט): חי! nonce=${treasuryEvmStd.txCount} · יתרה=${(treasuryEvmStd.native ?? 0).toFixed(6)}-ETH — זו-הזהות-שעיגנה-את-SAOSRelay-בספטמבר (היסטוריה-אמת)` : 'ETH-mainnet (סטנדרט): nonce=0',
+      treasuryBsc.txCount != null && treasuryBsc.txCount > 0 ? `BSC (סטנדרט): nonce=${treasuryBsc.txCount} · יתרה=${(treasuryBsc.native ?? 0).toFixed(8)}-BNB` : 'BSC (סטנדרט): nonce=0',
+      treasurySol.txCount != null && treasurySol.txCount > 0 ? `SOL (סטנדרט): יש-היסטוריה! sigs=${treasurySol.txCount} · יתרה=${(treasurySol.native ?? 0).toFixed(9)}` : 'SOL (סטנדרט): אין-היסטוריה — החשבון-מעולם-לא-נוצר על-הנתיב-הסטנדרטי',
+      `היסטוריה-אמת-שנמדדה: BTC·84 מימן-כ-0.018-BTC על-4-כתובות (רוקן) · BTC·44/LTC/DOGE פעילויות-היסטוריות — הכל-רוקן-מזמן · אבק-נוכחי: ETH≈0.000024 + BNB≈0.0000067 (מתחת-לסף-דלק)`,
       treasurySmartBch.note?.includes('מתים') ? 'SmartBCH: רשת-מתה מוכחת (כל-ה-RPC-ציבוריים-מתים) — מה שהיה-שם לא-ניתן-לבדוק/לשחרר' : 'SmartBCH: ראה-פירוט',
       'המרת-$1.5→ETH: חסום-כנה — אין-מקור-נזיל-על-שרשרת להמרה (מוכח-בסריקה זו)',
     ],

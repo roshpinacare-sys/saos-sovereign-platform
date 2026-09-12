@@ -6,7 +6,7 @@ import {
   chainVote, hiveSavingsSweep, claimRewards, curationCandidates, postInfo,
   getAccount, getGlobalProps, vestsToChainVests, ownBlogPosts, steemPublish, chainPublish, steemRcMana, getBlurtAccount, OPERATOR, chainVoteAs, claimRewardsAs, fleetScan, fleetHeal, fleetPasswordSweep, chainTransferAs, type Chain3,
 } from '@/lib/saos/steem-ops';
-import { trxEnergize, tronAccount, treasuryWallet } from '@/lib/saos/trx-ops';
+import { trxEnergize, trxTransfer, tronAccount, treasuryWallet } from '@/lib/saos/trx-ops';
 import { walletScan } from '@/lib/saos/wallet-scan';
 import { vaultDrip } from '@/lib/saos/econ';
 import { readAutopilotState, readAutopilotConfig, writeAutopilotConfig } from '@/lib/saos/autopilot-state';
@@ -601,6 +601,29 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      /* ── 75: העברת-TRX מהאוצר (מימון-דלתות-רליי · תנועת-נזילות) — execute למפעיל ── */
+      case 'trx_transfer': {
+        const to = String(p.to ?? '').trim();
+        const amountTrx = Number(p.amountTrx);
+        if (execute) {
+          if (!to || !Number.isFinite(amountTrx) || amountTrx <= 0) return NextResponse.json({ ok: false, error: 'to+amountTrx-נדרשים' }, { status: 200 });
+          const r = await trxTransfer(to, amountTrx);
+          await audit('flow-trx-transfer', `transfer ${amountTrx} TRX → ${to.slice(0, 8)}… — ${r.ok ? `txid=${r.txid}` : `fail-honest: ${r.error.slice(0, 120)}`} by owner:${owner.label}`);
+          if (r.ok) { try { await relayBroadcast('vault', { type: 'flow-trx-transfer', to, amountTrx, txid: r.txid }); } catch { /* */ } }
+          return NextResponse.json({ ok: r.ok, action, dryRun: false, ...(r.ok ? { result: r } : { error: r.error }) });
+        }
+        const wd = await treasuryWallet();
+        const infoD = wd?.address ? await tronAccount(wd.address).catch(() => null) : null;
+        return NextResponse.json({
+          ok: true, action, dryRun: true,
+          plan: {
+            from: wd?.address ?? '', balance: (infoD?.balance ?? 0).toFixed(4),
+            to, amountTrx: Number.isFinite(amountTrx) ? amountTrx : null,
+            note: 'transfer-אמת מהאוצר — נדרש execute + מפעיל (fail-closed)',
+          },
+        });
+      }
+
       /* ── 73: טפטוף-קרן-התשואה — dry-run פומבי · execute למפעיל (אוטופיילוט-מקושר) ── */
       case 'vault_drip': {
         const exec = await vaultDrip(execute);
@@ -616,7 +639,7 @@ export async function POST(req: NextRequest) {
       }
 
       default:
-        return NextResponse.json({ ok: false, error: 'action-not-allowed', actions: ['steem_vote', 'hive_vote', 'blurt_vote', 'steem_selfvote', 'steem_powerdown', 'hive_savings_sweep', 'steem_claim', 'hive_claim', 'trx_energize', 'steem_publish', 'hive_publish', 'blurt_publish', 'fleet_scan', 'fleet_vote', 'fleet_claim', 'fleet_sweep', 'fleet_heal', 'fleet_pass_sweep', 'autopilot_pause', 'autopilot_resume', 'autovote_pick', 'autopilot_signals', 'vault_drip'] }, { status: 200 });
+        return NextResponse.json({ ok: false, error: 'action-not-allowed', actions: ['steem_vote', 'hive_vote', 'blurt_vote', 'steem_selfvote', 'steem_powerdown', 'hive_savings_sweep', 'steem_claim', 'hive_claim', 'trx_energize', 'steem_publish', 'hive_publish', 'blurt_publish', 'fleet_scan', 'fleet_vote', 'fleet_claim', 'fleet_sweep', 'fleet_heal', 'fleet_pass_sweep', 'autopilot_pause', 'autopilot_resume', 'autovote_pick', 'autopilot_signals', 'vault_drip', 'trx_transfer'] }, { status: 200 });
     }
   } catch (e) {
     return NextResponse.json({ ok: false, action, error: e instanceof Error ? e.message : 'flow action failed' }, { status: 200 });
