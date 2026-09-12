@@ -41,12 +41,18 @@
  * המודל-החלופי של מזג-האוויר הוצג כ"נמדד" — תוויות-האמת הותאמו;
  * (3) סריקת-ההיסטוריה של המגן (10-13ש') רצה מחדש בכל פג-תוקף —
  * מטמון-HEAD. שאר הטענות נבחנו מול ה-APIs ועמדו.
+ *
+ * v86 הקצה הפועל: מנוע-הקצה עובר מפריט-בדוק למריץ בפועל — edge_runner.py
+ * מקיש טיק כל 5 דק' כמכשיר-שדה, ועל השקיה משמעותית שואל את האגרונום
+ * דרך גשר-היועץ (/api/saos/agri/edge-advisor) — ההחלטה בקצה, החכמה
+ * בענן. פסק-היועץ הראשון של הקצה נמדד חי (adjust, z-ai-llm). הדופק
+ * נגזר-מדידה מהקבצים — לא תווית.
  */
 
-export const SAOS_VERSION = "85.0.0";
+export const SAOS_VERSION = "86.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "השדה המתרפא (THE SELF-HEALING FIELD)";
+export const SAOS_CODENAME = "הקצה הפועל (THE RUNNING EDGE)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

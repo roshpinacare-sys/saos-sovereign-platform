@@ -2143,6 +2143,47 @@ export interface AgriTwinParityT {
   errorHe?: string;
 }
 
+// v86 — הקצה הפועל (הרצה מתמשכת של מנוע-הקצה)
+export interface AgriEdgeHeartbeatT {
+  ok: boolean;
+  runner: string;
+  runnerVersion: string;
+  pid: number;
+  startedAt: string;
+  lastTickAt: string | null;
+  ticks: number;
+  errors: number;
+  intervalSec: number;
+  timeoutSec: number;
+  advisorUrl: string;
+  advisorWiredHe: string;
+  engineVersion: string;
+  counts: Record<string, number>;
+  lastError: string | null;
+  machineRehearsalHe: string;
+  stoppedAt?: string;
+  stoppedHe?: string;
+}
+
+export interface AgriEdgeRecentT {
+  at: string;
+  zone: string;
+  decision: string;
+  waterMm: number;
+  durationMin: number;
+  advisorVerdict: string | null;
+  advisorEngine: string | null;
+  advisorRationaleHe: string | null;
+}
+
+export interface AgriEdgeRuntimeT {
+  alive: boolean;
+  aliveWhyHe: string;
+  heartbeat: AgriEdgeHeartbeatT | null;
+  recent: AgriEdgeRecentT[];
+  derivedHe: string;
+}
+
 export interface AgriData {
   ok: boolean;
   at: string;
@@ -2158,6 +2199,7 @@ export interface AgriData {
   chart: { points: AgriChartPointT[]; zones: string[] };
   pythonEngine: AgriPythonEngineT;
   twinParity: AgriTwinParityT;
+  edgeRuntime: AgriEdgeRuntimeT;
   kpis: {
     zones: number;
     avgMoisture: number | null;

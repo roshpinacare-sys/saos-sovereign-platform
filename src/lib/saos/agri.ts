@@ -29,6 +29,14 @@
  * ומשווה החלטה/מ״מ/דק'/נדחה/כללים. שני מנועים נמדדים זה מול זה — אף
  * אחד לא מעריך את עצמו. התוצאה ב-DB ומוצגת כפי שנמדדה.
  *
+ * v86 — הקצה הפועל (THE RUNNING EDGE): מנוע-הקצה עובר מפריט-בדוק למריץ
+ * בפועל — python/edge_runner.py מפקח על לולאת-טיק מתמשכת (כל 5 דק'),
+ * ועל השקיה משמעותית המכשיר שואל את האגרונום דרך גשר-היועץ
+ * (/api/saos/agri/edge-advisor) — טופולוגיית הפריסה האמיתית: ההחלטה
+ * בקצה, החכמה בענן. הלוח קורא את הדופק (runner.json) ואת יומן-הביקורת
+ * (decisions.jsonl) ומציג חי/דומם כנגזר-מדידה. שער-הקצב של היועץ עבר
+ * למצב-הקבצים (advisorLastAt ב-state.json) — פריטיות לחותם-ה-DB של הקונסולה.
+ *
  * גבולות-האמת המקודדים:
  *  · החיישנים סימולטור (source="simulator") — לא מוסתר, לא מומצא.
  *  · התחזית חיה מ-Open-Meteo; ה-fallback דטרמיניסטי וכנה — ולעולם לא
@@ -50,7 +58,7 @@ import { assertTrustedEndpoints } from "./security";
 
 const execFileAsync = promisify(execFile);
 
-export const AGRI_VERSION = "85.0.0";
+export const AGRI_VERSION = "86.0.0";
 
 // ─── קבועים קשיחים (החוכמה בקוד, לא בראש) ───────────────────────────────────
 
@@ -1226,6 +1234,137 @@ export async function twinParityStatus(): Promise<TwinParityOut> {
   return runTwinParity(true);
 }
 
+// ─── v86 — הקצה הפועל: דופק ההרצה המתמשכת, נגזר מהקבצים ──────────────────────
+// edge_runner.py כותב דופק (runner.json) אחרי כל מחזור ומנהל יומן-ביקורת
+// (decisions.jsonl). הלוח קורא את שניהם ונותן נגזר-מדידה: "חי" = דופק טרי
+// (פחות משני מחזורים + חופש), לא תווית. קובץ חסר = "דומם — לא הותחל" —
+// כנות, לא הסתרה. קריאת הזנב של ה-JSONL חסומה ל-32KB — היומן יכול לגדול
+// לאורך ימים והלוח לא יקרא אותו כולו לזיכרון.
+
+const EDGE_HEARTBEAT_REL = "python/data/runner.json";
+const EDGE_DECISIONS_REL = "python/data/decisions.jsonl";
+const EDGE_TAIL_BYTES = 32_768;
+const EDGE_RECENT_ROWS = 6;
+const EDGE_ALIVE_GRACE_MS = 60_000;
+
+export interface EdgeHeartbeatOut {
+  ok: boolean;
+  runner: string;
+  runnerVersion: string;
+  pid: number;
+  startedAt: string;
+  lastTickAt: string | null;
+  ticks: number;
+  errors: number;
+  intervalSec: number;
+  timeoutSec: number;
+  advisorUrl: string;
+  advisorWiredHe: string;
+  engineVersion: string;
+  counts: Record<string, number>;
+  lastError: string | null;
+  machineRehearsalHe: string;
+  stoppedAt?: string;
+  stoppedHe?: string;
+}
+
+export interface EdgeRecentDecisionOut {
+  at: string;
+  zone: string;
+  decision: string;
+  waterMm: number;
+  durationMin: number;
+  advisorVerdict: string | null;
+  advisorEngine: string | null;
+  advisorRationaleHe: string | null;
+}
+
+export interface EdgeRuntimeOut {
+  alive: boolean;
+  aliveWhyHe: string;
+  heartbeat: EdgeHeartbeatOut | null;
+  recent: EdgeRecentDecisionOut[];
+  derivedHe: string;
+}
+
+async function edgeRuntimeStatus(): Promise<EdgeRuntimeOut> {
+  const hbPath = path.join(process.cwd(), EDGE_HEARTBEAT_REL);
+  let hb: EdgeHeartbeatOut | null = null;
+  try {
+    hb = JSON.parse(fs.readFileSync(hbPath, "utf-8")) as EdgeHeartbeatOut;
+  } catch {
+    hb = null;
+  }
+
+  let alive = false;
+  let aliveWhyHe = "דופק לא נמדד — הרץ לא הותחל (או שמצבו נמחק). כנות, לא הסתרה.";
+  if (hb) {
+    const lastTickMs = hb.lastTickAt ? Date.parse(hb.lastTickAt) : NaN;
+    const interval = Number.isFinite(hb.intervalSec) && hb.intervalSec > 0 ? hb.intervalSec : 300;
+    if (hb.stoppedAt) {
+      aliveWhyHe = `נעצר — ${hb.stoppedHe ?? "סיבה לא רשומה"} (${hb.stoppedAt}).`;
+    } else if (Number.isFinite(lastTickMs)) {
+      const age = Date.now() - lastTickMs;
+      if (age < interval * 2 * 1000 + EDGE_ALIVE_GRACE_MS) {
+        alive = true;
+        aliveWhyHe = `דופק טרי — טיק אחרון לפני ${Math.max(1, Math.round(age / 1000))} שניות; נחשב חי עד טיק כפול-מחזור + חופש.`;
+      } else {
+        aliveWhyHe = `דופק עתיק — טיק אחרון לפני ${Math.round(age / 60_000)} דק'; מעבר לסף החיות (2×${interval}ש' + 60ש'). מוצג כפי שנמדד.`;
+      }
+    } else {
+      aliveWhyHe = "ההרץ עלה אך טרם השלים מחזור ראשון.";
+    }
+  }
+
+  // זנב יומן-הביקורת של הקצה — ההחלטות האחרונות כפי שהמכשיר עצמו רשם אותן
+  const recent: EdgeRecentDecisionOut[] = [];
+  const jsonlPath = path.join(process.cwd(), EDGE_DECISIONS_REL);
+  try {
+    const stat = fs.statSync(jsonlPath);
+    const readFrom = Math.max(0, stat.size - EDGE_TAIL_BYTES);
+    const fh = fs.openSync(jsonlPath, "r");
+    try {
+      const len = stat.size - readFrom;
+      const buf = Buffer.alloc(len);
+      fs.readSync(fh, buf, 0, len, readFrom);
+      const lines = buf.toString("utf-8").split("\n").filter((l) => l.trim().length > 0);
+      for (const line of lines.slice(-EDGE_RECENT_ROWS).reverse()) {
+        try {
+          const r = JSON.parse(line) as Record<string, unknown>;
+          const advice =
+            typeof r.advice === "object" && r.advice !== null ? (r.advice as Record<string, unknown>) : null;
+          const zone = (typeof r.zone === "object" && r.zone !== null ? r.zone : {}) as Record<string, unknown>;
+          recent.push({
+            at: typeof r.at === "string" ? r.at : "",
+            zone: typeof zone.name === "string" ? zone.name : "?",
+            decision: String(r.decision ?? "?"),
+            waterMm: Number(r.waterMm ?? 0),
+            durationMin: Number(r.durationMin ?? 0),
+            advisorVerdict: advice ? String(advice.verdict ?? "") : null,
+            advisorEngine: advice ? String(advice.engine ?? "") : null,
+            advisorRationaleHe: advice && typeof advice.rationale_he === "string" ? advice.rationale_he.slice(0, 220) : null
+          });
+        } catch {
+          // שורה חתוכה בזנב (המאגר חי) — דלג בכנות על השורה הקטועה
+        }
+      }
+    } finally {
+      fs.closeSync(fh);
+    }
+  } catch {
+    // אין יומן — הרשימה נשארת ריקה והדופק אומר את האמת
+  }
+
+  return {
+    alive,
+    aliveWhyHe,
+    heartbeat: hb,
+    recent,
+    derivedHe:
+      "נגזר-מדידה חיה — הדופק נקרא מהקובץ בכל פתיחת לוח; חי/דומם נקבע מטריות הטיק האחרון, לא מתווית. ההחלטות האחרונות נקראות מיומן-הביקורת של המכשיר עצמו."
+  };
+}
+
 export async function agriBoard(): Promise<Record<string, unknown>> {
   await ensureSeeded();
   await maybeAutoTick();
@@ -1452,6 +1591,8 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
     pythonEngine: await pythonEngineStatus(),
     // v84 — מנוע-התאום: הפריטיות בין שני המנועים נמדדת חיה
     twinParity: await twinParityStatus(),
+    // v86 — הקצה הפועל: ההרצה המתמשכת של מנוע-הקצה, דופק נגזר-מדידה
+    edgeRuntime: await edgeRuntimeStatus(),
     usage:
       "GET — הלוח (מקדם את העולם אם דומם ≥60ש') · POST {action:'tick'} — מחזור עכשיו (היועץ-בלולאה נשאל על השקיה משמעותית) · POST {action:'valve', zoneId, open} — שסתום ידני · POST {action:'advisor', enabled} — היועץ-בלולאה הדלקה/כיבוי · POST {action:'parity'} — הרצת פריטיות-התאומים עכשיו (401 וקטורים) · POST {action:'reset'} — זריעה מחדש · POST /api/saos/agri/advisor {zoneId, note?} — חוות-דעת ידנית"
   };

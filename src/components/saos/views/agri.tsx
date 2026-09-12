@@ -20,6 +20,12 @@
  * 401 וקטורים דטרמיניסטיים, אותה תשובה משני הצדדים, הפער (אם יימדד)
  * מוצג בטבלה גלויה. אף מנוע לא מעריך את עצמו.
  *
+ * v86 — הקצה הפועל: מנוע-הקצה כבר לא רק נבדק — הוא רץ. edge_runner.py
+ * מקיש טיק כל 5 דק' כמכשיר-שדה, ועל השקיה משמעותית הוא שואל את האגרונום
+ * דרך גשר-היועץ (/api/saos/agri/edge-advisor) — ההחלטה בקצה, החכמה
+ * בענן. הפאנל קורא את הדופק ואת יומן-הביקורת של המכשיר עצמו ומציג
+ * חי/דומם כנגזר-מדידה — לא תווית.
+ *
  * הלוח החי: KPIs · עין-מזג-האוויר · קונסולת ההחלטות · כרטיסי החלקות
  * (מד-לחות עם סימוני קו-עקה/יעד · חיישנים · שסתום · החלטה אחרונה ·
  * חוות-דעת אגרונום) · יומן-ביקורת של כל טיפה · הכללים החכמים.
@@ -44,6 +50,7 @@ import {
   Play,
   RotateCcw,
   Ruler,
+  RadioTower,
   Sprout,
   TerminalSquare,
   ThermometerSun,
@@ -415,6 +422,7 @@ export function AgriView() {
   const calib = data?.calibration;
   const py = data?.pythonEngine;
   const tp = data?.twinParity;
+  const er = data?.edgeRuntime;
 
   // v82 — קו-הלחות: הנתונים מוכנים לגרף (תווית-זמן עברית קצרה)
   const chartData = useMemo(
@@ -763,7 +771,7 @@ export function AgriView() {
       <Panel>
         <PanelHeader
           icon={<TerminalSquare size={16} />}
-          title="מנוע הקצה — פייתון v1.1 (THE EDGE ENGINE)"
+          title="מנוע הקצה — פייתון v1.2 (THE EDGE ENGINE)"
           sub="תאום מלא למנוע הזה, ספריית-סטנדרט בלבד, למכשיר-קצה — ההבטחה מ-13 סשנים כקובץ אמיתי"
           tag={py?.selftest.ok ? `selftest ירוק ${py.selftest.passed}/${py.selftest.checks}` : "selftest לא ירוק"}
         />
@@ -897,6 +905,161 @@ export function AgriView() {
               )}
               <p dir="ltr" className="mt-3 overflow-x-auto rounded-lg border border-white/[0.06] bg-black/40 px-3 py-2 font-mono text-[10.5px] leading-relaxed text-zinc-400">
                 python3 python/irrigation_engine.py parity --json --vectors-file vectors.json
+              </p>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* v86 — הקצה הפועל: הרצה מתמשכת של מנוע-הקצה, דופק נגזר-מדידה */}
+      <Panel accent>
+        <PanelHeader
+          icon={<RadioTower size={16} />}
+          title="הקצה הפועל — הרצה מתמשכת (THE RUNNING EDGE)"
+          sub="edge_runner.py מקיש טיק כל 5 דק' כמכשיר-שדה — ההחלטה בקצה, האגרונום בענן דרך גשר-היועץ. הדופק וההחלטות נקראים מהמכשיר עצמו"
+          tag={er?.alive ? `דופק חי · ${er.heartbeat?.ticks ?? 0} טיקים` : "דומם"}
+        />
+        <PanelBody>
+          {er && (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill tone={er.alive ? "green" : "rose"} pulse={er.alive}>
+                  {er.alive
+                    ? `דופק חי — טיק אחרון ${timeAgo(er.heartbeat?.lastTickAt)}`
+                    : er.heartbeat
+                      ? "דומם — הדופק לא טרי, מוצג כפי שנמדד"
+                      : "דומם — הרץ לא הותחל"}
+                </Pill>
+                {er.heartbeat && (
+                  <>
+                    <Tag>
+                      <span dir="ltr">engine v{er.heartbeat.engineVersion || "—"} · runner v{er.heartbeat.runnerVersion}</span>
+                    </Tag>
+                    <Tag>מחזור כל {Math.round(er.heartbeat.intervalSec / 60)} דק׳</Tag>
+                    <Tag>עלה {timeAgo(er.heartbeat.startedAt)}</Tag>
+                    {er.heartbeat.errors > 0 && (
+                      <Tag>{er.heartbeat.errors} שגיאות — מתועדות, הלולאה המשיכה</Tag>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {er.heartbeat && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                    <p className="text-[11px] text-zinc-500">מוני ההרצה (מהדופק)</p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-zinc-200">
+                      {er.heartbeat.ticks} טיקים ·{" "}
+                      {(er.heartbeat.counts?.decisions ?? 0).toLocaleString("he-IL")} החלטות ·{" "}
+                      {er.heartbeat.counts?.irrigations ?? 0} השקיות · {er.heartbeat.counts?.defers ?? 0} דחיות ·{" "}
+                      {er.heartbeat.counts?.alerts ?? 0} התראות
+                    </p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                      פסקי-יועץ: {er.heartbeat.counts?.advisorConsults ?? 0} שאלות — אישור{" "}
+                      {er.heartbeat.counts?.advisorConfirm ?? 0} · כיוונון {er.heartbeat.counts?.advisorAdjust ?? 0} ·
+                      גריעה {er.heartbeat.counts?.advisorOverride ?? 0} · לא-ענה {er.heartbeat.counts?.advisorUnavailable ?? 0}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                    <p className="text-[11px] text-zinc-500">היועץ בקצה — טופולוגיית הפריסה</p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-zinc-200">{er.heartbeat.advisorWiredHe}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                      שתי חגורות-קצב: שער המכשיר (state.json, שורד הפעלות-מחדש) + שער הגשר (DB,
+                      חוצת-workers) — שתיהן פסק אחד ל-10 דק׳, כמו בקונסולה.
+                    </p>
+                    <p dir="ltr" className="mt-1 truncate font-mono text-[10px] text-zinc-500">
+                      {er.heartbeat.advisorUrl}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {er.heartbeat?.lastError && (
+                <p className="mt-2 text-[11px] leading-relaxed text-rose-300">
+                  כישלון אחרון (כנות, לא הסתרה): {er.heartbeat.lastError}
+                </p>
+              )}
+
+              {er.recent.length > 0 && (
+                <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-white/[0.06]">
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>מתי</Th>
+                        <Th>חלקה</Th>
+                        <Th>החלטת הקצה</Th>
+                        <Th>מ״מ / דק׳</Th>
+                        <Th>פסק היועץ</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {er.recent.map((r, i) => (
+                        <tr key={`${r.at}-${i}`}>
+                          <Td><span className="text-[11px] text-zinc-400">{timeAgo(r.at)}</span></Td>
+                          <Td><span className="text-[11px]">{r.zone}</span></Td>
+                          <Td>
+                            <span
+                              dir="ltr"
+                              className={`text-[11px] font-semibold ${
+                                r.decision === "IRRIGATE"
+                                  ? "text-emerald-300"
+                                  : r.decision === "DEFER"
+                                    ? "text-amber-300"
+                                    : r.decision === "ALERT"
+                                      ? "text-rose-300"
+                                      : "text-zinc-400"
+                              }`}
+                            >
+                              {r.decision}
+                            </span>
+                          </Td>
+                          <Td>
+                            <span dir="ltr" className="text-[11px] tabular-nums text-zinc-300">
+                              {r.decision === "IRRIGATE" ? `${r.waterMm} / ${r.durationMin}` : "—"}
+                            </span>
+                          </Td>
+                          <Td>
+                            {r.advisorVerdict ? (
+                              <span className="flex flex-col gap-0.5">
+                                <span
+                                  dir="ltr"
+                                  className={`text-[11px] font-semibold ${
+                                    r.advisorVerdict === "confirm"
+                                      ? "text-emerald-300"
+                                      : r.advisorVerdict === "adjust"
+                                        ? "text-amber-300"
+                                        : r.advisorVerdict === "override"
+                                          ? "text-rose-300"
+                                          : "text-zinc-500"
+                                  }`}
+                                  title={r.advisorRationaleHe ?? undefined}
+                                >
+                                  {r.advisorVerdict}
+                                  <span className="ml-1 font-normal text-zinc-600">({r.advisorEngine})</span>
+                                </span>
+                                {r.advisorRationaleHe && (
+                                  <span className="text-[10px] leading-snug text-zinc-500 line-clamp-2">
+                                    {r.advisorRationaleHe}
+                                  </span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-zinc-600">לא נשאל — לא משמעותית</span>
+                            )}
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
+
+              <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">
+                {er.heartbeat?.machineRehearsalHe ?? "הרצת-ריפו על מכונת-הפיתוח — הדמיית מכשיר-השדה; מכשיר אמיתי ממתין למו״פ הבעלים."}{" "}
+                {er.derivedHe}
+              </p>
+              <p dir="ltr" className="mt-2 overflow-x-auto rounded-lg border border-white/[0.06] bg-black/40 px-3 py-2 font-mono text-[10.5px] leading-relaxed text-zinc-400">
+                {"setsid --fork sh -c 'python3 python/edge_runner.py >> python/data/runner.log 2>&1' · python3 python/edge_runner.py --once"}
               </p>
             </>
           )}

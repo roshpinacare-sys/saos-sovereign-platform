@@ -39,6 +39,11 @@ SAOS v83 — irrigation_engine.py v1.1 · מנוע הקצה (THE EDGE ENGINE)
 
 v84 — parity: הקונסולה (TS) שולחת וקטורים דטרמיניסטיים, התאום עונה
 בהחלטותיו; ההשוואה עצמה נעשית אצל הקונסולה — אמת-יחידה, אפס מרמור-עצמי.
+
+v86 — הרצה מתמשכת: edge_runner.py מריץ tick כל 5 דק' כתהליך-רקע
+מפוקח (דופק + יומן). כיוון שכל tick הוא תהליך חדש, שער-הקצב של
+היועץ (פסק אחד ל-10 דק') עבר ל-state.json — advisorLastAt — כך שהוא
+שורד הפעלות-מחדש, בפריטיות לחותם-ה-DB של הקונסולה (agriAdvisorLastAt).
 """
 
 from __future__ import annotations
@@ -58,7 +63,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-PY_ENGINE_VERSION = "1.1.0"
+PY_ENGINE_VERSION = "1.2.0"
 PARITY_WITH = "SAOS agri v82 (TypeScript)"
 
 # ─── קבועים קשיחים — פריטיות מלאה ל-agri.ts v82 ─────────────────────────────
@@ -494,11 +499,18 @@ class HttpAdvisor(LLMAdvisor):
     """קורא ליועץ מעל HTTP — כברירת-מחדל, ליועץ של הקונסולה עצמה.
     פסק-זמן 10ש' · שער-קצב 10 דק' · כשל = כנות מתועדת."""
 
-    def __init__(self, url: str, timeout_s: int = ADVISOR_TIMEOUT_S, min_interval_s: int = ADVISOR_MIN_INTERVAL_S):
+    def __init__(self, url: str, timeout_s: int = ADVISOR_TIMEOUT_S, min_interval_s: int = ADVISOR_MIN_INTERVAL_S,
+                 last_at: float = 0.0):
         self.url = url
         self.timeout_s = timeout_s
         self.min_interval_s = min_interval_s
-        self._last_at = 0.0
+        # v86 — שער-הקצב נטען מהמצב (state.json) ומוחזר אליו: תהליך-טיק חדש
+        # לא מאפס את השעירה. פריטיות לחותם-ה-DB של הקונסולה.
+        self._last_at = float(last_at)
+
+    @property
+    def last_at(self) -> float:
+        return self._last_at
 
     def consult(self, zone: Zone, reading: SensorReading, weather: WeatherForecast,
                 rule_out: RuleLayerOut) -> Advice:
@@ -1153,7 +1165,11 @@ def main(argv: list[str]) -> int:
             state = {}
     readings = {k: SensorReading(**v) for k, v in (state.get("readings") or {}).items()}
     defer_counts = {k: int(v) for k, v in (state.get("deferCounts") or {}).items()}
-    advisor: LLMAdvisor = HttpAdvisor(args.advisor_url) if args.advisor_url else NullAdvisor()
+    # v86 — שער-היועץ נטען מהמצב ונשמר בחזרה: תהליך-טיק חדש לא מאפס שעירה
+    advisor_last_at = float(state.get("advisorLastAt") or 0.0)
+    advisor: LLMAdvisor = (
+        HttpAdvisor(args.advisor_url, last_at=advisor_last_at) if args.advisor_url else NullAdvisor()
+    )
     valve = SimulatedValve()
     if state.get("valveBoost"):
         valve.boost_mm = {k: float(v) for k, v in state["valveBoost"].items()}
@@ -1167,6 +1183,7 @@ def main(argv: list[str]) -> int:
         "readings": {k: asdict(v) for k, v in engine.readings.items()},
         "deferCounts": engine.defer_counts,
         "valveBoost": boost_out,
+        "advisorLastAt": getattr(advisor, "last_at", 0.0),
         "at": now_iso(),
         "version": PY_ENGINE_VERSION,
     }
