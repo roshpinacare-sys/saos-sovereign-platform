@@ -8,6 +8,22 @@
  * machine is what it is) — it is a keeper that never lets a member stay
  * dead.
  *
+ * v43 ביקורת-הפריוויו (born live, 2026-09-12 06:21–06:24 UTC): the kernel
+ *   killed the web at RSS 1893MB while the pre-OOM recycle was "armed" —
+ *   TWO measured root causes, both fixed in this version:
+ *   (1) ONE shared anti-dupe window (S.reviveDeadline) served web+herald+
+ *       swarm+runner: the herald revival at 06:21:23 set the window and
+ *       BLOCKED the web's death-revive for its whole 150s — the web stayed
+ *       dead ~2 extra minutes for no reason. Every member now owns its own
+ *       window (webReviveDeadline / heraldReviveDeadline /
+ *       swarmReviveDeadline / runnerReviveDeadline).
+ *   (2) the kernel does not honor our boot-grace: at/above the measured
+ *       kill line (RSS_KILL_LINE_MB=1790) there is no margin to wait for a
+ *       2nd reading — the recycle now fires the SAME cycle, grace or not.
+ *   Plus honesty fixes: the web-revive journal now reports the ACTUAL fail
+ *   streak (was hardcoded ×3), and "pressure-ok with RSS 0" is no longer
+ *   celebrated as recovery — an absent next-server is death, not healing.
+ *
  * WHAT IT WATCHES (loopback only, no key material ever touched):
  *   · web tier  — http://127.0.0.1:3000/api/saos/live-probes (every 10s)
  *   · lab chain — anvil JSON-RPC eth_blockNumber on :8545 (every 30s)
@@ -129,6 +145,14 @@ const ZOMBIE_MS = 6 * 60_000; // v59 — 10→6דק': מחזור בריא כבר
 // מעליית הווב (סערת-הקומפילציה חולפת; ווב בוגר ב-1.35GB+ = מסע אמיתי).
 const RSS_SHED_MB = 1350;
 const RSS_SHED_READINGS = 2;
+// v43 — the kernel's measured kill line. Above it there is NO margin: the
+// 06:21 incident proved the kernel kills even under our boot-grace (RSS
+// 1893MB, web ~12min old, recycle "armed" waiting for reading 2/2). At this
+// line the recycle fires the same cycle — grace included.
+const RSS_KILL_LINE_MB = 1790;
+// v43 — single source of truth for the keeper's own version (the boot banner
+// said "v39" for four versions — the stale-label disease, cured at the root)
+const KEEPER_VERSION = "43.0.0";
 const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
@@ -298,7 +322,14 @@ const S = {
   lastHttp: null as number | null,
   reviveCount: 0,
   lastReviveAt: null as string | null,
-  reviveDeadline: 0,
+  // v43 — per-member anti-dupe windows. The 06:21 lesson: one shared window
+  // let a herald revival block the web's death-revive for 150s. The web
+  // paths (death-revive / recycle / panic-cure) share the WEB window (they
+  // all act on the same tree); herald/swarm/runner each own theirs.
+  webReviveDeadline: 0,
+  heraldReviveDeadline: 0,
+  swarmReviveDeadline: 0,
+  runnerReviveDeadline: 0,
   anvilOk: null as boolean | null,
   anvilHeight: null as number | null,
   anvilLastOkAt: null as string | null,
@@ -549,16 +580,18 @@ function reviveDetached(dir: string, logFile: string, delayMs = 0): void {
 }
 
 function reviveWeb(): void {
+  const streak = S.failStreak; // v43 — honest journal: the ACTUAL streak, not the constant
   S.reviveCount += 1;
   S.lastReviveAt = new Date().toISOString();
-  S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+  S.webReviveDeadline = Date.now() + REVIVE_WINDOW_MS;
   S.failStreak = 0;
   reviveDetached(PROJECT_DIR, path.join(PROJECT_DIR, "dev.log"));
-  journal("web-revive", `web tier dead (connection refused ×${DEAD_STREAK}) — bun run dev spawned detached, revive #${S.reviveCount}`);
+  journal("web-revive", `web tier dead (connection refused ×${streak}) — bun run dev spawned detached, revive #${S.reviveCount}`);
 }
 
 function reviveRunner(): void {
   S.runnerRevives += 1;
+  S.runnerReviveDeadline = Date.now() + REVIVE_WINDOW_MS; // v43 — the runner's OWN window
   reviveDetached(MESH_DIR, RUNNER_LOG);
   journal("runner-revive", `mesh runner absent from /proc — bun run dev spawned detached, revive #${S.runnerRevives}`);
 }
@@ -573,7 +606,7 @@ function reviveRunner(): void {
 function recycleWeb(): void {
   S.recycles += 1;
   S.lastRecycleAt = new Date().toISOString();
-  S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS; // one action per window
+  S.webReviveDeadline = Date.now() + REVIVE_WINDOW_MS; // one WEB action per window (v43 — the web's own)
   S.failStreak = 0;
   S.rssShedStreak = 0;
   S.recoveredLogged = false;
@@ -757,7 +790,7 @@ function cureWebPanic(): void {
   S.lastPanicAt = new Date().toISOString();
   S.page500Streak = 0;
   S.pageHangStreak = 0; // v36 — the hang variant feeds the same cure
-  S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+  S.webReviveDeadline = Date.now() + REVIVE_WINDOW_MS;
   journal(
     "web-panic",
     `page-500 on a live, answering process ×${PAGE_500_STREAK} (Turbopack cache panic — 3 live incidents) — cure #${S.panics}: SIGTERM tree → purge .next → detached respawn`
@@ -1387,7 +1420,7 @@ async function cycle(): Promise<void> {
     S.failStreak = 0;
     S.lastOkAt = S.lastCheckAt;
     S.lastHttp = web.http ?? null;
-    if (S.reviveDeadline > Date.now() - REVIVE_WINDOW_MS && !S.recoveredLogged) {
+    if (S.webReviveDeadline > Date.now() - REVIVE_WINDOW_MS && !S.recoveredLogged) {
       journal("web-recovered", `web tier answering again (HTTP ${web.http}) after revive #${S.reviveCount}`);
       S.recoveredLogged = true;
       // v54 מכוונן-הרשת — החלמת-הווב מחזירה את החסד לאיברים: בזמן שהווב
@@ -1408,7 +1441,7 @@ async function cycle(): Promise<void> {
     }
   } else {
     S.failStreak += 1;
-    if (S.failStreak >= DEAD_STREAK && Date.now() > S.reviveDeadline) {
+    if (S.failStreak >= DEAD_STREAK && Date.now() > S.webReviveDeadline) {
       journal("web-dead", `web tier connection refused ×${S.failStreak} — confirmed death`);
       reviveWeb();
       S.recoveredLogged = false;
@@ -1430,7 +1463,7 @@ async function cycle(): Promise<void> {
       if (
         S.page500Streak >= PAGE_500_STREAK &&
         !srcRecentlyTouched() &&
-        Date.now() > S.reviveDeadline
+        Date.now() > S.webReviveDeadline
       ) {
         cureWebPanic();
       }
@@ -1447,7 +1480,7 @@ async function cycle(): Promise<void> {
       if (
         S.pageHangStreak >= 3 &&
         !srcRecentlyTouched() &&
-        Date.now() > S.reviveDeadline
+        Date.now() > S.webReviveDeadline
       ) {
         journal("page-hang", `the PAGE hung ×${S.pageHangStreak} (90s+ continuous) on a live API with untouched source — the poisoned-cache evidence, same cure as page-500 (v36)`);
         cureWebPanic();
@@ -1481,7 +1514,7 @@ async function cycle(): Promise<void> {
   if (RT.cycle % SLOW_EVERY === 0) {
     const seen = runnerAlive();
     S.runnerSeen = seen;
-    if (!seen && Date.now() > S.reviveDeadline) {
+    if (!seen && Date.now() > S.runnerReviveDeadline) {
       reviveRunner();
     } else if (seen && S.anvilOk === true && typeof S.anvilHeight === "number") {
       if (S.anvilHeight !== S.zombieBlock) {
@@ -1514,11 +1547,20 @@ async function cycle(): Promise<void> {
         pressure ? "pressure" : "pressure-ok",
         pressure
           ? `memory pressure: ${m.availableMb}MB available / ${m.totalMb}MB · next-server RSS ${rss}MB — early warning (kernel acts lower)`
-          : `memory recovered: ${m.availableMb}MB available · next-server RSS ${rss}MB`
+          : rss === 0
+            ? `memory recovered: ${m.availableMb}MB available · next-server ABSENT (RSS 0) — v43 כנות: הזיכרון 'התאושש' כי האיבר מת; גלאי-המוות של הווב הוא הבעלים של ההמשך`
+            : `memory recovered: ${m.availableMb}MB available · next-server RSS ${rss}MB`
       );
     }
     const webAnswering = web.alive && !S.degraded;
-    if (rss >= RSS_SHED_MB && webAnswering) {
+    if (rss >= RSS_KILL_LINE_MB && webAnswering && Date.now() > S.webReviveDeadline) {
+      // v43 — lesson of 06:21: the kernel does not honor our boot-grace. At
+      // or above the measured kill line there is no margin for a 2nd reading
+      // — recycle NOW, same cycle, grace or not (a planned recycle is ~40s
+      // of planned darkness; tonight's kernel kill cost ~3min).
+      journal("pressure", `RSS ${rss}MB ≥ קו-ההרג הנמדד ${RSS_KILL_LINE_MB}MB — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)`);
+      recycleWeb();
+    } else if (rss >= RSS_SHED_MB && webAnswering) {
       if (ageMs < RSS_BOOT_GRACE_MS) {
         // v55 — young web riding the post-revive compile storm: the RSS spike
         // is legitimate work, not a march — grace (the 19:08 recycle-loop cure)
@@ -1526,7 +1568,7 @@ async function cycle(): Promise<void> {
         journal("pressure", `RSS ${rss}MB ≥ ${RSS_SHED_MB}MB אך הווב בן ${(ageMs / 60000).toFixed(1)} דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים`);
       } else {
         S.rssShedStreak += 1;
-        if (S.rssShedStreak >= RSS_SHED_READINGS && Date.now() > S.reviveDeadline) {
+        if (S.rssShedStreak >= RSS_SHED_READINGS && Date.now() > S.webReviveDeadline) {
           recycleWeb();
         } else {
           journal("pressure", `RSS ${rss}MB ≥ ${RSS_SHED_MB}MB (reading ${S.rssShedStreak}/${RSS_SHED_READINGS}) — recycle armed`);
@@ -1576,10 +1618,10 @@ async function cycle(): Promise<void> {
       }
       if (
         S.heraldFailStreak >= DEAD_STREAK &&
-        Date.now() > S.reviveDeadline
+        Date.now() > S.heraldReviveDeadline
       ) {
         S.heraldRevives += 1;
-        S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+        S.heraldReviveDeadline = Date.now() + REVIVE_WINDOW_MS; // v43 — the herald's OWN window, never blocks the web
         reviveDetached(GATE_DIR, GATE_LOG, fn.zombiePid ? 2000 : 0);
         // v54 מכוונן-הרשת — החסד חוזר עם הריבייב: המופע הטרי צריך את חלון-ה-45ש'
         // שלו לפני שהפידים מתקדמים; בלי איפוס-החסד השומר שפט זומבי לפי פידים
@@ -1620,10 +1662,10 @@ async function cycle(): Promise<void> {
       }
       if (
         S.swarmFailStreak >= DEAD_STREAK &&
-        Date.now() > S.reviveDeadline
+        Date.now() > S.swarmReviveDeadline
       ) {
         S.swarmRevives += 1;
-        S.reviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+        S.swarmReviveDeadline = Date.now() + REVIVE_WINDOW_MS; // v43 — the swarm's OWN window, never blocks the web
         reviveDetached(SWARM_DIR, SWARM_LOG, fn.zombiePid ? 2000 : 0);
         // v54 מכוונן-הרשת — אותו איפוס-חסד לפרחת-הרשת: בלי זה הסוכנים הטריים
         // נשפטים לפי פידים שעוד לא התקדמו (45ש' ראשון) — נהרגים ברגע העלייה.
@@ -1693,7 +1735,7 @@ function statusJson() {
   return {
     ok: true,
     service: "shomer",
-    version: "42.0.0",
+    version: KEEPER_VERSION,
     pid: process.pid,
     startedAt: S.startedAt,
     uptimeSec: Math.round((Date.now() - Date.parse(S.startedAt)) / 1000),
@@ -1708,7 +1750,7 @@ function statusJson() {
         failStreak: S.failStreak,
         revives: S.reviveCount,
         lastReviveAt: S.lastReviveAt,
-        recovering: Date.now() < S.reviveDeadline
+        recovering: Date.now() < S.webReviveDeadline
       },
       anvil: { alive: S.anvilOk === true, block: S.anvilHeight, lastOkAt: S.anvilLastOkAt },
       runner: { alive: S.runnerSeen, revives: S.runnerRevives, zombieRestarts: S.zombieRestarts, block: S.anvilHeight },
@@ -1830,7 +1872,7 @@ try {
   /* no journal yet — fresh start */
 }
 
-journal("boot", `SHOMER v39 (המשך) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · never touches key material`);
+journal("boot", `SHOMER v${KEEPER_VERSION} (ביקורת-הפריוויו — חלונות-תחייה נפרדים לכל איבר + קו-ההרג המיידי) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · never touches key material`);
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
-console.log(`[keeper] SHOMER v39 LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 10min (v36) · single-seat lock v36 · revive only on confirmed death (documented exceptions, all objective-evidence)`);
+console.log(`[keeper] SHOMER v${KEEPER_VERSION} LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 10min (v36) · single-seat lock v36 · revive only on confirmed death (documented exceptions, all objective-evidence · v43: per-member windows, never cross-blocking)`);

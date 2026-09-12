@@ -3,9 +3,16 @@
  * נולד ברוסט v44: הסרגל-צד הציג "v29.0" קפואה בעוד הפלטפורמה ב-v43 —
  * תווית שקרית מבלי שאיש שם לב. מהיום: מספר אחד, מקור אחד, אמת אחת.
  * bump בכל מהדורה — package.json · shell · footer · overview — הכל מכאן.
+ *
+ * v79 ביקורת-הפריוויו: הקודן (codename) עצמו נכנס למקור-האמת — אחרי שנתפס
+ * בפריוויו החי שהסרגל הציג "v78 רוסט" (קפוא מ-v44) בעוד המהדורה האמיתית היא
+ * "קריאת-ה-ETH". שם המהדורה מוצג עכשיו מכאן — סרגל, פוטר, הכל.
  */
 
-export const SAOS_VERSION = "78.0.0";
+export const SAOS_VERSION = "79.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "קריאת-ה-ETH (THE ETH CALL)";
+export const SAOS_CODENAME = "ביקורת-הפריוויו (THE PREVIEW AUDIT)";
+
+/** שם קצר לסרגל — החלק העברי לפני התרגום */
+export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

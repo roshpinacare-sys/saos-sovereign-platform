@@ -1,7 +1,7 @@
 {
   "name": "saos-keeper",
   "private": true,
-  "version": "27.0.0",
+  "version": "43.0.0",
   "description": "SAOS SHOMER (שומר) — self-healing keeper: watches the web tier (3000), the lab chain (8545) and the mesh runner; revives any member on confirmed death (connection-refused only — never kills, never touches key material). Loopback-only status API on :3005.",
   "scripts": {
     "dev": "bun --hot src/index.ts"
