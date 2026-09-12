@@ -34,6 +34,11 @@ SAOS v83 — irrigation_engine.py v1.1 · מנוע הקצה (THE EDGE ENGINE)
   python3 python/irrigation_engine.py rules
   python3 python/irrigation_engine.py tick [--json] [--offline] \
       [--advisor-url URL] [--data-dir DIR]
+  python3 python/irrigation_engine.py parity --json [--vectors-file FILE]
+      (ברירת-מחדל: וקטורים מ-stdin — {"vectors": [...]})
+
+v84 — parity: הקונסולה (TS) שולחת וקטורים דטרמיניסטיים, התאום עונה
+בהחלטותיו; ההשוואה עצמה נעשית אצל הקונסולה — אמת-יחידה, אפס מרמור-עצמי.
 """
 
 from __future__ import annotations
@@ -952,6 +957,62 @@ def run_selftest() -> dict[str, Any]:
     }
 
 
+# ─── v84 — parity: דיפרנציאל תאומים, אותם וקטורים → אותה החלטה ─────────────
+
+
+def run_parity(vectors: list[dict[str, Any]]) -> dict[str, Any]:
+    """הקונסולה מזרימה וקטורים דטרמיניסטיים (zoneId · לחות · סוללה · מזג ·
+    דחיות) — התאום מחזיר את החלטתו לכל וקטור. אפס רשת, אפס אקראיות,
+    אפס מצב: כל וקטור עצמאי. ההשוואה והפסק נעשים בצד הקונסולה —
+    אין מנוע שמעריך את עצמו; יש שני מנועים שנמדדים זה מול זה."""
+    zones = {z.id: z for z in SEED_ZONES}
+    results: list[dict[str, Any]] = []
+    for i, v in enumerate(vectors):
+        if not isinstance(v, dict):
+            return {"ok": False, "error": f"vector {i}: אינו אובייקט"}
+        zone = zones.get(str(v.get("zoneId") or ""))
+        if zone is None:
+            known = ", ".join(sorted(zones))
+            return {"ok": False, "error": f"vector {i}: zoneId לא מוכר ({known})"}
+        try:
+            reading = SensorReading(
+                soil_moisture=float(v.get("soilMoisture", 34.0)),
+                soil_temp=21.0,
+                air_temp=25.0,
+                air_humidity=60.0,
+                light_lux=50_000.0,
+                battery_pct=float(v.get("batteryPct", 100.0)),
+            )
+            weather = WeatherForecast(
+                source=str(v.get("weatherSource") or "open-meteo"),
+                precip_prob_24h=float(v.get("rainProb", 0.0)),
+                expected_rain_mm_24h=float(v.get("rainMm", 0.0)),
+                current_rain_mm=0.0,
+                temp_max=27.0,
+                temp_mean=22.0,
+            )
+            defer_count = int(v.get("deferCount") or 0)
+        except (TypeError, ValueError) as e:
+            return {"ok": False, "error": f"vector {i}: ערך לא ניתן לפענוח ({e})"}
+        out = rule_layer(zone, reading, weather, defer_count)
+        results.append({
+            "i": i,
+            "decision": out.decision.value,
+            "waterMm": out.dose.water_mm,
+            "durationMin": out.dose.duration_min,
+            "deferredDoseMm": out.deferred_dose_mm,
+            "firedRules": out.fired_rules,
+        })
+    return {
+        "ok": True,
+        "engine": "irrigation_engine.py",
+        "version": PY_ENGINE_VERSION,
+        "parityWith": PARITY_WITH,
+        "count": len(results),
+        "results": results,
+    }
+
+
 # ─── demo — שש פעימות על שלושה תרחישי מזג ────────────────────────────────────
 
 class _FixedWeather(WeatherEye):
@@ -1017,11 +1078,12 @@ def run_demo() -> None:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="irrigation_engine.py", description="SAOS מנוע הקצה — ההשקיה החקלאית הדו-שכבתית")
-    parser.add_argument("command", choices=["selftest", "demo", "rules", "tick"], help="selftest | demo | rules | tick")
+    parser.add_argument("command", choices=["selftest", "demo", "rules", "tick", "parity"], help="selftest | demo | rules | tick | parity")
     parser.add_argument("--json", action="store_true", help="פלט JSON בלבד")
     parser.add_argument("--offline", action="store_true", help="בלי רשת — fallback כנה בלבד")
     parser.add_argument("--advisor-url", default=os.environ.get("SAOS_ADVISOR_URL"), help="כתובת יועץ-LLM (ברירת-מחדל: SAOS_ADVISOR_URL)")
     parser.add_argument("--data-dir", default=str(Path(__file__).parent / "data"), help="תיקיית מצב ויומן")
+    parser.add_argument("--vectors-file", default=None, help="parity: קובץ וקטורים (ברירת-מחדל: stdin)")
     args = parser.parse_args(argv)
 
     if args.command == "rules":
@@ -1055,6 +1117,24 @@ def main(argv: list[str]) -> int:
     if args.command == "demo":
         run_demo()
         return 0
+
+    if args.command == "parity":
+        raw = ""
+        try:
+            if args.vectors_file:
+                raw = Path(args.vectors_file).read_text("utf-8")
+            else:
+                raw = sys.stdin.read()
+            obj = json.loads(raw)
+            vectors = obj.get("vectors") if isinstance(obj, dict) else obj
+            if not isinstance(vectors, list):
+                raise ValueError("vectors אינו רשימה")
+        except Exception as e:
+            print(json.dumps({"ok": False, "error": f"קלט parity לא תקין: {e}"}, ensure_ascii=False))
+            return 1
+        result = run_parity(vectors)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0 if result.get("ok") else 1
 
     # tick — מחזור החלטה אחד (כותב מצב + יומן)
     data_dir = Path(args.data_dir)

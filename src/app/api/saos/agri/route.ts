@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { agriBoard, tickAgri, setValve, resetAgri, ensureSeeded, setAutoAdvisorEnabled } from "@/lib/saos/agri";
+import { agriBoard, tickAgri, setValve, resetAgri, ensureSeeded, setAutoAdvisorEnabled, runTwinParity } from "@/lib/saos/agri";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
  *        השקיה משמעותית היועץ-בלולאה נשאל לפני הביצוע — מגבלות קפואות).
  * POST {action:'valve', zoneId, open}           — שסתום ידני (control-plane).
  * POST {action:'advisor', enabled:bool}         — v81 control-plane: הדלקה/כיבוי של היועץ-בלולאה.
+ * POST {action:'parity'}                        — v84: הרצת פריטיות-התאומים עכשיו (TS מול פייתון,
+ *        401 וקטורים דטרמיניסטיים — תוצאה מוחזרת ונשמרת ב-DB).
  * POST {action:'reset'}                         — זריעה מחדש של השדה.
  *
  * גבול-האמת: אין כאן יד, אין מפתח, אין שרשרת — רק המנוע, היומן
@@ -76,6 +78,17 @@ export async function POST(req: Request) {
       });
     }
 
+    if (action === "parity") {
+      const out = await runTwinParity(true);
+      return NextResponse.json({
+        ...out,
+        action: "parity",
+        message: out.ok
+          ? `פריטיות-התאומים נמדדה עכשיו — זהות מלאה: ${out.matches}/${out.total} וקטורים (${out.durationMs}מ״ש)`
+          : `פער נמדד: ${out.mismatchCount}/${out.total} וקטורים לא זהים — הפרטים בלוח; כנות, לא הסתרה`
+      });
+    }
+
     if (action === "reset") {
       const out = await resetAgri();
       return NextResponse.json({
@@ -92,7 +105,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "action לא מוכר — השתמש ב: tick · valve · advisor · reset · seed (היועץ הידני: POST /api/saos/agri/advisor)"
+        error: "action לא מוכר — השתמש ב: tick · valve · advisor · parity · reset · seed (היועץ הידני: POST /api/saos/agri/advisor)"
       },
       { status: 200 }
     );

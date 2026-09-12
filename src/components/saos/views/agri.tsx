@@ -16,6 +16,10 @@
  * ל-10 דק' · פסק-זמן 10ש' · גריעה עד 50% · קו-העקה קדוש) ו-control-plane
  * חי בפאנל השכבה השנייה.
  *
+ * v84 — מנוע-התאום: הפריטיות בין שני המנועים (TS ופייתון) נמדדת חיה —
+ * 401 וקטורים דטרמיניסטיים, אותה תשובה משני הצדדים, הפער (אם יימדד)
+ * מוצג בטבלה גלויה. אף מנוע לא מעריך את עצמו.
+ *
  * הלוח החי: KPIs · עין-מזג-האוויר · קונסולת ההחלטות · כרטיסי החלקות
  * (מד-לחות עם סימוני קו-עקה/יעד · חיישנים · שסתום · החלטה אחרונה ·
  * חוות-דעת אגרונום) · יומן-ביקורת של כל טיפה · הכללים החכמים.
@@ -33,6 +37,7 @@ import {
   CloudSun,
   Droplets,
   Gauge,
+  GitCompareArrows,
   History,
   Leaf,
   ListChecks,
@@ -335,6 +340,8 @@ export function AgriView() {
   const [adviceError, setAdviceError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [advisorToggling, setAdvisorToggling] = useState(false);
+  const [parityRunning, setParityRunning] = useState(false);
+  const [parityMsg, setParityMsg] = useState<string | null>(null);
 
   const data = live.data;
 
@@ -381,10 +388,23 @@ export function AgriView() {
     setResetting(false);
   };
 
+  // v84 — הרצת פריטיות-התאומים מהקונסולה (force) — התוצאה נשמרת ב-DB
+  const runParityNow = async () => {
+    setParityRunning(true);
+    setParityMsg(null);
+    const r = await postJson<{ ok: boolean; message?: string }>("/api/saos/agri", { action: "parity" });
+    setParityMsg(
+      r.ok && r.data?.message ? r.data.message : (r.error ?? "הפריטיות לא נמדדה — כישלון כנה, לא הסתרה")
+    );
+    live.refresh();
+    setParityRunning(false);
+  };
+
   const weatherLive = data?.weather;
   const weatherIsLive = weatherLive?.source === "open-meteo";
   const calib = data?.calibration;
   const py = data?.pythonEngine;
+  const tp = data?.twinParity;
 
   // v82 — קו-הלחות: הנתונים מוכנים לגרף (תווית-זמן עברית קצרה)
   const chartData = useMemo(
@@ -769,6 +789,99 @@ export function AgriView() {
               </div>
               <p dir="ltr" className="mt-3 overflow-x-auto rounded-lg border border-white/[0.06] bg-black/40 px-3 py-2 font-mono text-[10.5px] leading-relaxed text-zinc-400">
                 python3 python/irrigation_engine.py selftest · demo · rules · tick --offline
+              </p>
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* v84 — מנוע-התאום: פריטיות TS מול פייתון, נמדדת חיה */}
+      <Panel>
+        <PanelHeader
+          icon={<GitCompareArrows size={16} />}
+          title="מנוע-התאום — פריטיות נמדדת (THE TWIN PARITY)"
+          sub="אותם 401 וקטורים דטרמיניסטיים רצים בשני המנועים — הקונסולה (TS) והקצה (פייתון); ההחלטות חייבות להיות זהות. ההשוואה נעשית בקונסולה — אף מנוע לא מעריך את עצמו"
+          tag={tp?.ok ? `זהות ${tp.matches}/${tp.total}` : `פער ${tp?.mismatchCount ?? "—"}/${tp?.total ?? "—"}`}
+        />
+        <PanelBody>
+          {tp && (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill tone={tp.ok ? "green" : "rose"} pulse={tp.ok}>
+                  {tp.ok
+                    ? `זהות מלאה — ${tp.matches}/${tp.total} וקטורים · ${tp.durationMs}מ״ש`
+                    : tp.errorHe
+                      ? "לא נמדד — הכישלון מוצג כשלו"
+                      : `פער נמדד — ${tp.mismatchCount}/${tp.total} לא זהים`}
+                </Pill>
+                {tp.engineVersion && (
+                  <Tag>
+                    <span dir="ltr">py v{tp.engineVersion} · {tp.parityWith}</span>
+                  </Tag>
+                )}
+                <Btn
+                  size="xs"
+                  variant="secondary"
+                  loading={parityRunning}
+                  onClick={runParityNow}
+                  title="הרצת הפריטיות עכשיו — 401 וקטורים, התוצאה נשמרת ב-DB"
+                >
+                  <GitCompareArrows size={11} />
+                  הרץ פריטיות עכשיו
+                </Btn>
+              </div>
+              {parityMsg && (
+                <p className={`mt-2 text-[11px] leading-relaxed ${tp.ok ? "text-emerald-300/80" : "text-amber-300/80"}`}>
+                  {parityMsg}
+                </p>
+              )}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11px] text-zinc-500">מה מושווה</p>
+                  <p className="mt-0.5 text-[12px] leading-relaxed text-zinc-200">
+                    החלטה · מ״מ · דק' · מנה-נדחית · כללים-שנורו — החוזה ההתנהגותי
+                  </p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                    401 וקטורים: 3 חלקות × 7 נקודות-לחות (כולל הגבולות עצמם) × 6 תרחישי-מזג × 3 מוני-דחייה + 21 סוללה-גוססת + 2 חיישן-בלתי-אפשרי. מחרוזות-הסיבות בעברית לא מושוות — פורמט לבני-אדם, לא חוזה.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11px] text-zinc-500">מדידה אחרונה</p>
+                  <p className="mt-0.5 text-[12px] text-zinc-200">{timeAgo(tp.at)}</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                    נגזר-מדידה חיה — הריצה מתעדכנת כל 10 דק' (או בלחיצה); החותם ב-DB — אמת גלובלית חוצת-workers; כישלון מוצג כשלו, לא מוסתר.
+                  </p>
+                  {tp.errorHe && (
+                    <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{tp.errorHe}</p>
+                  )}
+                </div>
+              </div>
+              {tp.mismatches.length > 0 && (
+                <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-rose-500/20">
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>#</Th>
+                        <Th>וקטור</Th>
+                        <Th>TS — הקונסולה</Th>
+                        <Th>PY — הקצה</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tp.mismatches.map((mm) => (
+                        <tr key={mm.i}>
+                          <Td><span dir="ltr" className="tabular-nums">{mm.i}</span></Td>
+                          <Td><span className="text-[11px]">{mm.vectorHe}</span></Td>
+                          <Td><span dir="ltr" className="text-[11px] text-emerald-300">{mm.tsHe}</span></Td>
+                          <Td><span dir="ltr" className="text-[11px] text-rose-300">{mm.pyHe}</span></Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
+              <p dir="ltr" className="mt-3 overflow-x-auto rounded-lg border border-white/[0.06] bg-black/40 px-3 py-2 font-mono text-[10.5px] leading-relaxed text-zinc-400">
+                python3 python/irrigation_engine.py parity --json --vectors-file vectors.json
               </p>
             </>
           )}

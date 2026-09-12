@@ -23,6 +23,12 @@
  * ב-DB (לקח v81: ה-DB הוא האמת הגלובלית חוצת-workers) — לא תווית
  * קפואה (לקח v79).
  *
+ * v84 — מנוע-התאום (THE TWIN PARITY): הצהרת הפריטיות של v83 הופכת למדידה
+ * רצה — הקונסולה מייצרת רשת-וקטורים דטרמיניסטית (401 וקטורים: לחות ×
+ * מזג × דחיות × סוללה × 3 חלקות), מריצה את שני המנועים על אותם וקטורים
+ * ומשווה החלטה/מ״מ/דק'/נדחה/כללים. שני מנועים נמדדים זה מול זה — אף
+ * אחד לא מעריך את עצמו. התוצאה ב-DB ומוצגת כפי שנמדדה.
+ *
  * גבולות-האמת המקודדים:
  *  · החיישנים סימולטור (source="simulator") — לא מוסתר, לא מומצא.
  *  · התחזית חיה מ-Open-Meteo; ה-fallback דטרמיניסטי וכנה — ולעולם לא
@@ -36,6 +42,7 @@
 
 import { execFile } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { db } from "@/lib/db";
@@ -43,7 +50,7 @@ import { assertTrustedEndpoints } from "./security";
 
 const execFileAsync = promisify(execFile);
 
-export const AGRI_VERSION = "83.0.0";
+export const AGRI_VERSION = "84.0.0";
 
 // ─── קבועים קשיחים (החוכמה בקוד, לא בראש) ───────────────────────────────────
 
@@ -941,6 +948,276 @@ async function pythonEngineStatus(): Promise<{
   };
 }
 
+// ─── v84 — מנוע-התאום: פריטיות נמדדת, לא מוצהרת ─────────────────────────────
+// v83 הנחית את תאום-הפייתון עם הצהרת פריטיות ("אותם קבועים, אותו סדר כללים").
+// v84 הופך את ההצהרה למדידה: רשת-וקטורים דטרמיניסטית — 3 חלקות × 7 נקודות-
+// לחות (סביב קו-העקה וסביב רצפת-הרווחה, כולל הגבולות עצמם) × 6 תרחישי-מזג
+// (אמת-יבש/רטוב/סבירות-בלבד/מ"מ-בלבד + חלופי-יבש/לח) × 3 מוני-דחייה (0/5/6
+// — סביב גג-הסבלנות) + 21 סוללה-גוססת + 2 חיישן-בלתי-אפשרי = 401 וקטורים.
+// מה מושווה: החלטה · מ״מ · דק' · מנה-נדחית · כללים-שנורו — החוזה ההתנהגותי.
+// מה לא מושווה: מחרוזות-הסיבות בעברית — פורמט לבני-אדם, לא חוזה. ההשוואה
+// נעשית כאן (הקונסולה) — התאום רק עונה; אף מנוע לא מעריך את עצמו.
+
+const PARITY_KEY = "agriTwinParity";
+const PARITY_STALE_MS = 10 * 60 * 1000;
+const PARITY_TIMEOUT_MS = 15_000;
+
+const PARITY_ZONE_ROWS = [
+  { id: "z0", name: "חלקה א׳ — עגבניות", crop: "עגבנייה (שן אוהל)", areaM2: 850, moistureTarget: 38, moistureCritical: 22 },
+  { id: "z1", name: "חלקה ב׳ — מלפפונים", crop: "מלפפון", areaM2: 620, moistureTarget: 42, moistureCritical: 26 },
+  { id: "z2", name: "חלקה ג׳ — פלפלים", crop: "פלפל אדום", areaM2: 430, moistureTarget: 36, moistureCritical: 20 }
+] as const;
+
+const PARITY_WEATHERS = [
+  { key: "אמת-יבש", source: "open-meteo" as const, rainProb: 10, rainMm: 0 },
+  { key: "אמת-רטוב", source: "open-meteo" as const, rainProb: 80, rainMm: 8 },
+  { key: "אמת-סבירות-בלבד", source: "open-meteo" as const, rainProb: 75, rainMm: 1.5 },
+  { key: "אמת-מ״מ-בלבד", source: "open-meteo" as const, rainProb: 55, rainMm: 6 },
+  { key: "חלופי-יבש", source: "fallback" as const, rainProb: 25, rainMm: 0.4 },
+  { key: "חלופי-לח", source: "fallback" as const, rainProb: 30, rainMm: 3.2 }
+] as const;
+
+interface ParityVector {
+  zoneId: string;
+  soilMoisture: number;
+  batteryPct: number;
+  weatherSource: "open-meteo" | "fallback";
+  rainProb: number;
+  rainMm: number;
+  deferCount: number;
+}
+
+export interface TwinParityOut {
+  ok: boolean;
+  total: number;
+  matches: number;
+  mismatchCount: number;
+  mismatches: Array<{ i: number; vectorHe: string; tsHe: string; pyHe: string }>;
+  durationMs: number;
+  at: string;
+  engineVersion: string;
+  parityWith: string;
+  errorHe?: string;
+}
+
+function parityMoistures(z: (typeof PARITY_ZONE_ROWS)[number]): number[] {
+  return [
+    z.moistureCritical - 4, // עומק מתחת לקו-העקה
+    z.moistureCritical - 0.5, // ממש מתחת
+    z.moistureCritical, // הגבול עצמו — לא קריטי (אי-שוויון חד)
+    z.moistureCritical + 1, // מעל קו-העקה, תחת היעד
+    z.moistureTarget - TARGET_BAND - 3, // גרעון ברור
+    z.moistureTarget - TARGET_BAND, // רצפת-הרווחה — לא משקים (אי-שוויון חד)
+    z.moistureTarget + 5 // רווחה
+  ];
+}
+
+export function buildParityVectors(): ParityVector[] {
+  const vectors: ParityVector[] = [];
+  for (const z of PARITY_ZONE_ROWS) {
+    for (const m of parityMoistures(z)) {
+      for (const w of PARITY_WEATHERS) {
+        for (const d of [0, 5, 6]) {
+          vectors.push({
+            zoneId: z.id,
+            soilMoisture: m,
+            batteryPct: 100,
+            weatherSource: w.source,
+            rainProb: w.rainProb,
+            rainMm: w.rainMm,
+            deferCount: d
+          });
+        }
+      }
+      // סוללה גוססת — מזג יבש, מחזור ראשון (הכלל הראשון בסדר)
+      vectors.push({
+        zoneId: z.id,
+        soilMoisture: m,
+        batteryPct: 14,
+        weatherSource: "open-meteo",
+        rainProb: 10,
+        rainMm: 0,
+        deferCount: 0
+      });
+    }
+  }
+  // חיישן בלתי-אפשרי — שני כיוונים
+  vectors.push({ zoneId: "z0", soilMoisture: 150, batteryPct: 100, weatherSource: "open-meteo", rainProb: 10, rainMm: 0, deferCount: 0 });
+  vectors.push({ zoneId: "z0", soilMoisture: -3, batteryPct: 100, weatherSource: "open-meteo", rainProb: 10, rainMm: 0, deferCount: 0 });
+  return vectors;
+}
+
+function parityVectorHe(v: ParityVector): string {
+  return `${v.zoneId} · לחות ${v.soilMoisture}% · סוללה ${v.batteryPct}% · מזג ${
+    v.weatherSource === "open-meteo" ? "נתוני-אמת" : "חלופי"
+  } ${v.rainProb}%/${v.rainMm}מ״מ · דחיות ${v.deferCount}`;
+}
+
+function parityOutcomeHe(o: { decision: string; waterMm: number; durationMin: number; deferredDoseMm: number }): string {
+  return `${o.decision} · ${o.waterMm} מ״מ · ${o.durationMin} דק' · נדחה ${o.deferredDoseMm} מ״מ`;
+}
+
+interface PyParityOut {
+  ok: boolean;
+  version?: string;
+  parityWith?: string;
+  results?: Array<{ i: number; decision: string; waterMm: number; durationMin: number; deferredDoseMm: number; firedRules: string[] }>;
+  error?: string;
+}
+
+async function pyParity(vectors: ParityVector[]): Promise<PyParityOut> {
+  const pyPath = path.join(process.cwd(), PY_ENGINE_REL);
+  const tmpPath = path.join(os.tmpdir(), `saos-parity-${Date.now()}.json`);
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify({ vectors }), "utf-8");
+    const { stdout } = await execFileAsync("python3", [pyPath, "parity", "--json", "--vectors-file", tmpPath], {
+      timeout: PARITY_TIMEOUT_MS,
+      maxBuffer: 4 * 1024 * 1024
+    });
+    return JSON.parse(stdout) as PyParityOut;
+  } finally {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch {
+      // קובץ-זמני — כשל מחיקה לא עוצר מדידה
+    }
+  }
+}
+
+export async function runTwinParity(force = false): Promise<TwinParityOut> {
+  if (!force) {
+    const cached = await readTwinParityCached();
+    if (cached && Date.now() - new Date(cached.at).getTime() < PARITY_STALE_MS) return cached;
+  }
+  const t0 = Date.now();
+  const vectors = buildParityVectors();
+
+  // צד הקונסולה — שכבת-הכללים החיה (TS)
+  const tsResults = vectors.map((v, i) => {
+    const z = PARITY_ZONE_ROWS.find((row) => row.id === v.zoneId)!;
+    const out = ruleLayer(
+      {
+        id: z.id,
+        name: z.name,
+        crop: z.crop,
+        areaM2: z.areaM2,
+        moistureTarget: z.moistureTarget,
+        moistureCritical: z.moistureCritical,
+        valveOpen: false,
+        auto: true,
+        deferCount: v.deferCount
+      },
+      { soilMoisture: v.soilMoisture, soilTemp: 21, airTemp: 25, airHumidity: 60, lightLux: 50_000, batteryPct: v.batteryPct },
+      {
+        source: v.weatherSource,
+        precipProb24h: v.rainProb,
+        expectedRainMm24h: v.rainMm,
+        currentRainMm: 0,
+        tempMax: 27,
+        tempMean: 22,
+        fetchedAt: new Date().toISOString()
+      },
+      v.deferCount
+    );
+    return {
+      i,
+      decision: out.decision,
+      waterMm: out.waterMm,
+      durationMin: out.durationMin,
+      deferredDoseMm: out.deferredDoseMm,
+      firedRules: out.firedRules
+    };
+  });
+
+  // צד התאום — מנוע-הקצה (פייתון)
+  let py: PyParityOut;
+  try {
+    py = await pyParity(vectors);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message.slice(0, 180) : "לא ידוע";
+    const fail: TwinParityOut = {
+      ok: false,
+      total: vectors.length,
+      matches: 0,
+      mismatchCount: vectors.length,
+      mismatches: [],
+      durationMs: Date.now() - t0,
+      at: new Date().toISOString(),
+      engineVersion: "",
+      parityWith: "",
+      errorHe: `הרצת התאום נכשלה (${msg}) — הפריטיות לא נמדדה; כנות, לא הסתרה`
+    };
+    await db.platformSetting.upsert({
+      where: { key: PARITY_KEY },
+      update: { value: JSON.stringify(fail) },
+      create: { key: PARITY_KEY, value: JSON.stringify(fail) }
+    });
+    return fail;
+  }
+
+  const structuralOk = py.ok === true && Array.isArray(py.results) && py.results.length === vectors.length;
+  const mismatches: TwinParityOut["mismatches"] = [];
+  let matches = 0;
+  if (structuralOk) {
+    for (let i = 0; i < vectors.length; i++) {
+      const ts = tsResults[i]!;
+      const p = py.results![i]!;
+      const same =
+        ts.decision === p.decision &&
+        ts.waterMm === p.waterMm &&
+        ts.durationMin === p.durationMin &&
+        ts.deferredDoseMm === p.deferredDoseMm &&
+        ts.firedRules.join("|") === p.firedRules.join("|");
+      if (same) {
+        matches += 1;
+      } else if (mismatches.length < 12) {
+        mismatches.push({
+          i,
+          vectorHe: parityVectorHe(vectors[i]!),
+          tsHe: parityOutcomeHe(ts),
+          pyHe: parityOutcomeHe(p)
+        });
+      }
+    }
+  }
+
+  const out: TwinParityOut = {
+    ok: structuralOk && matches === vectors.length,
+    total: vectors.length,
+    matches,
+    mismatchCount: structuralOk ? vectors.length - matches : vectors.length,
+    mismatches,
+    durationMs: Date.now() - t0,
+    at: new Date().toISOString(),
+    engineVersion: String(py.version ?? ""),
+    parityWith: String(py.parityWith ?? ""),
+    errorHe: structuralOk ? undefined : `התאום לא החזיר ${vectors.length} תוצאות (${py.error ?? "פלט לא תקין"}) — הפריטיות לא נמדדה`
+  };
+  await db.platformSetting.upsert({
+    where: { key: PARITY_KEY },
+    update: { value: JSON.stringify(out) },
+    create: { key: PARITY_KEY, value: JSON.stringify(out) }
+  });
+  return out;
+}
+
+async function readTwinParityCached(): Promise<TwinParityOut | null> {
+  const row = await db.platformSetting.findUnique({ where: { key: PARITY_KEY } });
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value) as TwinParityOut;
+  } catch {
+    return null;
+  }
+}
+
+export async function twinParityStatus(): Promise<TwinParityOut> {
+  const cached = await readTwinParityCached();
+  const stale = !cached || Date.now() - new Date(cached.at).getTime() > PARITY_STALE_MS;
+  if (!stale && cached) return cached;
+  return runTwinParity(true);
+}
+
 export async function agriBoard(): Promise<Record<string, unknown>> {
   await ensureSeeded();
   await maybeAutoTick();
@@ -1165,8 +1442,10 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
     },
     // v83 — מנוע הקצה: התאום בפייתון, בריאותו נמדדת חיה
     pythonEngine: await pythonEngineStatus(),
+    // v84 — מנוע-התאום: הפריטיות בין שני המנועים נמדדת חיה
+    twinParity: await twinParityStatus(),
     usage:
-      "GET — הלוח (מקדם את העולם אם דומם ≥60ש') · POST {action:'tick'} — מחזור עכשיו (היועץ-בלולאה נשאל על השקיה משמעותית) · POST {action:'valve', zoneId, open} — שסתום ידני · POST {action:'advisor', enabled} — היועץ-בלולאה הדלקה/כיבוי · POST {action:'reset'} — זריעה מחדש · POST /api/saos/agri/advisor {zoneId, note?} — חוות-דעת ידנית"
+      "GET — הלוח (מקדם את העולם אם דומם ≥60ש') · POST {action:'tick'} — מחזור עכשיו (היועץ-בלולאה נשאל על השקיה משמעותית) · POST {action:'valve', zoneId, open} — שסתום ידני · POST {action:'advisor', enabled} — היועץ-בלולאה הדלקה/כיבוי · POST {action:'parity'} — הרצת פריטיות-התאומים עכשיו (401 וקטורים) · POST {action:'reset'} — זריעה מחדש · POST /api/saos/agri/advisor {zoneId, note?} — חוות-דעת ידנית"
   };
 }
 

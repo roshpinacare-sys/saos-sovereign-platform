@@ -2122,6 +2122,27 @@ export interface AgriPythonEngineT {
   derivedHe: string;
 }
 
+// v84 — מנוע-התאום (פריטיות TS מול פייתון, נמדדת)
+export interface AgriTwinParityMismatchT {
+  i: number;
+  vectorHe: string;
+  tsHe: string;
+  pyHe: string;
+}
+
+export interface AgriTwinParityT {
+  ok: boolean;
+  total: number;
+  matches: number;
+  mismatchCount: number;
+  mismatches: AgriTwinParityMismatchT[];
+  durationMs: number;
+  at: string;
+  engineVersion: string;
+  parityWith: string;
+  errorHe?: string;
+}
+
 export interface AgriData {
   ok: boolean;
   at: string;
@@ -2136,6 +2157,7 @@ export interface AgriData {
   calibration: AgriCalibrationT;
   chart: { points: AgriChartPointT[]; zones: string[] };
   pythonEngine: AgriPythonEngineT;
+  twinParity: AgriTwinParityT;
   kpis: {
     zones: number;
     avgMoisture: number | null;
