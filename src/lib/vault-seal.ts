@@ -457,9 +457,17 @@ export interface SigningAuthority {
  * Returns only PUBLIC material (account + role public key) plus whatever
  * `fn` returns — the caller is responsible for keeping fn's result secret-free.
  */
-/** v57 — WIF תקין: רגיל (5…, 51-52 תווים) או דחוס (K/L…, 52 תווים — דור הראש המאומת 8/8). */
+/**
+ * v57 — WIF תקין: רגיל (5…, 51-52 תווים) או דחוס (K/L…, 52 תווים — דור הראש המאומת 8/8).
+ * v86 FIX (R10, measured): the old regex /^5[HJK].{50,51}$/ demanded 52-53
+ * chars for uncompressed WIFs and REFUSED the honest 51-char form the
+ * steem lib itself emits (toWif) — the R10 self-heal wrote exactly those
+ * and the vault gate then refused its own healed key. Uncompressed WIFs
+ * are "5" + 50-51 base58 chars (leading 0x80 byte always encodes to "5");
+ * compressed stay K/L + 51.
+ */
 function isValidWif(v: unknown): boolean {
-  return typeof v === "string" && (/^5[HJK].{50,51}$/.test(v) || /^[KL].{51}$/.test(v));
+  return typeof v === "string" && (/^5[1-9A-HJ-NP-Za-km-z]{49,51}$/.test(v) || /^[KL][1-9A-HJ-NP-Za-km-z]{51}$/.test(v));
 }
 
 export async function withRoleWif<T>(

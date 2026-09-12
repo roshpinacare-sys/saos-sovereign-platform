@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAutoAnchorEnabled, setAutoAnchorEnabled } from "@/lib/saos/auto-anchor";
+import { getAutoAnchorEnabled, setAutoAnchorEnabled, fireAutoAnchorForNewSeal } from "@/lib/saos/auto-anchor";
 import { verifyInclusion } from "@/lib/saos/anchor-live";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { logOp } from "@/lib/saos/oplog";
@@ -140,6 +140,34 @@ export async function POST(req: Request) {
         results,
         discipline: "ה-txid לעולם לא משתנה — רק מצב האישור מתעדכן עם קבלה משורשרת כראיה"
       });
+    }
+
+    // ─── action: retry — ירי-מחדש של פעימה שנכשלה בכנות (R10) ─────────────
+    // A failed pulse no longer forces a NEW seal just to retry: the same
+    // seal fires again with the CURRENT vault state (the R10 self-heal
+    // made the vault state change mid-seal — this is the honest retry).
+    if (obj.action === "retry") {
+      const sealId = (obj as { sealId?: unknown }).sealId;
+      if (typeof sealId !== "string" || sealId.length === 0) {
+        const lastSeal = await db.sealRecord.findFirst({
+          orderBy: { height: "desc" },
+          select: { id: true, height: true }
+        });
+        if (!lastSeal) {
+          return NextResponse.json({ ok: false, error: "אין חותמות לניסיון-חוזר" }, { status: 200 });
+        }
+        const result = await fireAutoAnchorForNewSeal(lastSeal.id);
+        return NextResponse.json({ ok: result.ok, retried: lastSeal.height, result });
+      }
+      const seal = await db.sealRecord.findUnique({
+        where: { id: sealId },
+        select: { id: true, height: true }
+      });
+      if (!seal) {
+        return NextResponse.json({ ok: false, error: "החותם לא נמצא" }, { status: 200 });
+      }
+      const result = await fireAutoAnchorForNewSeal(seal.id);
+      return NextResponse.json({ ok: result.ok, retried: seal.height, result });
     }
 
     if (typeof obj.enabled !== "boolean") {
