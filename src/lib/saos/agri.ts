@@ -50,7 +50,7 @@ import { assertTrustedEndpoints } from "./security";
 
 const execFileAsync = promisify(execFile);
 
-export const AGRI_VERSION = "84.0.0";
+export const AGRI_VERSION = "85.0.0";
 
 // ─── קבועים קשיחים (החוכמה בקוד, לא בראש) ───────────────────────────────────
 
@@ -454,7 +454,15 @@ export function simulateReading(
   moisture += rnd(0.4);
   moisture = Math.min(64, Math.max(4, moisture));
 
-  const battery = last ? Math.max(4, last.batteryPct - 0.05 - Math.abs(rnd(0.05))) : 100;
+  // v85 — טעינה-סולארית: תחנת-קרקע אמיתית נטענת בשעות-אור. בלי זה הסוללה
+  // דועכת מונוטונית והשדה קופא על ALERT לנצח (חלקה ג׳ נתפסה תקועה ב-7%
+  // בביקורת-הדף — אמת-סימולטור שתוקנה). יום: עולה עד +0.2%/מחזור; לילה:
+  // דועכת כרגיל — הכלל "חיישן גוסס = עצירה" נשאר מדגים בלילה, והשדה
+  // מתרפא לבד עם השחר (השקיית-חירום כשהלחות מתחת לקו-העקה).
+  const solarCharge = lightLux > 5_000 ? 0.25 : 0;
+  const battery = last
+    ? Math.min(100, Math.max(4, last.batteryPct + solarCharge - 0.05 - Math.abs(rnd(0.05))))
+    : 100;
 
   return {
     soilMoisture: Math.round(moisture * 10) / 10,

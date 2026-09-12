@@ -508,8 +508,10 @@ export function AgriView() {
       <Panel>
         <PanelHeader
           icon={weatherIsLive ? <CloudRain size={16} /> : <CloudOff size={16} />}
-          title="עין-מזג-האוויר — האמיתי, נמדד חי"
-          sub="Open-Meteo · מרכז הארץ · חלון 24 שעות. דחיית-השקיה בגין גשם נחשבת רק מנתוני-אמת."
+          title={weatherIsLive ? "עין-מזג-האוויר — האמיתי, נמדד חי" : "עין-מזג-האוויר — מודל-חלופי כנה"}
+          sub={weatherIsLive
+            ? "Open-Meteo · מרכז הארץ · חלון 24 שעות. דחיית-השקיה בגין גשם נחשבת רק מנתוני-אמת."
+            : "הרשת לא ענתה — מודל דטרמיניסטי. שום דבר כאן לא נמדד; דחיית-השקיה לעולם לא נגזרת ממנו."}
           tag={weatherIsLive ? "נתוני-אמת" : "מודל-חלופי"}
           actions={
             weatherLive ? (
@@ -549,7 +551,10 @@ export function AgriView() {
                   <p className="text-xl font-bold tabular-nums text-zinc-100">
                     {weatherLive.tempMean !== null ? `${weatherLive.tempMean}°` : "—"}
                   </p>
-                  <p className="text-[10px] text-zinc-600">נמדד {timeAgo(weatherLive.fetchedAt)}</p>
+                  {/* v85 — אמת-תווית: "נמדד" רק כשנמדד באמת; מודל-חלופי "חושב" */}
+                  <p className="text-[10px] text-zinc-600">
+                    {weatherIsLive ? "נמדד" : "חושב"} {timeAgo(weatherLive.fetchedAt)}
+                  </p>
                 </div>
               </div>
               {weatherLive.fallbackNoteHe && (

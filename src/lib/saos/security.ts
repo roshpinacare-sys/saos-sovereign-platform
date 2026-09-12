@@ -758,9 +758,20 @@ export interface SecurityStatus {
 
 let cache: { at: number; data: SecurityStatus } | null = null;
 let canaryCache: { at: number; data: Awaited<ReturnType<typeof buildCanary>> } | null = null;
+// v85 — מטמון סריקת-ההיסטוריה: ההיסטוריה אלמותית לכל HEAD נתון. בלי זה כל
+// פג-תוקף של 60ש' הריץ מחדש cat-file על כל blob (10-13ש' בכל פתיחת וויו
+// המגן — נמדד ב-dev.log). מפתח המטמון: HEAD + גודל הקנרית (אם נוספו
+// מנמוניקות — סריקה חדשה). HEAD זז = סריקה חדשה מיידית, ללא תלות ב-TTL.
+let historyCache: {
+  head: string;
+  trigramCount: number;
+  at: number;
+  data: Awaited<ReturnType<typeof scanHistoryBlobs>>;
+} | null = null;
 
 const CACHE_MS = 60_000;
 const CANARY_MS = 10 * 60_000;
+const HISTORY_MS = 15 * 60_000;
 
 async function canary(): Promise<Awaited<ReturnType<typeof buildCanary>>> {
   if (canaryCache && Date.now() - canaryCache.at < CANARY_MS) return canaryCache.data;
@@ -769,9 +780,33 @@ async function canary(): Promise<Awaited<ReturnType<typeof buildCanary>>> {
   return data;
 }
 
+/** v85 — סריקת-ההיסטוריה במטמון-HEAD: זהה לסריקה מלאה בתנאי-אמת זהים. */
+async function historyScanCached(trigrams: Set<string> | null): Promise<Awaited<ReturnType<typeof scanHistoryBlobs>>> {
+  let head = "";
+  try {
+    head = (await exec("git", ["rev-parse", "HEAD"], 8_000)).trim();
+  } catch {
+    head = ""; // אין HEAD — נסרוק בלי מטמון (כנות עולה ביוקף)
+  }
+  const tc = trigrams?.size ?? 0;
+  if (
+    head &&
+    historyCache &&
+    historyCache.head === head &&
+    historyCache.trigramCount === tc &&
+    Date.now() - historyCache.at < HISTORY_MS
+  ) {
+    return historyCache.data;
+  }
+  const data = await scanHistoryBlobs(trigrams);
+  if (head) historyCache = { head, trigramCount: tc, at: Date.now(), data };
+  return data;
+}
+
 export function invalidateSecurityCache(): void {
   cache = null;
   canaryCache = null;
+  historyCache = null;
 }
 
 /**
@@ -790,7 +825,7 @@ export async function securityScan(force = false): Promise<SecurityStatus> {
       findings: [] as SecFinding[],
       error: e instanceof Error ? e.message.slice(0, 120) : "tree scan failed"
     })),
-    scanHistoryBlobs(trigrams.size > 0 ? trigrams : null).catch((e: unknown) => ({
+    historyScanCached(trigrams.size > 0 ? trigrams : null).catch((e: unknown) => ({
       blobs: 0,
       scanned: 0,
       findings: [] as SecFinding[],

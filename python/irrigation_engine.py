@@ -708,7 +708,13 @@ def simulate_reading(last: Optional[SensorReading], weather: WeatherForecast,
     moisture += rnd(0.4)
     moisture = min(64.0, max(4.0, moisture))
 
-    battery = max(4.0, (last.battery_pct if last else 100.0) - 0.05 - abs(rnd(0.05)))
+    # v85 — טעינה-סולארית (פריטיות ל-simulateReading של הקונסולה): תחנת-קרקע
+    # אמיתית נטענת בשעות-אור. בלי זה הסוללה דועכת מונוטונית והשדה קופא
+    # על ALERT לנצח. יום: עולה; לילה: דועכת — הכלל נשאר מדגים בלילה,
+    # והשדה מתרפא לבד עם השחר.
+    solar_charge = 0.25 if light_lux > 5_000 else 0.0
+    base = (last.battery_pct if last else 100.0) + solar_charge
+    battery = min(100.0, max(4.0, base - 0.05 - abs(rnd(0.05))))
 
     return SensorReading(
         soil_moisture=r1(moisture),
