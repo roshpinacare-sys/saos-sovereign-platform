@@ -1,5 +1,5 @@
 {
-  "_comment": "partner-reports manifest — what EVERY partner repo must hold under docs/reports (blob shas). consumed by scripts/verify-partner-pulses.mjs. round 4 (trace 1a09482bbe4668a1) — includes v79 preview audit (gap closed) + R3 pulse; 17 files × 11 = 187",
+  "_comment": "partner-reports manifest — what partner repos must hold under docs/reports (blob shas). consumed by scripts/verify-partner-pulses.mjs. round 5 (trace 1a094997ceec1305): +2 uniform (h20-consolidation-2, roast-78-addendum — caught never-delivered), NEW 'targeted' section (partner-specific reports delivered ONLY to their designated repo — a gap class the uniform matrix was blind to, all were 404), NEW 'repoLocal' (main-repo-internal docs, by design not broadcast). 19 uniform × 11 = 209 + 3 targeted = 212 cells | NOTE (measured): H20-CONSOLIDATION-2.md is byte-identical (sha 6b8bc9e4…) to H20-CONSOLIDATION.md — the content was already at all 11 under the canonical name; only the duplicate FILENAME was missing. The real content gaps this round were roast-78-addendum + the 3 targeted partner reports. | h27 cycle (same round): +1 uniform (H27-ELEVENTH-CYCLE) → 20 uniform × 11 = 220 + 3 targeted = 223 cells",
   "org": "roshpinacare-sys",
   "dir": "docs/reports",
   "repos": [
@@ -32,6 +32,72 @@
     "TOKEN-DOSSIER-2026-09-12-V77.md": "74bf34ac2c2d9e51d5b2ad28e07fd634c58264a5",
     "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R2.md": "2f677e56594eb31fc795c7f67b2d47da01c851f9",
     "CLAIMS-AUDIT-PREVIEW-2026-09-12.md": "c7a8362519f2a3798710a9115ff6139422613c1a",
-    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R3.md": "8b49c6702241624efc8448d8ea5b26d0aa3d6731"
-  }
+    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R3.md": "8b49c6702241624efc8448d8ea5b26d0aa3d6731",
+    "SAOS-PULSE-2026-09-11-H20-FULL-MATRIX-CONSOLIDATION-2.md": "6b8bc9e42eb16109b8ca2a198021518e0affb693",
+    "2026-09-11-roast-78-addendum.md": "f8047b14e4f0293bfbbbae2a3b46373caf16f16e",
+    "SAOS-PULSE-2026-09-12-H27-ELEVENTH-CYCLE.md": "599239a4f897df08894d222c763b9c04de81af8a"
+  },
+  "targeted": {
+    "Adsmarket": {
+      "SAOS-DAILY-REPORT-2026-09-11-ADSMARKET.md": "1b604e24705efe5a070bed7b815f73cf05777736",
+      "SAOS-STRATEGY-2026-09-11-ADSMARKET.md": "b3cb6c55c824dd0d59ee55cb79708e4f6c5a23ec"
+    },
+    "saos-sovereign-foundry": {
+      "SAOS-DAILY-REPORT-2026-09-11-FOUNDRY.md": "b22b72396d392dc0b59e3c3942f6bea872ca7bbc"
+    }
+  },
+  "repoLocal": [
+    {
+      "file": "README.md",
+      "reason": "repo-internal readme"
+    },
+    {
+      "file": "worklog.md",
+      "reason": "main-repo operational worklog"
+    },
+    {
+      "file": "AGENT-BRIEFING.md",
+      "reason": "agent onboarding, main-repo internal"
+    },
+    {
+      "file": "CONTROLS-THAT-EXIST.md",
+      "reason": "repo-internal controls reference"
+    },
+    {
+      "file": "EPOCH-PATCH-SPEC.md",
+      "reason": "engineering spec, not a report"
+    },
+    {
+      "file": "RELAY-PATCH-2.md",
+      "reason": "engineering patch note, not a report"
+    },
+    {
+      "file": "SAOS-BRIEFING-2026-09-11-OUTER-ANCHOR.md",
+      "reason": "owner briefing (repo-local by design)"
+    },
+    {
+      "file": "SAOS-BRIEFING-2026-09-11-ROAST-80.md",
+      "reason": "owner briefing (repo-local by design)"
+    },
+    {
+      "file": "SAOS-BRIEFING-2026-09-11-ROAST-84.md",
+      "reason": "owner briefing (repo-local by design)"
+    },
+    {
+      "file": "docs/FORENSIC-AUDIT.md",
+      "reason": "repo-internal forensic notes"
+    },
+    {
+      "file": "docs/FORENSIC-AUDIT-ADDENDUM.md",
+      "reason": "repo-internal forensic notes"
+    },
+    {
+      "file": "docs/HEADCORNER-RECOVERY.md",
+      "reason": "repo-internal recovery note"
+    },
+    {
+      "file": "docs/TOKEN-DOSSIER.md",
+      "reason": "canonical source; broadcast copy = TOKEN-DOSSIER-2026-09-12-V77.md"
+    }
+  ]
 }

@@ -12,6 +12,13 @@
  *     every partner repo must hold under docs/reports/, with git blob shas)
  *   - lists each partner repo's docs/reports via GitHub Contents API
  *   - reports MISSING / DIFF / OK per (repo × file) and a final verdict
+ *   - round-5 addition (trace 1a094997ceec1305): "targeted" files — partner-
+ *     specific reports that must exist ONLY at their designated repo (e.g. a
+ *     FOUNDRY daily report at the foundry repo). Caught as a gap class the
+ *     uniform matrix was structurally blind to: 5 targeted/extra reports had
+ *     never been delivered (all 404). Also documents "repoLocal" docs —
+ *     main-repo-internal files that are BY DESIGN not broadcast (the manifest
+ *     lists them with a reason so "not in the matrix" is never ambiguous).
  *
  * Honesty contract:
  *   - zero secrets in the script and its output: the GitHub token is read
@@ -26,7 +33,7 @@ import { readFileSync } from "node:fs";
 
 const manifestPath = new URL("./partner-reports.manifest.json", import.meta.url);
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-const { org, dir, repos, files } = manifest;
+const { org, dir, repos, files, targeted = {}, repoLocal = [] } = manifest;
 
 const tokenFile = process.env.SAOS_GH_TOKEN_FILE;
 if (!tokenFile) {
@@ -57,10 +64,12 @@ async function listReports(repo) {
 
 const rows = [];
 let ok = 0, missing = 0, diff = 0, errored = 0;
+const listings = {};
 for (const repo of repos) {
   let listing;
   try {
     listing = await listReports(repo);
+    listings[repo] = listing;
   } catch (e) {
     rows.push({ repo, error: String(e.message).slice(0, 80) });
     errored += files ? Object.keys(files).length : 0;
@@ -77,9 +86,27 @@ for (const repo of repos) {
   console.log(JSON.stringify({ repo, ...Object.fromEntries(Object.entries(row.cells).map(([k, v]) => [k.replace(/^SAOS-(PULSE|DAILY-REPORT)-\d{4}-\d{2}-\d{2}-/, "").replace(/\.md$/, ""), v])) }));
 }
 
+// round-5 — TARGETED cells: a partner-specific report must exist (sha-equal)
+// at its designated repo ONLY. Same listing, same honesty.
+const tOkByRepo = {};
+for (const [repo, tfiles] of Object.entries(targeted)) {
+  const listing = listings[repo];
+  for (const [name, want] of Object.entries(tfiles)) {
+    const got = listing ? listing[name] : undefined;
+    const state = got === want ? "OK" : got === undefined ? "MISSING" : "DIFF";
+    tOkByRepo[repo] = tOkByRepo[repo] || {};
+    tOkByRepo[repo][name] = state;
+    if (state === "OK") ok++; else if (state === "MISSING") missing++; else diff++;
+  }
+}
+if (Object.keys(targeted).length) {
+  console.log(JSON.stringify({ targeted: tOkByRepo }));
+}
+
 const total = ok + missing + diff;
 console.log(JSON.stringify({
   ok, missing, diff, errorCells: errored, total,
-  verdict: missing === 0 && diff === 0 && errored === 0 ? `UNIFORM MATRIX ${total}/${total}` : `GAPS FOUND (${missing} missing, ${diff} diff)`
+  repoLocalDocs: repoLocal.length,
+  verdict: missing === 0 && diff === 0 && errored === 0 ? `UNIFORM+TARGETED MATRIX ${total}/${total}` : `GAPS FOUND (${missing} missing, ${diff} diff)`
 }));
 process.exit(missing === 0 && diff === 0 && errored === 0 ? 0 : 1);
