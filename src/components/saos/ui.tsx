@@ -224,7 +224,7 @@ export function Tag({
 }: {
   tone?: PillTone;
   className?: string;
-  dir?: "ltr" | "rtl";
+  dir?: "ltr" | "rtl" | "auto";
   children: ReactNode;
 }) {
   return (
@@ -309,7 +309,7 @@ export function Th({
 }: {
   children?: ReactNode;
   className?: string;
-  dir?: "ltr" | "rtl";
+  dir?: "ltr" | "rtl" | "auto";
   colSpan?: number;
 }) {
   return (
@@ -335,7 +335,7 @@ export function Td({
 }: {
   children?: ReactNode;
   className?: string;
-  dir?: "ltr" | "rtl";
+  dir?: "ltr" | "rtl" | "auto";
   title?: string;
   colSpan?: number;
 }) {
@@ -568,7 +568,7 @@ export function Input({
   placeholder?: string;
   maxLength?: number;
   type?: "text" | "number";
-  dir?: "ltr" | "rtl";
+  dir?: "ltr" | "rtl" | "auto";
   invalid?: boolean;
   id?: string;
   min?: number;

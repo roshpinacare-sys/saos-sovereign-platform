@@ -565,7 +565,21 @@ export async function agriBoard(): Promise<Record<string, unknown>> {
   const weather = await getAgriWeather();
   const zones = await db.agriZone.findMany({ orderBy: { createdAt: "asc" } });
 
-  const zoneRows = [];
+  // explicit row type — the inferred evolving-array collapsed to `never` under
+  // strict TS (round-6 fix of v80's tsc gate; behavior unchanged)
+  const zoneRows: {
+    id: string;
+    name: string;
+    crop: string;
+    areaM2: number;
+    moistureTarget: number;
+    moistureCritical: number;
+    valveOpen: boolean;
+    auto: boolean;
+    deferCount: number;
+    reading: ({ soilMoisture: number } & Record<string, unknown>) | null;
+    decision: Record<string, unknown> | null;
+  }[] = [];
   for (const z of zones) {
     const reading = await db.agriReading.findFirst({ where: { zoneId: z.id }, orderBy: { createdAt: "desc" } });
     const decision = await db.agriDecision.findFirst({ where: { zoneId: z.id }, orderBy: { createdAt: "desc" } });
@@ -726,8 +740,10 @@ export async function buildAdvisorContext(zoneId: string): Promise<{
       source: weather.source,
       precipProb24h: weather.precipProb24h,
       expectedRainMm24h: weather.expectedRainMm24h,
+      currentRainMm: weather.currentRainMm,
       tempMax: weather.tempMax,
-      tempMean: weather.tempMean
+      tempMean: weather.tempMean,
+      fetchedAt: weather.fetchedAt
     },
     rulesHe: AGRI_RULES_HE
   };
