@@ -5,7 +5,7 @@
  * bump בכל מהדורה — package.json · shell · footer · overview — הכל מכאן.
  */
 
-export const SAOS_VERSION = "77.0.0";
+export const SAOS_VERSION = "78.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "כרטיס-הזהות של המטבע (THE COIN DOSSIER)";
+export const SAOS_CODENAME = "קריאת-ה-ETH (THE ETH CALL)";
