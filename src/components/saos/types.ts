@@ -40,6 +40,13 @@ export interface StatusStats {
 export interface StatusData {
   ok: boolean;
   matrix: ChainGate[];
+  /** R16 — שער-המארג: מצב-הסקר הרקע שמחמם את מטמונות-הפרובים (נמדד, לא מוצהר). */
+  meshGate?: {
+    runs: number;
+    lastRunAt: string | null;
+    lastDurationMs: number | null;
+    lastError: string | null;
+  };
   live?: {
     hive: StatusLiveInfo;
     tron: { ok: boolean; checked: number; funded: number; totalBalanceTrx: number; measuredAt: string; error?: string };

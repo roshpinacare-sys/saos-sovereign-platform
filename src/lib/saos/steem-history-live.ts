@@ -26,6 +26,8 @@ const ACCOUNT = "headcorner";
 const PAGE_LIMIT = 100; // condenser_api.get_account_history hard upper limit
 const MAX_PAGES = 8; // bounded honest scan (reported with the result)
 const CACHE_TTL_MS = 60_000;
+/** R16 — מטמון-כישלון קצר: הכישלון עצמו מדידה — לא מכים צמתים-ציבוריים כושלים בכל-בקשה. */
+const NEG_TTL_MS = 20_000;
 
 export interface SteemWeaveHistory {
   ok: boolean;
@@ -42,7 +44,7 @@ export interface SteemWeaveHistory {
   error?: string;
 }
 
-let cache: { at: number; value: SteemWeaveHistory } | null = null;
+let cache: { at: number; value: SteemWeaveHistory; neg?: boolean } | null = null;
 let inflight: Promise<SteemWeaveHistory> | null = null;
 
 function steemRpc<T>(method: string, params: unknown[], timeoutMs = 15000): Promise<T> {
@@ -91,7 +93,8 @@ interface WeavePayload {
  * CHAIN-VERIFIED anchor state (read-only). Never throws — failure is data.
  */
 export async function probeSteemWeaveHistory(opts: { force?: boolean } = {}): Promise<SteemWeaveHistory> {
-  if (!opts.force && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
+  if (!opts.force && cache && Date.now() - cache.at < (cache.neg ? NEG_TTL_MS : CACHE_TTL_MS))
+    return cache.value;
   if (inflight) return inflight;
 
   const base: SteemWeaveHistory = {
@@ -154,7 +157,14 @@ export async function probeSteemWeaveHistory(opts: { force?: boolean } = {}): Pr
       cache = { at: Date.now(), value };
       return value;
     } catch (e) {
-      return { ...base, error: e instanceof Error ? e.message : "steem history probe failed", measuredAt: new Date().toISOString() };
+      // R16 — הכישלון נשמר במטמון (TTL שלילי קצר) — אחיד לשאר הפרובים.
+      const value: SteemWeaveHistory = {
+        ...base,
+        error: e instanceof Error ? e.message : "steem history probe failed",
+        measuredAt: new Date().toISOString()
+      };
+      cache = { at: Date.now(), value, neg: true };
+      return value;
     }
   })();
 

@@ -23,6 +23,8 @@ const TRON_NODE = "https://api.trongrid.io";
 // v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
 assertTrustedEndpoints([TRON_NODE], "tron-live");
 const CACHE_TTL_MS = 90_000;
+/** R16 — מטמון-כישלון קצר: הכישלון עצמו מדידה — לא מכים RPC ציבורי כושל בכל-בקשה. */
+const NEG_TTL_MS = 20_000;
 const CHECK_LIMIT = 6; // the 6 vault-slot addresses (vault-1..6)
 
 export interface TronAddressState {
@@ -57,7 +59,7 @@ interface TronAccount {
   delegated_frozen_balance_for_energy?: unknown;
 }
 
-let cache: { at: number; value: TronLive } | null = null;
+let cache: { at: number; value: TronLive; neg?: boolean } | null = null;
 let inflight: Promise<TronLive> | null = null;
 
 function tronPost(path: string, body: unknown, timeoutMs = 12000): Promise<TronAccount | Record<string, never>> {
@@ -146,7 +148,8 @@ export async function probeTronVault(addresses: string[], opts: { force?: boolea
   };
   if (list.length === 0) return base;
 
-  if (!opts.force && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
+  if (!opts.force && cache && Date.now() - cache.at < (cache.neg ? NEG_TTL_MS : CACHE_TTL_MS))
+    return cache.value;
   if (inflight) return inflight;
 
   inflight = (async (): Promise<TronLive> => {
@@ -168,7 +171,16 @@ export async function probeTronVault(addresses: string[], opts: { force?: boolea
       cache = { at: Date.now(), value };
       return value;
     } catch (e) {
-      return { ...base, error: e instanceof Error ? e.message : "tron probe failed", measuredAt: new Date().toISOString() };
+      // R16 — הכישלון נשמר במטמון (TTL שלילי קצר): מניעת רכיבה-חוזרת על
+      // רשת-כושלת בכל פג-מטמון (נמדד: שורות 2.5s ב-/status), בלי להכחיש את
+      // הכישלון — הוא מוצג כמו שהוא עד המדידה הבאה.
+      const value: TronLive = {
+        ...base,
+        error: e instanceof Error ? e.message : "tron probe failed",
+        measuredAt: new Date().toISOString()
+      };
+      cache = { at: Date.now(), value, neg: true };
+      return value;
     }
   })();
 

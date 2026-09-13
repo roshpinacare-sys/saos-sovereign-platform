@@ -33,6 +33,8 @@ export const HIVE_NODES = ["https://api.hive.blog", "https://api.deathwing.me", 
 // v24 MAGEN: endpoints verified against the trusted registry at load (fail-closed).
 assertTrustedEndpoints([...HIVE_NODES], "hive-rc-live");
 const CACHE_TTL_MS = 60_000;
+/** R16 — מטמון-כישלון קצר: הכישלון עצמו מדידה — לא מכים צמתים-ציבוריים כושלים בכל-בקשה. */
+const NEG_TTL_MS = 20_000;
 
 export interface HiveRcLive {
   ok: boolean;
@@ -53,7 +55,7 @@ export interface HiveRcLive {
   error?: string;
 }
 
-let cache: { at: number; value: HiveRcLive } | null = null;
+let cache: { at: number; value: HiveRcLive; neg?: boolean } | null = null;
 let inflight: Promise<HiveRcLive> | null = null;
 
 /** Shared JSON-RPC over https for HIVE nodes (read-only, rotated). */
@@ -114,7 +116,8 @@ function num(v: number | string | undefined): number | null {
  * share one in-flight probe. Never throws — failure is returned as data.
  */
 export async function probeHiveRc(account: string, opts: { force?: boolean } = {}): Promise<HiveRcLive> {
-  if (!opts.force && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
+  if (!opts.force && cache && Date.now() - cache.at < (cache.neg ? NEG_TTL_MS : CACHE_TTL_MS))
+    return cache.value;
   if (inflight) return inflight;
 
   inflight = (async (): Promise<HiveRcLive> => {
@@ -225,7 +228,9 @@ export async function probeHiveRc(account: string, opts: { force?: boolean } = {
 
   try {
     const value = await inflight;
-    if (value.ok) cache = { at: Date.now(), value };
+    // R16 — מטמון אחיד: הצלחה TTL מלא, כישלון TTL שלילי קצר — כישלון
+    // מוצג כמו שהוא עד המדידה הבאה, בלי רכיבה-חוזרת על רשת-כושלת.
+    cache = { at: Date.now(), value, neg: !value.ok };
     return value;
   } finally {
     inflight = null;

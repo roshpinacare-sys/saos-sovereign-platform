@@ -5,6 +5,7 @@ import { HISTORIC_ANCHORS } from "@/lib/saos/historic";
 import { probeHiveRc, hiveAnchorAccount, type HiveRcLive } from "@/lib/saos/hive-rc-live";
 import { probeTronVault, type TronLive } from "@/lib/saos/tron-live";
 import { probeSteemWeaveHistory, type SteemWeaveHistory } from "@/lib/saos/steem-history-live";
+import { ensureMeshGate } from "@/lib/saos/mesh-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,11 @@ function railDeadline<T>(p: Promise<T>, sentinel: T): Promise<T> {
 
 export async function GET() {
   try {
+    // R16 — שער-המארג: סקר-חיות רקע כל 30ש' מחמם את מטמונות-הפרובים
+    // (60/90/60ש') — כך שהפרובים-להלן פוגעים במטמון חם במקום לרכוב על
+    // RPC ציבורי איטי. דד-ליין ה-2.5ש' נשאר רשת-ביטחון, לא מצב-רגיל.
+    // מצב-השער עצמו נחשף בתשובה (meshGate) — המנגנון נמדד, לא מוצהר.
+    const gate = ensureMeshGate();
     // v26 — ALL independent probes and DB reads run in PARALLEL. The old
     // code awaited hive → tron slots → tron probe → steem history in a
     // tower: a cold cache summed four network round-trips (measured: up
@@ -211,6 +217,12 @@ export async function GET() {
       ok: true,
       motto: "אנחנו מנצחים את הבלוקצ'יין",
       matrix,
+      meshGate: {
+        runs: gate.runs,
+        lastRunAt: gate.lastRunAt,
+        lastDurationMs: gate.lastDurationMs,
+        lastError: gate.lastError
+      },
       live: {
         hive: hiveRc.ok
           ? {

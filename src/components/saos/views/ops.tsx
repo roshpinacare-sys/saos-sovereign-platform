@@ -44,7 +44,6 @@ import {
   Panel,
   PanelBody,
   PanelHeader,
-  type PillTone,
   Pill,
   Skeleton,
   Table,
@@ -74,7 +73,6 @@ import type {
   LiveReadinessData,
   OpsData,
   RailAnchorLedgerData,
-  RailPulseResult,
   RailReadinessData,
   SealConnectResult,
   SealStatusData,
@@ -86,337 +84,9 @@ import type {
 } from "../types";
 import { PageHead } from "../shell";
 import { cn } from "../ui";
-
-const NETWORKS = ["STEEM", "BLURT", "HIVE", "TRON", "ETHEREUM", "BSC", "SOLANA"] as const;
-
-const STATUS_TONE: Record<string, PillTone> = {
-  anchored: "green",
-  pending: "gold",
-  gated: "rose",
-  transit: "zinc"
-};
-
-const RELEASE: Record<string, string> = {
-  STEEM: "מפתח מהכספת → custom_json משודר מיד (חינם)",
-  BLURT: "מפתח + עמלה 0.05+0.2×KB → חתימה קנונית ידנית",
-  HIVE: "RC ≥ 8% + מפתח → weave נוחת בפעימה הבאה",
-  TRON: "energize (freezeBalanceV2) → מסלול ישיר; עד אז — רכבת tronbridge",
-  ETHEREUM: "זרע-הכספת מאומת → data-memo עצמי בלחיצה (עלות מדודה) · v14: חוזה saos-relay/v1 פרוס",
-  BSC: "אותה כתובת EVM → הקצאת BNB קטנה תפתח עוגן+חוזה באותו קוד (v14)",
-  SOLANA: "זרע-הכספת מאומת → הוראת Memo בלחיצה (5000 lamports)"
-};
-
-const GRAPHENE_RE = /^[a-z][a-z0-9.-]{2,15}$/;
-const TRON_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
-const EVM_RE = /^0x[0-9a-fA-F]{40}$/;
-const SOL_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-
-function addressError(network: string, addr: string): string | null {
-  if (addr.length === 0) return "נדרשת כתובת ציבורית";
-  if (network === "TRON") {
-    return TRON_RE.test(addr) ? null : "כתובת TRON תקינה: T ואחריה 34 תווי Base58";
-  }
-  if (network === "ETHEREUM") {
-    return EVM_RE.test(addr) ? null : "כתובת EVM תקינה: 0x ואחריו 40 תווי hex";
-  }
-  if (network === "SOLANA") {
-    return SOL_RE.test(addr) ? null : "כתובת Solana תקינה: 32–44 תווי Base58";
-  }
-  return GRAPHENE_RE.test(addr)
-    ? null
-    : "חשבון Graphene תקין: 3–16 תווים, אותיות קטנות/ספרות/נקודה/מקף";
-}
-
-const selectCls =
-  "h-10 w-full rounded-lg border border-white/[0.09] bg-zinc-950/60 px-3 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-amber-400/40";
-
-// ─── v12: EVM/SVM live-anchor rail panel (רכב-עגינה חי) ─────────────────────
-
-interface RailPanelProps {
-  rail: "evm" | "svm";
-  readiness: LiveResult<RailReadinessData>;
-  ledger: LiveResult<RailAnchorLedgerData>;
-  pulsing: boolean;
-  result: RailPulseResult | null;
-  onPulse: () => void;
-  onRecheck: (id: string) => void;
-  rechecking: string | null;
-}
-
-function RailPanel({ rail, readiness, ledger, pulsing, result, onPulse, onRecheck, rechecking }: RailPanelProps) {
-  const isEvm = rail === "evm";
-  const r = readiness.data;
-  const ready = r && r.ok && "address" in r.readiness ? r.readiness : null;
-  const title = isEvm ? "פעימת עגינה חיה — ETHEREUM" : "פעימת עגינה חיה — SOLANA";
-  const sub = isEvm
-    ? "רכב-ה-EVM חי: עסקה עצמית (to=הכתובת הריבונית, value=0) עם שורש-המרקל בגוף העסקה — חתומה מזרע הכספת (m/44'/60'/0'/0/2), מאומתת איטומית ונקראת-חזרה מהשרשרת"
-    : "רכב-ה-SVM חי: הוראת Memo יחידה עם שורש-המרקל — חתומה מזרע הכספת (ed25519(sha256(seed|sol|headcorner))), zero lamports, מאומתת read-back מהקלאסטר";
-  const explorerName = isEvm ? "etherscan ↗" : "solscan ↗";
-
-  return (
-    <Panel accent={r?.alreadyAnchored ?? false}>
-      <PanelHeader
-        icon={isEvm ? <Coins size={15} /> : <Sparkles size={15} />}
-        title={title}
-        sub={sub}
-        actions={
-          r?.ok ? (
-            r.alreadyAnchored ? (
-              <Pill tone="green">
-                <CheckCircle2 size={10} /> anchored
-              </Pill>
-            ) : ready?.funded ? (
-              <Pill tone="gold">{isEvm ? <Coins size={10} /> : <Sparkles size={10} />} live-ready</Pill>
-            ) : (
-              <Pill tone="zinc">ממתין למימון</Pill>
-            )
-          ) : undefined
-        }
-      />
-      <PanelBody className="space-y-4">
-        {readiness.loading && !r ? (
-          <div className="space-y-2.5">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-4 w-full" />
-            ))}
-          </div>
-        ) : readiness.error && !r ? (
-          <ErrorNotice message={readiness.error} onRetry={readiness.refresh} />
-        ) : !r?.ready ? (
-          <EmptyBlock
-            icon={isEvm ? <Coins size={20} /> : <Sparkles size={20} />}
-            title="אין חותם לעיגון"
-            desc="צור חותם בעמוד האיטום — שורש מרקל חי הוא המטען שהפעימה משדרת."
-          />
-        ) : !ready ? (
-          <Callout tone="rose" icon={<Lock size={14} />}>
-            <span className="font-semibold">מוכנות הרכב נכשלה:</span>{" "}
-            <span dir="auto">{(r.readiness as { error: string }).error}</span>
-          </Callout>
-        ) : (
-          <>
-            {/* מחווני מוכנות */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <SealStat label="חותם לשידור" value={`#${r.seal?.height ?? 0}`} icon={<ScrollText size={13} />} />
-              <SealStat label="כתובת ריבונית" value={short(ready.address)} icon={<Wallet size={13} />} ltr />
-              <SealStat
-                label={isEvm ? "מאזן ETH" : "מאזן SOL"}
-                value={isEvm ? (ready.balanceEth ?? "—") : (ready.balanceSol ?? "—")}
-                icon={<GaugeIcon size={13} />}
-                ltr
-              />
-              <SealStat
-                label={isEvm ? "עלות משוערת" : "עמלה (קבועת-פרוטוקול)"}
-                value={isEvm ? `${ready.costEstimateEth ?? "—"} ETH` : "0.000005 SOL"}
-                icon={<Zap size={13} />}
-                ltr
-              />
-            </div>
-
-            <HashLine label="root" value={r.seal?.root ?? null} tone="gold" />
-
-            {/* self-verify + funding honesty */}
-            <div className="flex flex-wrap gap-2">
-              <Tag tone={ready.selfVerified ? "green" : "rose"}>
-                <ShieldCheck size={11} /> self-verify {ready.selfVerified ? "✓ (כספת+מניפסט-עוגן)" : "✗"}
-              </Tag>
-              <Tag tone={ready.funded ? "green" : "gold"}>
-                <Wallet size={11} /> {ready.funded ? "ממומן ✓" : "מאזן נמוך — חסום"}
-              </Tag>
-              {isEvm && ready.gasPriceGwei != null && (
-                <Tag tone="zinc">
-                  <Zap size={11} /> גז {ready.gasPriceGwei.toFixed(3)} Gwei
-                </Tag>
-              )}
-              {isEvm && ready.blockNumber != null && (
-                <Tag tone="zinc">
-                  <History size={11} /> בלוק #{ready.blockNumber.toLocaleString("en-US")}
-                </Tag>
-              )}
-              {!isEvm && ready.slot != null && (
-                <Tag tone="zinc">
-                  <History size={11} /> slot {ready.slot.toLocaleString("en-US")}
-                </Tag>
-              )}
-              {!isEvm && (
-                <Tag tone={ready.memoProgramOnChain ? "green" : "rose"}>
-                  <BadgeCheck size={11} /> Memo {ready.memoProgramOnChain ? "בשרשרת ✓" : "✗"}
-                </Tag>
-              )}
-            </div>
-
-            {/* הכפתור הגדול */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <Btn
-                variant={r.alreadyAnchored ? "secondary" : "primary"}
-                size="md"
-                loading={pulsing}
-                disabled={r.alreadyAnchored || !ready.funded}
-                onClick={onPulse}
-              >
-                {isEvm ? <Coins size={14} /> : <Sparkles size={14} />}
-                {pulsing
-                  ? isEvm
-                    ? "משדר ל-Ethereum…"
-                    : "משדר ל-Solana…"
-                  : r.alreadyAnchored
-                    ? `חותם #${r.seal?.height ?? 0} מעוגן ✓`
-                    : `${isEvm ? "עגן חי ב-ETHEREUM" : "עגן חי ב-SOLANA"} — חותם #${r.seal?.height ?? 0}`}
-              </Btn>
-              <p className="text-[11px] text-zinc-500 leading-relaxed flex-1">
-                {isEvm
-                  ? "פעולה מולבנת: עסקה עצמית בלבד (to=עצמי, value=0) — המודול לא יכול לחתום העברה/אישור/קריאת-חוזה לעולם. הזרע נשאר במעטפת הכספת; ההכללה מאומתת בקבלה + read-back של הדאטה."
-                  : "פעולה מולבנת: הוראת Memo יחידה, אפס lamports נעים — המודול לא יכול לחתום העברה או שינוי-חשבון לעולם. ההכלה מאומתת בסטטוס הקלאסטר + read-back של המזכר."}
-              </p>
-            </div>
-
-            {/* תוצאת הפעימה */}
-            {result && result.ok && (
-              <Callout tone={result.already ? "gold" : "green"} icon={<CheckCircle2 size={14} />}>
-                <div className="space-y-1.5">
-                  <p className="font-semibold">
-                    {result.already
-                      ? result.message ?? "כבר מעוגן"
-                      : `עוגן חי נחת — חותם #${result.height}`}
-                    {result.confirmedByHistory === true && (isEvm ? " · אומת בקבלה+דאטה ✓" : ` · ${result.confirmationStatus ?? "confirmed"} ✓`)}
-                  </p>
-                  {result.txid && (
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                      <HashLine label={isEvm ? "txid" : "signature"} value={result.txid} tone="green" />
-                      {result.block != null && (
-                        <span dir="ltr" className="font-mono text-zinc-400">block #{result.block}</span>
-                      )}
-                      {result.slot != null && (
-                        <span dir="ltr" className="font-mono text-zinc-400">slot {result.slot}</span>
-                      )}
-                      {isEvm && result.costEth && (
-                        <span dir="ltr" className="font-mono text-zinc-500">עלות {result.costEth} ETH</span>
-                      )}
-                      {result.explorer && (
-                        <a
-                          href={result.explorer}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-amber-300/90 underline underline-offset-2 hover:text-amber-200"
-                        >
-                          {explorerName}
-                        </a>
-                      )}
-                      {result.receipt && (
-                        <span className="text-zinc-500" dir="ltr">receipt {short(result.receipt)}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Callout>
-            )}
-            {result && !result.ok && (
-              <Callout tone={result.gated ? "gold" : "rose"} icon={<History size={14} />}>
-                <span className="font-semibold">
-                  {result.gated ? "הפעימה חסומה — תועדה בכנות:" : "השידור נכשל — תועד בכנות, שום txid לא זויף:"}
-                </span>{" "}
-                <span dir="auto">{result.error}</span>
-                {result.receipt && (
-                  <span className="block mt-1 text-[11px] text-zinc-500" dir="ltr">
-                    receipt {short(result.receipt)} — the failure itself is evidence
-                  </span>
-                )}
-              </Callout>
-            )}
-
-            {/* ספר עוגני הרכב */}
-            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-              <div className="px-3.5 py-2.5 border-b border-white/[0.06] flex items-center justify-between gap-2">
-                <p className="text-xs font-bold text-zinc-200">
-                  ספר עוגני {isEvm ? "ETHEREUM" : "SOLANA"} — txid אמיתי מהשרשרת בלבד
-                </p>
-                <span className="text-[10px] text-zinc-600" dir="ltr">
-                  kind=weave · network={isEvm ? "ETHEREUM" : "SOLANA"}
-                </span>
-              </div>
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>חותם</Th>
-                    <Th>txid</Th>
-                    <Th>{isEvm ? "בלוק" : "slot"}</Th>
-                    <Th>הכלה</Th>
-                    <Th>מצב</Th>
-                    <Th>מתי</Th>
-                    <Th></Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(ledger.data?.anchors ?? []).length === 0 ? (
-                    <tr>
-                      <Td className="text-zinc-600 text-[11px]">—</Td>
-                      <Td className="text-zinc-600 text-[11px]">אין עוגנים ברכב זה עדיין</Td>
-                      <Td>—</Td>
-                      <Td>—</Td>
-                      <Td>—</Td>
-                      <Td>—</Td>
-                      <Td></Td>
-                    </tr>
-                  ) : (
-                    (ledger.data?.anchors ?? []).map((a) => (
-                      <tr key={a.id} className="hover:bg-white/[0.015] transition-colors">
-                        <Td className="font-semibold">#{a.height}</Td>
-                        <Td>
-                          {a.txid ? (
-                            <a
-                              href={isEvm ? `https://etherscan.io/tx/${a.txid}` : `https://solscan.io/tx/${a.txid}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              dir="ltr"
-                              className="font-mono text-[11px] text-emerald-300/90 hover:text-emerald-200 underline underline-offset-2"
-                              title={a.txid}
-                            >
-                              {short(a.txid)}
-                            </a>
-                          ) : (
-                            <span className="text-zinc-600 text-[11px]">— (לא זויף לעולם)</span>
-                          )}
-                        </Td>
-                        <Td className="tabular-nums text-[11px]" dir="ltr">
-                          {isEvm ? (a.block ? `#${a.block}` : "—") : a.slot != null ? a.slot.toLocaleString("en-US") : "—"}
-                        </Td>
-                        <Td>{a.confirmed ? <Pill tone="green">✓</Pill> : a.txid ? <Pill tone="zinc">מפגר</Pill> : "—"}</Td>
-                        <Td>
-                          <Pill tone={a.status === "anchored" ? "green" : a.status === "failed" ? "rose" : "gold"}>
-                            {a.status}
-                          </Pill>
-                        </Td>
-                        <Td className="text-zinc-500 text-[11px]">{timeAgo(a.at)}</Td>
-                        <Td>
-                          {a.txid && !a.confirmed && (
-                            <button
-                              onClick={() => onRecheck(a.id)}
-                              disabled={rechecking === a.id}
-                              className="text-[11px] text-amber-300/80 hover:text-amber-200 disabled:opacity-50"
-                              title="אמת מחדש מול השרשרת"
-                            >
-                              {rechecking === a.id ? "בודק…" : "אמת שוב"}
-                            </button>
-                          )}
-                        </Td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </Table>
-            </div>
-
-            <Callout tone="zinc" icon={<VaultIcon size={14} />}>
-              <span className="font-semibold">גבול-האמת:</span> הזרע הריבוני לא עוזב את מעטפת הכספת; הפעולה
-              מולבנת (רשימה-לבנה בקוד, לא הרשאה בזמן-ריצה); txid מהצומת בלבד; כישלון = קבלה משורשרת.
-            </Callout>
-          </>
-        )}
-      </PanelBody>
-    </Panel>
-  );
-}
-
+import { NETWORKS, RELEASE, RailPanel, STATUS_TONE, addressError, selectCls } from "./ops-rail";
+import { EnvelopeCard, MiniStat, SealStat, Toggle } from "./ops-parts";
+import { useRailPulse } from "./use-rail-pulse";
 
 export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
   useTick(10000);
@@ -559,74 +229,38 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
   const evmLedger = useLive<RailAnchorLedgerData>("/api/saos/anchor/evm?list=1", 30000);
   const svmReady = useLive<RailReadinessData>("/api/saos/anchor/svm", 60000);
   const svmLedger = useLive<RailAnchorLedgerData>("/api/saos/anchor/svm?list=1", 30000);
-  const [evmPulsing, setEvmPulsing] = useState(false);
-  const [evmResult, setEvmResult] = useState<RailPulseResult | null>(null);
-  const [svmPulsing, setSvmPulsing] = useState(false);
-  const [svmResult, setSvmResult] = useState<RailPulseResult | null>(null);
-  const [railRecheck, setRailRecheck] = useState<string | null>(null);
-
-  const doRailPulse = async (rail: "evm" | "svm") => {
-    const isEvm = rail === "evm";
-    if (isEvm ? evmPulsing : svmPulsing) return;
-    if (isEvm) setEvmPulsing(true);
-    else setSvmPulsing(true);
-    if (isEvm) setEvmResult(null);
-    else setSvmResult(null);
-    const res = await postJson<RailPulseResult>(`/api/saos/anchor/${rail}`, {});
-    if (isEvm) setEvmPulsing(false);
-    else setSvmPulsing(false);
-    if (res.ok && res.data) {
-      if (isEvm) setEvmResult(res.data);
-      else setSvmResult(res.data);
-      if (isEvm) evmReady.refresh();
-      else svmReady.refresh();
-      if (isEvm) evmLedger.refresh();
-      else svmLedger.refresh();
+  // R16 — חוב-מבני מ-R14: מצב-הפעימות של חמשת הרכבים אוחד ב-useRailPulse
+  // (החלפת ~250 ש' משוכפלות). רענוני-המסילות נשארים כאן — התנהגות מקורית.
+  const evm = useRailPulse({
+    rail: "evm",
+    netLabel: "ETHEREUM",
+    unit: "txid",
+    via: "mainnet",
+    onSettled: () => {
+      evmReady.refresh();
+      evmLedger.refresh();
       ops.refresh();
       broadcasts.refresh();
-      if (res.data.ok) {
-        toast.push({
-          tone: res.data.already ? "gold" : "green",
-          title: res.data.already
-            ? `חותם #${res.data.height} כבר מעוגן ב-${isEvm ? "ETHEREUM" : "SOLANA"}`
-            : `עוגן ${isEvm ? "ETHEREUM" : "SOLANA"} נחת — חותם #${res.data.height}`,
-          desc: res.data.txid ? `${isEvm ? "txid" : "signature"} ${short(res.data.txid)} · mainnet` : "הפעימה תועדה"
-        });
-      } else {
-        toast.push({
-          tone: res.data.gated ? "gold" : "rose",
-          title: isEvm ? "פעימת ETHEREUM נכשלה" : "פעימת SOLANA נכשלה",
-          desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות"
-        });
-      }
-    } else {
-      const err = { ok: false, error: res.error ?? "כשל רשת" };
-      if (isEvm) setEvmResult(err);
-      else setSvmResult(err);
-      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
-    }
-  };
-
-  const doRailRecheck = async (rail: "evm" | "svm", id: string) => {
-    if (railRecheck) return;
-    setRailRecheck(id);
-    try {
-      const res = await fetch(`/api/saos/anchor/${rail}?recheck=${encodeURIComponent(id)}`, { cache: "no-store" });
-      const json = (await res.json()) as { ok: boolean; confirmed?: boolean; error?: string };
-      if (json.ok && json.confirmed) {
-        toast.push({ tone: "green", title: "אומת מול השרשרת", desc: "קבלה + read-back — העוגן נראה ב-mainnet" });
-      } else if (json.ok) {
-        toast.push({ tone: "gold", title: "עדיין לא אומת", desc: "האינדוקס מפגר — נסה שוב בעוד דקה" });
-      } else {
-        toast.push({ tone: "rose", title: "אימות-מחדש נכשל", desc: json.error ?? "שגיאה" });
-      }
-    } catch {
-      toast.push({ tone: "rose", title: "אימות-מחדש נכשל", desc: "כשל רשת" });
-    }
-    setRailRecheck(null);
-    if (rail === "evm") evmLedger.refresh();
-    else svmLedger.refresh();
-  };
+    },
+    onRechecked: () => evmLedger.refresh()
+  });
+  const evmPulsing = evm.pulsing;
+  const evmResult = evm.result;
+  const svm = useRailPulse({
+    rail: "svm",
+    netLabel: "SOLANA",
+    unit: "signature",
+    via: "mainnet",
+    onSettled: () => {
+      svmReady.refresh();
+      svmLedger.refresh();
+      ops.refresh();
+      broadcasts.refresh();
+    },
+    onRechecked: () => svmLedger.refresh()
+  });
+  const svmPulsing = svm.pulsing;
+  const svmResult = svm.result;
 
   // ─── v14: הממסר הריבוני (חוזה חכם באיתריום) + רכב-עגינה BSC ──────────────
   const contract = useLive<ContractData>("/api/saos/contract", 45000);
@@ -681,115 +315,56 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
 
   const bscRail = useLive<BscRailData>("/api/saos/anchor/bsc", 60000);
   const bscLedger = useLive<BscAnchorLedgerData>("/api/saos/anchor/bsc?list=1", 30000);
-  const [bscPulsing, setBscPulsing] = useState(false);
-  const [bscResult, setBscResult] = useState<RailPulseResult | null>(null);
-  const bscReadyBsc =
-    bscRail.data?.readiness && "address" in bscRail.data.readiness ? bscRail.data.readiness : null;
-
-  const doBscPulse = async () => {
-    if (bscPulsing) return;
-    setBscPulsing(true);
-    setBscResult(null);
-    const res = await postJson<RailPulseResult>("/api/saos/anchor/bsc", {});
-    setBscPulsing(false);
-    if (res.ok && res.data) {
-      setBscResult(res.data);
+  const bsc = useRailPulse({
+    rail: "bsc",
+    netLabel: "BSC",
+    unit: "txid",
+    via: "BNB Chain",
+    onSettled: () => {
       bscRail.refresh();
       bscLedger.refresh();
       ops.refresh();
-      if (res.data.ok) {
-        toast.push({
-          tone: res.data.already ? "gold" : "green",
-          title: res.data.already
-            ? `חותם #${res.data.height} כבר מעוגן ב-BSC`
-            : `עוגן BSC נחת — חותם #${res.data.height}`,
-          desc: res.data.txid ? `txid ${short(res.data.txid)} · BNB Chain` : "הפעימה תועדה"
-        });
-      } else {
-        toast.push({
-          tone: res.data.gated ? "gold" : "rose",
-          title: "פעימת BSC נכשלה",
-          desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות"
-        });
-      }
-    } else {
-      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
     }
-  };
+  });
+  const bscPulsing = bsc.pulsing;
+  const bscResult = bsc.result;
+  const doBscPulse = bsc.doPulse;
+  const bscReadyBsc =
+    bscRail.data?.readiness && "address" in bscRail.data.readiness ? bscRail.data.readiness : null;
 
   // ─── v49: מסילות עיגון חיות — TRON + XRP Ledger (הרשתות 4-5) ────────────
   const tronRail = useLive<RailReadinessData>("/api/saos/anchor/tron", 60000);
   const tronLedger = useLive<RailAnchorLedgerData>("/api/saos/anchor/tron?list=1", 30000);
-  const [tronPulsing, setTronPulsing] = useState(false);
-  const [tronResult, setTronResult] = useState<RailPulseResult | null>(null);
-  const xrpRail = useLive<RailReadinessData>("/api/saos/anchor/xrp", 60000);
-  const xrpLedger = useLive<RailAnchorLedgerData>("/api/saos/anchor/xrp?list=1", 30000);
-  const [xrpPulsing, setXrpPulsing] = useState(false);
-  const [xrpResult, setXrpResult] = useState<RailPulseResult | null>(null);
-
-  const doTronPulse = async () => {
-    if (tronPulsing) return;
-    setTronPulsing(true);
-    setTronResult(null);
-    const res = await postJson<RailPulseResult>("/api/saos/anchor/tron", {});
-    setTronPulsing(false);
-    if (res.ok && res.data) {
-      setTronResult(res.data);
+  const tron = useRailPulse({
+    rail: "tron",
+    netLabel: "TRON",
+    unit: "txid",
+    via: "TRON mainnet",
+    onSettled: () => {
       tronRail.refresh();
       tronLedger.refresh();
       ops.refresh();
-      if (res.data.ok) {
-        toast.push({
-          tone: res.data.already ? "gold" : "green",
-          title: res.data.already
-            ? `חותם #${res.data.height} כבר מעוגן ב-TRON`
-            : `עוגן TRON נחת — חותם #${res.data.height}`,
-          desc: res.data.txid ? `txid ${short(res.data.txid)} · TRON mainnet` : "הפעימה תועדה"
-        });
-      } else {
-        toast.push({
-          tone: res.data.gated ? "gold" : "rose",
-          title: "פעימת TRON נכשלה",
-          desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות"
-        });
-      }
-    } else {
-      setTronResult({ ok: false, error: res.error ?? "כשל רשת" });
-      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
     }
-  };
-
-  const doXrpPulse = async () => {
-    if (xrpPulsing) return;
-    setXrpPulsing(true);
-    setXrpResult(null);
-    const res = await postJson<RailPulseResult>("/api/saos/anchor/xrp", {});
-    setXrpPulsing(false);
-    if (res.ok && res.data) {
-      setXrpResult(res.data);
+  });
+  const tronPulsing = tron.pulsing;
+  const tronResult = tron.result;
+  const doTronPulse = tron.doPulse;
+  const xrpRail = useLive<RailReadinessData>("/api/saos/anchor/xrp", 60000);
+  const xrpLedger = useLive<RailAnchorLedgerData>("/api/saos/anchor/xrp?list=1", 30000);
+  const xrp = useRailPulse({
+    rail: "xrp",
+    netLabel: "XRPL",
+    unit: "hash",
+    via: "XRP Ledger mainnet",
+    onSettled: () => {
       xrpRail.refresh();
       xrpLedger.refresh();
       ops.refresh();
-      if (res.data.ok) {
-        toast.push({
-          tone: res.data.already ? "gold" : "green",
-          title: res.data.already
-            ? `חותם #${res.data.height} כבר מעוגן ב-XRPL`
-            : `עוגן XRPL נחת — חותם #${res.data.height}`,
-          desc: res.data.txid ? `hash ${short(res.data.txid)} · XRP Ledger mainnet` : "הפעימה תועדה"
-        });
-      } else {
-        toast.push({
-          tone: res.data.gated ? "gold" : "rose",
-          title: "פעימת XRPL נכשלה",
-          desc: res.data.error ?? "שגיאה לא ידועה — תועד בכנות"
-        });
-      }
-    } else {
-      setXrpResult({ ok: false, error: res.error ?? "כשל רשת" });
-      toast.push({ tone: "rose", title: "הפעימה נכשלה", desc: res.error ?? "השרת לא ענה" });
     }
-  };
+  });
+  const xrpPulsing = xrp.pulsing;
+  const xrpResult = xrp.result;
+  const doXrpPulse = xrp.doPulse;
 
   // ─── v50: חומת-העוגנים — אימות חי read-only של חמשת העוגנים מהמיינטנטים ──
   const wallLive = useLive<WallData>("/api/saos/anchor/wall", 60000);
@@ -1706,9 +1281,9 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
         ledger={evmLedger}
         pulsing={evmPulsing}
         result={evmResult}
-        onPulse={() => doRailPulse("evm")}
-        onRecheck={(id) => doRailRecheck("evm", id)}
-        rechecking={railRecheck}
+        onPulse={evm.doPulse}
+        onRecheck={evm.doRecheck}
+        rechecking={evm.rechecking}
       />
 
       {/* ─── v12: פעימת עגינה חיה — SOLANA ───────────────────────────────── */}
@@ -1718,9 +1293,9 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
         ledger={svmLedger}
         pulsing={svmPulsing}
         result={svmResult}
-        onPulse={() => doRailPulse("svm")}
-        onRecheck={(id) => doRailRecheck("svm", id)}
-        rechecking={railRecheck}
+        onPulse={svm.doPulse}
+        onRecheck={svm.doRecheck}
+        rechecking={svm.rechecking}
       />
 
       {/* ─── v14: פעימת עגינה חיה — BSC (מגודר עד הקצאת BNB) ──────────────── */}
@@ -3131,196 +2706,3 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
   );
 }
 
-// ─── EnvelopeCard — כרטיס מעטפה לרשת ────────────────────────────────────────
-
-function SealStat({
-  label,
-  value,
-  icon,
-  ltr = false
-}: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-  ltr?: boolean;
-}) {
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3 space-y-1.5">
-      <div className="flex items-center gap-1.5 text-zinc-500">
-        {icon}
-        <p className="text-[10px] font-semibold tracking-wide">{label}</p>
-      </div>
-      <p
-        className={cn(
-          "text-sm font-bold text-zinc-100 tabular-nums",
-          ltr && "font-mono"
-        )}
-        dir={ltr ? "ltr" : undefined}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-/** v9 — מפסק-מצב נגיש (role=switch) לפעימה האוטומטית. */
-function Toggle({
-  checked,
-  onChange,
-  loading,
-  labelOn,
-  labelOff
-}: {
-  checked: boolean;
-  onChange: () => void;
-  loading?: boolean;
-  labelOn: string;
-  labelOff: string;
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      aria-label={checked ? labelOn : labelOff}
-      title={checked ? labelOn : labelOff}
-      onClick={onChange}
-      disabled={loading}
-      className={cn(
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors duration-200",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
-        checked
-          ? "border-amber-400/50 bg-amber-400/25"
-          : "border-white/[0.12] bg-zinc-900",
-        loading && "opacity-60 cursor-wait"
-      )}
-    >
-      <span
-        aria-hidden
-        className={cn(
-          "absolute h-5 w-5 rounded-full shadow transition-all duration-200",
-          checked
-            ? "start-[26px] bg-amber-300"
-            : "start-[3px] bg-zinc-500"
-        )}
-      />
-    </button>
-  );
-}
-
-/** v9 — מחוון-מיני מקומי (מספר + גוון) לפאנלי המוכנות החיה. */
-function MiniStat({
-  label,
-  value,
-  tone = "default",
-  ltr = false
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "gold" | "rose" | "green";
-  ltr?: boolean;
-}) {
-  const toneCls =
-    tone === "gold"
-      ? "text-amber-300"
-      : tone === "rose"
-        ? "text-rose-300"
-        : tone === "green"
-          ? "text-emerald-300"
-          : "text-zinc-100";
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 flex items-baseline justify-between gap-2 min-w-0">
-      <p className="text-[10px] text-zinc-500 font-semibold tracking-wide shrink-0">{label}</p>
-      <p
-        className={cn("text-xs font-bold tabular-nums truncate", toneCls, ltr && "font-mono")}
-        dir={ltr ? "ltr" : undefined}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function EnvelopeCard({ env }: { env: Envelope }) {
-  const pretty = useMemo(() => {
-    try {
-      return JSON.stringify(JSON.parse(env.payload), null, 2);
-    } catch {
-      return env.payload;
-    }
-  }, [env.payload]);
-
-  return (
-    <div className="rounded-xl border border-white/[0.07] bg-zinc-900/45 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2.5 border-b border-white/[0.05]">
-        <div className="flex items-center gap-2 min-w-0">
-          <p className="text-sm font-bold text-zinc-100" dir="ltr">{env.network}</p>
-          <span
-            dir="ltr"
-            className="font-mono text-[10px] text-zinc-500 border border-white/[0.08] rounded px-1.5 py-0.5"
-          >
-            {env.mode}
-          </span>
-        </div>
-        <Pill tone="zinc">dry-run · לא-שידור</Pill>
-      </div>
-      <div className="px-4 py-3 space-y-2.5">
-        <div dir="ltr" className="relative rounded-lg border border-white/[0.06] bg-black/25 p-3">
-          <pre className="font-mono text-[10px] leading-relaxed text-zinc-300 max-h-44 overflow-y-auto scroll-slim text-left whitespace-pre-wrap break-all">
-            {pretty}
-          </pre>
-          <span className="absolute top-2 end-2">
-            <CopyPayload text={env.payload} />
-          </span>
-        </div>
-        <div className="space-y-1">
-          {env.blockers.map((b) => (
-            <p key={b} className="flex items-start gap-1.5 text-[11px] text-zinc-400">
-              <Lock size={10} className="mt-0.5 shrink-0 text-rose-300/70" />
-              <span dir="auto">{b}</span>
-            </p>
-          ))}
-        </div>
-        <div className="pt-2 border-t border-white/[0.05] space-y-1.5">
-          {env.fee && (
-            <p className="text-[11px] text-zinc-500">
-              <span className="text-zinc-600">עמלה מדודה:</span> {env.fee}
-            </p>
-          )}
-          <p className="text-[11px] text-zinc-500">
-            <span className="text-zinc-600">חתימה:</span> {env.signing}
-          </p>
-          <HashLine label="digest" value={env.digest} tone="gold" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CopyPayload({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      /* הקשה לא מאובטחת — משוב נשאר כנה */
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  };
-  return (
-    <button
-      onClick={onCopy}
-      aria-label="העתק מטען קנוני"
-      className={cn(
-        "grid place-items-center h-6 w-6 rounded-md border transition-all active:scale-95",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
-        copied
-          ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
-          : "border-white/[0.08] bg-zinc-900/90 text-zinc-500 hover:text-amber-300 hover:border-amber-400/30"
-      )}
-      title="העתק את המטען הקנוני המדויק"
-    >
-      {copied ? <CheckCircle2 size={11} /> : <Send size={11} />}
-    </button>
-  );
-}
