@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Clock, Flame, Gauge as GaugeIcon, RadioTower, Wind, Zap } from "lucide-react";
+import { AlertTriangle, Clock, Flame, Gauge as GaugeIcon, RadioTower, Wind, Zap } from "lucide-react";
 import {
   Btn,
   Callout,
@@ -189,6 +189,16 @@ export function ViewEnergy() {
               </Callout>
             )}
             <RangeSlider label="RC נוכחי של החשבון" value={rc} min={0} max={100} step={0.1} suffix="%" onChange={setRc} />
+
+            {/* R15 — כנות-מקור: כשמדידת-ה-RC החיה נכשלה, התוכנית מחושבת על מודל
+                0.6% (fallback כן בשער) — והדף חייב לומר את זה בפנים-הפאנל,
+                לא רק בהערת-רגל. */}
+            {hiveLive.data?.rcSource === "sim" && (
+              <Callout tone="gold" icon={<AlertTriangle size={13} />}>
+                <span className="font-semibold">סימולציה — לא מדידה:</span> מדידת-ה-RC החיה נכשלה במחזור זה,
+                והתוכנית שלהלן מחושבת על מודל ברירת-המחדל (0.6%). כשהמדידה תצליח, התוכנית תיבנה מהאמת.
+              </Callout>
+            )}
 
             {!hiveLive.data ? (
               hiveLive.error ? (

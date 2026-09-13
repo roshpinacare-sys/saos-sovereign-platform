@@ -221,6 +221,7 @@ export interface Network360 {
     mesh: { contracts: number; runs: number };
     enlist: { txid: string; confirmed: boolean } | null;
     flowTrx: number;
+    flowTxCount: number;
   };
   vault: Awaited<ReturnType<typeof sealAvailability>>;
   dex: { ok: boolean; pairs: Array<{ pair: string; net: string; price: string | null }>; measuredAt: string | null };
@@ -258,8 +259,10 @@ async function measure(): Promise<Network360> {
 
   // flow total from row meta (amountTrx) — aggregate can't sum JSON meta
   let flowTrx = 0;
+  let flowTxCount = 0;
   try {
     const rows = await db.anchorTx.findMany({ where: { kind: "flow-liquidity" } });
+    flowTxCount = rows.length;
     for (const r of rows) {
       try {
         flowTrx += (JSON.parse(r.meta ?? "{}") as { amountTrx?: number }).amountTrx ?? 0;
@@ -300,7 +303,8 @@ async function measure(): Promise<Network360> {
       },
       mesh: { contracts: 9, runs: meshRuns },
       enlist: enlistRow?.txid ? { txid: enlistRow.txid, confirmed: true } : null,
-      flowTrx: Number(flowTrx.toFixed(6))
+      flowTrx: Number(flowTrx.toFixed(6)),
+      flowTxCount
     },
     vault,
     dex: dexValue,

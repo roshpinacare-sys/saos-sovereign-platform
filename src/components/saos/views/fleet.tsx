@@ -268,7 +268,7 @@ export function ViewFleet() {
                 <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.04] p-3 text-center">
                   <div className="text-[10px] text-zinc-500">לכל חייל</div>
                   <div className="text-lg font-bold text-emerald-300 tabular-nums">{fmtInt(mintPolicyData?.perSoldier ?? 0)}</div>
-                  <div className="text-[10px] text-zinc-500">× {mintPolicyData?.soldierCount ?? 11} חיילים</div>
+                  <div className="text-[10px] text-zinc-500">× {mintPolicyData ? fmtInt(mintPolicyData.soldierCount) : "—"} חיילים</div>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-center">
                   <div className="text-[10px] text-zinc-500">עתודת פיתוח</div>

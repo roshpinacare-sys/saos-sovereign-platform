@@ -187,7 +187,9 @@ function ZoneCard({
         icon={<Sprout size={16} />}
         title={zone.name}
         sub={`${zone.crop} · ${zone.areaM2.toLocaleString("he-IL")} מ״ר · יעד ${zone.moistureTarget}% · קו-עקה ${zone.moistureCritical}%`}
-        tag={zone.auto ? "אוטונומי" : "ידני"}
+        // R15 — אמת-במספר: הכרטיס נושא את מקור-הקריאה על פניו — קריאת-חיישנים
+        // סימולטור מסומנת "סימולטור · לא מדידה" בכל כרטיס, לא רק בהערת-שוליים.
+        tag={r?.source === "simulator" ? "סימולטור · לא מדידה" : zone.auto ? "אוטונומי" : "ידני"}
         actions={
           zone.valveOpen ? (
             <Pill tone="green" pulse>
@@ -202,7 +204,12 @@ function ZoneCard({
         {/* מד-הלחות עם סימוני קו-עקה ויעד */}
         <div>
           <div className="flex items-baseline justify-between gap-2 mb-1.5">
-            <span className="text-[11px] font-medium text-zinc-500">לחות קרקע (VWC)</span>
+            <span className="text-[11px] font-medium text-zinc-500">
+              לחות קרקע (VWC)
+              {r?.source === "simulator" && (
+                <span className="ms-1 text-amber-400/90" title="קריאת-חיישנים סימולטור — אין חיישן אמיתי בחלקה זו">· סימולציה</span>
+              )}
+            </span>
             <span className="text-lg font-bold tabular-nums text-zinc-100">
               {m !== null ? `${m.toFixed(1)}%` : "—"}
             </span>
@@ -248,7 +255,7 @@ function ZoneCard({
               value: r ? `${r.batteryPct.toFixed(0)}%` : "—",
               warn: (r?.batteryPct ?? 100) < 15
             },
-            { icon: <Timer size={12} />, label: "נמדד", value: r ? timeAgo(r.createdAt) : "—" }
+            { icon: <Timer size={12} />, label: "קריאה אחרונה", value: r ? timeAgo(r.createdAt) : "—" }
           ].map((s) => (
             <div
               key={s.label}

@@ -46,6 +46,7 @@ interface N360 {
     mesh: { contracts: number; runs: number };
     enlist: { txid: string; confirmed: boolean } | null;
     flowTrx: number;
+    flowTxCount: number;
   };
   vault: { present: boolean; state: string; note: string };
   dex: { ok: boolean; pairs: Array<{ pair: string; net: string; price: string | null }>; measuredAt: string | null };
@@ -206,7 +207,7 @@ export function Network360View() {
                 <AchieveRow
                   ok
                   title="נזילות פרטית — הפעלת ה-TRX התקוע"
-                  detail={`${a.flowTrx} TRX זרמו לאוצר headcorner (3 עסקאות מאומתות) · מדידה חיה`}
+                  detail={`${a.flowTrx} TRX זרמו לאוצר headcorner (${a.flowTxCount} עסקאות מאומתות) · מדידה חיה`}
                 />
                 <AchieveRow
                   ok
@@ -215,8 +216,8 @@ export function Network360View() {
                 />
                 <AchieveRow
                   ok
-                  title="שמונה חוזים משורשרים"
-                  detail="Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Value · שכר ללא-עמלה"
+                  title="תשעה חוזים משורשרים"
+                  detail="Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Value → GRID-98 · שכר ללא-עמלה"
                 />
                 <AchieveRow
                   ok={live?.dex.ok ?? false}
@@ -259,8 +260,9 @@ export function Network360View() {
               {" "}אותו בייטקוד נפרס על BSC עם מימון בעלים → מסחר אמיתי.
             </Callout>
             <Callout tone="gold" icon={<AlertTriangle size={14} />}>
-              <strong>מיקרו-גריד האנרגיה (TRON):</strong> 18.7 TRX באוצר מספיקים להאצלת-אנרגיה (freeze→delegate) לחיילי
-              TRON — עמלות-אפס קבועות לפעולות הצי. נעול על מפתחות חדשים מהבעלים (צעד קריטי #1).
+              <strong>מיקרו-גריד האנרגיה (TRON):</strong> יעד-המימון להאצלת-אנרגיה (freeze→delegate) לחיילי TRON הוא
+              ~18.7 TRX באוצר (תקרת-תכנון, לא יתרה נמדדת) — היתרה החיה נמדדת בפסק FLOW. עמלות-אפס קבועות לפעולות הצי.
+              נעול על מפתחות חדשים מהבעלים (צעד קריטי #1).
             </Callout>
             <Callout tone="zinc" icon={<ShieldAlert size={14} />}>
               <strong>גבול-האמת:</strong> מחירי-השוק אמיתיים (read-only); הכסף SAOS-M מעבדה בלבד — אפס מסחר אמיתי עד

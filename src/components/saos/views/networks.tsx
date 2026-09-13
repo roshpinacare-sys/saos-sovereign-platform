@@ -638,8 +638,8 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
       <Panel>
         <PanelHeader
           icon={<Boxes size={15} />}
-          title="מפת האקוסיסטם — 8 הריפואים על אותו רשת-פרויקט"
-          sub="סריקה מלאה שבוצעה 2026-09-07 · org: roshpinacare-sys · המסקנות לביצוע"
+          title="מפת האקוסיסטם — סריקת ארכיון (2026-09-07)"
+          sub="תיעוד-היסטורי של 8 הריפואים · אינו מדידה-חיה של המצב הנוכחי · org: roshpinacare-sys"
         />
         <PanelBody>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -654,8 +654,10 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p dir="ltr" className="text-xs font-semibold text-zinc-100 font-mono truncate">{e.repo}</p>
-                    <Tag tone={e.state === "live" ? "green" : e.state === "active" ? "gold" : "zinc"}>
-                      {e.state}
+                    {/* R15 — כנות-מצב: הסריקה מ-2026-09-07; פיל-ירוק "live" היה נראה כמצב-חי.
+                        כל הפילים בגוון-ארכיון עם תאריך — המצב-החי נמדד ב-network360. */}
+                    <Tag tone="zinc">
+                      {`${e.state} · 09-07`}
                     </Tag>
                   </div>
                   <p className="text-[10.5px] text-zinc-500 mt-0.5 truncate">{e.role}</p>

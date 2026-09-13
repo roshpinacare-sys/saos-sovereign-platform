@@ -34,15 +34,20 @@ const FAST_BATCH_STALL_MS = 20;
 const G = globalThis as unknown as { __meshFastProvider?: ethers.JsonRpcProvider };
 
 /**
- * ה-provider המהיר של SAOS-NET — מטומן על globalThis (שורד HMR),
- * וגם מופע ישן שנוצר לפני ה-v54 מתוקן במקום (אותו ריפוי כמו חדר-ההמרה).
+ * R15 — שיעור "השרת נפל" (2026-09-13, נמדד ב-dev.log): provider מטומן-על-globalThis
+ * מול שרשרת-מעבדה שאינה קיימת בסביבה גרם ל-ethers לרדוף גילוי-רשת לנצח
+ * ("failed to detect network; retry in 1s" אינסופי) — רעש-לוג וזיכרון שהפילו
+ * את הקונסולה. staticNetwork חותך את לולאת-הגילוי: ה-chainId ידוע (31337),
+ * וכל קריאה לשער-מת נכשלת מיד (ECONNREFUSED) — כישלון-כנה שהקוראים כבר
+ * מנהלים כנתון ("שגיאות הן נתונים"). אין עוד ניסיון-גילוי שרץ ברקע.
  */
 export function meshFastProvider(): ethers.JsonRpcProvider {
   if (!G.__meshFastProvider) {
     G.__meshFastProvider = new ethers.JsonRpcProvider(MESH_RPC_FAST, MESH_CHAIN_ID_FAST, {
       batchMaxCount: FAST_BATCH_MAX,
       batchStallTime: FAST_BATCH_STALL_MS,
-      pollingInterval: FAST_POLL_MS
+      pollingInterval: FAST_POLL_MS,
+      staticNetwork: true
     });
   }
   // הקפאת HMR — מוודאים שהמופע הקיים לא חזר לריעוף איטי

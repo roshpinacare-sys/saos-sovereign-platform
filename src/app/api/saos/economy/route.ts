@@ -76,22 +76,14 @@ export async function GET(req: Request) {
 
     const result = simulateEconomy(input);
 
-    const receipt = await appendChainedReceipt(
-      "economy-sim",
-      // canonical discipline: integers only — SAOS as micro-units (×100)
-      {
-        totalPerDayMicro: Math.round(result.totalPerDay * 100),
-        retainedMicro: Math.round(result.retainedPerDay * 100),
-        flywheelPct: Math.round(input.flywheelPct)
-      }
-    );
-
+    // R15 — GET קריאה-בלבד: בדומה ל-energy, כל דפדוף רשם קבלה-שרשרתית
+    // (economy-sim) לפנקס-הראיות — רעש-רישום תחת דפדוף. קבלה נרשמת
+    // רק ב-POST (שמירת-תמונת-מצב מפורשת של המפעיל).
     return NextResponse.json({
       ok: true,
       input,
       result,
-      ...(q.get("list") === "1" ? { snapshots: await recentSnapshots() } : {}),
-      receipt: receipt.digest
+      ...(q.get("list") === "1" ? { snapshots: await recentSnapshots() } : {})
     });
   } catch (e) {
     return NextResponse.json(

@@ -206,7 +206,7 @@ function RailPanel({ rail, readiness, ledger, pulsing, result, onPulse, onRechec
                 ltr
               />
               <SealStat
-                label={isEvm ? "עלות משוערת" : "עמלה"}
+                label={isEvm ? "עלות משוערת" : "עמלה (קבועת-פרוטוקול)"}
                 value={isEvm ? `${ready.costEstimateEth ?? "—"} ETH` : "0.000005 SOL"}
                 icon={<Zap size={13} />}
                 ltr
@@ -1867,7 +1867,7 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
         <PanelHeader
           icon={<RadioTower size={15} />}
           title="פעימת עגינה חיה — TRON · הרשת הרביעית"
-          sub="ממו-weave רוכב על העברת 1 SUN לכתובת-האחות (m/44'/195'/1'/0/0 — TRON מסרב להעברה עצמית, נלמד חי) מבית-האוצר TMXHfFQd… (m/44'/195'/0'/0/0, 18.09 TRX מהסוויפ v32). ה-protobuf נכתב בבית על סכימה שפוענחה אמפירית מהצומת + עסקאות מיינטנט — והוכחת round-trip בייט-זהה לסריאליזציה של הצומת עצמו נדרשת לפני כל חתימה. עלות מדודה-חי: 2.1 TRX לממו (שריפת רוחב-פס ~8 נקודות לבייט)"
+          sub="ממו-weave רוכב על העברת 1 SUN לכתובת-האחות (m/44'/195'/1'/0/0 — TRON מסרב להעברה עצמית, נלמד חי) מבית-האוצר TMXHfFQd… (m/44'/195'/0'/0/0; היתרה 18.09 TRX נמדדה בסוויפ v32 — היסטורי, לא יתרה חיה). ה-protobuf נכתב בבית על סכימה שפוענחה אמפירית מהצומת + עסקאות מיינטנט — והוכחת round-trip בייט-זהה לסריאליזציה של הצומת עצמו נדרשת לפני כל חתימה. עלות ממו נמדדה-חי: ~2.1 TRX (שריפת רוחב-פס ~8 נקודות לבייט)"
           actions={
             tronRail.data?.ok ? (
               tronRail.data.alreadyAnchored ? (

@@ -102,6 +102,7 @@ export interface EnergyTron {
 
 export interface EnergyHive {
   ok: boolean;
+  rcSource: "live" | "sim";
   params: { regenPctPerDay: number; lightFloor: number; heavyFloor: number };
   plan: {
     currentPct: number;

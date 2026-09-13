@@ -78,9 +78,12 @@ function getProvider(): ethers.JsonRpcProvider {
     // v53 — pollingInterval 120ms: ברירת-המחדל של ethers (4000ms) מוסיפה
     // עד 4 שנ' של "המתנה" שאינה של השרשרת (anvil אוטומטי) — המדידה כאן
     // משקפת את השרשרת, לא את תדר הריעוף של הספרייה.
+    // R15 — staticNetwork: אותו שיעור "השרת נפל" — בלעדיו ethers רודף
+    // גילוי-רשת לנצח נגד שרשרת-מעבדה שאינה קיימת בסביבה (רעש+זיכרון).
     G.__chamberProvider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, {
       batchMaxCount: 1,
-      pollingInterval: 120
+      pollingInterval: 120,
+      staticNetwork: true
     });
   }
   // גם מופע מטומן מ-HMR של ה-dev — מוודאים ריעוף מהיר
@@ -1266,6 +1269,16 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
   const mirroredUsd = sumUsd((r) => r.mirroredUsd);
 
   const missingCount = readiness.length - readinessReady;
+  // R15 — כנות-משפט: כשסכום לא נמדד, fmtUsd מחזיר "—" והמשפט החי קרא
+  // "— — חיים בחוץ, ו־— מהם". סעיף-שלם כן במקום מקף-עירום.
+  const custodyClause =
+    custodyUsd !== null && Number.isFinite(custodyUsd)
+      ? `${fmtUsd(custodyUsd)} חיים בחוץ`
+      : "הסכום הכולל במשמרת לא נמדד במחזור זה";
+  const mirrorClause =
+    mirroredUsd !== null && Number.isFinite(mirroredUsd)
+      ? `ו־${fmtUsd(mirroredUsd)} מהם כבר מיוצגים במראה על הרשת שלנו`
+      : "החלק המיוצג במראה לא נמדד במחזור זה";
   const driftPhrase =
     needsBurnCount === 0
       ? driftUsd !== null && driftUsd < 0
@@ -1273,8 +1286,8 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
         : "המראה מסונכרנת לאמת המשמרת"
       : `נותר פער-סנכרון של ${fmtUsd(driftUsd)} (${needsBurnCount} נכסים מגזימים — עוגני v49 ופעימות-XRP שרפו גז מהמשמרת אחרי ההטבעה) — הכפתור למטה מחזיר את המראה לאמת`;
   const verdictHe =
-    `הכסף ב-TRON וב-SOL (וגם XRP ואבק-EVM) כבר יושב במשמרת הריבונית — ${fmtUsd(custodyUsd)} חיים בחוץ, ` +
-    `ו־${fmtUsd(mirroredUsd)} מהם כבר מיוצגים במראה על הרשת שלנו. ההמרה לא דורשת להזיז אף מטבע החוצה: ` +
+    `הכסף ב-TRON וב-SOL (וגם XRP ואבק-EVM) כבר יושב במשמרת הריבונית — ${custodyClause}, ` +
+    `${mirrorClause}. ההמרה לא דורשת להזיז אף מטבע החוצה: ` +
     `${driftPhrase}. ` +
     (lastMint
       ? `הניסיון המאושר רץ (v70): ${lastMint.executedHe}. `

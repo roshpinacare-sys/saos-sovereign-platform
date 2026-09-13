@@ -140,11 +140,19 @@ export function NetworkMapView() {
         </div>
       ) : !data.data?.ok ? (
         <Panel>
-          <PanelBody className="py-10 text-center text-xs text-zinc-500 space-y-2">
+          <PanelBody className="py-10 text-center text-xs text-zinc-500 space-y-3">
             <p>המפקד לא הצליח להיגזר כרגע — כישלון הוא נתון, וזו האבחנה המדויקת:</p>
             <p className="max-w-3xl mx-auto leading-relaxed text-zinc-400">
               {data.error ?? data.data?.error ?? "שגיאה לא ידועה"}
             </p>
+            {/* R15 — מצב-ראיות במקום מסך-שגיאה חשוף: המדידות שכן הצליחו
+                מוצגות; הכתובות עצמן לא מוצגות (לא נגזרו) — אפס המצאה. */}
+            {data.data?.totals && (
+              <p className="text-[11px] text-zinc-600">
+                מצב-ראיות: {data.data.totals.probesOk} מתוך {data.data.totals.probed} מדידות-יתרות הצליחו ·{" "}
+                {data.data.totals.derived} זהויות נגזרו · עד איטום-הכספת אף כתובת אינה מוצגת.
+              </p>
+            )}
           </PanelBody>
         </Panel>
       ) : (

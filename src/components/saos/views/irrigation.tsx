@@ -161,9 +161,17 @@ export function IrrigationView() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "toggle", enabled: !(d?.setting ?? true) })
       });
-      const out = (await res.json()) as { message?: string };
-      setFireMsg(out.message ?? "ההגדרה הוחלפה");
+      // R15 — כישלון מוצג ככישלון: בעבר גוף {ok:false,error} הגיע אל המסך
+      // כ"ההגדרה הוחלפה" (הצלחה-כוזבת) ושגיאת-רשת הייתה דחייה-בלתי-מטופלת.
+      const out = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+      if (out.ok === false) {
+        setFireMsg(`⛔ ההחלפה נכשלה: ${out.error ?? "שגיאה לא ידועה בשער"}`);
+      } else {
+        setFireMsg(out.message ?? "ההגדרה הוחלפה");
+      }
       live.refresh();
+    } catch (e) {
+      setFireMsg(`⛔ שגיאת רשת בהחלפה: ${e instanceof Error ? e.message.slice(0, 90) : "—"}`);
     } finally {
       setToggling(false);
     }

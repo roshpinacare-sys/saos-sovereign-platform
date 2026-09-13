@@ -7,10 +7,14 @@ import {
   USDT_TRANSFER_ENERGY
 } from "@/lib/saos/tron-energize";
 import { hiveRcRecoveryPlan, HIVE_RC_REGEN_PCT_PER_DAY } from "@/lib/saos/anchor-gates";
-import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { probeHiveRc, hiveAnchorAccount } from "@/lib/saos/hive-rc-live";
 
 export const dynamic = "force-dynamic";
+
+// R15 — GET הוא קריאה-בלבד. שיעור "חוסר-האמיתות": כל דפדוף בוויו רשם
+// קבלה-שרשרתית לפנקס-הראיות (energy-plan) — ~4 שורות/דק' משני דפים פתוחים,
+// ~4300 שורות-רעש ביום בספר שמבקרי-השלמות מעידים עליו "אפס-זיוף". התוכנית
+// היא חישוב-טהור; קבלה נרשמת רק על פעולה-מפורשת של המפעיל (POST).
 
 export async function GET(req: Request) {
   try {
@@ -40,19 +44,12 @@ export async function GET(req: Request) {
       }
       const plan = hiveRcRecoveryPlan(rcPct);
 
-      const receipt = await appendChainedReceipt(
-        "energy-plan",
-        // canonical discipline: integers only — rc as per-mille (×10)
-        { net: "HIVE", rcPermille: Math.round(rcPct * 10), verdict: plan.verdict }
-      );
-
       return NextResponse.json({
         ok: true,
         network: "HIVE",
         params: { regenPctPerDay: HIVE_RC_REGEN_PCT_PER_DAY, lightFloor: 8, heavyFloor: 12 },
         plan,
-        rcSource,
-        receipt: receipt.digest
+        rcSource
       });
     }
 
@@ -66,13 +63,6 @@ export async function GET(req: Request) {
       trxPriceUsd: price !== null && Number.isFinite(Number(price)) ? Number(price) : null
     });
 
-    const receipt = await appendChainedReceipt("energy-plan", {
-      net: "TRON",
-      trxStaked: trx,
-      txsWanted: txs,
-      settlements: plan.settlementsPerDay
-    });
-
     return NextResponse.json({
       ok: true,
       network: "TRON",
@@ -83,8 +73,7 @@ export async function GET(req: Request) {
         energyPerTrxPerDay: ENERGY_PER_TRX_PER_DAY
       },
       minStakeForSettlements: minStakeForSettlements(txs),
-      plan,
-      receipt: receipt.digest
+      plan
     });
   } catch (e) {
     return NextResponse.json(
