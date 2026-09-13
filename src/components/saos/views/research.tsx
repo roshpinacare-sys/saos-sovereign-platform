@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { CheckCircle2, ChevronDown, Compass, Flag, ScrollText, TriangleAlert } from "lucide-react";
 import {
+  ErrorNotice,
   Panel,
   PanelBody,
   PanelHeader,
@@ -38,6 +39,8 @@ export function ViewResearch() {
           <SkeletonPanel lines={5} />
           <SkeletonPanel lines={8} />
         </div>
+      ) : data.error && !data.data ? (
+        <ErrorNotice message={String(data.error)} onRetry={() => data.refresh()} />
       ) : !data.data ? (
         <Panel>
           <PanelBody className="py-10 text-center text-xs text-zinc-500">טוען את פסק-הדין…</PanelBody>

@@ -28,6 +28,7 @@ import {
   Pill,
   RangeSlider,
   Skeleton,
+  ErrorNotice,
   useToast
 } from "../ui";
 import { MeterBar } from "../charts";
@@ -125,7 +126,9 @@ export function ViewEconomy() {
 
         {/* תוצאות */}
         <div className="lg:col-span-3 space-y-4">
-          {!r ? (
+          {!r && live.error ? (
+            <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
+          ) : !r ? (
             <>
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                 {Array.from({ length: 4 }).map((_, i) => (

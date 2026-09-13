@@ -134,6 +134,9 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
   const matrix = d?.matrix ?? [];
   const hiveGate = matrix.find((m) => m.network === "HIVE");
   const tronGate = matrix.find((m) => m.network === "TRON");
+  // v87 — מצב-STEEM/BLURT נגזר מהמטריצה-החיה (לא עוד "anchored"-קפוא)
+  const steemGate = matrix.find((m) => m.network === "STEEM");
+  const blurtGate = matrix.find((m) => m.network === "BLURT");
 
   const online =
     (p?.hive?.ok ? 1 : 0) +
@@ -148,13 +151,13 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
       name: "STEEM",
       family: "Graphene L1 · מארח-ראשי",
       role: "מסילת העגינה הראשית",
-      tone: "green",
-      statusLabel: "anchored",
-      metric: { label: "מצב עגינה", value: "פעימה חיה" },
+      tone: steemGate?.status === "anchored" ? "green" : "zinc",
+      statusLabel: steemGate?.status ?? "לא נמדד",
+      metric: { label: "מצב עגינה", value: steemGate?.status ?? "לא נמדד" },
       secondary: { label: "חתימות", value: "custom_json" },
       endpoint: "condenser_api",
       measuredAt: d?.live?.hive?.measuredAt ?? null,
-      note: "רכב-פעולה: saos.weave.v1 בחתימת active — קריאת-היסטוריה לאימות כל txid.",
+      note: steemGate?.detail ?? "רכב-פעולה: saos.weave.v1 בחתימת active — קריאת-היסטוריה לאימות כל txid.",
       rail: "קיים"
     },
     {
@@ -182,13 +185,13 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
       name: "BLURT",
       family: "Graphene L1 · anchored",
       role: "מסילת עגינה היסטורית",
-      tone: "green",
-      statusLabel: "anchored",
-      metric: { label: "פורמט חתימה", value: "eader‖r‖s" },
-      secondary: { label: "מצב צומת", value: "0/6 בזמן-סריקה" },
+      tone: blurtGate?.status === "anchored" ? "green" : "zinc",
+      statusLabel: blurtGate?.status ?? "לא נמדד",
+      metric: { label: "פורמט חתימה", value: "header‖r‖s" },
+      secondary: { label: "מצב מסילה", value: blurtGate?.status ?? "לא נמדד" },
       endpoint: "rpc.blurt.world",
       measuredAt: null,
-      note: "החתימה הקנונית הוכחה בשרשרת (e3201815…) — הצמתים נסרקים בכל פעימה.",
+      note: blurtGate?.detail ?? "החתימה הקנונית הוכחה בשרשרת (e3201815…) — הצמתים נסרקים בכל פעימה.",
       rail: "קיים"
     },
     {

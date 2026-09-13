@@ -92,24 +92,24 @@ export function SyncRadarView() {
 
   if (live.loading && !live.data) {
     return (
-      <main className="p-4 sm:p-6 space-y-4">
+      <div className="space-y-4">
         <PageHead title="מכ&quot;ם-הסנכרון — האמת האחרונה מול גיטהאב" sub={`v${SAOS_VERSION} · טוען את המדידה החיה…`} />
         <SkeletonPanel className="h-40" />
         <SkeletonPanel className="h-64" />
-      </main>
+      </div>
     );
   }
 
   const d = live.data;
   if (!d || d.ok !== true) {
     return (
-      <main className="p-4 sm:p-6 space-y-4">
+      <div className="space-y-4">
         <PageHead title="מכ&quot;ם-הסנכרון — האמת האחרונה מול גיטהאב" sub={`v${SAOS_VERSION} · טוען את המדידה החיה…`} />
         <Callout tone="rose" icon={<Radar size={15} />}>
           <p className="text-[11px] leading-relaxed">{live.error ?? "המכ&quot;ם לא ענה — כישלון כנה"}</p>
         </Callout>
         <SkeletonPanel className="h-64" />
-      </main>
+      </div>
     );
   }
 
@@ -120,7 +120,7 @@ export function SyncRadarView() {
   const verdictTone = tone === "green" ? "green" : tone === "rose" ? "rose" : "gold";
 
   return (
-    <main className="p-4 sm:p-6 space-y-4">
+    <div className="space-y-4">
       <PageHead
         title="מכ&quot;ם-הסנכרון — האמת האחרונה מול גיטהאב"
         sub={`v${SAOS_VERSION} · המכונה שנופלת לא יודעת שנפלה — מ-v74 האורגניזם מודד בעצמו, בכל מחזור, מול origin/main`}
@@ -337,6 +337,6 @@ export function SyncRadarView() {
           </div>
         </PanelBody>
       </Panel>
-    </main>
+    </div>
   );
 }

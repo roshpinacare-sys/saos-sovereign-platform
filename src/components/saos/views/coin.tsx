@@ -179,6 +179,13 @@ export default function CoinView() {
 
   const id = d.identity;
   const pol = d.mintPolicy;
+  // v87 — אחוזי-המדיניות נגזרים מה-spec-עצמו (לא עוד 73.3/26.7-קפואים)
+  const soldierPct =
+    pol && pol.total > 0
+      ? (((pol.perSoldier ?? 0) * (pol.soldierCount ?? 0)) / pol.total * 100).toFixed(1)
+      : "—";
+  const reservePct =
+    pol && pol.total > 0 ? (((pol.treasuryReserve ?? 0) / pol.total) * 100).toFixed(1) : "—";
   const led = d.liveLedger;
   const ex = d.exchange;
   const dep = d.deployment;
@@ -252,12 +259,12 @@ export default function CoinView() {
           <PanelBody className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <Kpi label="סה״כ מדיניות" value={fmtInt(pol?.total ?? 0)} suffix=" SAOS" tone="gold" icon={<Coins size={14} />} hint="ה-mint הקטן — קטן בכוונה" />
-              <Kpi label="לחיילים (פעילות)" value={`${fmtInt(pol?.perSoldier ?? 0)} × ${pol?.soldierCount ?? 0}`} icon={<Wallet size={14} />} hint={`${pol?.soldierCount ?? 0} חיילים × ${fmtInt(pol?.perSoldier ?? 0)} = 73.3%`} />
+              <Kpi label="לחיילים (פעילות)" value={`${fmtInt(pol?.perSoldier ?? 0)} × ${pol?.soldierCount ?? 0}`} icon={<Wallet size={14} />} hint={`${pol?.soldierCount ?? 0} חיילים × ${fmtInt(pol?.perSoldier ?? 0)} = ${soldierPct}%`} />
             </div>
             <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
               <p className="text-[11px] text-zinc-400 leading-relaxed">{pol?.breakdownHe}</p>
               <p className="text-[10px] text-zinc-600 mt-1">
-                עתודת-הפיתוח: {fmtInt(pol?.treasuryReserve ?? 0)} SAOS (26.7%) → <span dir="ltr" className="font-mono">{pol?.protocol.includes("v1") ? "saos:dev-reserve" : ""}</span> — "תשאיר שיהיה לנו לפיתוח" (הנחיית הבעלים)
+                עתודת-הפיתוח: {fmtInt(pol?.treasuryReserve ?? 0)} SAOS ({reservePct}%) → <span dir="ltr" className="font-mono">{pol?.protocol.includes("v1") ? "saos:dev-reserve" : ""}</span> — "תשאיר שיהיה לנו לפיתוח" (הנחיית הבעלים)
               </p>
             </div>
             <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1.5">
@@ -443,7 +450,13 @@ export default function CoinView() {
             ))}
             <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2.5">
               <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                <span className="font-bold">גלגל-הכוח: {eco?.flywheelPct ?? 30}% מיחזור</span> — {eco?.flywheelHe}
+                {eco ? (
+                  <>
+                    <span className="font-bold">גלגל-הכוח: {eco.flywheelPct}% מיחזור</span> — {eco.flywheelHe}
+                  </>
+                ) : (
+                  <span className="font-bold">גלגל-הכוח: לא נמדד עדיין — נוקטים אמת, לא ניחוש</span>
+                )}
               </p>
             </div>
           </PanelBody>

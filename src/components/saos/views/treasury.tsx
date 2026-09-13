@@ -43,6 +43,7 @@ import {
   PanelHeader,
   Pill,
   SkeletonPanel,
+  ErrorNotice,
   Table,
   Tag,
   Td,
@@ -368,6 +369,19 @@ export function TreasuryView() {
     }
     setFiring(false);
   };
+
+  // v87 — שגיאה היא נתון: הודעה כנה במקום שלד-אינסופי כשהמסילה נופלת
+  if (live.error && !d) {
+    return (
+      <div className="space-y-5 animate-view">
+        <PageHead
+          title="ספר האוצר — הכסף של הריבון, מתועד"
+          sub="ההרשאה · המלאי · כל הוצאה אי-פעם (עלות חיה מהקבלות) · תוכנית הדלתות · מדיניות ההוצאה."
+        />
+        <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
+      </div>
+    );
+  }
 
   if (!d) {
     return (

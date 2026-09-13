@@ -167,7 +167,13 @@ function RearmConsole() {
   };
 
   if (loading && !data) return <SkeletonPanel rows={4} />;
-  if (!data?.ok) return <ErrorNotice message="סטטוס חימוש לא נקרא" />;
+  if (!data?.ok)
+    return (
+      <ErrorNotice
+        message={String((data as { error?: string } | null)?.error ?? "סטטוס חימוש לא נקרא")}
+        onRetry={refresh}
+      />
+    );
 
   const armed = data.vault.present;
   const flows = data.evidence;
@@ -255,7 +261,13 @@ export function FlowView() {
   const { data, loading, refresh } = useLive<FlowMapData>("/api/saos/flow", 60000);
 
   if (loading && !data) return <SkeletonPanel rows={8} />;
-  if (!data?.ok) return <ErrorNotice message="מפת-הזרימה לא נקראה" />;
+  if (!data?.ok)
+    return (
+      <ErrorNotice
+        message={String((data as { error?: string } | null)?.error ?? "מפת-הזרימה לא נקראה")}
+        onRetry={refresh}
+      />
+    );
 
   const { radar, flows, engines, capture, limitations } = data;
   const liveFlows = flows.filter((f) => f.state === "live").length;

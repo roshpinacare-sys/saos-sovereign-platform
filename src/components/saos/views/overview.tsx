@@ -69,6 +69,12 @@ export function ViewOverview({
   onNav: (v: ViewId) => void;
 }) {
   useTick(12000);
+  // v87 — ספירת-חלון-המארב חיה מהתאריך-הקנוני (לא עוד מספר-קפוא):
+  // הוראת-הבעלים "אמת מוכח" — המספר נגזר בכל רינדור מ-deadline 2026-10-08.
+  const ambushDaysLeft = Math.max(
+    0,
+    Math.ceil((new Date("2026-10-08T00:00:00Z").getTime() - Date.now()) / 86_400_000)
+  );
   const selftest = useLive<SelftestData>("/api/saos/kernel", 60000);
   const lastAudit = useLive<LastAuditData>("/api/saos/audit", 30000);
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 20000);
@@ -407,7 +413,7 @@ export function ViewOverview({
             חיץ-כנות 0.5 TRX לרוחב-פס. פקודת הבעלים "לזוז הכל פיזית" מבוצעת לבד, כל מחזור.
           </Callout>
           <Callout tone="gold" icon={<KeyRound size={14} className="text-amber-300" />}>
-            <span className="font-bold">מארב ההתאוששות (v41) פרוס:</span> חלון headcorner פתוח — 28
+            <span className="font-bold">מארב ההתאוששות (v41) פרוס:</span> חלון headcorner פתוח — {ambushDaysLeft}
             ימים (עד 2026-10-08) · התוקף נתפס חי (40 פעולות/שעה) · הטריגר נסרק כל 60ש' — ההשתלטות
             הריבונית נוחתת אוטונומית ברגע שבקשה חיה נושאת את הסמכות החתומה בכספת.
           </Callout>

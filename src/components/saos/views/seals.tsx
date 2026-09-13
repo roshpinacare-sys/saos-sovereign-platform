@@ -233,6 +233,14 @@ function SealRow({
       <tr
         className={cn("cursor-pointer hover:bg-white/[0.02] transition-colors", open && "bg-white/[0.025]")}
         onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        tabIndex={0}
+        role="button"
         aria-expanded={open}
       >
         <Td className="w-8 text-zinc-600">

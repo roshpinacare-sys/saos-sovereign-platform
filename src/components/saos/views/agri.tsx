@@ -79,7 +79,8 @@ import {
   Table,
   Tag,
   Td,
-  Th
+  Th,
+  useToast
 } from "../ui";
 import { postJson, timeAgo, useLive } from "../lib";
 import { PageHead } from "../shell";
@@ -350,6 +351,7 @@ function ZoneCard({
 
 export function AgriView() {
   const live = useLive<AgriData>("/api/saos/agri", 20000);
+  const toast = useToast();
   const [ticking, setTicking] = useState(false);
   const [tickResult, setTickResult] = useState<AgriTickResultT | null>(null);
   const [advising, setAdvising] = useState<string | null>(null);
@@ -367,19 +369,22 @@ export function AgriView() {
     setTickResult(null);
     const r = await postJson<AgriTickResultT>("/api/saos/agri", { action: "tick", source: "manual" });
     if (r.ok && r.data) setTickResult(r.data);
+    else toast.push({ title: r.error ?? "המחזור נכשל — כנה, לא מומצא", tone: "rose" });
     live.refresh();
     setTicking(false);
   };
 
   const toggleAutoAdvisor = async () => {
     setAdvisorToggling(true);
-    await postJson("/api/saos/agri", { action: "advisor", enabled: !(data?.advisor.enabled ?? true) });
+    const r = await postJson("/api/saos/agri", { action: "advisor", enabled: !(data?.advisor.enabled ?? true) });
+    if (!r.ok) toast.push({ title: r.error ?? "החלפת-היועץ נכשלה — כנה", tone: "rose" });
     live.refresh();
     setAdvisorToggling(false);
   };
 
   const toggleValve = async (zoneId: string, open: boolean) => {
-    await postJson("/api/saos/agri", { action: "valve", zoneId, open });
+    const r = await postJson("/api/saos/agri", { action: "valve", zoneId, open });
+    if (!r.ok) toast.push({ title: r.error ?? `פתיחת/סגירת-השסתום בגזרה ${zoneId} נכשלה — כנה`, tone: "rose" });
     live.refresh();
   };
 
@@ -398,7 +403,8 @@ export function AgriView() {
 
   const resetField = async () => {
     setResetting(true);
-    await postJson("/api/saos/agri", { action: "reset" });
+    const r = await postJson("/api/saos/agri", { action: "reset" });
+    if (!r.ok) toast.push({ title: r.error ?? "איפוס-השדה נכשל — כנה", tone: "rose" });
     setAdvice({});
     setTickResult(null);
     live.refresh();

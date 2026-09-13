@@ -83,24 +83,24 @@ export function SnapshotView() {
 
   if (live.loading && !live.data) {
     return (
-      <main className="p-4 sm:p-6 space-y-4">
+      <div className="space-y-4">
         <PageHead title="עוגן-החוץ — שימור-האמת מחוץ לסנדבוקס" sub={`v${SAOS_VERSION} · טוען את הלוח החי…`} />
         <SkeletonPanel className="h-40" />
         <SkeletonPanel className="h-64" />
-      </main>
+      </div>
     );
   }
 
   const d = live.data;
   if (!d || d.ok !== true) {
     return (
-      <main className="p-4 sm:p-6 space-y-4">
+      <div className="space-y-4">
         <PageHead title="עוגן-החוץ — שימור-האמת מחוץ לסנדבוקס" sub={`v${SAOS_VERSION} · טוען את הלוח החי…`} />
         <Callout tone="rose" icon={<Anchor size={15} />}>
           <p className="text-[11px] leading-relaxed">{live.error ?? "הלוח לא ענה — כישלון כנה"}</p>
         </Callout>
         <SkeletonPanel className="h-64" />
-      </main>
+      </div>
     );
   }
 
@@ -109,7 +109,7 @@ export function SnapshotView() {
   const rows: SnapshotAnchorRow[] = d.rows ?? [];
 
   return (
-    <main className="p-4 sm:p-6 space-y-4">
+    <div className="space-y-4">
       <PageHead
         title="עוגן-החוץ — שימור-האמת מחוץ לסנדבוקס"
         sub={`v${SAOS_VERSION} · הלקח של roast-84 נעשה מציאות: תקציר-המצב מעוגן על שרשרת-ציבורית ב-$0.00 — שורד את מות-המכונה`}
@@ -409,6 +409,6 @@ export function SnapshotView() {
           </div>
         </PanelBody>
       </Panel>
-    </main>
+    </div>
   );
 }

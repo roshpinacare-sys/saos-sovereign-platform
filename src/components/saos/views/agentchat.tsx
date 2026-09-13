@@ -129,7 +129,9 @@ function IssueCard({
 }
 
 export function AgentChatView() {
-  const live = useLive<AgentChatData>("/api/saos/agents-gateway", 6000);
+  // v87 — קצב-דגימה 12ש' (היה 6ש' — הדגימה-התוקפנית-ביותר במערכת) ·
+  // השגיאה מוצגת בתוך-פאנל-הצ'אט בלבד, הפנקס-הבריא נשאר זמין תמיד.
+  const live = useLive<AgentChatData>("/api/saos/agents-gateway", 12000);
   const ledger = useLive<AgentsIssuesData>("/api/saos/agents-issues", 15000);
   const toast = useToast();
   const [draft, setDraft] = useState("");
@@ -251,15 +253,6 @@ export function AgentChatView() {
     }
   };
 
-  if (live.error) return <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />;
-  if (!live.data) {
-    return (
-      <div>
-        <SkeletonPanel lines={4} />
-        <SkeletonPanel lines={12} />
-      </div>
-    );
-  }
   const d = live.data;
 
   return (
@@ -274,12 +267,20 @@ export function AgentChatView() {
         }
       />
 
+      {live.error && !d && (
+        <div className="mb-4">
+          <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
+        </div>
+      )}
+
+      {d && (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <Kpi label="סוכנים פעילים" value={fmtInt(d.agents.filter((a) => a.active).length)} icon={<Users size={15} />} hint={`${d.agents.length} סה"כ`} tone="green" />
-        <Kpi label="הודעות בצ'אט" value={fmtInt(d.messages.length)} icon={<MessageSquare size={15} />} hint="פיד חי · רענון כל 6ש'" />
+        <Kpi label="הודעות בצ'אט" value={fmtInt(d.messages.length)} icon={<MessageSquare size={15} />} hint="פיד חי · רענון כל 12ש'" />
         <Kpi label="פקודות-עבודה מסוכנים" value={fmtInt(d.messages.filter((m) => m.kind === "order").length)} icon={<Cog size={15} />} hint="מבוצעות בשרשרת" tone="gold" />
         <Kpi label="מנגנון האימות" value="מפתח אישי" icon={<KeyRound size={15} />} hint="SHA-256 + עותק חתום בכספת" />
       </div>
+      )}
 
       {/* v76 · פנקס העניינים — הסוגיות שהועלו לתיקיית הסוכנים */}
       <Panel className="mb-4">
@@ -407,7 +408,7 @@ export function AgentChatView() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* the chat */}
         <Panel className="lg:col-span-2 flex flex-col min-w-0">
-          <PanelHeader icon={<MessageSquare size={15} />} title="הצ'אט המשותף" tag={`חי · ${d.messages.length}`} />
+          <PanelHeader icon={<MessageSquare size={15} />} title="הצ'אט המשותף" tag={d ? `חי · ${d.messages.length}` : "…"} />
           <PanelBody className="flex flex-col">
             <div
               ref={feedRef}
@@ -417,7 +418,9 @@ export function AgentChatView() {
               aria-live="polite"
               aria-label="פיד הצ'אט"
             >
-              {d.messages.length === 0 ? (
+              {!d ? (
+                <SkeletonPanel lines={3} />
+              ) : d.messages.length === 0 ? (
                 <div className="text-[12px] text-zinc-500 py-8 text-center">
                   הצ'אט ריק — כתוב הודעה ראשונה, או צרף סוכן שיכתוב לך.
                 </div>
@@ -529,9 +532,11 @@ export function AgentChatView() {
 
           {/* roster */}
           <Panel>
-            <PanelHeader icon={<Users size={15} />} title={`סגל הסוכנים — ${d.agents.length}`} tag="roster" />
+            <PanelHeader icon={<Users size={15} />} title={d ? `סגל הסוכנים — ${d.agents.length}` : "סגל הסוכנים"} tag="roster" />
             <PanelBody>
-              {d.agents.length === 0 ? (
+              {!d ? (
+                <SkeletonPanel lines={2} />
+              ) : d.agents.length === 0 ? (
                 <div className="text-[11px] text-zinc-500 py-3 text-center">עדיין אין סוכנים — צרף את הראשון</div>
               ) : (
                 <div className="max-h-40 overflow-y-auto scroll-slim space-y-1.5">
@@ -557,7 +562,7 @@ export function AgentChatView() {
                             </span>
                           ) : (
                             <span title="מסלול ההנפקה-מחדש (עניין 002 בפנקס): הסרת הזהות המידעת — הנחיל יתחמש לבד בסקר הבא עם מפתח חדש שנחתם בכספת">
-                              <Btn variant="ghost" size="xs" onClick={() => setRemoveConfirm(a.name)}>
+                              <Btn variant="ghost" size="xs" aria-label={`הסרת זהות הסוכן ${a.name}`} onClick={() => setRemoveConfirm(a.name)}>
                                 <Trash2 size={11} />
                               </Btn>
                             </span>

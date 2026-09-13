@@ -438,7 +438,7 @@ export function ViewFleet() {
                   <Pill tone="gold">מסילה פתוחה · ממתין להקצאה</Pill>
                 </div>
                 <div className="text-[11px] text-zinc-400 space-y-1">
-                  <div>אותה כתובת ריבונית כמו באיתריום: <span dir="ltr">{short(sovereign?.evm.address ?? "—")}</span> · מאזן 0 BNB.</div>
+                  <div>אותה כתובת ריבונית כמו באיתריום: <span dir="ltr">{short(sovereign?.evm.address ?? "—")}</span> · מאזן BNB טרם הוקצה — מדידה דרוך מכ״ם-הרשתות.</div>
                   <div>הקצאת BNB קטנה (≈0.003) תפתח: עוגן-weave + פריסת חוזה הממסר וחימוש 11 החיילים באותו קוד.</div>
                   <div className="text-amber-300/80">החלפת ~1$ דרך גשר חוצה-שרשראות עולה יותר מ-1$ — הקצאה ישירה היא המסלול הריבוני.</div>
                 </div>
@@ -463,7 +463,7 @@ export function ViewFleet() {
                   <Pill tone="rose">חסום בכנות</Pill>
                 </div>
                 <p className="text-[11px] text-zinc-400 leading-relaxed">{policy?.gatesHe.tron}</p>
-                <div className="mt-2 text-[11px] text-zinc-500">6 כתובות-כספת במעקב · 0 TRX · 0 אנרגיה.</div>
+                <div className="mt-2 text-[11px] text-zinc-500">6 כתובות-כספת במעקב · מדידת-יתרות TRX ואנרגיה דרוך מכ״ם-הרשתות (מפת-רשתות) — לא הוקצה עדיין.</div>
               </div>
 
               {/* BTC — informational */}
@@ -596,7 +596,7 @@ export function ViewFleet() {
                             {(s.sol?.balanceSol ?? 0).toFixed(3)}
                           </span>
                         </Td>
-                        <Td className="tabular-nums text-zinc-600">{s.tron ? "0 TRX" : "—"}</Td>
+                        <Td className="tabular-nums text-zinc-600">{s.tron ? "לא נמדד" : "—"}</Td>
                         <Td className="tabular-nums text-zinc-500">{(s.hive?.balance ?? 0).toFixed(3)}</Td>
                       </tr>
                     ))}

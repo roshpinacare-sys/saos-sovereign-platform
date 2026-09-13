@@ -129,6 +129,14 @@ export function Network360View() {
                   key={r.name}
                   className="cursor-pointer hover:bg-white/[0.02] transition-colors"
                   onClick={() => setOpenRepo(openRepo === r.name ? null : r.name)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setOpenRepo(openRepo === r.name ? null : r.name);
+                    }
+                  }}
+                  tabIndex={0}
+                  aria-expanded={openRepo === r.name}
                 >
                   <Td>
                     <span className="font-semibold text-zinc-100" dir="ltr">{r.name}</span>

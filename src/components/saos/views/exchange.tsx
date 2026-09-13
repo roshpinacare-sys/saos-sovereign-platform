@@ -268,6 +268,7 @@ interface RadarAsset {
   symbol: string;
   label: string;
   balance: string;
+  balanceNum?: number;
   usd: number | null;
   priceUsd: number | null;
   priceSource: string;
@@ -393,6 +394,20 @@ export function ExchangeView() {
   const dexBoard = useLive<DexBoard>("/api/saos/dex", 45000);
   const flow = useLive<FlowData>("/api/saos/flow", 60000);
   const pm = useLive<PmData>("/api/saos/physical-move", 30000);
+
+  // v87 — כנות-מספרים: אף יתרה לא נכתבת ידנית — הכל נגזר מהמכ״ם החי
+  // (/api/saos/flow → radar). הוראת-הבעלים "אמת מוכח": מה שלא נמדד —
+  // נאמר שלא נמדד, לא מספר-קפוא.
+  const radar = flow.data?.radar?.assets ?? [];
+  const radarTotal = (sym: string): number | null => {
+    const rows = radar.filter((a) => a.symbol === sym);
+    if (rows.length === 0) return null;
+    return rows.reduce((acc, a) => acc + (a.balanceNum ?? (Number(a.balance) || 0)), 0);
+  };
+  const fmtBal = (v: number | null, digits = 3): string =>
+    v === null
+      ? "לא נמדד במחזור זה"
+      : v.toLocaleString("he-IL", { maximumFractionDigits: digits });
   const toast = useToast();
 
   // קונסולת-מסחר
@@ -1569,12 +1584,12 @@ export function ExchangeView() {
                 </p>
                 <ul className="space-y-1.5">
                   {[
-                    "TRX 17.6 → הימור/רוחב-פס לפעולות TRON",
-                    "SOL 0.024 → השכרת חשבון + העברות אבק",
-                    "ETH 0.000357 (צי + האבק שנמצא) → מתח לעלות עסקה אחת — מגובה ב-WETH",
-                    "BNB 0.0000115 (שנמצא) → מתח ליחידת-גז — מגובה ב-WBNB (בריכה #3)",
-                    "XRP 1.299961 (שנמצא) → מעל רזרבה 1.0: 0.3 בר-שליחה — מגובה ב-WRXP (בריכה #4)",
-                    "STEEM 534 SP (~$244) → הנכס הגדול; powerdown = 13 תשלומים שבועיים נזילים",
+                    `TRX ${fmtBal(radarTotal("TRX"), 1)} → הימור/רוחב-פס לפעולות TRON`,
+                    `SOL ${fmtBal(radarTotal("SOL"))} → השכרת חשבון + העברות אבק`,
+                    `ETH ${fmtBal(radarTotal("ETH"), 6)} (צי + האבק שנמצא) → מתח לעלות עסקה אחת — מגובה ב-WETH`,
+                    `BNB ${fmtBal(radarTotal("BNB"), 6)} (שנמצא) → מתח ליחידת-גז — מגובה ב-WBNB (בריכה #3)`,
+                    `XRP ${fmtBal(radarTotal("XRP"))} (שנמצא) → מעל רזרבה 1.0: 0.3 בר-שליחה — מגובה ב-WRXP (בריכה #4)`,
+                    `STEEM+SP ${fmtBal(radarTotal("STEEM"), 0)} → הנכס הגדול; powerdown = 13 תשלומים שבועיים נזילים`,
                     "HIVE → RC לעגינות",
                     "הזרמה חיצונית אמיתית — רק דרך שער-הרשות"
                   ].map((line, i) => (
@@ -1847,10 +1862,11 @@ export function ExchangeView() {
                       ) : null}
                       {row ? (
                         <a
-                          href={row.meta?.explorer ?? undefined}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block rounded-md border border-emerald-400/20 bg-emerald-400/[0.04] px-2.5 py-1.5 space-y-0.5 hover:border-emerald-300/40 transition-colors"
+                          {...(row.meta?.explorer ? { href: row.meta.explorer, target: "_blank", rel: "noreferrer" } : {})}
+                          className={cn(
+                            "block rounded-md border border-emerald-400/20 bg-emerald-400/[0.04] px-2.5 py-1.5 space-y-0.5",
+                            row.meta?.explorer ? "hover:border-emerald-300/40 transition-colors" : "cursor-default opacity-90"
+                          )}
                         >
                           <div className="flex items-center justify-between gap-2 text-[10.5px]">
                             <span className="flex items-center gap-1 text-emerald-300/90 font-semibold">
@@ -1947,10 +1963,11 @@ export function ExchangeView() {
                         </div>
                         {row ? (
                           <a
-                            href={row.meta?.explorer ?? undefined}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block rounded-md border border-emerald-400/20 bg-emerald-400/[0.04] px-2.5 py-1.5 space-y-0.5 hover:border-emerald-300/40 transition-colors"
+                            {...(row.meta?.explorer ? { href: row.meta.explorer, target: "_blank", rel: "noreferrer" } : {})}
+                            className={cn(
+                              "block rounded-md border border-emerald-400/20 bg-emerald-400/[0.04] px-2.5 py-1.5 space-y-0.5",
+                              row.meta?.explorer ? "hover:border-emerald-300/40 transition-colors" : "cursor-default opacity-90"
+                            )}
                           >
                             <div className="flex items-center justify-between gap-2 text-[10.5px]">
                               <span className="flex items-center gap-1 text-emerald-300/90 font-semibold">
@@ -2143,8 +2160,8 @@ export function ExchangeView() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Callout tone="gold" icon={<Coins size={14} />}>
               <strong>הערך הפנימי</strong> — SAOS-M והנכסים העטופים הם יחידות פנימיות של
-              הרשת שלנו; הגיבוי האמיתי מנוהל בהתאמה לאוצר האמיתי (17.6 TRX · 0.024 SOL
-              · 0.000095 ETH — מדידת מכ"ם חיה); המימוש החוצה כפוף לשער-הרשות.
+              הרשת שלנו; הגיבוי האמיתי מנוהל בהתאמה לאוצר האמיתי ({fmtBal(radarTotal("TRX"), 1)} TRX · {fmtBal(radarTotal("SOL"))} SOL
+              · {fmtBal(radarTotal("ETH"), 6)} ETH — מדידת מכ"ם חיה, מחזור 60ש'); המימוש החוצה כפוף לשער-הרשות.
             </Callout>
             <Callout tone="green" icon={<Landmark size={14} />}>
               <strong>הקציר</strong> — העמלות נצברות בקופות הבריכות, נקצרות לאוצר

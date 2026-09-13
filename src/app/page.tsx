@@ -96,9 +96,10 @@ const TITLES: Record<ViewId, string> = {
 };
 
 export default function Home() {
-  // v80 — ברירת-מחדל: השדה החי. המנוע החקלאי הדו-שכבתי נולד — והבעלים
-  // רואה אותו מיד. שאר הפלטפורמה במקומה (סרגל · Alt+1..9).
-  const [view, setView] = useState<ViewId>("agri");
+  // v87 — ברירת-מחדל: לוח-הבקרה. הוראת הבעלים (trace 1a098f97a6f85e95):
+  // "הוא נפתח לי קבוע על האגרו" — נחיתה דטרמיניסטית על תמונת-המצב הכללית;
+  // האגרו ושאר 37 הפאנלים בני-השגה בקליק (סרגל · Alt+1..9).
+  const [view, setView] = useState<ViewId>("overview");
   const status = useLive<StatusData>("/api/saos/status", 12000);
 
   // קיצורי-מקלדת: Alt+1..9 לניווט מהיר

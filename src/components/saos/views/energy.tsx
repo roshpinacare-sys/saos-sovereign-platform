@@ -10,6 +10,7 @@ import { Clock, Flame, Gauge as GaugeIcon, RadioTower, Wind, Zap } from "lucide-
 import {
   Btn,
   Callout,
+  ErrorNotice,
   Panel,
   PanelBody,
   PanelHeader,
@@ -78,10 +79,14 @@ export function ViewEnergy() {
             </div>
 
             {!tronLive.data ? (
-              <div className="space-y-3">
-                <Skeleton className="h-24 rounded-xl" />
-                <Skeleton className="h-16 w-full" />
-              </div>
+              tronLive.error ? (
+                <ErrorNotice message={String(tronLive.error)} onRetry={() => tronLive.refresh()} />
+              ) : (
+                <div className="space-y-3">
+                  <Skeleton className="h-24 rounded-xl" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              )
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row items-center gap-5 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
@@ -186,10 +191,14 @@ export function ViewEnergy() {
             <RangeSlider label="RC נוכחי של החשבון" value={rc} min={0} max={100} step={0.1} suffix="%" onChange={setRc} />
 
             {!hiveLive.data ? (
-              <div className="space-y-3">
-                <Skeleton className="h-24 rounded-xl" />
-                <Skeleton className="h-16 w-full" />
-              </div>
+              hiveLive.error ? (
+                <ErrorNotice message={String(hiveLive.error)} onRetry={() => hiveLive.refresh()} />
+              ) : (
+                <div className="space-y-3">
+                  <Skeleton className="h-24 rounded-xl" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              )
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row items-center gap-5 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">

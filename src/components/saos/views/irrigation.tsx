@@ -171,7 +171,7 @@ export function IrrigationView() {
 
   if (live.error || (d && d.ok !== true && d.doors?.length === 0)) {
     return (
-      <main className="p-4 sm:p-6 space-y-4">
+      <div className="space-y-4">
         <PageHead
           title="ההשקיה החכמה — אוטונומית אבל בחוכמה"
           sub="v71 · הגז מטפטף לבד דרך הפורטלים הקנוניים המאומתים — ובמזג הנכון"
@@ -179,25 +179,25 @@ export function IrrigationView() {
         <Callout tone="rose" icon={<Flame size={15} />}>
           <p className="text-[11px] leading-relaxed">{live.error ?? d?.error ?? "—"}</p>
         </Callout>
-      </main>
+      </div>
     );
   }
 
   if (!d) {
     return (
-      <main className="p-4 sm:p-6 space-y-4">
+      <div className="space-y-4">
         <PageHead title="ההשקיה החכמה — אוטונומית אבל בחוכמה" sub="v71 · טוען את הלוח החי…" />
         <SkeletonPanel className="h-40" />
         <SkeletonPanel className="h-64" />
         <SkeletonPanel className="h-52" />
-      </main>
+      </div>
     );
   }
 
   const fundableDoors = d.doors.filter((x) => x.fundable);
 
   return (
-    <main className="p-4 sm:p-6 space-y-4 pb-8">
+    <div className="space-y-4 pb-8">
       <PageHead
         title="ההשקיה החכמה — אוטונומית אבל בחוכמה"
         sub="v71 · המטרה של הבעלים, מילה במילה: האורגניזם מטפטף גז לדלתות החשוכות בעצמו — דרך פורטלים קנוניים מאומתי-שלשה, בחוקי-חוכמה קשיחים בקוד, ומעתה גם במזג הנכון (עין-מזג-האוויר: לא משקים בצהריים)"
@@ -696,6 +696,6 @@ export function IrrigationView() {
           </div>
         </PanelBody>
       </Panel>
-    </main>
+    </div>
   );
 }

@@ -19,7 +19,7 @@ import {
 import type { ReactNode } from "react";
 import { useState } from "react";
 import {
-  Btn, Callout, CopyBtn, Kpi, Panel, PanelBody, PanelHeader, Pill,
+  Btn, Callout, CopyBtn, ErrorNotice, Kpi, Panel, PanelBody, PanelHeader, Pill,
   SkeletonPanel, Table, Tag, Td, Th
 } from "../ui";
 import { postJson, useLive } from "../lib";
@@ -359,6 +359,19 @@ const FAMILY_HE: Record<string, string> = {
 export function BridgesView() {
   const live = useLive<BridgeCensus>("/api/saos/bridges", 60000);
   const d = live.data;
+
+  // v87 — שגיאה היא נתון: הודעה כנה במקום שלד-אינסופי כשהמסילה נופלת
+  if (live.error && !d) {
+    return (
+      <div className="space-y-4">
+        <PageHead
+          title="בית-היוצר לגשרים (THE BRIDGE FOUNDRY)"
+          sub="תשתית לעוד גשרים לעוד רשתות — המטרות, הנתיבים, המפקד החי וטיסת-הבדיקה"
+        />
+        <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
+      </div>
+    );
+  }
 
   if (!d) {
     return (

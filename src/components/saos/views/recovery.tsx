@@ -79,8 +79,14 @@ export function RecoveryView() {
     setFiring(true);
     setFireMsg(null);
     try {
-      const res = (await postJson("/api/saos/recovery", {})) as { attempted?: boolean; reason?: string };
-      setFireMsg(res.reason ?? res.attempted ? "המארב הופעל" : "ללא טריגר — המארב ממתין");
+      const res = await postJson<{ attempted?: boolean; reason?: string }>("/api/saos/recovery", {});
+      setFireMsg(
+        res.ok
+          ? res.data?.attempted
+            ? "המארב הופעל — ההשתלטות הריבונית נוחתת"
+            : res.data?.reason ?? "ללא טריגר — המארב ממתין"
+          : res.error ?? "שגיאת הפעלה"
+      );
       live.refresh();
     } catch (e) {
       setFireMsg(e instanceof Error ? e.message : "שגיאת הפעלה");

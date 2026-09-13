@@ -29,7 +29,7 @@ import {
   Layers, ListChecks, Lock, Radar, Repeat, Rocket, ShieldCheck, Sparkles, Timer, Vault
 } from "lucide-react";
 import {
-  Btn, Callout, CopyBtn, Kpi, Panel, PanelBody, PanelHeader, Pill,
+  Btn, Callout, CopyBtn, ErrorNotice, Kpi, Panel, PanelBody, PanelHeader, Pill,
   SkeletonPanel, Table, Tag, Td, Th
 } from "../ui";
 import { postJson, short, useLive, timeAgo } from "../lib";
@@ -607,6 +607,19 @@ export function ConversionView() {
     },
     [live]
   );
+
+  // v87 — שגיאה היא נתון: הודעה כנה במקום שלד-אינסופי כשהמסילה נופלת
+  if (live.error && !d) {
+    return (
+      <div className="space-y-4">
+        <PageHead
+          title="חדר ההמרה (THE CONVERSION CHAMBER)"
+          sub="הכסף שב-TRON וב-SOL — איך הכל נטבע על הרשת שלנו · ההוכחה החיה · מה עוד מוכן"
+        />
+        <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
+      </div>
+    );
+  }
 
   if (!d) {
     return (

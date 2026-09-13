@@ -356,13 +356,16 @@ export function Td({
 export function CopyBtn({ text, size = 14 }: { text: string; size?: number }) {
   const [copied, setCopied] = useState(false);
   const onCopy = async () => {
+    // v87 — כנות-משוב: ✓ ירוק רק אחרי הצלחה אמיתית; כשל = אדום קצר, לא שקר
+    let ok = false;
     try {
       await navigator.clipboard.writeText(text);
+      ok = true;
     } catch {
-      /* context לא מאובטח — משוב נשאר כנה */
+      ok = false;
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+    setCopied(ok);
+    setTimeout(() => setCopied(false), ok ? 1600 : 900);
   };
   return (
     <button
