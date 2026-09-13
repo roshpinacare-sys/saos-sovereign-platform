@@ -26,6 +26,14 @@ export async function register(): Promise<void> {
   if (g.__saosSupervisorRegistered) return;
   g.__saosSupervisorRegistered = true;
   try {
+    // R21: SQLite tuning (WAL + busy_timeout + optimize) before anything
+    // else touches the DB — fail-open, honest, idempotent (db-tune.ts).
+    const { tuneSqlite } = await import("./lib/saos/db-tune");
+    await tuneSqlite();
+  } catch (err) {
+    console.error("[saos-db-tune] register failed (honest, non-fatal):", err);
+  }
+  try {
     const { startSupervisor } = await import("./lib/saos/supervisor-node");
     startSupervisor("instrumentation");
   } catch (err) {

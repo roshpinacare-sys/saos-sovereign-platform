@@ -129,6 +129,14 @@ const SWARM_GRACE_MS = 180_000;
 const SLOW_EVERY = 6; // runner + memory + rss-shed every 6th cycle (60s)
 const DEAD_STREAK = 3; // connection-refused ×3 = confirmed death
 const REVIVE_WINDOW_MS = 150_000; // only one revive attempt per window
+// v45 — R21 (trace 1a09b4c7423d8c5d) measured hole: a WEDGED web (process
+// alive, every request timing out) sat in the degraded branch for 14+ minutes
+// with zero recovery — the old branch journalled once and watched forever.
+// Objective cure standard: 30 consecutive cycles (300s) of continuous
+// non-answer. A legit cold Turbopack compile never does that — measured
+// R21: full fresh compile answered 200s DURING compilation (4.3s worst);
+// total 5-minute silence = wedge, by evidence, not opinion.
+const WEDGED_STREAK = 30;
 const PRESSURE_MB = 700; // early warning before the kernel acts (measured: kill at ~free<500)
 const ZOMBIE_MS = 6 * 60_000; // v59 — 10→6דק': מחזור בריא כבר 47-70ש' (מרוץ-הקבלות), 6דק' = 5+ מחזורים מוחמצים; החלון של 23:35→23:47 (ההקפאה שנסגרה בהחייאה) מתקצר ב-4דק'
 
@@ -160,7 +168,7 @@ const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
 const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "44.2.0";
+const KEEPER_VERSION = "45.0.0";
 const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
@@ -339,6 +347,7 @@ const S = {
   startedAt: new Date().toISOString(),
   checks: 0,
   failStreak: 0,
+  wedgedStreak: 0,
   degraded: false,
   lastCheckAt: null as string | null,
   lastOkAt: null as string | null,
@@ -626,16 +635,19 @@ function reviveRunner(): void {
  *  gently and respawned detached. The kernel's OOM kill at 1.79 GB was
  *  measured; this path acts at 1500 MB on two consecutive readings —
  *  before the kernel, on our terms, with the full journal trail. */
-function recycleWeb(): void {
+function recycleWeb(reason = "pre-OOM"): void {
   S.recycles += 1;
   S.lastRecycleAt = new Date().toISOString();
   S.webReviveDeadline = Date.now() + REVIVE_WINDOW_MS; // one WEB action per window (v43 — the web's own)
   S.failStreak = 0;
+  S.wedgedStreak = 0;
   S.rssShedStreak = 0;
   S.recoveredLogged = false;
   journal(
     "web-recycle",
-    `pre-OOM recycle #${S.recycles}: RSS ${S.mem.nextRssMb}MB ≥ ${RSS_SHED_MB}MB ×${RSS_SHED_READINGS} readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)`
+    reason === "wedged"
+      ? "wedged-web recycle #" + S.recycles + ": 300s total silence with a live process — SIGTERM now, detached respawn follows (planned, not emergency)"
+      : "pre-OOM recycle #" + S.recycles + ": RSS " + S.mem.nextRssMb + "MB ≥ " + RSS_SHED_MB + "MB ×" + RSS_SHED_READINGS + " readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"
   );
   const procs = scanProcs().filter(
     (p) =>
@@ -1500,6 +1512,7 @@ async function cycle(): Promise<void> {
   const web = await checkWeb();
   if (web.alive) {
     S.failStreak = 0;
+    S.wedgedStreak = 0;
     S.lastOkAt = S.lastCheckAt;
     S.lastHttp = web.http ?? null;
     if (S.webReviveDeadline > Date.now() - REVIVE_WINDOW_MS && !S.recoveredLogged) {
@@ -1517,9 +1530,29 @@ async function cycle(): Promise<void> {
       journal("web-degraded-ok", `web tier fast again (HTTP ${web.http})`);
     }
   } else if (web.kind === "degraded") {
+    // v45 — the R21 measured hole: this branch used to journal once and watch
+    // FOREVER. A wedged web (process alive, all requests timing out) has a
+    // recovery path now: 30 consecutive silent cycles (300s) → gentle recycle
+    // (same SIGTERM + detached respawn as pre-OOM — a planned event, never
+    // an emergency kill). Evidence is objective: total 5-minute silence.
+    S.wedgedStreak += 1;
     if (!S.degraded) {
       S.degraded = true;
-      journal("web-degraded", "web tier alive but not answering in 6s — watched, NOT killed (never kill a live member)");
+      journal("web-degraded", "web tier alive but not answering in 6s — watched (wedged-cure fires at ×" + WEDGED_STREAK + " = 300s total silence)");
+    } else if (S.wedgedStreak === 10) {
+      journal("web-degraded", "web tier silent ×100s — milestone 1/3, still watching (compile never stays this silent)");
+    } else if (S.wedgedStreak === 20) {
+      journal("web-degraded", "web tier silent ×200s — milestone 2/3, recycle at ×300s");
+    }
+    if (S.wedgedStreak >= WEDGED_STREAK && Date.now() > S.webReviveDeadline) {
+      const procs = scanProcs().filter((p) => p.cwd === PROJECT_DIR && p.cmdline.includes("next-server"));
+      const rss = nextServerRssMb();
+      journal(
+        "web-wedged",
+        "web tier silent ×" + S.wedgedStreak * (CHECK_MS / 1000) + "s (evidence: " + procs.length + " next-server proc alive, RSS " + (rss.rss || "?") + "MB, every request >6s) — WEDGED, not slow; gentle recycle now"
+      );
+      recycleWeb("wedged");
+      S.recoveredLogged = false;
     }
   } else {
     S.failStreak += 1;
