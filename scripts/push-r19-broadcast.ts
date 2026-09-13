@@ -30,7 +30,7 @@ const REPOS = [
 ];
 
 async function main() {
-  const content = fs.readFileSync("SAOS-PULSE-2026-09-13-R19-SUPERVISOR-RESTORED.md");
+  const content = fs.readFileSync("docs/reports/SAOS-PULSE-2026-09-13-R19-SUPERVISOR-RESTORED.md");
   const b64 = content.toString("base64");
   let ok = 0;
   let skipped = 0;
