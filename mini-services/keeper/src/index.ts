@@ -168,9 +168,10 @@ const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
 const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "45.0.0";
+const KEEPER_VERSION = "45.1.0";
 const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
+const RESTORE_DRILL_EVERY = 144; // v45.1 — restore drill every 144th cycle (≈24min)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
 const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
 
@@ -378,6 +379,8 @@ const S = {
   recycles: 0,
   lastRecycleAt: null as string | null,
   backups: { ok: 0, miss: 0, lastAt: null as string | null, lastNote: "" },
+  // v45.1 R22 — periodic RESTORE drills (a backup never restored is a hypothesis)
+  drills: { ok: 0, fail: 0, lastAt: null as string | null, lastVerdict: "" },
   // v28 — page-500 (Turbopack panic) detection
   page500Streak: 0,
   // v36 — page-HANG detection (tonight's live incident: the panic left the
@@ -695,6 +698,53 @@ async function runBackup(): Promise<void> {
   } catch (e) {
     S.backups.miss += 1;
     journal("backup-miss", `snapshot unreachable #${S.backups.miss}: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"} — next window retries`);
+  }
+}
+
+/**
+ * v45.1 R22 — periodic restore-drill. Runs scripts/restore-drill.ts (bun,
+ * zero deps, self-timeout 25s): copies the newest snapshot + the survivable
+ * mirror, opens both READ-ONLY, PRAGMA integrity_check, inventories tables.
+ * A PASS line lands in the journal as "restore-drill-ok"; anything else is
+ * "restore-drill-miss" WITH the verdict text — a drill that never fires or
+ * never reports is itself a finding.
+ */
+function runRestoreDrill(): void {
+  try {
+    const drillPath = path.resolve(import.meta.dir, "..", "..", "..", "scripts", "restore-drill.ts");
+    if (!fs.existsSync(drillPath)) {
+      S.drills.fail += 1;
+      S.drills.lastVerdict = "DRILL-TOOL-MISSING";
+      journal("restore-drill-miss", "scripts/restore-drill.ts not found — drill cannot run");
+      return;
+    }
+    const proc = Bun.spawnSync(["bun", drillPath], {
+      cwd: path.resolve(import.meta.dir, "..", "..", ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 30_000,
+    });
+    S.drills.lastAt = new Date().toISOString();
+    const out = proc.stdout ? new TextDecoder().decode(proc.stdout) : "";
+    const jsonLine = out.trim().split("\n").filter((l) => l.trim().startsWith("{")).pop() ?? "";
+    let verdict = proc.exitCode === 0 ? "PASS(undetailed)" : `FAIL(exit=${proc.exitCode})`;
+    try {
+      const parsed = JSON.parse(jsonLine) as { verdict?: string };
+      if (parsed.verdict) verdict = parsed.verdict;
+    } catch { /* keep coarse verdict */ }
+    S.drills.lastVerdict = verdict;
+    if (proc.exitCode === 0 && verdict.includes("PASS")) {
+      S.drills.ok += 1;
+      journal("restore-drill-ok", `#${S.drills.ok} — ${verdict}`);
+    } else {
+      S.drills.fail += 1;
+      journal("restore-drill-miss", `#${S.drills.fail} — ${verdict.slice(0, 140)}`);
+    }
+  } catch (e) {
+    S.drills.fail += 1;
+    S.drills.lastAt = new Date().toISOString();
+    S.drills.lastVerdict = "DRILL-ERROR";
+    journal("restore-drill-miss", `#${S.drills.fail} — ${e instanceof Error ? e.message.slice(0, 100) : "unknown"}`);
   }
 }
 
@@ -1710,6 +1760,13 @@ async function cycle(): Promise<void> {
   if (RT.cycle === BACKUP_FIRST_AT || (RT.cycle > BACKUP_FIRST_AT && (RT.cycle - BACKUP_FIRST_AT) % BACKUP_EVERY === 0)) {
     await runBackup();
   }
+  // v45.1 R22 — restore-drill every 144 cycles (≈24min): the newest snapshot
+  // is copied + opened read-only + integrity-checked by the drill tool
+  // (scripts/restore-drill.ts). A backup that was never RESTORED is a
+  // hypothesis; the drill turns it into a measured fact, on a schedule.
+  if (RT.cycle % RESTORE_DRILL_EVERY === 0) {
+    runRestoreDrill();
+  }
   if (RT.cycle % SLOW_EVERY === 0) {
     rotateDevLog();
   }
@@ -1901,6 +1958,7 @@ function statusJson() {
     recycle: { count: S.recycles, lastAt: S.lastRecycleAt, rssShedStreak: S.rssShedStreak },
     panic: { streak: S.page500Streak, cures: S.panics, lastAt: S.lastPanicAt, lastPageHttp: S.lastPageHttp },
     backups: { ok: S.backups.ok, miss: S.backups.miss, lastAt: S.backups.lastAt },
+    drills: { ok: S.drills.ok, fail: S.drills.fail, lastAt: S.drills.lastAt, lastVerdict: S.drills.lastVerdict },
     events: S.events.slice(-60).reverse(),
     journalFile: "mini-services/keeper/state/journal.jsonl"
   };

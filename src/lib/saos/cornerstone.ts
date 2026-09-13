@@ -48,11 +48,11 @@ import { db } from "@/lib/db";
 import { appendVaultMember, withVaultMember, sealAvailability, type SealAvailability } from "@/lib/vault-seal";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { guardPermission } from "./permissions";
+import { resolveOwnerUploadFile } from "./owner-upload";
 import { invalidateSovereignKeyCache } from "./sovereign-key";
 import meshArtifact from "./generated/SAOSMesh.json";
 import { meshFastProvider, waitTx } from "./mesh-provider";
 
-const SEED_FILE = path.join(process.cwd(), "upload", "ראשגד.txt");
 const SEED_MEMBER = "keys/headcorner-seed.json";
 const REGISTRY_MEMBER = "keys/wallets-registry.json";
 const ROSTER_MEMBER = "keys/vault.json";
@@ -172,7 +172,11 @@ export function deriveCornerstone(phrase: string): {
 
 /** Reads the 24 words from the owner's file — server-side only, never returned. */
 function readSeedWords(): { words: string[]; phrase: string } {
-  const raw = fs.readFileSync(SEED_FILE, "utf8");
+  // v45.3 R22 — the seed lives in the SURVIVABLE home (parent upload/);
+  // the old cwd-relative SEED_FILE pointed into the wipe zone where it never was.
+  const seedFile = resolveOwnerUploadFile("ראשגד.txt");
+  if (!seedFile) throw new Error("הזרע לא נמצא באף בית-upload (fail-loud)");
+  const raw = fs.readFileSync(seedFile, "utf8");
   const firstLine = raw.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0) ?? "";
   const words = firstLine.toLowerCase().split(/\s+/).filter((w) => /^[a-z]+$/.test(w));
   if (words.length !== 24) {
@@ -515,7 +519,7 @@ async function measureStatus(): Promise<CornerstoneStatus> {
     enlist,
     note: member
       ? "הזרע חתום בכספת · הסוכנים נגזרים דטרמיניסטית · ביצוע-חי מוכח ב-SAOS-NET"
-      : fs.existsSync(SEED_FILE)
+      : resolveOwnerUploadFile("ראשגד.txt") !== null
         ? "הזרע של הבעלים (upload/ראשגד.txt) בדיסק — ממתין לאיטום (פעולת seal)"
         : "הזרע (24 מילים) אינו בדיסק ואינו במעטפת (אבד באיפוס-הסנדבוקס) — נדרשת העלאה-מחדש אחת מהבעלים; עד-אז מסילות אבן-הפינה בכנות סגורות (R10)",
     measuredAt

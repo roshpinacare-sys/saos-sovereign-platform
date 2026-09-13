@@ -31,8 +31,8 @@ import { ethers } from "ethers";
 import bs58 from "bs58";
 import ZAI from "z-ai-web-dev-sdk";
 import { sealAvailability } from "@/lib/vault-seal";
+import { resolveOwnerUploadFile } from "./owner-upload";
 
-const PHOTO_PATH = path.join(process.cwd(), "upload", "IMG-20260905-WA0024.jpg");
 const KEYS_DIR = path.join(process.cwd(), "agent", "keys");
 const VAULT_MAGIC = "SAOS-FLEET-VAULT-1";
 
@@ -63,7 +63,8 @@ export async function rearmStatus(): Promise<RearmStatus> {
   const vault = await sealAvailability();
   let bytes = 0;
   try {
-    bytes = fs.statSync(PHOTO_PATH).size;
+    const p = resolveOwnerUploadFile("IMG-20260905-WA0024.jpg");
+    bytes = p ? fs.statSync(p).size : 0;
   } catch {
     bytes = 0;
   }
@@ -114,7 +115,9 @@ function parseWordsJson(content: string): string[] | null {
 /** reads the 12 words inside the server process — never logged, never returned */
 async function extractWordsFromPhoto(): Promise<string[]> {
   const zai = await ZAI.create();
-  const photo = fs.readFileSync(PHOTO_PATH);
+  const photoPath = resolveOwnerUploadFile("IMG-20260905-WA0024.jpg");
+  if (!photoPath) throw new Error("התמונה לא נמצאה באף בית-upload (fail-loud)");
+  const photo = fs.readFileSync(photoPath);
   const dataUrl = `data:image/jpeg;base64,${photo.toString("base64")}`;
   const prompt =
     "This photo contains a 12-word BIP39 seed phrase written by the owner. " +
@@ -247,7 +250,9 @@ export async function rearmExecute(): Promise<RearmResult> {
   // 1. photo on disk?
   let photo: Buffer;
   try {
-    photo = fs.readFileSync(PHOTO_PATH);
+    const photoPath = resolveOwnerUploadFile("IMG-20260905-WA0024.jpg");
+    if (!photoPath) throw new Error("photo not found in any upload home");
+    photo = fs.readFileSync(photoPath);
     base.photoBytes = photo.length;
   } catch {
     return { ...base, error: "התמונה לא בדיסק — נדרשת תמונה מהבעלים" };

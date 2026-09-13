@@ -124,7 +124,17 @@ export function spawnService(s: ManagedService, force = false): "spawned" | "coo
       return "failed";
     }
     fs.mkdirSync(dir, { recursive: true });
-    const logFd = fs.openSync(path.join(dir, "supervised.log"), "a");
+    // v45.3 R22 — bounded logs: anvil (or any chatty child) grows
+    // supervised.log forever; measured live 09/13 at 1.45MB within hours.
+    // One-generation rotation at spawn time caps it: supervised.log → .1.
+    const logPath = path.join(dir, "supervised.log");
+    try {
+      if (fs.statSync(logPath).size > 8 * 1024 * 1024) {
+        try { fs.unlinkSync(logPath + ".1"); } catch { /* no older generation */ }
+        fs.renameSync(logPath, logPath + ".1");
+      }
+    } catch { /* no log yet — first spawn */ }
+    const logFd = fs.openSync(logPath, "a");
     const child = spawn("bun", ["run", "dev"], {
       cwd: dir,
       env: process.env,

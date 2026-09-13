@@ -54,7 +54,17 @@ const CHAIN_STATE_DIR = path.join(ROOT, "mini-services", "evm-mesh", "state");
 // lost). upload/ survived EVERY rebuild so far (the vault's anchor home):
 // the newest consistent snapshot now also lives there, and a wiped DB
 // self-heals from it at the next measure() — history included.
-const MIRROR_DIR = path.join(ROOT, "upload", ".db-mirror");
+//
+// v45.2 R22 — MEASURED-LIVE CORRECTION (the mirror was NEVER in the
+// survivable home): ROOT is process.cwd() = the repo dir itself, so v34's
+// path.join(ROOT, "upload", ...) resolved to <repo>/upload/.db-mirror —
+// INSIDE the wipe zone, the exact home v34 swore to escape. Proof the
+// PARENT upload/ is the survivable one: the owner's key-material and the
+// worklog live there and survived every rebuild (measured 09/13). The
+// mirror now resolves to the PARENT upload/ (../upload from the repo).
+// Migration: current mirror copied over by hand during the fix; the ≤45s
+// fast-mirror tick re-seeds it from the live DB at the next write.
+const MIRROR_DIR = path.join(ROOT, "..", "upload", ".db-mirror");
 const MIRROR_DB = path.join(MIRROR_DIR, "custom.db");
 // v68 בית-הזיכרון — שומר-העושר של המראה. התקרית החיה (2026-09-11 13:23):
 // איפוס-הסנדבוקס החזיר DB "כשיר" לכאורה (header תקין, prisma push) —
@@ -529,12 +539,20 @@ export async function snapshotNow(trigger: string): Promise<SnapshotResult> {
   }
 
   // 2. chain — once per calendar day (38MB each; 7 days of chain truth)
+  //    v45.1 R22: a chain-dir that exists but holds ZERO of the two state
+  //    files is an UNFINISHED day, not a done day (measured live 09/13:
+  //    the 13:08 snapshot ran before deployment.json/anvil-state.json were
+  //    written — the day silently passed with 0 bytes of chain protection).
+  //    Rule: dir missing OR empty → (re)fill on the next window.
   const chainDir = path.join(BACKUP_DIR, `chain-${dayStamp()}`);
   let chainBytes = 0;
   let chainDone = false;
   const anvilState = path.join(CHAIN_STATE_DIR, "anvil-state.json");
   const deployment = path.join(CHAIN_STATE_DIR, "deployment.json");
-  if (!fs.existsSync(chainDir) && dbError === null) {
+  const chainDirEmpty =
+    !fs.existsSync(chainDir) ||
+    (fs.readdirSync(chainDir).filter((f) => !f.startsWith(".")).length === 0);
+  if (chainDirEmpty && dbError === null) {
     try {
       ensureDir(chainDir);
       if (fs.existsSync(anvilState)) chainBytes += copyAtomic(anvilState, path.join(chainDir, "anvil-state.json"));

@@ -31,8 +31,8 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { db } from "@/lib/db";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { meshFastProvider } from "./mesh-provider";
+import { resolveOwnerUploadFile } from "./owner-upload";
 
-const TOKEN_PATH = path.join(process.cwd(), "upload", "Roshcaregt.txt");
 const WALLET_REGISTRY_URL =
   "https://raw.githubusercontent.com/roshpinacare-sys/steem/main/sovereign/node/wallets-public.json";
 
@@ -148,7 +148,10 @@ async function walletRegistry(): Promise<RegistryCache> {
     return R.__flowRegistryCache;
   }
   try {
-    const token = (await readFile(TOKEN_PATH, "utf8")).trim();
+    // v45.3 R22 — survivable-home token resolution (see owner-upload.ts)
+    const tokenPath = resolveOwnerUploadFile("Roshcaregt.txt");
+    if (!tokenPath) throw new Error("owner token not found in any upload home (degraded, fail-loud)");
+    const token = (await readFile(tokenPath, "utf8")).trim();
     if (!token) throw new Error("no token");
     const raw = await fetchJson<{ agents?: RegistryWallet[] }>(WALLET_REGISTRY_URL, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }

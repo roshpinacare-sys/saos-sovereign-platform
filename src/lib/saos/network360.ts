@@ -29,10 +29,10 @@ import { sealAvailability } from "@/lib/vault-seal";
 import { saosLedger } from "./saos-mint";
 import { probeDexPairs } from "./dex-live";
 import { trustedFetch } from "./security";
+import { resolveOwnerUploadFile } from "./owner-upload";
 import { microgridStatus } from "./microgrid-live";
 
 const CACHE_TTL_MS = 90_000;
-const TOKEN_PATH = path.join(process.cwd(), "upload", "Roshcaregt.txt");
 
 // ─── the curated estate (audit sources: SETTLE-6 + task-21, 2026-09-08) ─────
 
@@ -192,7 +192,11 @@ interface RepoLive { pushedAt: string | null; sizeKb: number | null }
 async function liveRepos(): Promise<Map<string, RepoLive>> {
   const out = new Map<string, RepoLive>();
   try {
-    const token = (await readFile(TOKEN_PATH, "utf8")).trim();
+    // v45.3 R22 — the token lives in the SURVIVABLE home (parent upload/);
+    // the old cwd-relative path pointed into the wipe zone where it never was.
+    const tokenPath = resolveOwnerUploadFile("Roshcaregt.txt");
+    if (!tokenPath) throw new Error("owner token not found in any upload home (degraded, fail-loud)");
+    const token = (await readFile(tokenPath, "utf8")).trim();
     if (!token) return out;
     // v24 מגן: GitHub API — דרך השער (רישום מהימן · redirect-error)
     const res = await trustedFetch("https://api.github.com/user/repos?per_page=100&sort=pushed", {
