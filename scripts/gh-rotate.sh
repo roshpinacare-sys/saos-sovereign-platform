@@ -40,6 +40,15 @@ REPOS="saos-sovereign-platform roshpina Saosmartwallet steem saos-jummper saos-s
 fail() { echo "ROTATE-ABORT: $1" >&2; exit 1; }
 ok()   { echo "  ok: $1"; }
 
+# extract the token from a staged file — robust to:
+#   bare token | KEY=value (.env style) | surrounding quotes | comments | blanks
+# (lesson R18/R19: the owner may upload pat.env with or without a KEY= prefix)
+_extract_token() {
+  grep -v '^[[:space:]]*#' "$1" 2>/dev/null | grep -m1 -v '^[[:space:]]*$' \
+    | sed -e 's/^[A-Za-z_][A-Za-z0-9_]*=//' -e "s/^[\"']//" -e "s/[\"']\$//" \
+    | tr -d '[:space:]'
+}
+
 echo "== SAOS GitHub PAT rotation =="
 
 # --- locate staged new token ------------------------------------------------
@@ -48,22 +57,22 @@ echo "== SAOS GitHub PAT rotation =="
 # the first VALID one wins (filename never matters — lesson from R17 lockout:
 # the owner uploaded "Roshcaregt (2).txt" which the fixed candidates missed).
 STAGE=""
-for c in /home/z/my-project/upload/*.txt; do
+for c in /home/z/my-project/upload/*.txt /home/z/my-project/upload/*.env; do
   [ -s "$c" ] || continue
   if [ -f "$CANON" ] && [ "$(sha256sum "$c" | cut -d' ' -f1)" = "$(sha256sum "$CANON" | cut -d' ' -f1)" ]; then
     echo "  skip: $(basename "$c") is identical to the installed token"
     continue
   fi
   # quick API liveness probe of this candidate (value never printed)
-  _t=$(tr -d '[:space:]' < "$c")
+  _t=$(_extract_token "$c")
   _code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
     -H "Authorization: Bearer $_t" -H "User-Agent: saos-rotate-probe" https://api.github.com/user)
   if [ "$_code" = "200" ]; then STAGE="$c"; break; else echo "  skip: $(basename "$c") -> API HTTP $_code (invalid/expired)"; fi
 done
-[ -n "$STAGE" ] || fail "no NEW token staged (all upload/*.txt are either identical to the installed token or API-rejected). Owner: create a NEW PAT on GitHub, upload it as any .txt file to the upload folder (never paste it in chat), then re-run."
+[ -n "$STAGE" ] || fail "no NEW token staged (all upload/*.txt + *.env are either identical to the installed token or API-rejected). Owner: create a NEW PAT on GitHub, upload it as any .txt/.env file to the upload folder (never paste it in chat), then re-run."
 echo "  staged new token found: $STAGE"
 
-NEW=$(tr -d '[:space:]' < "$STAGE")
+NEW=$(_extract_token "$STAGE")
 [ -n "$NEW" ] || fail "staged file is empty after trimming"
 umask 077
 
