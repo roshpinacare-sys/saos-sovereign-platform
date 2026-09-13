@@ -282,8 +282,26 @@ export async function fetchFleetAgents(): Promise<Array<{ handle: string; addres
 
 async function sendTx(label: string, call: () => Promise<ethers.ContractTransactionResponse>): Promise<ethers.ContractTransactionReceipt | null> {
   const tx = await call();
-  const rc = await tx.wait();
-  console.log(`[mesh] ✓ ${label}`);
+  // v91 receipt-poll fix (measured 2026-09-13): tx.wait() hung forever even
+  // though the tx DID mine (block 11 carried the hub.wire selector, zero "✓"
+  // lines, 1019 blockNumber heartbeats, empty txpool) — the ethers polling
+  // transaction-subscriber race from the v61 Promise-Guard family. We no
+  // longer blindly trust wait(): poll the chain for the receipt ourselves
+  // and fail LOUDLY on timeout so the watchdog loop recovers honestly.
+  let rc: ethers.ContractTransactionReceipt | null = null;
+  for (let i = 0; i < 240 && !rc; i++) {
+    try {
+      rc = (await tx.provider.getTransactionReceipt(tx.hash)) as ethers.ContractTransactionReceipt | null;
+    } catch {
+      // transient RPC hiccup — keep polling, the chain is the truth
+    }
+    if (!rc) await new Promise((r) => setTimeout(r, 250));
+  }
+  if (!rc) {
+    console.error(`[mesh] sendTx ${label}: no receipt in 60s for ${tx.hash} — fail-loud (watchdog recovers)`);
+    throw new Error(`sendTx ${label}: receipt timeout for ${tx.hash}`);
+  }
+  console.log(`[mesh] ✓ ${label} (block ${rc.blockNumber})`);
   return rc;
 }
 

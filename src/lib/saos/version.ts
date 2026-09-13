@@ -58,12 +58,23 @@
  * רכיבה-על-רשת-קרה ל-~15ms מטמון-חם (נמדד); פיצול ops.tsx (3,327→2,710
  * + ops-rail + ops-parts + use-rail-pulse — חוב-R14 משולם); פוטר-memo
  * (אפס בנייה-מחדש של עץ-DOM ענק כל שנייה).
+ *
+ * v90 תחיית-המפעיל: הסופרוויזר-הקנוני (roast-62 doctrine) שוחזר —
+ * instrumentation.ts + lib/saos/supervisor-node.ts + גשר /api/saos/supervisor:
+ * השירותים (keeper :3005 · evm-mesh runner/anvil :8545 · gate :3006 ·
+ * swarm :3007) נולדים כילדי-תהליך-ה-Next ולכן שורדים את קצרנות-הסנדבוקס
+ * (נמדד: תהליכים-מהצ'אט מתים תוך דקות; ילדי-next חיים). sendTx עתה קורא
+ * קבלה-ישירות-מהשרשרת (tx.wait נתלה על עסקה-שכן-כרוכה — נמדד בלוק 11),
+ * בדיקת-חיות-ראנר דרך seat.lock מודעת-zombie (kill(pid,0) מצלצל-חי-על-מת),
+ * fleet-cure מדווח-404-פעם-אחת במקום רעש-תמידי. Foundry (anvil 1.8.1)
+ * הותקן מ-GitHub-releases. תוצאה-נמדדת: בורסה/מיקרו-גריד/מש-10-חוזים חיים,
+ * מקורות-אמת 5/5, שומר 95+ בדיקות.
  */
 
-export const SAOS_VERSION = "89.0.0";
+export const SAOS_VERSION = "90.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "שער-המארג (THE MESH GATE)";
+export const SAOS_CODENAME = "תחיית-המפעיל (THE SUPERVISOR RESTORED)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;
