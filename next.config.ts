@@ -1,7 +1,16 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Turbopack must root HERE, not at a parent dir that also has a lockfile
+  // (nested-clone layout: my-project/bun.lock above this repo made Turbopack
+  // infer the parent as workspace root and share its .next build dir — chunk
+  // collisions with the decommissioned sandbox console). Explicit root = own
+  // .next, zero cross-app collision.
+  turbopack: {
+    root: path.resolve(import.meta.dirname ?? "."),
+  },
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
