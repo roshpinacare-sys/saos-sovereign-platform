@@ -43,17 +43,24 @@ ok()   { echo "  ok: $1"; }
 echo "== SAOS GitHub PAT rotation =="
 
 # --- locate staged new token ------------------------------------------------
+# Owner-proof staging: scan ALL .txt files in the upload dir. Skip any file
+# identical to the installed token; validate each candidate against the API;
+# the first VALID one wins (filename never matters — lesson from R17 lockout:
+# the owner uploaded "Roshcaregt (2).txt" which the fixed candidates missed).
 STAGE=""
-for c in $STAGE_CANDIDATES; do
+for c in /home/z/my-project/upload/*.txt; do
   [ -s "$c" ] || continue
-  # a staged rotation file must DIFFER from the currently installed token
   if [ -f "$CANON" ] && [ "$(sha256sum "$c" | cut -d' ' -f1)" = "$(sha256sum "$CANON" | cut -d' ' -f1)" ]; then
-    echo "  skip: $c is identical to the installed token (not a rotation)"
+    echo "  skip: $(basename "$c") is identical to the installed token"
     continue
   fi
-  STAGE="$c"; break
+  # quick API liveness probe of this candidate (value never printed)
+  _t=$(tr -d '[:space:]' < "$c")
+  _code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+    -H "Authorization: Bearer $_t" -H "User-Agent: saos-rotate-probe" https://api.github.com/user)
+  if [ "$_code" = "200" ]; then STAGE="$c"; break; else echo "  skip: $(basename "$c") -> API HTTP $_code (invalid/expired)"; fi
 done
-[ -n "$STAGE" ] || fail "no NEW token staged. Owner: put the new PAT at /home/z/my-project/upload/new-pat.txt (never paste it in chat), then re-run."
+[ -n "$STAGE" ] || fail "no NEW token staged (all upload/*.txt are either identical to the installed token or API-rejected). Owner: create a NEW PAT on GitHub, upload it as any .txt file to the upload folder (never paste it in chat), then re-run."
 echo "  staged new token found: $STAGE"
 
 NEW=$(tr -d '[:space:]' < "$STAGE")
