@@ -70,20 +70,20 @@ jobs:
 
           mkdir -p agent
           cat > agent/status.json <<EOF
-{
- "agent": "platform-selftest",
- "generatedAt": "$NOW",
- "verdict": "$VERDICT",
- "checks": {
-  "selftestPassed": $ST_PASS,
-  "selftestTotal": $ST_TOTAL,
-  "selftestExitOk": $ST_EXIT,
-  "ruleLayer": "$RULES",
-  "edgeRunner": "$RUNNER"
- },
- "reason": "$REASON"
-}
-EOF
+          {
+           "agent": "platform-selftest",
+           "generatedAt": "$NOW",
+           "verdict": "$VERDICT",
+           "checks": {
+            "selftestPassed": $ST_PASS,
+            "selftestTotal": $ST_TOTAL,
+            "selftestExitOk": $ST_EXIT,
+            "ruleLayer": "$RULES",
+            "edgeRunner": "$RUNNER"
+           },
+           "reason": "$REASON"
+          }
+          EOF
           git config user.name "platform-selftest[bot]"
           git config user.email "platform-selftest[bot]@users.noreply.github.com"
           git add agent/status.json
