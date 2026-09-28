@@ -1,0 +1,21 @@
+[profile.default]
+src = "contracts"
+test = "test"
+out = "out"
+libs = ["lib"]
+solc = "0.8.36"
+optimizer = true
+optimizer_runs = 200
+verbosity = 3
+
+[profile.ci]
+verbosity = 4
+
+[fuzz]
+runs = 256
+
+# ── B-2 (R130): the first real test gate of the mesh contracts ──────────────
+# These tests LOCK the audit-fix v5 fixes as regression law:
+#   SAOSLedger   - MINT_CAP, attributed transfers, two-step ownership
+#   SAOSExchange - harvest debit-then-credit (no phantom supply), deposit attribution
+#   SAOSBridge   - monotonic honest anchors
