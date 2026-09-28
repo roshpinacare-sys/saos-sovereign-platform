@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { operatorAuth } from "@/lib/saos/operator-auth"; // 2026-09-28 audit C1: fail-closed operator gate
 import {
+
   importKey,
   removeKey,
   smartVaultStatus,
@@ -33,6 +35,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+  // 2026-09-28 security audit (C1): mainnet broadcast/signing requires the operator gate.
+  const oa = operatorAuth(req);
+  if (oa) return oa;
+
     const body = (await req.json()) as {
       op?: string;
       name?: string;

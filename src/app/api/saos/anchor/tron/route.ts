@@ -3,7 +3,9 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { logOp } from "@/lib/saos/oplog";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
+import { operatorAuth } from "@/lib/saos/operator-auth"; // 2026-09-28 audit C1: fail-closed operator gate
 import {
+
   ANCHORED_TRON_ADDRESS,
   anchorSealLiveOnTron,
   explorerLink,
@@ -181,6 +183,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+  // 2026-09-28 security audit (C1): mainnet broadcast/signing requires the operator gate.
+  const oa = operatorAuth(req);
+  if (oa) return oa;
+
     const body: unknown = await req.json().catch(() => ({}));
     const obj = (typeof body === "object" && body !== null ? body : {}) as { height?: unknown };
     const heightWanted =
