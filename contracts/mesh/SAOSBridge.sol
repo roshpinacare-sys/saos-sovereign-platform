@@ -21,11 +21,14 @@ contract SAOSBridge {
     error NotOwner();
     error NotRelay();
     error UnknownChain();
+    error StaleHeight(); // HARDEN v5: monotonicity — stale/replayed heights rejected
+    error ZeroAddress();
 
     constructor() { owner = msg.sender; }
 
     function wire(address relayAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        if (relayAddr == address(0)) revert ZeroAddress(); // HARDEN v5
         relay = relayAddr;
     }
 
@@ -42,10 +45,19 @@ contract SAOSBridge {
     function latestAnchor(string calldata chain) external view returns (Anchor memory) { return _latest[chain]; }
 
     /// @dev The operator (mesh backend) pushes LIVE external heights in.
+    ///     HARDEN v5 — honest-anchor discipline:
+    ///     (1) heights must be strictly MONOTONIC per chain — a stale or
+    ///     replayed anchor can no longer overwrite a newer one;
+    ///     (2) zero digest rejected — an anchor without evidence is not an anchor.
+    ///     This is still an owner-oracle stamp (single signer, NOT trustless
+    ///     cross-chain verification) — the docstring and the name tell the truth:
+    ///     this is an AnchorOracle, not a bridge.
     function anchorExternal(string calldata chain, uint256 height, bytes32 digest) external {
         if (msg.sender != owner) revert NotOwner();
         Anchor storage a = _latest[chain];
         if (a.at == 0) revert UnknownChain();
+        if (digest == bytes32(0)) revert ZeroAddress();
+        if (height <= a.height && a.height != 0) revert StaleHeight();
         a.height = height;
         a.digest = digest;
         a.at = uint64(block.timestamp);
@@ -63,6 +75,8 @@ contract SAOSBridge {
         for (uint256 i = 0; i < chainList.length; i++) {
             Anchor storage a = _latest[chainList[i]];
             if (a.at == 0) continue; // not registered — skip honestly
+            if (digests[i] == bytes32(0)) revert ZeroAddress(); // HARDEN v5: no empty evidence
+            if (heights[i] <= a.height && a.height != 0) revert StaleHeight(); // HARDEN v5: monotonic per chain
             a.height = heights[i];
             a.digest = digests[i];
             a.at = uint64(block.timestamp);

@@ -169,11 +169,16 @@ contract SAOSExchange {
         return held > wSaosLive ? held - wSaosLive : 0;
     }
 
-    /// @dev the holder must FIRST ledger.transfer(exchange, amount), then claim.
+    /// @dev HARDEN v5 — the deposit is ATTRIBUTED and ATOMIC.
+    /// לפני-כאן: הפיקדון היה יתרה-גלובלית-לא-מיוחסת (held − wSaosLive),
+    /// ומי-שקרא-ראשון ל-depositSaos טען-לו גם הפקדות-של-אחרים (wrap race).
+    /// עכשיו: המפקיד approve→transferFrom — כל-פיקדון נשלף מהמפקיד-עצמו
+    /// באטומיות, ו-wSaosLive מוחזק 1:1 מול היתרה-בפועל. saosUnaccounted
+    /// נשאר כמדד-סטייה בלבד (drift view), לא כדלתא לתביעה.
     function depositSaos(uint256 amount) external {
         uint256 wsaosId = this.assetIdOf("WSAOS");
         if (amount == 0) revert Zero();
-        if (saosUnaccounted() < amount) revert UnaccountedTooLow();
+        ILedgerRail(ledger).transferFrom(msg.sender, address(this), amount);
         wSaosLive += amount;
         assets[wsaosId].totalMinted += amount;
         bal[wsaosId][msg.sender] += amount;
@@ -378,4 +383,7 @@ contract SAOSExchange {
 interface ILedgerRail {
     function balanceOf(address who) external view returns (uint256);
     function transfer(address to, uint256 amount) external returns (bool);
+    // HARDEN v5: attributed pulls — closes the deposit race (see depositSaos)
+    function allowance(address holder, address spender) external view returns (uint256);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }

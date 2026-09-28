@@ -831,8 +831,10 @@ async function doSwap(
           error: `יתרת HQ קצרה: wSAOS ${fmtAmt(wsaosBal)} · SAOS-M במסילה ${fmtAmt(ledgerBal)} — אין כיסוי ל-${fmtAmt(need)} (honest)`
         };
       }
-      const t1 = await ledger.transfer(state.contracts.SAOSExchange, need);
-      await waitTx(t1); // v57 — שער-המתנה שקט נסגר ב-15ש'; ההפקדה ממשיכה (אוטומיין: העסקה כבר נכרתה)
+      // HARDEN v5: משיכה-מיוחסת (approve→transferFrom בתוך depositSaos)
+      // — אין-עוד-תחרות על יתרה-גלובלית-לא-מיוחסת.
+      const t1 = await ledger.approve(state.contracts.SAOSExchange, need);
+      await waitTx(t1);
       const t2 = await xc.depositSaos(need);
       await waitTx(t2);
     }
@@ -898,11 +900,12 @@ async function doFillSoldiers(
       break;
     }
     // העטיפה תמיד של המחזיק: מסילה לחייל → החייל מפקיד בעצמו
+    // (HARDEN v5: approve→depositSaos — משיכה-מיוחסת, אין-wrap-race)
     const t1 = await ledger.transfer(sAddr, topUp);
     await waitTx(t1);
     const sLedger = ledger.connect(s) as ethers.Contract;
     const sExchange = xc.connect(s) as ethers.Contract;
-    const t2 = await sLedger.transfer(state.contracts.SAOSExchange, topUp);
+    const t2 = await sLedger.approve(state.contracts.SAOSExchange, topUp);
     await waitTx(t2);
     const t3 = await sExchange.depositSaos(topUp);
     await waitTx(t3);

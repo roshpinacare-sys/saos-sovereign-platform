@@ -78,6 +78,7 @@ export interface HubContract extends ethers.BaseContract {
 export interface LedgerContract extends ethers.BaseContract {
   connect(runner: ethers.ContractRunner): LedgerContract;
   transfer(to: string, amount: bigint): MeshTx;
+  approve(spender: string, amount: bigint): MeshTx; // HARDEN v5 — attributed deposits
   [method: string]: any;
 }
 
@@ -474,20 +475,22 @@ export async function deployMesh(): Promise<DeploymentState> {
       ledger.sovereignMint(operatorAddr, ethers.parseEther("500000"), "exchange float v4"));
 
     // d. עטיפה: ה-HQ מפקיד 400,000 SAOS-M (wSAOS 1:1); היתרה — עתודת HQ
-    await sendTx("HQ → מסילה: 400,000 SAOS-M לבורסה", () =>
-      ledger.transfer(addr.SAOSExchange as string, ethers.parseEther("400000")));
-    await sendTx("HQ depositSaos(400,000) — wSAOS חי 1:1", () =>
+    //    HARDEN v5: depositSaos מושך מהמפקיד-עצמו (approve→transferFrom) —
+    //    אין עוד תחרות על יתרה-גלובלית-לא-מיוחסת.
+    await sendTx("HQ approve(Exchange, 400,000)", () =>
+      ledger.approve(addr.SAOSExchange as string, ethers.parseEther("400000")));
+    await sendTx("HQ depositSaos(400,000) — wSAOS חי 1:1 (משיכה-מיוחסת)", () =>
       exchange.depositSaos(ethers.parseEther("400000")));
 
     // e. למלא את החיילים — 8 × 300 SAOS-M: מסילה לחייל → החייל מפקיד
-    //    בעצמו בבורסה (העטיפה תמיד של המחזיק: ledger.transfer(exchange)
-    //    ורק אז depositSaos — החוזה בודק saosUnaccounted מול הפיקדון).
+    //    בעצמו בבורסה (HARDEN v5: approve→depositSaos — המשיכה-מיוחסת
+    //    למחזיק עצמו; אין-עוד-wrap-race).
     for (let i = 1; i <= 8; i++) {
       const s = await provider.getSigner(i);
       const sAddr = await s.getAddress();
       await sendTx(`soldier-${i}: מסילה 300 SAOS-M`, () => ledger.transfer(sAddr, ethers.parseEther("300")));
-      await sendTx(`soldier-${i}: הפקדה בבורסה 300`, () =>
-        ledger.connect(s).transfer(addr.SAOSExchange as string, ethers.parseEther("300")));
+      await sendTx(`soldier-${i}: approve(Exchange, 300)`, () =>
+        ledger.connect(s).approve(addr.SAOSExchange as string, ethers.parseEther("300")));
       await sendTx(`soldier-${i} depositSaos(300)`, () => exchange.connect(s).depositSaos(ethers.parseEther("300")));
       soldierSigners.push(s);
     }
