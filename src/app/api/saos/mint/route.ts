@@ -1,3 +1,4 @@
+import { guardPermission } from "@/lib/saos/permissions";
 import { NextResponse, after } from "next/server";
 import { executeSaosMint, saosLedger, fireAutoAnchorForNewSeal } from "@/lib/saos/saos-mint";
 import { db } from "@/lib/db";
@@ -29,6 +30,12 @@ export async function GET() {
 
 export async function POST() {
   try {
+    // v91 — RESHUT: this operator action is a declared, audited operation —
+    // every attempt (allow AND deny) lands in the permission journal.
+    const dec = await guardPermission("broadcast-anchor", "hq", { note: "SAOS sovereign mint" });
+    if (!dec.allowed) {
+      return NextResponse.json({ ok: false, gated: true, error: `נחסם במטריצת-הרשויות: ${dec.reason}` });
+    }
     const result = await executeSaosMint();
     // AUTO-ANCHOR: the mint seal rides the live STEEM rail (v9) after the
     // response — failures are recorded as evidence, never thrown away.

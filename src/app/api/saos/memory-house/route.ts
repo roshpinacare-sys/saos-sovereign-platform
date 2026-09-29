@@ -18,11 +18,20 @@ export const dynamic = "force-dynamic";
  * בלחיצה — עם הראיות המלאות בתשובה.
  */
 export async function GET() {
-  const status = await memoryHouseStatus();
-  return NextResponse.json({ ...status, version: SAOS_VERSION });
+  // v91 — house style: every route owns its boundary (errors are data, never a 500).
+  try {
+    const status = await memoryHouseStatus();
+    return NextResponse.json({ ...status, version: SAOS_VERSION });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "memory-house status failed", version: SAOS_VERSION });
+  }
 }
 
 export async function POST() {
-  const status = await ensureChainMemory();
-  return NextResponse.json({ ...status, version: SAOS_VERSION });
+  try {
+    const status = await ensureChainMemory();
+    return NextResponse.json({ ...status, version: SAOS_VERSION });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "memory-house restore failed", version: SAOS_VERSION });
+  }
 }

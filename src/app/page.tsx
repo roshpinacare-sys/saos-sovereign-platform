@@ -41,6 +41,7 @@ import { ViewMesh } from "@/components/saos/views/mesh";
 import { ViewWorkboard } from "@/components/saos/views/workboard";
 import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
+import { SovereigntyView } from "@/components/saos/views/sovereignty";
 import { SmartLinkView } from "@/components/saos/views/smartlink";
 import { AgentChatView } from "@/components/saos/views/agentchat";
 import { ViewProofs } from "@/components/saos/views/proofs";
@@ -99,15 +100,38 @@ export default function Home() {
   // v87 — ברירת-מחדל: לוח-הבקרה. הוראת הבעלים (trace 1a098f97a6f85e95):
   // "הוא נפתח לי קבוע על האגרו" — נחיתה דטרמיניסטית על תמונת-המצב הכללית;
   // האגרו ושאר 37 הפאנלים בני-השגה בקליק (סרגל · Alt+1..9).
-  const [view, setView] = useState<ViewId>("overview");
+  // v91 — DEEP-LINKING: התצוגה נשמרת ב-location.hash — קישור-שיתוף לכל
+  // פאנל, כפתור-אחורה/קדימה של הדפדפן עובד, ורענון-עמוד נשאר באותה תצוגה.
+  const viewFromHash = (): ViewId => {
+    const h = window.location.hash.replace(/^#/, "") as ViewId;
+    return VIEWS.some((v) => v.id === h) ? h : "overview";
+  };
+  const [view, setViewState] = useState<ViewId>("overview");
+  const setView = (v: ViewId) => {
+    setViewState(v);
+    try {
+      if (window.location.hash !== `#${v}`) window.history.pushState(null, "", `#${v}`);
+    } catch {
+      /* hash best-effort */
+    }
+    window.scrollTo({ top: 0, behavior: "auto" }); // nav always lands on top
+  };
   const status = useLive<StatusData>("/api/saos/status", 12000);
+
+  // hash boot + back/forward navigation
+  useEffect(() => {
+    const apply = () => setViewState(viewFromHash());
+    apply(); // land on the shared/refreshed hash at mount
+    window.addEventListener("popstate", apply);
+    return () => window.removeEventListener("popstate", apply);
+  }, []);
 
   // קיצורי-מקלדת: Alt+1..9 לניווט מהיר
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey) return;
       const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= VIEWS.length) {
+      if (Number.isInteger(n) && n >= 1 && n <= 9 && n <= VIEWS.length) {
         e.preventDefault();
         setView(VIEWS[n - 1]!.id);
       }
@@ -150,6 +174,7 @@ export default function Home() {
         {view === "workboard" && <ViewWorkboard />}
         {view === "fleet" && <ViewFleet />}
         {view === "sovereign-key" && <ViewSovereignKey />}
+        {view === "sovereignty" && <SovereigntyView />}
         {view === "smartlink" && <SmartLinkView />}
         {view === "agentchat" && <AgentChatView />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}

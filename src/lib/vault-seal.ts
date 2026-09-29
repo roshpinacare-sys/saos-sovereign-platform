@@ -120,15 +120,28 @@ async function openSeal(): Promise<SealedBundle> {
   const raw = await readFile(enc, "utf8");
   if (!raw.startsWith(MAGIC)) throw new Error("unknown seal format");
 
-  const metaRaw = JSON.parse(await readFile(meta, "utf8")) as { pass?: string };
-  if (!metaRaw.pass) throw new Error("no pass in seal meta");
+  // v91 — PASSPHRASE SPLIT (the stop-order direction: "encrypted next to the
+  // password = exposed in essence"). When SAOS_VAULT_PASS is present in the
+  // environment the seal opens with IT and the sidecar meta is never read —
+  // the password no longer sits on disk beside the envelope. Without the env
+  // var the legacy sidecar path still works (backward compatibility, honestly
+  // flagged by sealAvailability's note).
+  const envPass = process.env.SAOS_VAULT_PASS;
+  let pass: string;
+  if (envPass && envPass.length > 0) {
+    pass = envPass;
+  } else {
+    const metaRaw = JSON.parse(await readFile(meta, "utf8")) as { pass?: string };
+    if (!metaRaw.pass) throw new Error("no pass in seal meta");
+    pass = metaRaw.pass;
+  }
 
   const payload = Buffer.from(raw.slice(MAGIC.length).replace(/\s+/g, ""), "hex");
   const salt = payload.subarray(0, 16);
   const iv = payload.subarray(16, 28);
   const tag = payload.subarray(28, 44);
   const ct = payload.subarray(44);
-  const key = scryptSync(metaRaw.pass, salt, 32);
+  const key = scryptSync(pass, salt, 32);
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(tag);
   const plain = Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
@@ -308,7 +321,12 @@ export async function appendVaultMember(memberPath: string, content: string): Pr
   bundle.count = Object.keys(bundle.files).length;
 
   const { enc, meta } = await vaultPaths();
-  const pass = randomBytes(24).toString("hex");
+  // v91 — when SAOS_VAULT_PASS is set, the re-seal keeps using IT as the
+  // passphrase (the env stays the single authority) and the sidecar meta is
+  // written as a MIRRORED BACKUP ONLY — the envelope never silently diverges
+  // from the passphrase the operator configured.
+  const envPass = process.env.SAOS_VAULT_PASS;
+  const pass = envPass && envPass.length > 0 ? envPass : randomBytes(24).toString("hex");
   const salt = randomBytes(16);
   const iv = randomBytes(12);
   const key = scryptSync(pass, salt, 32);

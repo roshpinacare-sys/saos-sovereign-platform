@@ -16,8 +16,14 @@ export const dynamic = "force-dynamic";
  *   { action: "fund", amount }             → הזרמת SAOS-M לקרן-הרווח
  */
 export async function GET() {
-  const status = await microgridStatus();
-  return NextResponse.json(status);
+  // v91 — house style: every route owns its boundary. microgridStatus catches
+  // internally, but an unexpected throw above it must still answer as data.
+  try {
+    const status = await microgridStatus();
+    return NextResponse.json(status);
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "microgrid status failed" });
+  }
 }
 
 export async function POST(req: Request) {

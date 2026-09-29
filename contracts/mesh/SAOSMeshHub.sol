@@ -30,11 +30,17 @@ contract SAOSMeshHub {
     error NotOwner();
     error NotRelay();
     error AlreadyCompleted();
+    error ZeroAddress();
+    error AlreadyWired();
 
     constructor() { owner = msg.sender; }
 
+    /// @dev v91 — one-time, zero-address-free wiring. A live mesh can no
+    ///      longer be silently re-aimed at a dead relay/value engine.
     function wire(address relayAddr, address valueEngineAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        if (relayAddr == address(0) || valueEngineAddr == address(0)) revert ZeroAddress();
+        if (address(relay) != address(0) || address(valueEngine) != address(0)) revert AlreadyWired();
         relay = IRelayStart(relayAddr);
         valueEngine = IValueFinalize(valueEngineAddr);
     }

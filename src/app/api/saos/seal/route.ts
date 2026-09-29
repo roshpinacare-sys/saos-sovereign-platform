@@ -1,3 +1,4 @@
+import { guardPermission } from "@/lib/saos/permissions";
 import { NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { applyTx, genesisState, stateRootOf, type KernelTx } from "@/lib/saos/kernel";
@@ -27,6 +28,12 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   try {
+    // v91 — RESHUT: this operator action is a declared, audited operation —
+    // every attempt (allow AND deny) lands in the permission journal.
+    const dec = await guardPermission("broadcast-anchor", "hq", { note: "manual seal creation" });
+    if (!dec.allowed) {
+      return NextResponse.json({ ok: false, gated: true, error: `נחסם במטריצת-הרשויות: ${dec.reason}` });
+    }
     let body: { stamps?: number; memo?: string } = {};
     try {
       body = await req.json();

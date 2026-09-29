@@ -178,6 +178,12 @@ async function measure(): Promise<SmartVaultStatus> {
       // oplog read failed — honest null
     }
   }
+  // v93 — תיקון-פער-טענות חד-פעמי לפני כל קריאת-מלאי (tombstone-guarded)
+  try {
+    await reconcileV93();
+  } catch {
+    // honest: הפער לא שובר את מסילת-הסטטוס
+  }
   let rows: SmartKeyView[] = [];
   try {
     rows = (await listKeyRows()).map(toKeyView);
@@ -276,20 +282,22 @@ export interface CanonicalKeyRow {
 
 /** The canonical fleet inventory (v31 restore, enshrined as code-of-record). */
 export const CANONICAL_KEYS: CanonicalKeyRow[] = [
-  { keyId: "steem-owner-legacy", name: "headcorner STEEM — owner (פרה-רוטציה)", kind: "steem-wif", network: "STEEM", role: "owner", address: "headcorner", status: "legacy", note: "נדרש להתאוששות עד ~2026-10-08 · חותם הרוטציה 8313cdcb…", materialRef: "keys/headcorner-steem-legacy.json" },
-  { keyId: "steem-active-legacy", name: "headcorner STEEM — active (פרה-רוטציה)", kind: "steem-wif", network: "STEEM", role: "active", address: "headcorner", status: "legacy", note: "הוחלף 2026-09-08T21:17:33", materialRef: "keys/headcorner-steem-legacy.json" },
-  { keyId: "steem-posting-legacy", name: "headcorner STEEM — posting (פרה-רוטציה)", kind: "steem-wif", network: "STEEM", role: "posting", address: "headcorner", status: "legacy", note: "הוחלף — שידורי העוגנים פסקו", materialRef: "keys/headcorner-steem-legacy.json" },
-  { keyId: "steem-memo-legacy", name: "headcorner STEEM — memo (פרה-רוטציה)", kind: "steem-wif", network: "STEEM", role: "memo", address: "headcorner", status: "legacy", note: "הוחלף", materialRef: "keys/headcorner-steem-legacy.json" },
-  { keyId: "cornerstone-seed-24", name: "אבן הפינה — זרע 24 המילים", kind: "mnemonic", network: "MULTI", role: "cornerstone", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "connected", note: "v47: המפתח הרב-שימושי שהבעלים העלה (קונמי.txt — זהה-טביעה) — EVM 0x01Bd · SOL A2Y1d3 (m/44'/501'/0'/0' · עוגן חי 5z46xVF…) · TRON TMXHfFQd (m/44'/195') · XRP r3Tq66 · BTC נגזר — הוכח מתמטי חי", materialRef: "keys/headcorner-seed.json" },
-  { keyId: "sovereign-seed-12", name: "שורש-הזהות — זרע 12 המילים", kind: "mnemonic", network: "MULTI", role: "sovereign", address: "0x7b7869d126FA1ecC19a3426D07bE8186225a2c31", status: "connected", note: "זהויות 0x7b78 + TAzZZ · TRX 0.05", materialRef: "keys/sovereign-mnemonic.json" },
-  { keyId: "treasury-home-evm", name: "בית-האוצר 0x01Bd (ETH+BNB)", kind: "evm-priv", network: "ETHEREUM", role: "treasury", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "connected", note: "m/44'/60'/0'/0/0 — לכאן הוזז הכסף (v30)", materialRef: "keys/headcorner-seed.json" },
-  { keyId: "xrp-cornerstone", name: "XRPL r3Tq66 — פעימות חיות", kind: "xrp-priv", network: "XRPL", role: "cornerstone", address: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh", status: "connected", note: "1.299961 XRP · בר-שליחה ~0.2999", materialRef: "keys/xrp-cornerstone.json" },
-  { keyId: "old-fleet-tron-headcorner", name: "ארנק TRON ישן TG6Srs… (17.6 TRX!)", kind: "tron-priv", network: "TRON", role: "fleet", address: "TG6SrsMJjRqnqAyYM8kGZu1rgkpsgizKEn", status: "connected", note: "הכסף שחשבנו שאבד — המפתח שלם", materialRef: "keys/old-fleet-wallets.json" },
-  { keyId: "old-fleet-sol-headcorner", name: "ארנק SOL ישן 9knfn… (נסחט ל-A2Y1d3)", kind: "sol-priv", network: "SOLANA", role: "fleet", address: "9knfnFMLmhUNjKRDbR1BmVnVkq4BRczyYjJ7BqiZSgiL", status: "legacy", note: "v47: 0 SOL (נוקה) — ההון עבר ל-A2Y1d3 שנשלט מאבן-הפינה", materialRef: "keys/old-fleet-wallets.json" },
-  { keyId: "old-fleet-evm-headcorner", name: "ארנק EVM ישן 0x2767…", kind: "evm-priv", network: "ETHEREUM", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "connected", note: "עדות היסטורית · ~0.000082 ETH", materialRef: "keys/old-fleet-wallets.json" },
-  { keyId: "old-fleet-seed", name: "הזרע הישן (96 hex) — שורש 12 הארנקים", kind: "seed-hex", network: "MULTI", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "connected", note: "fleet-arm self-verify עובר (m/44'/60'/0'/0/2 = 0x2767)", materialRef: "keys/wallets-seed.json" },
-  { keyId: "github-token", name: "GitHub PAT (roshpinacare-sys)", kind: "github-token", network: "GITHUB", role: "sovereign", address: "roshpinacare-sys", status: "connected", note: "גם ב-remote URL · העתק הריפו יימחק", materialRef: "keys/github-token.json" },
-  { keyId: "owner-record-legacy", name: "רשומת הבעלים (הדקור.txt) — דור ישן", kind: "other", network: "STEEM", role: "owner", address: "headcorner", status: "unverified", note: "אינה תואמת לשרשרת — לתיעוד בלבד", materialRef: "keys/legacy-owner-record.json" }
+  // ── v93 — תחיית-אבן-הפינה: המלאי מאוחד מול המעטפת החיה (אפס טענות סותרות) ──
+  { keyId: "headcorner-master-password", name: "המפתח הראשי — סיסמת-אב גרפנית (P5)", kind: "other", network: "STEEM", role: "master", address: "headcorner", status: "connected", note: "v93: הועבר מהבעלים (upload/headcorner.txt), נאטם במעטפת, נגזרותיו אומתו 4/4 מול condenser_api חי (owner/active/posting/memo)", materialRef: "keys/hed-soldiers-source.txt" },
+  { keyId: "steem-owner-legacy", name: "headcorner STEEM — owner", kind: "steem-wif", network: "STEEM", role: "owner", address: "headcorner", status: "evidence", note: "v93: הסיסמה גוזרת גם את owner (התאמה חיה) — ה-WIF לא נשמר בכוונה (חתימת-owner לא בשימוש יומי); ה-pub עד במעטפת", materialRef: ".env OWNER_WIF_PUB" },
+  { keyId: "steem-active-legacy", name: "headcorner STEEM — active", kind: "steem-wif", network: "STEEM", role: "active", address: "headcorner", status: "connected", note: "v93: WIF נגזר מסיסמת-האב, אומת 4/4 ואטום במעטפת — חתימת-active חיה", materialRef: ".env ACTIVE_WIF" },
+  { keyId: "steem-posting-legacy", name: "headcorner STEEM — posting", kind: "steem-wif", network: "STEEM", role: "posting", address: "headcorner", status: "connected", note: "v93: WIF נגזר ואטום — שידורי-העוגנים חוזרים לזמינות דרך withRoleWif", materialRef: ".env POSTING_WIF" },
+  { keyId: "steem-memo-legacy", name: "headcorner STEEM — memo", kind: "steem-wif", network: "STEEM", role: "memo", address: "headcorner", status: "evidence", note: "v93: הסיסמה גוזרת גם את memo (התאמה חיה); pub עד במעטפת", materialRef: ".env MEMO_WIF_PUB" },
+  { keyId: "cornerstone-seed-24", name: "אבן הפינה — זרע 24 המילים", kind: "mnemonic", network: "MULTI", role: "cornerstone", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "evidence", note: "v93 כנות: הזרע עצמו לא במעטפת החיה (המעטפת מחזיקה תפעול-STEEM) — הזהויות הנגזרות עדיין אמת בשרשרת (EVM 0x01Bd · TRON TMXHfFQd · SOL A2Y1d3 · XRP r3Tq66); איטום-זרע מהבעלים יחזיר את מסילות-EVM/SOL/XRP לחתימה", materialRef: "keys/headcorner-seed.json (חסר במעטפת — מצב-ראיות)" },
+  { keyId: "sovereign-seed-12", name: "שורש-הזהות — זרע 12 המילים", kind: "mnemonic", network: "MULTI", role: "sovereign", address: "0x7b7869d126FA1ecC19a3426D07bE8186225a2c31", status: "evidence", note: "v93 כנות: לא אטום מחדש במעטפת החיה — הזהות 0x7b78 + TAzZZ נשארות ראיות-שרשרת; איטום-זהות מהבעלים ישלים", materialRef: "keys/sovereign-mnemonic.json (חסר במעטפת — מצב-ראיות)" },
+  { keyId: "treasury-home-evm", name: "בית-האוצר 0x01Bd (ETH+BNB)", kind: "evm-priv", network: "ETHEREUM", role: "treasury", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "evidence", note: "m/44'/60'/0'/0/0 — לכאן הוזז הכסף (v30) · v93: החומר החותם (זרע 24) לא במעטפת — מסילת-EVM במצב-ראיות", materialRef: "keys/headcorner-seed.json (חסר)" },
+  { keyId: "xrp-cornerstone", name: "XRPL r3Tq66 — פעימות חיות", kind: "xrp-priv", network: "XRPL", role: "cornerstone", address: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh", status: "evidence", note: "v93: החומר החותם לא במעטפת החיה — הכתובת והפעימות ההיסטוריות ראיות-שרשרת", materialRef: "keys/xrp-cornerstone.json (חסר)" },
+  { keyId: "old-fleet-tron-headcorner", name: "ארנק TRON ישן TG6Srs… (17.6 TRX!)", kind: "tron-priv", network: "TRON", role: "fleet", address: "TG6SrsMJjRqnqAyYM8kGZu1rgkpsgizKEn", status: "evidence", note: "הכסף שחשבנו שאבד — המפתח שלם · v93: החומר לא במעטפת החיה — מצב-ראיות", materialRef: "keys/old-fleet-wallets.json (חסר)" },
+  { keyId: "old-fleet-sol-headcorner", name: "ארנק SOL ישן 9knfn… (נסחט ל-A2Y1d3)", kind: "sol-priv", network: "SOLANA", role: "fleet", address: "9knfnFMLmhUNjKRDbR1BmVnVkq4BRczyYjJ7BqiZSgiL", status: "legacy", note: "v47: 0 SOL (נוקה) — ההון עבר ל-A2Y1d3 שנשלט מאבן-הפינה", materialRef: "keys/old-fleet-wallets.json (חסר)" },
+  { keyId: "old-fleet-evm-headcorner", name: "ארנק EVM ישן 0x2767…", kind: "evm-priv", network: "ETHEREUM", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "evidence", note: "עדות היסטורית · ~0.000082 ETH · v93: החומר לא במעטפת החיה", materialRef: "keys/old-fleet-wallets.json (חסר)" },
+  { keyId: "old-fleet-seed", name: "הזרע הישן (96 hex) — שורש 12 הארנקים", kind: "seed-hex", network: "MULTI", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "evidence", note: "fleet-arm self-verify עבר היסטורית (m/44'/60'/0'/0/2 = 0x2767) · v93: החומר לא במעטפת החיה", materialRef: "keys/wallets-seed.json (חסר)" },
+  { keyId: "github-token", name: "GitHub PAT (roshpinacare-sys)", kind: "github-token", network: "GITHUB", role: "sovereign", address: "roshpinacare-sys", status: "connected", note: "v93: רוטציה אומתה חי — push לכל 16 הריפואים, חנות קנונית 0600 (/home/z/.secrets/github-token), ls-remote בסביבה-נקייה עבר; טוקן-ב-URL של remotes ממתין ניקוי", materialRef: "/home/z/.secrets/github-token" },
+  { keyId: "owner-record-legacy", name: "רשומת הבעלים (הדקור.txt) — דור ישן", kind: "other", network: "STEEM", role: "owner", address: "headcorner", status: "unverified", note: "אינה תואמת לשרשרת — לתיעוד בלבד", materialRef: "keys/legacy-owner-record.json (חסר)" }
 ];
 
 /**
@@ -354,6 +362,28 @@ export async function restoreInventoryIfEmpty(): Promise<{ keys: number; agents:
   await logOp("smartvault.autorestore", { ok: true, keys, agents, at: new Date().toISOString() });
   cache = null;
   return { keys, agents, reason: "DB ריק — המלאי שוחזר מהכספת (v33)" };
+}
+
+/**
+ * v93 — תיקון-פער-טענות חד-פעמי (tombstone-guarded): המעטפת חזרה לחיים
+ * (סיסמת-אב → WIFs 4/4) אך שורות-ה-DB נשאו טענות "כספת שרופה" ישנות.
+ * מיישר כל שורה לקנון v93 — פעם אחת, בלי לגעת במחיקות-בעלים (tombstone).
+ */
+export async function reconcileV93(): Promise<{ keys: number; reason: string } | null> {
+  const tombstone = await db.opLog.findFirst({ where: { op: "smartvault.reconcile.v93" } });
+  if (tombstone) return null;
+  let keys = 0;
+  for (const r of CANONICAL_KEYS) {
+    await db.smartKey.upsert({
+      where: { keyId: r.keyId },
+      update: { status: r.status, note: r.note ?? null, materialRef: r.materialRef, name: r.name },
+      create: { keyId: r.keyId, name: r.name, kind: r.kind, network: r.network, role: r.role ?? null, address: r.address ?? null, status: r.status, note: r.note ?? null, materialRef: r.materialRef }
+    });
+    keys += 1;
+  }
+  await logOp("smartvault.reconcile.v93", { ok: true, keys, at: new Date().toISOString() });
+  cache = null;
+  return { keys, reason: "v93: טענות-המלאי אוחדו מול המעטפת החיה (תחיית-אבן-הפינה)" };
 }
 
 // ─── key type detection ────────────────────────────────────────────────────
