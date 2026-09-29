@@ -15,7 +15,7 @@ import type { LiveResult } from "./lib";
 import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/version";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -241,6 +241,14 @@ export const VIEWS: ViewDef[] = [
     short: "המפתח",
     desc: "המפתח של הבעלים — חתום בכספת, זורם לנזילות הפרטית, מגויס ב-mainnet",
     icon: <KeyRound size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "sovereignty",
+    label: "מרשם-הריבונות — 17 תיקיות-גיט",
+    short: "ריבונות",
+    desc: "הוראת הבעלים 'לחזק את האוטונומיה והריבונות על כלל תיקיות הגיט' (v93) — מפקד חי: ענף/HEAD/סנכרון/ניקיון-עץ לכל ריפו · שכבת-המפתחות (כספת · חתימת-STEEM 4/4 · חנות-PAT) · פערים מגושרים · פסקי-טענות v93 למסמכי-הקנון",
+    icon: <ShieldCheck size={16} />,
     group: "תפעול"
   },
   {

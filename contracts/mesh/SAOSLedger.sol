@@ -38,6 +38,7 @@ contract SAOSLedger {
     event OwnershipTransferStarted(address indexed from, address indexed to);
     event OwnershipAccepted(address indexed from, address indexed to);
     event Approval(address indexed tokenOwner, address indexed spender, uint256 amount);
+    event PayrollSet(address indexed payroll);
 
     error NotOwner();
     error NotPendingOwner();
@@ -90,10 +91,14 @@ contract SAOSLedger {
         pendingOwner = address(0);
     }
 
-    /// @dev v2 — the work board's payroll address (owner-only, one-time).
+    /// @dev v2 — the work board's payroll address (owner-only).
+    ///      v91 — zero-checked and journaled: a silent re-aim of the payroll
+    ///      (the destination of every run's payroll mint) is now an event.
     function setPayroll(address payrollAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        if (payrollAddr == address(0)) revert ZeroAddress();
         payroll = payrollAddr;
+        emit PayrollSet(payrollAddr);
     }
 
     function process(uint256 runId, bytes calldata context) external _cap(2 * RUN_REWARD) returns (bytes memory) {

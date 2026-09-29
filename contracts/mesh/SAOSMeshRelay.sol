@@ -19,16 +19,26 @@ contract SAOSMeshRelay {
     error NotOwner();
     error NotHub();
     error NotActiveLink();
+    error ZeroAddress();
+    error AlreadyWired();
+    error DupLink();
 
     constructor() { owner = msg.sender; }
 
+    /// @dev v91 — one-time hub wiring; addLink dedupes and rejects zero.
     function wireHub(address hubAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        if (hubAddr == address(0)) revert ZeroAddress();
+        if (address(hub) != address(0)) revert AlreadyWired();
         hub = IHubComplete(hubAddr);
     }
 
     function addLink(address link) external {
         if (msg.sender != owner) revert NotOwner();
+        if (link == address(0)) revert ZeroAddress();
+        for (uint256 i = 0; i < links.length; i++) {
+            if (links[i] == link) revert DupLink();
+        }
         links.push(link);
     }
 

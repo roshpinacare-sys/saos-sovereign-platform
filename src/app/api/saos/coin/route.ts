@@ -41,11 +41,11 @@ interface DeploymentState {
 }
 
 function readDeployment(): DeploymentState | null {
-  // 3 נתיבי-מועמד (הווב רץ משורש-הפלטפורמה; הכלי גם מתוך mini-services)
+  // v91 — candidates are cwd-relative (web runs from the platform root; the
+  // runner state lives in mini-services/evm-mesh/state); no absolute layout.
   const candidates = [
     path.resolve(process.cwd(), "mini-services/evm-mesh/state/deployment.json"),
-    path.resolve(process.cwd(), "..", "mini-services/evm-mesh/state/deployment.json"),
-    "/home/z/platform-latest/mini-services/evm-mesh/state/deployment.json"
+    path.resolve(process.cwd(), "..", "mini-services/evm-mesh/state/deployment.json")
   ];
   for (const p of candidates) {
     try {

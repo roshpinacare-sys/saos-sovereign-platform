@@ -156,7 +156,13 @@ async function openSeal(): Promise<SealedBundle> {
   const raw = await readFile(enc, "utf8");
   if (!raw.startsWith(MAGIC)) throw new Error("unknown seal format");
 
-  const pass = await readVaultPass(meta); // external-first, legacy-meta fallback
+  // UNION (2026-09-29 merge of v93 v91-split + P0 external-file pass):
+  // precedence — SAOS_VAULT_PASS env → ~/.secrets/fleet-vault-pass (external
+  // file, outside every repo/vault home) → legacy meta.pass (deprecated).
+  // "encrypted next to the password = exposed in essence" holds for all
+  // non-env tiers too; reseal-no-meta.ts migrates disk homes off the meta.
+  const envPass = process.env.SAOS_VAULT_PASS;
+  const pass = envPass && envPass.length > 0 ? envPass : await readVaultPass(meta);
 
   const payload = Buffer.from(raw.slice(MAGIC.length).replace(/\s+/g, ""), "hex");
   const salt = payload.subarray(0, 16);
@@ -343,7 +349,12 @@ export async function appendVaultMember(memberPath: string, content: string): Pr
   bundle.count = Object.keys(bundle.files).length;
 
   const { enc, meta } = await vaultPaths();
-  const pass = randomBytes(24).toString("hex");
+  // v91 — when SAOS_VAULT_PASS is set, the re-seal keeps using IT as the
+  // passphrase (the env stays the single authority) and the sidecar meta is
+  // written as a MIRRORED BACKUP ONLY — the envelope never silently diverges
+  // from the passphrase the operator configured.
+  const envPass = process.env.SAOS_VAULT_PASS;
+  const pass = envPass && envPass.length > 0 ? envPass : randomBytes(24).toString("hex");
   const salt = randomBytes(16);
   const iv = randomBytes(12);
   const key = scryptSync(pass, salt, 32);

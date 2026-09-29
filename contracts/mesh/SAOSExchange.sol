@@ -23,9 +23,10 @@ contract SAOSExchange {
     uint256 public constant FEE_BPS = 20;        // 0.2% per swap
     uint256 public constant POT_SHARE_BPS = 10;  // half the fee → harvest pot
     uint256 public constant SWAP_CAP_BPS = 500;  // max 5% of output reserve per swap
-    // HARDEN v6 (audit 2026-09-29): locked-forever shares on first deposit —
-    // Uniswap-V2 discipline: the pool can never be fully drained and the
-    // first-minter can never inflate share value by a dust seed.
+    // HARDEN v6 (audit 2026-09-29, merged v93 from origin/main): locked-forever
+    // shares on first deposit — Uniswap-V2 discipline: the pool can never be
+    // fully drained and the first-minter can never inflate share value by a
+    // dust seed.
     uint256 public constant MINIMUM_LIQUIDITY = 1000;
 
     error NotOwner();
@@ -43,6 +44,7 @@ contract SAOSExchange {
     error UnaccountedTooLow();
     error WsaosNotLive();
     error ZeroAddress();
+    error AlreadyWired();
 
     // ── assets (majors only — the sovereign whitelist) ─────────────────────
     struct Asset {
@@ -103,11 +105,13 @@ contract SAOSExchange {
 
     constructor() { owner = msg.sender; }
 
+    /// @dev v91 — one-time, zero-address-free wiring (setTreasury remains
+    ///      re-aimable WITH an event — the treasury is the harvest destination
+    ///      and rotating it is a legitimate owner operation, journaled).
     function wire(address relayAddr, address ledgerAddr, address treasuryAddr) external {
         if (msg.sender != owner) revert NotOwner();
-        // HARDEN v6 (audit 2026-09-29): zero-address guards — Bridge/Ledger
-        // already enforced them; the exchange was the one wire() without.
         if (relayAddr == address(0) || ledgerAddr == address(0) || treasuryAddr == address(0)) revert ZeroAddress();
+        if (relay != address(0) || ledger != address(0) || treasury != address(0)) revert AlreadyWired();
         relay = relayAddr;
         ledger = ledgerAddr;
         treasury = treasuryAddr;
@@ -244,12 +248,13 @@ contract SAOSExchange {
         return z;
     }
 
-    /// @dev HARDEN v6 (audit 2026-09-29) — two closings:
-    ///      (1) DONATION/IMBALANCE VECTOR closed: v5 kept the full amounts
-    ///      while minting min(sA, sB) — the excess was silently donated to the
-    ///      pool, diluting existing LPs and opening a rounding-seed surface.
-    ///      Now the caller mints min(sA, sB) and pulls ONLY the proportional
-    ///      pair — the excess never leaves the caller (refund-by-not-taking).
+    /// @dev HARDEN v6 (audit 2026-09-29, merged v93 from origin/main) — two closings:
+    ///      (1) DONATION/IMBALANCE VECTOR closed: the previous body kept the
+    ///      full amounts while minting min(sA, sB) — the excess was silently
+    ///      donated to the pool, diluting existing LPs and opening a
+    ///      rounding-seed surface. Now the caller mints min(sA, sB) and pulls
+    ///      ONLY the proportional pair — the excess never leaves the caller
+    ///      (refund-by-not-taking).
     ///      (2) MINIMUM_LIQUIDITY: first deposit locks 1000 shares to
     ///      address(0) forever — no dust-seed share inflation, no empty-pool
     ///      division edge.

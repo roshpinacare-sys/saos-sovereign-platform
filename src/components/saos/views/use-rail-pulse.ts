@@ -21,8 +21,9 @@ import { useToast } from "../ui";
 import type { RailPulseResult } from "../types";
 
 export interface RailPulseOpts {
-  /** מזהה-המסילה ב-API — /api/saos/anchor/{rail}. */
-  rail: "evm" | "svm" | "bsc" | "tron" | "xrp";
+  /** מזהה-המסילה ב-API — /api/saos/anchor/{rail}. v91: zero (Z-CHAIN) הצטרף —
+   *  הרכב השישי שהיה בנוי ומתועד בשרת אך יתום בתצוגה. */
+  rail: "evm" | "svm" | "bsc" | "tron" | "xrp" | "zero";
   /** תווית-הרשת לטוסטים: ETHEREUM · SOLANA · BSC · TRON · XRPL. */
   netLabel: string;
   /** שם-שדה הזיהוי בתיאור-הטוסט: txid · signature · hash. */

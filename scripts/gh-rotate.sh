@@ -15,7 +15,7 @@
 #        - upload it as a file (like Roshcaregt.txt was uploaded), or
 #          place it at:  /home/z/my-project/upload/new-pat.txt  (0600)
 #   3. OWNER tells the chat only: "new PAT staged" (no value, ever).
-#   4. Run:   bash /home/z/my-project/platform-latest/scripts/gh-rotate.sh
+#   4. Run:   bash /home/z/my-project/scripts/gh-rotate.sh
 #        - validates the token against the GitHub API (login + per-repo push
 #          permission on ALL 12 repos) BEFORE touching anything,
 #        - installs atomically to every store (canonical, devgate broker,
@@ -35,7 +35,7 @@ SECRETS_DIR="/home/z/.secrets"
 export DG_DATA_DIR="/home/z/.devgate"
 MAIN_REPO_URL="https://github.com/roshpinacare-sys/saos-sovereign-platform.git"
 ORG="roshpinacare-sys"
-REPOS="saos-sovereign-platform roshpina Saosmartwallet steem saos-jummper saos-sovereign-foundry saos-control-center saos-dex Adsmarket Sdk anchor-baseline Project-files"
+REPOS="saos-sovereign-platform roshpina Saosmartwallet steem saos-jummper saos-sovereign-foundry saos-control-center saos-dex Adsmarket Sdk anchor-baseline Project-files Console Domain Zip Defi"
 
 fail() { echo "ROTATE-ABORT: $1" >&2; exit 1; }
 ok()   { echo "  ok: $1"; }

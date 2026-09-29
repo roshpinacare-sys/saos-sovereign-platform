@@ -32,6 +32,7 @@ contract SAOSWorkBoard {
         bool paid;            // honest: reward actually moved
     }
     Order[] private _orders;
+    uint256 public openHead; // v91 — queue cursor: orders BEFORE this index are all Delivered
 
     struct SoldierStat { address soldier; uint256 orders; uint256 earned; }
     mapping(address => uint256) private _soldierIndexPlusOne; // 0 = not yet
@@ -46,11 +47,17 @@ contract SAOSWorkBoard {
     error NotOwner();
     error NotRelay();
     error OrderOutOfBounds();
+    error ZeroAddress();
+    error AlreadyWired();
 
     constructor() { owner = msg.sender; }
 
+    /// @dev v91 — wiring is ONE-TIME and zero-address-free: a live work board
+    ///      can no longer be silently re-aimed at a dead relay/ledger.
     function wire(address relayAddr, address ledgerAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        if (relayAddr == address(0) || ledgerAddr == address(0)) revert ZeroAddress();
+        if (relay != address(0) || address(ledger) != address(0)) revert AlreadyWired();
         relay = relayAddr;
         ledger = ILedgerRail(ledgerAddr);
     }
@@ -83,6 +90,11 @@ contract SAOSWorkBoard {
     ///      and gets paid through the zero-fee rail. If the payroll cannot
     ///      cover the reward the delivery is recorded but unpaid (honest
     ///      flag) — the chain NEVER breaks over money.
+    ///      v91 — GAS FIX: the old _oldestOpen() scanned ALL orders on every
+    ///      mesh run (O(n) gas — with history the run eventually exceeded the
+    ///      block gas limit and the whole mesh bricked). The open queue is now
+    ///      a cursor: orders before openHead are all delivered, so finding the
+    ///      oldest open order is amortized O(1).
     function process(uint256 runId, bytes calldata context) external returns (bytes memory) {
         if (msg.sender != relay) revert NotRelay();
         (address initiator, ) = abi.decode(context, (address, string));
@@ -103,14 +115,25 @@ contract SAOSWorkBoard {
             }
             o.paid = paid;
             _bump(initiator, paid ? o.reward : 0);
+            // v91 — advance the queue cursor past the delivered prefix: every
+            // order before openHead is Delivered by invariant, so future scans
+            // start here and the board never re-walks its own history.
+            if (orderId == openHead) {
+                openHead = orderId + 1;
+                while (openHead < _orders.length && _orders[openHead].status == Status.Delivered) openHead += 1;
+            }
             emit OrderDelivered(orderId, runId, initiator, o.mission, o.reward, paid);
         }
         IRelayPass(relay).pass(runId, context);
         return context;
     }
 
+    /// @dev v91 — cursor-based: everything before openHead is delivered, so
+    ///      the scan starts there and stops at the FIRST open order. Each
+    ///      delivery advances the cursor permanently — total work per order
+    ///      is O(1) amortized across the life of the board.
     function _oldestOpen() internal view returns (uint256) {
-        for (uint256 i = 0; i < _orders.length; i++) {
+        for (uint256 i = openHead; i < _orders.length; i++) {
             if (_orders[i].status == Status.Open) return i;
         }
         return type(uint256).max;

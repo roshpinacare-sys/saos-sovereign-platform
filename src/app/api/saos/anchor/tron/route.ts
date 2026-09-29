@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guardPermission } from "@/lib/saos/permissions";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { logOp } from "@/lib/saos/oplog";
@@ -181,6 +182,12 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    // v91 — RESHUT: the manual mainnet pulse is a declared, audited operation —
+    // every attempt (allow AND deny) lands in the permission journal.
+    const dec = await guardPermission("broadcast-anchor", "hq", { note: "manual rail pulse: TRON" });
+    if (!dec.allowed) {
+      return NextResponse.json({ ok: false, gated: true, error: `נחסם במטריצת-הרשויות: ${dec.reason}` });
+    }
     const body: unknown = await req.json().catch(() => ({}));
     const obj = (typeof body === "object" && body !== null ? body : {}) as { height?: unknown };
     const heightWanted =

@@ -77,21 +77,51 @@ export async function fireLiveAnchorOnSteem(
   seal: { id: string; height: number; root: string; stateRoot: string; leavesCount: number; gasUsed: number },
   source: AutoAnchorSource
 ): Promise<FireResult> {
-  // dedupe — one live anchor per seal height, forever
-  const existing = await db.anchorTx.findFirst({
-    where: { kind: "weave", network: "STEEM", sealId: seal.id, txid: { not: null } },
-    orderBy: { createdAt: "desc" }
+  // dedupe — one live anchor per seal height, forever.
+  // v91 — RACE FIX: the old check-then-act (findFirst → broadcast → create)
+  // let the manual route and the Next `after()` auto-pulse overlap on the same
+  // seal → DOUBLE STEEM broadcast. Now the dedupe check and a `transit` claim
+  // row are committed in ONE serial SQLite transaction: the second concurrent
+  // caller ALWAYS sees the claim (SQLite serializes writes) and stands down.
+  const claim = await db.$transaction(async (tx) => {
+    const existing = await tx.anchorTx.findFirst({
+      where: { kind: "weave", network: "STEEM", sealId: seal.id, OR: [{ txid: { not: null } }, { status: "transit" }] },
+      orderBy: { createdAt: "desc" }
+    });
+    if (existing) return { existing };
+    const created = await tx.anchorTx.create({
+      data: {
+        sealId: seal.id,
+        network: "STEEM",
+        kind: "weave",
+        txid: null,
+        status: "transit",
+        gate: null,
+        meta: JSON.stringify({ claimedBy: source, claimedAt: new Date().toISOString() })
+      }
+    });
+    return { created };
   });
-  if (existing) {
+  if ("existing" in claim && claim.existing) {
+    const row = claim.existing;
+    if (row.status === "transit") {
+      // another caller holds the broadcast right now — honest stand-down
+      return {
+        ok: false,
+        skipped: "in-flight",
+        error: "פעימה חיה לאותו חותם כבר בטיסה (transit) — המתין לתוצאתה (מניעת-כפילות v91)"
+      };
+    }
     return {
       ok: true,
       skipped: "dedupe",
       already: true,
       height: seal.height,
-      txid: existing.txid,
-      explorer: existing.txid ? explorerLink(existing.txid) : null
+      txid: row.txid,
+      explorer: row.txid ? explorerLink(row.txid) : null
     };
   }
+  const claimRow = (claim as { created: { id: string } }).created;
 
   // gate (v45 — the VAULT is the truth, not a stale DB row): the restored
   // envelope must actually hold the STEEM active WIF right now. The old
@@ -120,11 +150,10 @@ export async function fireLiveAnchorOnSteem(
 
   try {
     const outcome = await anchorSealLiveOnSteem(liveSeal);
-    const row = await db.anchorTx.create({
+    // v91 — the transit claim row graduates into the anchored/broadcast row
+    const row = await db.anchorTx.update({
+      where: { id: claimRow.id },
       data: {
-        sealId: seal.id,
-        network: "STEEM",
-        kind: "weave",
         txid: outcome.txid, // from the chain node — never fabricated
         status: outcome.confirmedByHistory ? "anchored" : "broadcast",
         gate: null,
@@ -173,11 +202,10 @@ export async function fireLiveAnchorOnSteem(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "live broadcast failed";
     // a failed pulse is still evidence — recorded honestly, txid never faked
-    const row = await db.anchorTx.create({
+    // (v91 — the transit claim row becomes the failed row; no second row)
+    const row = await db.anchorTx.update({
+      where: { id: claimRow.id },
       data: {
-        sealId: seal.id,
-        network: "STEEM",
-        kind: "weave",
         txid: null,
         status: "failed",
         gate: msg.slice(0, 200),

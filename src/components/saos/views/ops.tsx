@@ -366,6 +366,26 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
   const xrpResult = xrp.result;
   const doXrpPulse = xrp.doPulse;
 
+  // ─── v91: הרכב השישי — Z-CHAIN (גז-אפס) מחובר לתצוגה ─────────────────
+  // ה-API היה בנוי ומתועד (status אף מציג אותו כמסלול-התאוששות) אך היה יתום
+  // בלי-ממשק. אותו hook אחיד, אותה משמעת: מוכנות · שערי-כנות · קבלה משורשרת.
+  const zeroRail = useLive<RailReadinessData>("/api/saos/anchor/zero", 60000);
+  const zeroLedger = useLive<RailAnchorLedgerData>("/api/saos/anchor/zero?list=1", 30000);
+  const zero = useRailPulse({
+    rail: "zero",
+    netLabel: "Z-CHAIN",
+    unit: "txid",
+    via: "Z Chain mainnet (9369) — גז-אפס",
+    onSettled: () => {
+      zeroRail.refresh();
+      zeroLedger.refresh();
+      ops.refresh();
+    }
+  });
+  const zeroPulsing = zero.pulsing;
+  const zeroResult = zero.result;
+  const doZeroPulse = zero.doPulse;
+
   // ─── v50: חומת-העוגנים — אימות חי read-only של חמשת העוגנים מהמיינטנטים ──
   const wallLive = useLive<WallData>("/api/saos/anchor/wall", 60000);
   const [wallRebuilding, setWallRebuilding] = useState(false);
@@ -1700,6 +1720,102 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
                         {row.block != null && <span className="text-[10px] text-zinc-600">ledger {row.block}</span>}
                         <span className="text-[10px] text-zinc-600">{timeAgo(row.at)}</span>
                       </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* ─── v91: רכב ZERO — עגינת גז-אפס (הרכב השישי, סוף-סוף בתצוגה) ──── */}
+      <Panel>
+        <PanelHeader
+          icon={<Zap size={15} />}
+          title="רכב Z-CHAIN — עגינת גז-אפס"
+          sub="הרכב השישי: אותה זהות-פינה, גז 0 נמדד. מסלול-ההתאוששות שהסטטוס מציג — עכשיו בלחיצה."
+          actions={<Pill tone="green" pulse>גז-אפס</Pill>}
+        />
+        <PanelBody className="space-y-4">
+          {zeroRail.loading && !zeroRail.data ? (
+            <div className="space-y-2">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : !zeroRail.data?.ready ? (
+            <EmptyBlock
+              icon={<Sparkles size={20} />}
+              title="אין חותם לעיגון"
+              desc="צור חותם בעמוד האיטום — הפעימה על Z-CHAIN חינם לחלוטין (גז 0)."
+            />
+          ) : !(
+              zeroRail.data.readiness && "address" in zeroRail.data.readiness
+            ) ? (
+            <Callout tone="rose" icon={<Lock size={14} />}>
+              <span className="font-semibold">מוכנות הרכב נכשלה:</span>{" "}
+              <span dir="auto">{(zeroRail.data.readiness as { error?: string }).error ?? "—"}</span>
+            </Callout>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SealStat label="חותם לשידור" value={`#${zeroRail.data.seal?.height ?? 0}`} icon={<ScrollText size={13} />} />
+                <SealStat label="מחיר-גז (נמדד)" value={`${(zeroRail.data.readiness as { gasPriceGwei?: number | null }).gasPriceGwei ?? "—"} gwei`} icon={<GaugeIcon size={13} />} ltr />
+                <SealStat label="יתרה (0 היא הנקודה)" value={(zeroRail.data.readiness as { balanceEth?: string | null }).balanceEth ?? "—"} icon={<Coins size={13} />} ltr />
+                <SealStat label="בלוק" value={String((zeroRail.data.readiness as { blockNumber?: number | null }).blockNumber ?? "—")} icon={<Sparkles size={13} />} ltr />
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Btn
+                  variant={zeroRail.data.alreadyAnchored ? "secondary" : "primary"}
+                  onClick={doZeroPulse}
+                  disabled={zeroPulsing || zeroRail.data.alreadyAnchored}
+                  loading={zeroPulsing}
+                  className="sm:w-auto"
+                >
+                  <Send size={13} />
+                  {zeroPulsing ? "משדר…" : zeroRail.data.alreadyAnchored ? "החותם מעוגן" : "שדר פעימת Z-CHAIN (חינם)"}
+                </Btn>
+                <p className="text-[10.5px] text-zinc-600 leading-relaxed">
+                  גז-אפס = אפס תלות ביתרה: הפעימה יוצאת מאותו שורש-פינה עם self-verify, נחסמת בשערי-הכנות ומתועדת בקבלה משורשרת גם בכישלון.
+                </p>
+              </div>
+
+              {zeroResult && (
+                <div className={`rounded-xl border px-3.5 py-3 space-y-1.5 ${zeroResult.ok ? "border-emerald-400/25 bg-emerald-400/[0.04]" : zeroResult.gated ? "border-amber-400/25 bg-amber-400/[0.04]" : "border-rose-400/25 bg-rose-400/[0.03]"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-bold text-zinc-100">
+                      {zeroResult.ok ? `חותם #${zeroResult.height} מעוגן ב-Z-CHAIN` : zeroResult.gated ? "שער-כנות — לא שודר" : "הפעימה נכשלה (כנות)"}
+                    </p>
+                    {zeroResult.receipt && <CopyBtn text={zeroResult.receipt} size={12} />}
+                  </div>
+                  {zeroResult.txid && (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span dir="ltr" className="font-mono text-[10px] text-zinc-400 truncate">{short(zeroResult.txid)}</span>
+                    </div>
+                  )}
+                  {!zeroResult.ok && zeroResult.error && (
+                    <p dir="auto" className="text-[11px] text-rose-300/90 leading-relaxed">{zeroResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {(zeroLedger.data?.anchors?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  {(zeroLedger.data?.anchors ?? []).slice(0, 4).map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.05] bg-zinc-950/40 px-3 py-2 text-[11px]"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <Tag tone={row.status === "anchored" ? "green" : row.status === "failed" ? "rose" : "zinc"}>
+                          #{row.height}
+                        </Tag>
+                        <span dir="ltr" className="font-mono text-[10px] text-zinc-400 truncate">{short(row.txid ?? "")}</span>
+                        <span className="text-[10px] text-zinc-500">{row.status}</span>
+                      </span>
+                      <span className="text-[10px] text-zinc-600 shrink-0">{timeAgo(row.at)}</span>
                     </div>
                   ))}
                 </div>

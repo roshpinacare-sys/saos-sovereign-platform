@@ -265,7 +265,15 @@ async function measure(): Promise<Network360> {
   let flowTrx = 0;
   let flowTxCount = 0;
   try {
-    const rows = await db.anchorTx.findMany({ where: { kind: "flow-liquidity" } });
+    // v91 — bounded scan: the flow ledger grows forever with anchor history;
+    // a full findMany + per-row JSON.parse on every measure() is an unbounded
+    // cost. The newest 200 rows carry the live picture — the aggregate stays
+    // honest and the measure stays O(1) against history size.
+    const rows = await db.anchorTx.findMany({
+      where: { kind: "flow-liquidity" },
+      orderBy: { createdAt: "desc" },
+      take: 200
+    });
     flowTxCount = rows.length;
     for (const r of rows) {
       try {

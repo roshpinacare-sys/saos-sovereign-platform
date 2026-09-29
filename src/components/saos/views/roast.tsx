@@ -48,6 +48,13 @@ export function RoastView() {
         <Panel>
           <PanelBody className="py-10 text-center text-xs text-zinc-500">
             הרוסט לא הצליח לקרוא את האמת כרגע — נסה שוב.
+            {/* v91 — the doctrine: the real reason is never swallowed. If the
+                API answered with data (even ok:false), its error travels with it. */}
+            {(data.data?.error ?? data.error) && (
+              <div className="mt-2 text-rose-400/90" dir="rtl">
+                {data.data?.error ?? data.error}
+              </div>
+            )}
           </PanelBody>
         </Panel>
       ) : (

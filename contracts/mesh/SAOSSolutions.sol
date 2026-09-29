@@ -16,11 +16,16 @@ contract SAOSSolutions {
 
     error NotOwner();
     error NotRelay();
+    error ZeroAddress();
+    error AlreadyWired();
 
     constructor() { owner = msg.sender; }
 
+    /// @dev v91 — one-time, zero-address-free wiring.
     function wire(address relayAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        if (relayAddr == address(0)) revert ZeroAddress();
+        if (relay != address(0)) revert AlreadyWired();
         relay = relayAddr;
     }
 

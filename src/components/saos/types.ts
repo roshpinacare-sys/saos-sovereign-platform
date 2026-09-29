@@ -521,6 +521,10 @@ export interface RailReadinessData {
         spendableXrp?: string | null;
         endpoint?: string | null;
         derivation?: string;
+        // v91 — Z Chain rail (zero-gas): readiness fields from /anchor/zero
+        zeroGasConfirmed?: boolean;
+        nonce?: number | null;
+        verdict?: string;
         error?: string;
       }
     | { error: string };

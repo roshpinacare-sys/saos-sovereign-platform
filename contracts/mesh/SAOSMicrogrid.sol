@@ -72,11 +72,16 @@ contract SAOSMicrogrid {
     error BadLevels();
     error StepBelowEdge();
     error GridNotLive();
+    error ZeroAddress();
+    error AlreadyWired();
 
     constructor() { owner = msg.sender; }
 
+    /// @dev v91 — one-time, zero-address-free wiring.
     function wire(address relayAddr, address ledgerAddr, address workboardAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        if (relayAddr == address(0) || ledgerAddr == address(0) || workboardAddr == address(0)) revert ZeroAddress();
+        if (relay != address(0) || address(ledger) != address(0) || workboard != address(0)) revert AlreadyWired();
         relay = relayAddr;
         ledger = ILedgerRail(ledgerAddr);
         workboard = workboardAddr;

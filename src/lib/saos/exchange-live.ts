@@ -361,23 +361,24 @@ async function buildStatus(): Promise<ExchangeStatus> {
     ]);
 
     // נכסים — מהרשומת של החוזה עצמו (symbol + הערת-הגיבוי = האמת הגלויה)
-    const assetRows: Array<{ id: number; symbol: string; backingNote: string; totalMinted: bigint; potHarvested: bigint }> = [];
-    for (let i = 0; i < Number(assetCount); i++) {
-      const a = (await xc.assets(BigInt(i))) as unknown as { symbol: string; backingNote: string; totalMinted: bigint; potHarvested: bigint };
-      assetRows.push({ id: i, symbol: nm(a.symbol), backingNote: nm(a.backingNote), totalMinted: bg(a.totalMinted), potHarvested: bg(a.potHarvested) });
-    }
+    // v91 — parallel fetch: the assets/pools/traders/treasury sweeps were
+    // ~80 SEQUENTIAL RPC round-trips per status build; Promise.all collapses
+    // them to one concurrent batch (5-10× faster, same truth).
+    const assetRaw = await Promise.all(
+      Array.from({ length: Number(assetCount) }, (_, i) => xc.assets(BigInt(i)) as Promise<{ symbol: string; backingNote: string; totalMinted: bigint; potHarvested: bigint }>)
+    );
+    const assetRows = assetRaw.map((a, i) => ({ id: i, symbol: nm(a.symbol), backingNote: nm(a.backingNote), totalMinted: bg(a.totalMinted), potHarvested: bg(a.potHarvested) }));
     const idOf = (symbol: string): number | null => assetRows.find((a) => a.symbol === symbol)?.id ?? null;
 
     // בריכות — רזרבות, נפח, קופות, צמיחה (x·y=k חי)
-    const poolStructs: PoolStruct[] = [];
-    for (let i = 0; i < Number(poolCount); i++) {
-      const p = (await xc.pools(BigInt(i))) as unknown as PoolStruct;
-      poolStructs.push({
-        aId: bg(p.aId), bId: bg(p.bId), rA: bg(p.rA), rB: bg(p.rB), lpTotal: bg(p.lpTotal),
-        potA: bg(p.potA), potB: bg(p.potB), growthA: bg(p.growthA), growthB: bg(p.growthB),
-        volA: bg(p.volA), volB: bg(p.volB), swaps: bg(p.swaps)
-      });
-    }
+    const poolRaw = await Promise.all(
+      Array.from({ length: Number(poolCount) }, (_, i) => xc.pools(BigInt(i)) as Promise<PoolStruct>)
+    );
+    const poolStructs: PoolStruct[] = poolRaw.map((p) => ({
+      aId: bg(p.aId), bId: bg(p.bId), rA: bg(p.rA), rB: bg(p.rB), lpTotal: bg(p.lpTotal),
+      potA: bg(p.potA), potB: bg(p.potB), growthA: bg(p.growthA), growthB: bg(p.growthB),
+      volA: bg(p.volA), volB: bg(p.volB), swaps: bg(p.swaps)
+    }));
     const symbolOf = (id: number): string => assetRows.find((a) => a.id === id)?.symbol ?? "?";
 
     // הסוחרים: HQ (חותם 0) · אוצר-הבורסה (חותם 9) · 8 חיילים (חותמים 1..8)
@@ -417,14 +418,16 @@ async function buildStatus(): Promise<ExchangeStatus> {
     const treasury = ethers.getAddress(treasuryAddr);
     labelOf[treasury.toLowerCase()] = labelOf[treasury.toLowerCase()] ?? "אוצר-הבורסה";
 
-    // אוצר: יתרות פנימיות (הון-יוצר-שוק) + נקצר מאז ומתמיד
+    // אוצר: יתרות פנימיות (הון-יוצר-שוק) + נקצר מאז ומתמיד (v91 — parallel)
     const treasuryBalances: Record<string, string> = {};
     const treasuryHarvested: Record<string, string> = {};
-    for (const a of assetRows) {
-      const bal = (await xc.balanceOf(a.id, treasury)) as bigint;
-      treasuryBalances[a.symbol] = fmtAmt(bal);
+    const treasuryBals = await Promise.all(
+      assetRows.map((a) => xc.balanceOf(a.id, treasury) as Promise<bigint>)
+    );
+    assetRows.forEach((a, i) => {
+      treasuryBalances[a.symbol] = fmtAmt(treasuryBals[i]!);
       if (a.potHarvested > 0n) treasuryHarvested[a.symbol] = fmtAmt(a.potHarvested);
-    }
+    });
 
     // בריכות → שורות תצוגה עם אורקל חי וסטייה
     let allPriced = true;

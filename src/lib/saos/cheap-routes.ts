@@ -52,8 +52,9 @@ export const CHEAP_ROUTE_AUTHORIZATION: CheapRouteAuthorization = {
  */
 const SOVEREIGN_SOL = "A2Y1d3vefh81Ta2DcpazmLaZT4EHdbUX8XjZxigNdVyj";
 
-/** הכתובת הריבונית ה-EVM (m/44'/60'/0'/0/0) — בית האוצר בכל שרשרת EVM. */
-const SOVEREIGN_EVM = "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37";
+/** הכתובת הריבונית ה-EVM (m/44'/60'/0'/0/0) — בית האוצר בכל שרשרת EVM.
+ *  v91 — exported: היעד-הריבוני המוצהר של הסריקה (מוצג גם בתשובת ה-API). */
+export const SOVEREIGN_EVM = "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37";
 
 const SOL_READ_ENDPOINTS = [
   "https://api.mainnet-beta.solana.com",
@@ -128,22 +129,8 @@ async function probeGet(url: string): Promise<ProbeRaw> {
   }
 }
 
-async function probePost(url: string, body: unknown): Promise<ProbeRaw> {
-  try {
-    const res = await trustedFetch(url, {
-      method: "POST",
-      timeoutMs: PROBE_MS,
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(body)
-    });
-    const bodyText = await res.text().catch(() => null);
-    let json: unknown = null;
-    try { json = bodyText ? JSON.parse(bodyText) : null; } catch { /* non-json */ }
-    return { status: res.status, bodyText, json, error: null };
-  } catch (e) {
-    return { status: null, bodyText: null, json: null, error: e instanceof Error ? e.message : String(e) };
-  }
-}
+// v91 — probePost removed: the only caller was the SideShift ORDER creation,
+// a real-world side effect from a read-only scan. Scans are read-only now.
 
 const isCloudflareWall = (r: ProbeRaw): boolean =>
   r.bodyText !== null && /cloudflare|attention required/i.test(r.bodyText.slice(0, 600));
@@ -197,18 +184,17 @@ async function probeChangeNow(): Promise<CheapRoute> {
 
 /**
  * SideShift — המסלול שהשתנה: בלתי-נגיש במדידת v69, נגיש ב-v72 (עובדה
- * חיה שמצדיקה את הסורק הקבוע). שתי מדידות: המלאי (facts) ושער
- * ההזמנה (orders) — ה-probe זעיר (1 TRX) ומסתם לכתובתינו בלבד.
+ * חיה שמצדיקה את הסורק הקבוע).
+ * v91 — READ-ONLY: ה-probe הישן יצר הזמנה אמיתית (POST /api/orders) בכל
+ * סריקה שנכשלה במטמון — יצירת-הזמנות חוזרת וחוזפת היא סיכון-איסור
+ * (rate-limit/ban) ותופעת-לוואי חיצונית מסריקה קריאה. עכשיו: שתי
+ * קריאות-קריאה בלבד — facts (המלאי) ו-permissions (שער ההרשאות הציבורי,
+ * אותו שער בדיוק ללא יצירת-הזמנה). אפס תופעות-לוואי, אמת זהה.
  */
 async function probeSideShift(): Promise<CheapRoute> {
-  const [facts, order] = await Promise.all([
+  const [facts, perms] = await Promise.all([
     probeGet("https://sideshift.ai/api/facts"),
-    probePost("https://sideshift.ai/api/orders", {
-      depositMethodId: "trx",
-      settleMethodId: "polygon",
-      settleAddress: SOVEREIGN_EVM,
-      depositAmount: "1"
-    })
+    probeGet("https://sideshift.ai/api/permissions")
   ]);
   const factsJson = facts.json as { assets?: Record<string, unknown>; depositMethods?: Record<string, { asset?: string }>; settleMethods?: Record<string, { asset?: string }> } | null;
   const assetsCount = factsJson?.assets ? Object.keys(factsJson.assets).length : null;
@@ -218,25 +204,24 @@ async function probeSideShift(): Promise<CheapRoute> {
     ? `מלאי חי: ${assetsCount} נכסים${hasTrx ? " · TRX/SOL/POL/BNB/AVAX כולם רשומים" : ""}`
     : "המלאי לא נקרא";
 
-  // ההזמנה היא השער: אם נוצרת הזמנה אמיתית — המסלול פתוח ללא מפתח.
-  const orderJson = order.json as { id?: string; depositAddress?: { address?: string } | string; error?: { message?: string } | string } | null;
-  const orderCreated = order.status === 200 && orderJson !== null && (orderJson.id !== undefined || orderJson.depositAddress !== undefined);
-  if (orderCreated) {
+  // שער-ההרשאות הציבורי הוא המדידה: 200 = המסלול פתוח ללא מפתח (קריאה בלבד).
+  const permsOpen = perms.status === 200 && perms.json !== null;
+  if (permsOpen) {
     return {
       id: "sideshift", he: "SideShift", kind: "instant-exchange", state: "open", blockerHe: null, httpStatus: 200,
-      detailHe: `${inventoryHe} · הזמנת-בדיקה נוצרה בלי מפתח ובלי אפיליאט — ההרשאה העומדת מאפשרת ניסיון probe-first. ההזמנה תפוג בלא מימון אלא אם תוחלט הטפטוף.`,
+      detailHe: `${inventoryHe} · שער-ההרשאות הציבורי עונה 200 (קריאה בלבד — לא נוצרה הזמנה, v91). המסלול פתוח ללא מפתח.`,
       reachesEvmGas: true
     };
   }
-  if (order.status === null && facts.status === null) {
-    return { id: "sideshift", he: "SideShift", kind: "instant-exchange", state: "unreachable", blockerHe: "בלתי-נגיש מהסביבה", httpStatus: null, detailHe: order.error ?? facts.error ?? "—", reachesEvmGas: true };
+  if (perms.status === null && facts.status === null) {
+    return { id: "sideshift", he: "SideShift", kind: "instant-exchange", state: "unreachable", blockerHe: "בלתי-נגיש מהסביבה", httpStatus: null, detailHe: perms.error ?? facts.error ?? "—", reachesEvmGas: true };
   }
-  const msg = errText(orderJson ?? {}) || (order.bodyText ?? "").slice(0, 120);
+  const msg = errText((perms.json as { error?: { message?: string } | string } | null) ?? {}) || (perms.bodyText ?? "").slice(0, 120);
   const affiliate = /owner or affiliate/i.test(msg);
   return {
     id: "sideshift", he: "SideShift", kind: "instant-exchange", state: "blocked",
-    blockerHe: affiliate ? "נגיש — אך נעול-חשבון (owner/affiliate)" : `HTTP ${order.status ?? "?"} על ההזמנה`,
-    httpStatus: order.status ?? facts.status,
+    blockerHe: affiliate ? "נגיש — אך נעול-חשבון (owner/affiliate)" : `HTTP ${perms.status ?? "?"} על שער-ההרשאות`,
+    httpStatus: perms.status ?? facts.status,
     detailHe: `${inventoryHe} · השער: ${affiliate ? "יצירת הזמנה דורשת אפיליאט/בעלים — המפתח הציבורי הקטן ביותר שנותר לבעלים (רישום מייל בלבד)" : msg}`,
     reachesEvmGas: true
   };

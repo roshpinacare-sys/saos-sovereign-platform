@@ -1,3 +1,4 @@
+import { guardPermission } from "@/lib/saos/permissions";
 import { NextResponse } from "next/server";
 import { requireAuth, audit } from "@/lib/saos/auth";
 import { fleetRoster, armLedger, armSteemFleet, armEvmFleet, armSolFleet } from "@/lib/saos/fleet-arm";
@@ -65,6 +66,12 @@ export async function POST(req: Request) {
 
   let action = "";
   try {
+    // v91 — RESHUT: this operator action is a declared, audited operation —
+    // every attempt (allow AND deny) lands in the permission journal.
+    const dec = await guardPermission("enlist", "hq", { note: "fleet arm (live rail arming)" });
+    if (!dec.allowed) {
+      return NextResponse.json({ ok: false, gated: true, error: `נחסם במטריצת-הרשויות: ${dec.reason}` });
+    }
     const body = (await req.json()) as { action?: string };
     action = String(body.action ?? "");
   } catch {

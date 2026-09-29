@@ -27,11 +27,16 @@ contract SAOSValueEngine {
 
     error NotOwner();
     error NotHub();
+    error ZeroAddress();
+    error AlreadyWired();
 
     constructor() { owner = msg.sender; }
 
+    /// @dev v91 — one-time, zero-address-free wiring.
     function wire(address hubAddr, address relayAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        if (hubAddr == address(0) || relayAddr == address(0)) revert ZeroAddress();
+        if (hub != address(0) || relay != address(0)) revert AlreadyWired();
         hub = hubAddr;
         relay = relayAddr;
     }

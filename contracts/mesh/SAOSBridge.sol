@@ -23,12 +23,15 @@ contract SAOSBridge {
     error UnknownChain();
     error StaleHeight(); // HARDEN v5: monotonicity — stale/replayed heights rejected
     error ZeroAddress();
+    error AlreadyWired();
 
     constructor() { owner = msg.sender; }
 
+    /// @dev v91 — one-time wiring (zero check kept from HARDEN v5).
     function wire(address relayAddr) external {
         if (msg.sender != owner) revert NotOwner();
         if (relayAddr == address(0)) revert ZeroAddress(); // HARDEN v5
+        if (relay != address(0)) revert AlreadyWired();
         relay = relayAddr;
     }
 

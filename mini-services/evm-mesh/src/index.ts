@@ -46,7 +46,33 @@ import {
 } from "./deploy";
 
 const ARTIFACT_PATH = path.resolve(import.meta.dir, "..", "..", "..", "src", "lib", "saos", "generated", "SAOSMesh.json");
-const ANVIL_BIN = process.env.MESH_ANVIL_BIN ?? `${process.env.HOME ?? "/home/z"}/.foundry/bin/anvil`;
+// v91 — binary resolution chain: env → foundry home → PATH → survivable mirror.
+// The old single hardcoded home broke whenever foundry lived elsewhere.
+function resolveAnvilBin(): string {
+  const candidates = [
+    process.env.MESH_ANVIL_BIN,
+    `${process.env.HOME ?? "/home/z"}/.foundry/bin/anvil`,
+    "/usr/local/bin/anvil",
+    "/usr/bin/anvil"
+  ].filter((v): v is string => typeof v === "string" && v.length > 0);
+  for (const c of candidates) {
+    try {
+      fs.accessSync(c, fs.constants.X_OK);
+      return c;
+    } catch {
+      /* try next */
+    }
+  }
+  try {
+    const out = Bun.spawnSync(["which", "anvil"], { stdout: "pipe", stderr: "ignore" });
+    const p = out.stdout.toString().trim();
+    if (p) return p;
+  } catch {
+    /* which unavailable */
+  }
+  return candidates[0] ?? `${process.env.HOME ?? "/home/z"}/.foundry/bin/anvil`;
+}
+const ANVIL_BIN = resolveAnvilBin();
 const PORT = 8545;
 
 // v61 מגן ההבטחות (THE PROMISE GUARD) — הראנר לא נופל יותר מהבטחות-רפאים.
@@ -1065,8 +1091,11 @@ async function autoCycle(): Promise<void> {
     if (keeperFails >= 2) {
       keeperFails = 0;
       try {
+        // v91 — path derived from THIS file (…/mini-services/evm-mesh/src → …/mini-services/keeper),
+        // no more absolute layout dependency; the log lives beside the keeper itself.
+        const keeperDir = path.resolve(import.meta.dir, "..", "..", "keeper");
         Bun.spawn(
-          ["bash", "-c", "sleep 1.5; cd /home/z/my-project/mini-services/keeper && exec bun run dev >> keeper.log 2>&1"],
+          ["bash", "-c", `sleep 1.5; cd ${keeperDir} && exec bun run dev >> keeper.log 2>&1`],
           { detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }
         );
         console.log("[evm-mesh] keeper function-dead — SIGTERM'd if zombie, revived detached (step 4.8 v36, function-based mutual watch)");

@@ -147,6 +147,8 @@ export interface RoastGap {
 
 export interface RoastData {
   ok: boolean;
+  /** v91 — carried through when the API answered ok:false with a reason */
+  error?: string;
   measuredAt: string;
   verdict: string;
   money: {

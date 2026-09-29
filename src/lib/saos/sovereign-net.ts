@@ -119,8 +119,11 @@ const YNET_HIVE_BLOCK = 109_803_966;
 const YNET_HIVE_TXID = "3d7ac3f419eb81349fa6e8eca1bdce689612fbe2";
 const YNET_PAYLOAD = "ynet-posting-plane-via-headcorner-anchor";
 
-/** בית-האוצר הריבוני (אבן-הפינה) — אותה כתובת EVM בכל רשת EVM */
-const TREASURY_EVM = "0x01Bdc4FbF42E1D8b568a31979bE14a8a10dBdF94";
+/** בית-האוצר הריבוני (אבן-הפינה) — אותה כתובת EVM בכל רשת EVM.
+ *  v91 — תוקף: הכתובת הקודמת (0x01Bdc4Fb…) הייתה כתובת-זרה/מיושנת שנשארה
+ *  מראיון-ישן; כל-שאר המודולים (anchor-evm · cheap-routes · permissions)
+ *  מעגנים את אותו בית-אוצר אחד — כתובת אבן-הפינה m/44'/60'/0'/0/0. */
+const TREASURY_EVM = "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37";
 
 // ─── json-rpc helper (budgeted, failure=data) ───────────────────────────────
 
@@ -287,8 +290,10 @@ async function probeSkale(): Promise<SovereignProbe> {
   }
   const cid = parseInt(chainId.result ?? "0x0", 16);
   const blk = parseInt(block.result ?? "0x0", 16);
-  const gasWei = gas.ok ? parseInt(gas.result ?? "0x0", 10) : null;
-  const balanceWei = bal.ok ? parseInt(bal.result ?? "0x0", 10) : null;
+  // v91 — radix fix: RPC results are HEX strings; the old parseInt(…,10) turned
+  // "0x186a0" into 0 and the SKALE gas/balance evidence always showed zero.
+  const gasWei = gas.ok ? parseInt(gas.result ?? "0x0", 16) : null;
+  const balanceWei = bal.ok ? parseInt(bal.result ?? "0x0", 16) : null;
   // מחיר-גז של 100,000 wei = 1e-13 sFUEL ליחידת-גז — ו-sFUEL חינם מברז הרשת:
   // פריסת relay (~1.5M גז) עולה ~0.00015 sFUEL ≈ $0.00.
   const gasNote =

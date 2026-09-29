@@ -498,8 +498,12 @@ function godparentMesh(): void {
     }
     if (Date.now() - (G as unknown as { meshSpawnAt?: number }).meshSpawnAt! < MESH_SPAWN_WINDOW_MS) return; // recent attempt — give it time to boot
     (G as unknown as { meshSpawnAt?: number }).meshSpawnAt = Date.now();
+    // v91 — paths derived from THIS file (…/mini-services/gate-agent/src), not a
+    // hardcoded absolute layout; the log lands in the repo's .zscripts dir.
+    const meshDir = path.resolve(import.meta.dir, "..", "..", "evm-mesh");
+    const zscriptsDir = path.resolve(import.meta.dir, "..", "..", "..", ".zscripts");
     Bun.spawn(
-      ["bash", "-c", "cd /home/z/my-project/mini-services/evm-mesh && exec bun run dev >> /home/z/my-project/.zscripts/mini-service-evm-mesh.log 2>&1"],
+      ["bash", "-c", `cd ${meshDir} && exec bun run dev >> ${zscriptsDir}/mini-service-evm-mesh.log 2>&1`],
       { detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }
     );
     journal("godparent", `mesh runner seat empty (pid ${ownerPid || "none"} dead) — spawned detached from the herald (a long-running parent survives the session reaper); the runner takes the seat and drives the chain (v36)`);
