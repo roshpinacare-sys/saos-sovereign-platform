@@ -31,8 +31,15 @@ export const VAULT_MANIFEST: VaultManifestEntry[] = [
   { network: "TRON", slot: "vault-3", purpose: "כתובת כספת 3 — גיבוי ופיזור" },
   { network: "TRON", slot: "vault-4", purpose: "כתובת כספת 4 — גיבוי ופיזור" },
   { network: "TRON", slot: "vault-5", purpose: "כתובת כספת 5 — גיבוי ופיזור" },
-  { network: "TRON", slot: "vault-6", purpose: "כתובת כספת 6 — גיבוי ופיזור" }
+  { network: "TRON", slot: "vault-6", purpose: "כתובת כספת 6 — גיבוי ופיזור" },
+  // v94 — כיסאות-צפייה ריבוניים: שורות-בקרה לזהויות הרישום האטום
+  // (לא מסילות-שידור — החתימה חיה ב-anchor-evm/anchor-svm בלבד)
+  { network: "ETHEREUM", slot: "sovereign/headcorner", purpose: "כיסא-צפייה ריבוני EVM (wallets-registry headcorner)" },
+  { network: "SOLANA", slot: "sovereign/headcorner", purpose: "כיסא-צפייה ריבוני SOL (wallets-registry headcorner)" }
 ];
+
+/** v94 — רשתות-כיסאות-צפייה בלבד (לא מסילות-שידור גרפניות) */
+export const VAULT_SOVEREIGN_NETWORKS = ["ETHEREUM", "SOLANA"] as const;
 
 export const NETWORKS = ["STEEM", "BLURT", "HIVE", "TRON"] as const;
 export type SaosNetwork = (typeof NETWORKS)[number];
