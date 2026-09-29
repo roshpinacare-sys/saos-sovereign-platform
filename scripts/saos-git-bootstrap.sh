@@ -33,7 +33,7 @@ SECRETS_DIR="/home/z/.secrets"
 CANON="$SECRETS_DIR/github-token"
 LEGACY="/home/z/my-project/upload/Roshcaregt.txt"
 DG_SECRETS="/home/z/.devgate/secrets/github-pat"
-REPO_SCRIPTS="/home/z/my-project/platform-latest/scripts"
+REPO_SCRIPTS="/home/z/my-project/scripts"
 MAIN_REPO_URL="https://github.com/roshpinacare-sys/saos-sovereign-platform.git"
 export DG_DATA_DIR="/home/z/.devgate"
 

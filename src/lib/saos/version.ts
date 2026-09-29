@@ -99,10 +99,28 @@
  * אפס-500s מול-קלט-עוין · סוואף-דפדפן: 9 מסכים, אפס-שגיאות.
  */
 
-export const SAOS_VERSION = "92.0.0";
+/**
+ * v93 תחיית-אבן-הפינה (THE CORNERSTONE REVIVAL): הבעלים העביר את המפתח
+ * הראשי (headcorner.txt = תווית + סיסמת-אב גרפנית P5) — והאימות היה
+ * מוחלט: הנגזרות שוות 4/4 לרשויות-ה-STEEM החיות של headcorner על
+ * השרשרת (owner/active/posting/memo מול condenser_api, נמדד). מהלך
+ * מלא-שערים: מעטפת SAOS-FLEET-VAULT-1 חדשה (GCM · 0600 · 3 בתי-מפתחות)
+ * ← rearmSteemExecute הרשמי (verify-then-write + שער-roundtrip של
+ * ספריית-steem) ← stage-2 connect (3 סלוטים רשומים + קבלה-משורשרת)
+ * ← היגיינת-מפתחות: /upload/ · /agent/ · /db/backups/ נאסרו-לגיט,
+ * העותק-הגלוי של המפתח נמחק מהדיסק (התוכן נשמר מילולית במעטפת) ·
+ * רוטציית-PAT אומתה חי (push לכל 16 הריפואים, bootstrap סביבה-נקייה
+ * עבר) · איחוד-טענות: smartvault reconcile-v93 (tombstone) + טקסטי
+ * sovereign-key מיושרים — המעטפת מחזיקה תפעול-STEEM, שורשי-הזהות
+ * (12/24 מילים) נותרו אצל הבעלים, מצב-ראיות מדויק לכל מסילה ·
+ * מרשם-ריבונות (sovereignty census): 17 תיקיות-גיט נמדדות חי
+ * (ענף/HEAD/remote מצונן/סטיות) + טיק-שומר תקופתי.
+ */
+
+export const SAOS_VERSION = "93.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "הבית-שאינו-נשכח (THE SURVIVABLE HOME)";
+export const SAOS_CODENAME = "תחיית-אבן-הפינה (THE CORNERSTONE REVIVAL)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

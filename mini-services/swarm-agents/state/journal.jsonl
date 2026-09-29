@@ -11,3 +11,9 @@
 {"t":"2026-09-29T17:10:34.764Z","agent":"gold-scout","kind":"armed","detail":"woke up from dormancy — onboarded through the gate, key issued once, sealed in my survivable home (0600)"}
 {"t":"2026-09-29T17:10:34.891Z","agent":"night-scout","kind":"armed","detail":"woke up from dormancy — onboarded through the gate, key issued once, sealed in my survivable home (0600)"}
 {"t":"2026-09-29T17:17:34.109Z","agent":"night-scout","kind":"patrol","detail":"patrol #1: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T17:27:41.928Z","agent":"night-scout","kind":"patrol","detail":"patrol #2: flags: web-status, issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T17:27:46.041Z","agent":"night-scout","kind":"order","detail":"work order cut: \"משימת אבטחה: תיעוד אירוע חריג בשרשרת — שכבת הווב לא מחזירה את סטטוס השומר (ה-API הציבורי ל\" (difficulty 3, reward 9) — the soldier executes and is paid"}
+{"t":"2026-09-29T17:37:34.093Z","agent":"night-scout","kind":"patrol","detail":"patrol #3: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T17:40:41.928Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: The operation timed out. — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T17:40:41.931Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: The operation timed out. — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T17:47:34.255Z","agent":"night-scout","kind":"patrol","detail":"patrol #4: flags: issue-1, issue-2, issue-3"}
