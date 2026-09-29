@@ -1,0 +1,8 @@
+{
+  "name": "swarm-agents",
+  "private": true,
+  "version": "39.0.0",
+  "scripts": {
+    "dev": "bun --hot src/index.ts"
+  }
+}

@@ -1,0 +1,602 @@
+     1→/**
+     2→ * mini-services/keeper/src/index.ts — SAOS SHOMER (שומר) v27 אחיזה.
+     3→ *
+     4→ * The organism's self-healing layer. Born from a measured incident:
+     5→ * the kernel OOM-killed the next-server web tier (1.79 GB RSS on a 4 GB
+     6→ * machine) and NOTHING brought it back — the whole platform stayed dark
+     7→ * until a human noticed. The sovereign answer is not "more RAM" (the
+     8→ * machine is what it is) — it is a keeper that never lets a member stay
+     9→ * dead.
+    10→ *
+    11→ * v43 ביקורת-הפריוויו (born live, 2026-09-12 06:21–06:24 UTC): the kernel
+    12→ *   killed the web at RSS 1893MB while the pre-OOM recycle was "armed" —
+    13→ *   TWO measured root causes, both fixed in this version:
+    14→ *   (1) ONE shared anti-dupe window (S.reviveDeadline) served web+herald+
+    15→ *       swarm+runner: the herald revival at 06:21:23 set the window and
+    16→ *       BLOCKED the web's death-revive for its whole 150s — the web stayed
+    17→ *       dead ~2 extra minutes for no reason. Every member now owns its own
+    18→ *       window (webReviveDeadline / heraldReviveDeadline /
+    19→ *       swarmReviveDeadline / runnerReviveDeadline).
+    20→ *   (2) the kernel does not honor our boot-grace: at/above the measured
+    21→ *       kill line (RSS_KILL_LINE_MB=1790) there is no margin to wait for a
+    22→ *       2nd reading — the recycle now fires the SAME cycle, grace or not.
+    23→ *   Plus honesty fixes: the web-revive journal now reports the ACTUAL fail
+    24→ *   streak (was hardcoded ×3), and "pressure-ok with RSS 0" is no longer
+    25→ *   celebrated as recovery — an absent next-server is death, not healing.
+    26→ *
+    27→ * WHAT IT WATCHES (loopback only, no key material ever touched):
+    28→ *   · web tier  — http://127.0.0.1:3000/api/saos/live-probes (every 10s)
+    29→ *   · lab chain — anvil JSON-RPC eth_blockNumber on :8545 (every 30s)
+    30→ *   · mesh runner — /proc scan for bun --hot in mini-services/evm-mesh (60s)
+    31→ *   · machine memory — /proc/meminfo + next-server RSS (60s, early warning)
+    32→ *
+    33→ * HOW IT HEALS (fail-safe by design):
+    34→ *   · revive ONLY on confirmed death: connection-refused, 3 checks in a
+    35→ *     row. A timeout / slow answer = "degraded" — journaled, NEVER killed,
+    36→ *     NEVER restarted (a slow-but-alive server is alive).
+    37→ *   · duplicate-safe: while a revive is in flight (150s window) no second
+    38→ *     spawn is issued; the spawn itself is detached (setsid) so the revived
+    39→ *     member survives even if the keeper dies.
+    40→ *   · mutual watch: the mesh runner (step 4.8) revives the keeper the same
+    41→ *     way if :3005 refuses — no single point of permanent death.
+    42→ *
+    43→ * v27 אחיזה — THREE new sovereign answers (all measured holes):
+    44→ *   1. PRE-OOM GRACEFUL RECYCLE: dev-mode next-server grows toward the
+    45→ *      kernel's measured kill threshold (1.79 GB). The OLD keeper only
+    46→ *      WARNED at pressure — then the kernel killed the web tier on its
+    47→ *      own random schedule and the revive restored it ~36s later. The
+    48→ *      v27 answer: when RSS crosses 1500 MB on TWO consecutive 60s
+    49→ *      readings (objective trajectory, 5 minutes before the measured
+    50→ *      death line, web alive and answering), the keeper recycles the
+    51→ *      tree GENTLY on its own terms — SIGTERM + detached respawn — a
+    52→ *      planned 0-surprise event instead of an unplanned kernel kill.
+    53→ *      This is the THIRD documented exception to "never kills" (after
+    54→ *      the frozen-runner zombie rule) and the evidence standard is the
+    55→ *      same: not "slow" (subjective) — a measured march to a measured
+    56→ *      death threshold (objective).
+    57→ *   2. SOVEREIGN BACKUPS: every 10 min (v36 — was 30) the keeper triggers one
+    58→ *      consistent
+    59→ *      DB snapshot over loopback (POST /api/saos/backup — SQLite VACUUM
+    60→ *      INTO through the live client, rotation 48/24h + daily chain
+    61→ *      snapshots rotation 7). One copy of the truth = no grip; the
+    62→ *      keeper now preserves, not only heals. Journaled backup-ok / miss.
+    63→ *   3. LOG HYGIENE: dev.log rotates at 20 MB (the OOM-revive appends to
+    64→ *      it forever otherwise — unbounded growth is a slow hole).
+    65→ *
+    66→ * API (loopback 127.0.0.1:3005 only):
+    67→ *   GET  /      → full keeper status (events, checks, memory, members)
+    68→ *   POST /probe → one immediate web health check (journaled verdict)
+    69→ *
+    70→ * Journal: state/journal.jsonl — append-only evidence, redacted by design:
+    71→ * the keeper reads /proc and loopback sockets only — no vault, no env
+    72→ * secrets, no keys, no tokens. Numbers and booleans only.
+    73→ *
+    74→ * bun run dev → bun --hot src/index.ts
+    75→ */
+    76→
+    77→import * as fs from "fs";
+    78→import * as path from "path";
+    79→
+    80→// v61 מגן ההבטחות — אותו לקח שנלמד בראנר (evm-mesh): דחיית-רפאים
+    81→// (unhandledRejection) הופלה את התהליך ב-bun. השומר הוא קו-ההגנה
+    82→// האחרון של האורגניזם — אם הוא עצמו ייפול מרפא, ההחייאה-ההדדית
+    83→// נחלשת. כל רפא נספג ומתועד בכנות; השומר חי. דגל globalThis —
+    84→// חסין-ל-hot-swap (רישום כפול אסור).
+    85→const GUARD_G = globalThis as unknown as { __saosKeeperPromiseGuard?: boolean };
+    86→if (!GUARD_G.__saosKeeperPromiseGuard) {
+    87→  GUARD_G.__saosKeeperPromiseGuard = true;
+    88→  process.on("unhandledRejection", (reason: unknown) => {
+    89→    const msg = reason instanceof Error ? reason.message : String(reason);
+    90→    console.log(`[keeper] v61 promise-guard: ghost rejection absorbed (the shomer lives) — ${msg.slice(0, 140)}`);
+    91→  });
+    92→}
+    93→
+    94→const PORT = 3005;
+    95→const WEB_HEALTH = "http://127.0.0.1:3000/api/saos/live-probes";
+    96→const ANVIL_RPC = "http://127.0.0.1:8545";
+    97→const PROJECT_DIR = path.resolve(import.meta.dir, "..", "..", "..");
+    98→const MESH_DIR = path.join(PROJECT_DIR, "mini-services", "evm-mesh");
+    99→// v59 — אמת-נתיב-היומן: הראנר שהשומר מחיה כותב לאותו קובץ קנוני שממנו ההתקנה
+   100→// מזרימה (.zscripts/mini-service-evm-mesh.log). ההחייאה של 23:47 חשפה את
+   101→// הפיצול: הראנר הטרי כתב ל-runner.log הישן שבתוך evm-mesh (קובץ מת מ-Task 53)
+   102→// בזמן שהקובץ הקנוני השתתק — שני מקורות אמת אחד לראנר. מעתה: מקור אחד.
+   103→const RUNNER_LOG = path.join(PROJECT_DIR, ".zscripts", "mini-service-evm-mesh.log");
+   104→const STATE_DIR = path.resolve(import.meta.dir, "..", "state");
+   105→const JOURNAL = path.join(STATE_DIR, "journal.jsonl");
+   106→const JOURNAL_MAX_BYTES = 5 * 1024 * 1024; // rotate at 5 MB — hygiene, not deletion of truth
+   107→
+   108→const CHECK_MS = 10_000; // web tier
+   109→const ANVIL_EVERY = 3; // every 3rd cycle (30s)
+   110→
+   111→// v36 — the gate herald (the first external agent, mini-services/gate-agent).
+   112→// Watched like any organ: connection-refused only, confirmed death → detached
+   113→// revive. A boot grace window absorbs the /start.sh ordering (the keeper may
+   114→// start before the herald) — no false death, no false revive.
+   115→const GATE_DIR = path.join(PROJECT_DIR, "mini-services", "gate-agent");
+   116→const GATE_LOG = path.join(GATE_DIR, "herald.log");
+   117→const GATE_STATUS = "http://127.0.0.1:3006/";
+   118→const GATE_EVERY = 3; // every 3rd cycle (30s)
+   119→const HERALD_GRACE_MS = 180_000; // boot grace — 3 min before death is even considered
+   120→
+   121→// v38 — the sovereign swarm host (mini-services/swarm-agents, :3007): the
+   122→// two awakened chat agents (gold-scout the LLM economist + night-scout the
+   123→// watchman) live there. Watched exactly like the herald: connection-refused
+   124→// only, confirmed death → detached revive. Same boot-grace doctrine.
+   125→const SWARM_DIR = path.join(PROJECT_DIR, "mini-services", "swarm-agents");
+   126→const SWARM_LOG = path.join(SWARM_DIR, "swarm.log");
+   127→const SWARM_STATUS = "http://127.0.0.1:3007/";
+   128→const SWARM_GRACE_MS = 180_000;
+   129→const SLOW_EVERY = 6; // runner + memory + rss-shed every 6th cycle (60s)
+   130→const DEAD_STREAK = 3; // connection-refused ×3 = confirmed death
+   131→const REVIVE_WINDOW_MS = 150_000; // only one revive attempt per window
+   132→// v45 — R21 (trace 1a09b4c7423d8c5d) measured hole: a WEDGED web (process
+   133→// alive, every request timing out) sat in the degraded branch for 14+ minutes
+   134→// with zero recovery — the old branch journalled once and watched forever.
+   135→// Objective cure standard: 30 consecutive cycles (300s) of continuous
+   136→// non-answer. A legit cold Turbopack compile never does that — measured
+   137→// R21: full fresh compile answered 200s DURING compilation (4.3s worst);
+   138→// total 5-minute silence = wedge, by evidence, not opinion.
+   139→const WEDGED_STREAK = 30;
+   140→const PRESSURE_MB = 700; // early warning before the kernel acts (measured: kill at ~free<500)
+   141→const ZOMBIE_MS = 6 * 60_000; // v59 — 10→6דק': מחזור בריא כבר 47-70ש' (מרוץ-הקבלות), 6דק' = 5+ מחזורים מוחמצים; החלון של 23:35→23:47 (ההקפאה שנסגרה בהחייאה) מתקצר ב-4דק'
+   142→
+   143→// v27 אחיזה — pre-OOM graceful recycle. Measured facts: the kernel killed
+   144→// the web tier at 1.79 GB RSS (dmesg). 1500 MB on two consecutive 60s
+   145→// readings = a proven march toward that line with ~5 minutes of margin.
+   146→// Recycling gently (SIGTERM + detached respawn) on OUR schedule beats the
+   147→// kernel killing on ITS schedule: same fast recovery, zero surprise, full
+   148→// journal trail — running confidence by design, not by luck.
+   149→// v55 כיוון — 1500→1350MB + חלון-חסד-עלייה: המדידה החיה הראתה שב-1.2–1.5GB
+   150→// הווב סובל (גופים תקועים · page-hang) — אבל הניסיון הראשון (1150MB בלי חסד)
+   151→// יצר לופ-מיחזור: recompile אחרי purge מגיע ל-1.5GB בלגיטימיות → מיחזור
+   152→// בזמן הקומפילציה → שוב. התיקון: הסף 1350 + הקריאות נספרות רק אחרי 12 דק'
+   153→// מעליית הווב (סערת-הקומפילציה חולפת; ווב בוגר ב-1.35GB+ = מסע אמיתי).
+   154→const RSS_SHED_MB = 1350;
+   155→const RSS_SHED_READINGS = 2;
+   156→// v43 — the kernel's measured kill line. Above it there is NO margin: the
+   157→// 06:21 incident proved the kernel kills even under our boot-grace (RSS
+   158→// 1893MB, web ~12min old, recycle "armed" waiting for reading 2/2). At this
+   159→// line the recycle fires the same cycle — grace included.
+   160→// v44.2 — split kill lines (the v81-session evidence): the kernel struck 4×
+   161→// today at 1595–1728MB anon-rss — all MATURE webs on the gradual-growth
+   162→// march, between patrol cycles, before the old 1790 line could fire. Mature
+   163→// webs now recycle at 1500 (planned ~40s beats a ~3min kernel kill). Young
+   164→// webs (< boot-grace) keep the classic 1790 headroom: v55 proved lower lines
+   165→// + post-revive compile storms = recycle loops (the storm legitimately peaks
+   166→// at 1.6–1.7GB), and the 06:21 kernel kill of a young web was at 1893MB.
+   167→const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
+   168→const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
+   169→// v43 — single source of truth for the keeper's own version (the boot banner
+   170→// said "v39" for four versions — the stale-label disease, cured at the root)
+   171→const KEEPER_VERSION = "45.1.0";
+   172→const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
+   173→const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
+   174→const RESTORE_DRILL_EVERY = 144; // v45.1 — restore drill every 144th cycle (≈24min)
+   175→const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
+   176→const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
+   177→
+   178→// v66 — auto-expansion scout (התפשטות-אוטומטית). The web tier owns the engine
+   179→// (census + the deploy → anchor pipeline with every honesty gate: dedupe,
+   180→// readiness, balance ×2, receipt-from-node, chained receipt, oplog); the
+   181→// keeper owns the cadence — the same division that runs the recovery ambush
+   182→// (v41). Every 10 min it reads the rail census; the moment a dark door's
+   183→// balance crosses the ×2 gate it fires the POST (source=auto): the owner
+   184→// transfers — the organism expands by itself. The keeper NEVER touches key
+   185→// material; it only pokes the web engine.
+   186→const EXPANSION_URL = "http://127.0.0.1:3000/api/saos/auto-expand";
+   187→const EXPANSION_EVERY = 60; // every 60th cycle = 10 min
+   188→const EXPANSION_FIRST_AT = 12; // first scout 2 min after boot
+   189→
+   190→// v67 — the wise-irrigation scout (ההשקיה החכמה). The web tier owns the
+   191→// engine (board + the drip hand: triple-verified canonical portals only,
+   192→// to=our own address only, probe-first + L2-arrival verification, source
+   193→// floor ×2, exact-gap drip, receipt from the node); the keeper owns the
+   194→// cadence. Every 10 min it reads the irrigation board; the moment a dark
+   195→// door has a fundable plan it fires ONE drip (source=auto) — the organism
+   196→// irrigates itself. The keeper NEVER touches key material.
+   197→const IRRIGATION_URL = "http://127.0.0.1:3000/api/saos/irrigation";
+   198→const IRRIGATION_EVERY = 60; // every 60th cycle = 10 min
+   199→const IRRIGATION_FIRST_AT = 6; // first scout 1 min after boot — אוטונומית מהרגע הראשון
+   200→
+   201→// v80 — the agri-field scout (סייר-השדה). The web tier owns the dual-layer
+   202→// engine (rule layer decides always + LLM agronomist reviews always, real
+   203→// Open-Meteo weather, honest simulator sensors, audit per drop); the keeper
+   204→// owns the cadence: every 5 min it fires ONE tick POST (source=auto) — the
+   205→// field advances even when nobody watches. Web down = honest wait. Zero
+   206→// keys, zero chain, zero cost — the same discipline, a different field.
+   207→const AGRI_URL = "http://127.0.0.1:3000/api/saos/agri";
+   208→const AGRI_EVERY = 30; // every 30th cycle = 5 min
+   209→const AGRI_FIRST_AT = 4; // first tick 40s after boot
+   210→
+   211→// v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
+   212→// weave + the signing hand (vault gates · fail-closed self-verify · the
+   213→// single whitelisted op custom_json saos.snapshot.v1 · inclusion proof from
+   214→// live account history); the keeper owns the cadence: every hour it asks the
+   215→// engine to anchor (source=auto) — the engine dedupes an UNCHANGED digest
+   216→// (a still state keeps its existing public truth) and gates honestly on the
+   217→// vault key. The keeper NEVER touches key material. Born from roast-84's
+   218→// structural lesson (partner sandbox wiped: live folder, .env, chain db up
+   219→// to h47,645 — the only copy that survives the death of the sandbox is the
+   220→// one that lives on a public chain, $0.00).
+   221→const SNAPSHOT_URL = "http://127.0.0.1:3000/api/saos/snapshot";
+   222→const SNAPSHOT_EVERY = 360; // every 360th cycle = 1 hour
+   223→const SNAPSHOT_FIRST_AT = 12; // first anchor attempt 2 min after boot
+   224→
+   225→// v74 — the sync-radar scout (מכ"ם-הסנכרון). Born from the live finding at
+   226→// the opening of this very round: the sandbox fell and was restored to the
+   227→// v73 image while origin/main already held r36 (d9ce8eb) — the fallen
+   228→// machine did not know it had fallen until the owner asked. The web tier
+   229→// owns the measurement (read-only git fetch + honest classification) and
+   230→// THE ONLY hand (git pull --ff-only, behind clean-tree gates: no merge, no
+   231→// rebase, no push, no force — there is no code path for any of them); the
+   232→// keeper owns the cadence: every 10 min it reads the radar board and fires
+   233→// the heal (source=auto) only when the door is open (clean · behind ·
+   234→// ff-only). Dirty tree or local-ahead = an honest finding, never an action.
+   235→const SYNC_RADAR_URL = "http://127.0.0.1:3000/api/saos/sync-radar";
+   236→const SYNC_RADAR_EVERY = 30; // every 30th cycle = 10 min
+   237→const SYNC_RADAR_FIRST_AT = 4; // first sweep 40s after boot — currency from minute one
+   238→
+   239→// v70 — the reserve watcher (צופה-הרזרבות, הכנת חדר-ההמרה). The web tier
+   240→// owns the measurement (custody↔mirror from the live census + the live
+   241→// contract); the keeper owns the cadence: every 5 min it reads the chamber
+   242→// KPIs and journals the drift state. Mesh-managed rails (WETH/WBNB/WRXP)
+   243→// are the mesh organ's authority — the watcher reports them as autonomous,
+   244→// never as drift. The watcher NEVER acts on the mirror — it watches, the
+   245→// HQ (owner-authorized actions) acts.
+   246→const RESERVES_URL = "http://127.0.0.1:3000/api/saos/conversion";
+   247→const RESERVES_EVERY = 30; // every 30th cycle = 5 min
+   248→const RESERVES_FIRST_AT = 9; // first watch 90s after boot
+   249→const RESERVES_DRIFT_USD = 0.05; // journal-worthy drift threshold (chamber rails only)
+   250→
+   251→// v28 — page-500 detector (the documented frontier). Turbopack cache panic
+   252→// (3 live incidents: v29, v30, v31) leaves the PROCESS alive and the API
+   253→// layer answering 200 while the user-visible PAGE "/" returns 5xx. Objective
+   254→// evidence: the page itself 5xx on two consecutive probes 30s apart, while
+   255→// the source tree has not changed in 3 minutes (a compile error from a live
+   256→// edit has a touched source — a poisoned cache does not). Cure = the proven
+   257→// sovereign move: SIGTERM tree → rm -rf .next → detached respawn.
+   258→const PAGE_URL = "http://127.0.0.1:3000/";
+   259→const PAGE_EVERY = 3; // every 3rd cycle = 30s
+   260→const PAGE_500_STREAK = 2; // two consecutive 5xx = objective
+   261→const SRC_STABLE_MS = 180_000; // source untouched for 3 min
+   262→
+   263→// ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
+   264→
+   265→interface KeeperRuntime {
+   266→  timers: ReturnType<typeof setInterval>[];
+   267→  cycle: number;
+   268→}
+   269→
+   270→const G = globalThis as unknown as { __keeperRuntime?: KeeperRuntime };
+   271→if (G.__keeperRuntime) {
+   272→  for (const t of G.__keeperRuntime.timers) clearInterval(t);
+   273→}
+   274→const RT: KeeperRuntime = { timers: [], cycle: 0 };
+   275→G.__keeperRuntime = RT;
+   276→
+   277→// ─── state (in-memory; the journal file is the durable evidence) ──────────
+   278→
+   279→interface KeeperEvent {
+   280→  t: string;
+   281→  kind:
+   282→    | "boot"
+   283→    | "web-ok"
+   284→    | "web-degraded"
+   285→    | "web-degraded-ok"
+   286→    | "web-dead"
+   287→    | "web-revive"
+   288→    | "web-recovered"
+   289→    | "page-500"
+   290→    | "web-panic"
+   291→    | "anvil-down"
+   292→    | "anvil-up"
+   293→    | "runner-revive"
+   294→    | "runner-frozen"
+   295→    | "pressure"
+   296→    | "pressure-ok"
+   297→    | "probe"
+   298→    | "web-recycle"
+   299→    | "backup-ok"
+   300→    | "backup-miss"
+   301→    // v36 — the gate herald (first external agent)
+   302→    | "herald-up"
+   303→    | "herald-dead"
+   304→    | "herald-revive"
+   305→    // v38 — the sovereign swarm (gold-scout + night-scout)
+   306→    | "swarm-up"
+   307→    | "swarm-dead"
+   308→    | "swarm-revive"
+   309→    // v41 — the recovery ambush (headcorner takeover engine)
+   310→    | "ambush-fired"
+   311→    | "ambush-alien"
+   312→    // v66 — the auto-expansion scout (rail irrigation watcher)
+   313→    | "expansion-armed"
+   314→    | "expansion-fired"
+   315→    | "expansion-off"
+   316→    // v67 — the wise-irrigation scout (ההשקיה החכמה)
+   317→    | "irrigation-planned"
+   318→    | "irrigation-dripped"
+   319→    | "irrigation-off"
+   320→    // v73 — the outer-anchor scout (עוגן-החוץ — שימור-חוץ של תקציר-המצב)
+   321→    | "snapshot-anchored"
+   322→    | "snapshot-watched"
+   323→    | "snapshot-off"
+   324→    | "snapshot-gated"
+   325→    // v70 — the reserve watcher (צופה-הרזרבות — הכנת חדר-ההמרה)
+   326→    | "reserve-watched"
+   327→    | "reserve-drift"
+   328→    | "reserve-recovered"
+   329→    // v72 — the cheap-route watcher (צופה-ההמרה-הזולה — הניסיון שנעשה קבוע)
+   330→    | "cheap-route-watched"
+   331→    | "cheap-route-opened"
+   332→    // v80 — the agri-field scout (סייר-השדה — ההשקיה החקלאית דו-השכבתית)
+   333→    | "agri-tick"
+   334→    | "agri-dripped"
+   335→    | "agri-alert"
+   336→    | "agri-error";
+   337→  detail: string;
+   338→}
+   339→
+   340→interface BackupResponse {
+   341→  ok?: boolean;
+   342→  kind?: string;
+   343→  note?: string;
+   344→  status?: { db?: { count?: number; lastAt?: string | null }; chain?: { count?: number } };
+   345→}
+   346→
+   347→const S = {
+   348→  startedAt: new Date().toISOString(),
+   349→  checks: 0,
+   350→  failStreak: 0,
+   351→  wedgedStreak: 0,
+   352→  degraded: false,
+   353→  lastCheckAt: null as string | null,
+   354→  lastOkAt: null as string | null,
+   355→  lastHttp: null as number | null,
+   356→  reviveCount: 0,
+   357→  lastReviveAt: null as string | null,
+   358→  // v43 — per-member anti-dupe windows. The 06:21 lesson: one shared window
+   359→  // let a herald revival block the web's death-revive for 150s. The web
+   360→  // paths (death-revive / recycle / panic-cure) share the WEB window (they
+   361→  // all act on the same tree); herald/swarm/runner each own theirs.
+   362→  webReviveDeadline: 0,
+   363→  heraldReviveDeadline: 0,
+   364→  swarmReviveDeadline: 0,
+   365→  runnerReviveDeadline: 0,
+   366→  anvilOk: null as boolean | null,
+   367→  anvilHeight: null as number | null,
+   368→  anvilLastOkAt: null as string | null,
+   369→  runnerSeen: false,
+   370→  runnerRevives: 0,
+   371→  zombieBlock: 0,
+   372→  zombieSince: 0,
+   373→  zombieRestarts: 0,
+   374→  mem: { totalMb: 0, availableMb: 0, nextRssMb: 0, pressure: false },
+   375→  recoveredLogged: false,
+   376→  memPressurePrev: false,
+   377→  // v27 אחיזה
+   378→  rssShedStreak: 0,
+   379→  recycles: 0,
+   380→  lastRecycleAt: null as string | null,
+   381→  backups: { ok: 0, miss: 0, lastAt: null as string | null, lastNote: "" },
+   382→  // v45.1 R22 — periodic RESTORE drills (a backup never restored is a hypothesis)
+   383→  drills: { ok: 0, fail: 0, lastAt: null as string | null, lastVerdict: "" },
+   384→  // v28 — page-500 (Turbopack panic) detection
+   385→  page500Streak: 0,
+   386→  // v36 — page-HANG detection (tonight's live incident: the panic left the
+   387→  // API answering 200 while the PAGE hung FOREVER — http null, the 5xx
+   388→  // counter never rose, the documented cure never fired, and the operator
+   389→  // had to purge .next by hand). A persistent hang on a live API is the
+   390→  // same poisoned cache, objectively.
+   391→  pageHangStreak: 0,
+   392→  panics: 0,
+   393→  lastPanicAt: null as string | null,
+   394→  lastPageHttp: null as number | null,
+   395→  // v36 — the gate herald (first external agent at the gate)
+   396→  heraldAlive: null as boolean | null,
+   397→  heraldFailStreak: 0,
+   398→  heraldRevives: 0,
+   399→  heraldLastOkAt: null as string | null,
+   400→  heraldGraceUntil: Date.now() + HERALD_GRACE_MS,
+   401→  // v38 — the sovereign swarm host (:3007, gold-scout + night-scout)
+   402→  swarmAlive: null as boolean | null,
+   403→  swarmFailStreak: 0,
+   404→  swarmRevives: 0,
+   405→  swarmLastOkAt: null as string | null,
+   406→  swarmGraceUntil: Date.now() + SWARM_GRACE_MS,
+   407→  // v41 — the recovery ambush (headcorner): the web tier owns the engine
+   408→  // (vault sessions + broadcast); the keeper owns the cadence + the fire.
+   409→  recovery: {
+   410→    lastCheckAt: null as string | null,
+   411→    state: "watching" as "watching" | "TRIGGERED-OURS" | "foreign-request" | "window-closed" | "stale",
+   412→    daysLeft: null as number | null,
+   413→    lastJournalAt: null as string | null
+   414→  },
+   415→  // v66 — the auto-expansion scout (התפשטות-אוטומטית): the web tier owns
+   416→  // the engine (census + deploy → anchor with every honesty gate); the
+   417→  // keeper owns the cadence + the poke. Same division as the ambush (v41).
+   418→  expansion: {
+   419→    lastCheckAt: null as string | null,
+   420→    state: "boot" as "boot" | "watching" | "armed" | "fired" | "off" | "stale",
+   421→    armed: 0 as number,
+   422→    setting: null as boolean | null,
+   423→    lastFireAt: null as string | null,
+   424→    fires: 0 as number
+   425→  },
+   426→  // v67 — the wise-irrigation scout (ההשקיה החכמה): web owns the engine
+   427→  // (board + drip hand); keeper owns the cadence + the poke. ONE drip per
+   428→  // cycle — דיסציפלינת-טפטוף. v71: gas-storm deferral (עין-מזג-האוויר)
+   429→  // journals as weathered — the engine waits for calm, the scout obeys and
+   430→  // returns next cycle; after 6 deferrals the engine heatwave-waters anyway.
+   431→  irrigation: {
+   432→    lastCheckAt: null as string | null,
+   433→    state: "boot" as "boot" | "watching" | "planned" | "dripped" | "weathered" | "off" | "stale",
+   434→    fundable: 0 as number,
+   435→    setting: null as boolean | null,
+   436→    lastDripAt: null as string | null,
+   437→    drips: 0 as number,
+   438→    weathered: 0 as number
+   439→  },
+   440→  // v73 — the outer-anchor scout (עוגן-החוץ): web owns the weave + the
+   441→  // signing hand behind every gate; keeper owns the cadence. The engine
+   442→  // anchors only a CHANGED digest — a still state keeps its existing
+   443→  // public truth. Honest gated state when the vault key is absent.
+   444→  snapshot: {
+   445→    lastCheckAt: null as string | null,
+   446→    state: "boot" as "boot" | "watching" | "anchored" | "unchanged" | "off" | "gated" | "stale",
+   447→    setting: null as boolean | null,
+   448→    anchored: 0 as number,
+   449→    lastAnchorAt: null as string | null,
+   450→    lastDigest: null as string | null
+   451→  },
+   452→  // v74 — the sync-radar scout (מכ"ם-הסנכרון): web owns the measurement and
+   453→  // the ff-only hand; keeper owns the cadence. Honest classification every
+   454→  // sweep — synced / behind-ffable / ahead-unpushed / diverged / dirty-tree /
+   455→  // unmeasured. The heal fires ONLY behind the full gate stack.
+   456→  syncRadar: {
+   457→    lastCheckAt: null as string | null,
+   458→    state: "boot" as "boot" | "watching" | "healed" | "behind-waiting" | "drifted" | "gated" | "stale",
+   459→    setting: null as boolean | null,
+   460→    classification: null as string | null,
+   461→    ahead: null as number | null,
+   462→    behind: null as number | null,
+   463→    heals: 0 as number,
+   464→    lastHealAt: null as string | null
+   465→  },
+   466→  // v70 — the reserve watcher (צופה-הרזרבות): reads custody↔mirror from the
+   467→  // web every 5 min; drift beyond threshold → journal alert (advisory — the
+   468→  // HQ actions are the only hands on the mirror).
+   469→  reserves: {
+   470→    lastCheckAt: null as string | null,
+   471→    state: "boot" as "boot" | "watching" | "drift" | "recovered" | "stale",
+   472→    driftUsd: null as number | null,
+   473→    custodyUsd: null as number | null,
+   474→    mirroredUsd: null as number | null,
+   475→    meshManaged: 0 as number,
+   476→    driftAlerts: 0 as number,
+   477→    lastAlertAt: null as string | null
+   478→  },
+   479→  // v72 — the cheap-route watcher (צופה-ההמרה-הזולה): the owner's standing
+   480→  // try ("נסה להמיר איכשהו בדרך זולה") made permanent — the web tier scans
+   481→  // every external cheap route keylessly on every call; the keeper watches
+   482→  // the standing gate and journals the moment it opens. Advisory only: the
+   483→  // hands stay with the HQ probe-first flow, never with the watcher.
+   484→  cheapRoutes: {
+   485→    lastCheckAt: null as string | null,
+   486→    gate: "unknown" as "unknown" | "blocked" | "open",
+   487→    routes: 0 as number,
+   488→    openRoutes: 0 as number,
+   489→    jupiterUsdc: null as number | null,
+   490→    openedAt: null as string | null
+   491→  },
+   492→  events: [] as KeeperEvent[]
+   493→};
+   494→
+   495→function journal(kind: KeeperEvent["kind"], detail: string): void {
+   496→  const ev: KeeperEvent = { t: new Date().toISOString(), kind, detail };
+   497→  S.events.push(ev);
+   498→  if (S.events.length > 300) S.events.splice(0, S.events.length - 300);
+   499→  try {
+   500→    fs.mkdirSync(STATE_DIR, { recursive: true });
+   501→    // rotation: keep the current file bounded; the .old keeps the truth
+   502→    try {
+   503→      if (fs.statSync(JOURNAL).size > JOURNAL_MAX_BYTES) {
+   504→        fs.renameSync(JOURNAL, `${JOURNAL}.old`);
+   505→      }
+   506→    } catch {
+   507→      /* no file yet */
+   508→    }
+   509→    fs.appendFileSync(JOURNAL, `${JSON.stringify(ev)}\n`);
+   510→  } catch {
+   511→    /* journal failure must never break the watch loop */
+   512→  }
+   513→}
+   514→
+   515→// ─── /proc readers (facts only — no secrets exist in /proc reads here) ─────
+   516→
+   517→function scanProcs(): Array<{ pid: number; cmdline: string; cwd: string }> {
+   518→  const out: Array<{ pid: number; cmdline: string; cwd: string }> = [];
+   519→  let entries: string[] = [];
+   520→  try {
+   521→    entries = fs.readdirSync("/proc");
+   522→  } catch {
+   523→    return out;
+   524→  }
+   525→  for (const ent of entries) {
+   526→    if (!/^\d+$/.test(ent)) continue;
+   527→    try {
+   528→      const cmdline = fs.readFileSync(`/proc/${ent}/cmdline`, "utf8").replace(/\0/g, " ").trim();
+   529→      if (!cmdline) continue;
+   530→      let cwd = "";
+   531→      try {
+   532→        cwd = fs.readlinkSync(`/proc/${ent}/cwd`);
+   533→      } catch {
+   534→        /* gone / no perms */
+   535→      }
+   536→      out.push({ pid: Number(ent), cmdline, cwd });
+   537→    } catch {
+   538→      /* process vanished mid-scan */
+   539→    }
+   540→  }
+   541→  return out;
+   542→}
+   543→
+   544→function runnerAlive(): boolean {
+   545→  return scanProcs().some(
+   546→    (p) => p.cmdline.includes("bun") && p.cmdline.includes("--hot") && p.cwd.includes("mini-services/evm-mesh")
+   547→  );
+   548→}
+   549→
+   550→function nextServerRssMb(): { rss: number; ageMs: number } {
+   551→  for (const p of scanProcs()) {
+   552→    if (p.cmdline.includes("next-server")) {
+   553→      try {
+   554→        const status = fs.readFileSync(`/proc/${p.pid}/status`, "utf8");
+   555→        const m = /VmRSS:\s+(\d+)\s+kB/.exec(status);
+   556→        if (m) {
+   557→          // v55 — גיל התהליך (שדה 22 ב-/stat = starttime ב-ticks מאז-האתחול):
+   558→          // מיחזור-RSS לגיטימי רק על ווב בוגר; ווב צעיר בסערת-קומפילציה נהנה
+   559→          // מחלון-חסד (לופ-המיחזור שנתפס חי ב-19:08).
+   560→          let ageMs = Infinity;
+   561→          try {
+   562→            const stat = fs.readFileSync(`/proc/${p.pid}/stat`, "utf8");
+   563→            const parts = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+   564→            const startTicks = Number(parts[19]); // field 22 overall (post-comm index 19)
+   565→            if (Number.isFinite(startTicks)) {
+   566→              const hz = 100;
+   567→              const uptimeSec = Number(fs.readFileSync("/proc/uptime", "utf8").split(" ")[0]);
+   568→              ageMs = Math.max(0, (uptimeSec - startTicks / hz) * 1000);
+   569→            }
+   570→          } catch {
+   571→            /* age unknown — treat as mature (fail-open to the old doctrine) */
+   572→          }
+   573→          return { rss: Math.round(Number(m[1]) / 1024), ageMs };
+   574→        }
+   575→      } catch {
+   576→        /* gone */
+   577→      }
+   578→    }
+   579→  }
+   580→  return { rss: 0, ageMs: 0 };
+   581→}
+   582→
+   583→function readMeminfo(): { totalMb: number; availableMb: number } {
+   584→  try {
+   585→    const txt = fs.readFileSync("/proc/meminfo", "utf8");
+   586→    const total = /MemTotal:\s+(\d+)\s+kB/.exec(txt);
+   587→    const avail = /MemAvailable:\s+(\d+)\s+kB/.exec(txt);
+   588→    return {
+   589→      totalMb: total ? Math.round(Number(total[1]) / 1024) : 0,
+   590→      availableMb: avail ? Math.round(Number(avail[1]) / 1024) : 0
+   591→    };
+   592→  } catch {
+   593→    return { totalMb: 0, availableMb: 0 };
+   594→  }
+   595→}
+   596→
+   597→// ─── detached revive (survives the keeper's own death) ─────────────────────
+   598→
+   599→/** v36: optional delay — when replacing a SIGTERM'd zombie, give the old
+   600→ *  process time to die so the fresh instance takes the stale seat cleanly
+
+[showing lines 1-600 of 2068; use offset=601 with limit to continue reading]

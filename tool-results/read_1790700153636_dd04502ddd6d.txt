@@ -1,0 +1,796 @@
+     1→/**
+     2→ * lib/saos/sovereign-net.ts — v58 הרחבת הריבונות (THE SOVEREIGN EXPANSION).
+     3→ * =====================================================================
+     4→ * הוראת הבעלים "תמשיך תבחן אם אפשר למצוא פתרונות ריבוניים נוספים על
+     5→ * הרשת בחן עוד אם יש חדש אצל הסוכנים תקן שפר יעל את הכל ודחוף" —
+     6→ * שלוש שכבות-אמת:
+     7→ *
+     8→ * (1) עוגן-ynet — אימות עצמאי, בקריאה ציבורית בלבד (אפס סודות), של
+     9→ *     הפריצה של הסוכן השני: מישור-הפוסטינג של ynet ניתן להפעלה בלי
+    10→ *     ה-FACTORY_MASTER האבוד, דרך עוגן headcorner בסמכויות-החשבון.
+    11→ *     שלוש רגלי-ראיה: הסמכויות (מנגנון) + שתי רגליים על השרשרת
+    12→ *     (בלוקים חיים, txid מדויק).
+    13→ *
+    14→ * (2) פתרונות ריבוניים שנמצאו על הרשת — קטלוג עם בדיקה חיה של כל
+    15→ *     פתרון (read-only, בתקציב): דלת EVM בגז-חינם (SKALE Europa —
+    16→ *     התשובה הריבונית למדבר-הגז: $0.93 → $0.00), מסילות-מודול
+    17→ *     ב-RPC ציבורי חינם לגמרי, ושכבות-פרסום חינמיות (NOSTR).
+    18→ *     כישלון = נתון; לעולם לא מסונתז "הכל חי".
+    19→ *
+    20→ * (3) מהאורגניזם — פתרונות ריבוניים שהגיעו מהסוכנים (הסוכן השני
+    21→ *     סגר את מטריצת המפתחות, הסוופ-סודות של R18e, ה-12 ריפואים).
+    22→ *
+    23→ * גבול-האמת: הכל קריאה ציבורית בלבד (שרשראות + GitHub API דרך
+    24→ * agents-net). אף מפתח, אף סוד, אף עסקה לא נשלחת מכאן. מטמון 5 דק'
+    25→ * + dedupe-inflight · פרוב כל אחד בתקציב 8ש'.
+    26→ */
+    27→
+    28→import { trustedFetch } from "./security";
+    29→
+    30→// ─── types ──────────────────────────────────────────────────────────────────
+    31→
+    32→export interface ChainLeg {
+    33→  ok: boolean;
+    34→  block: number;
+    35→  blockId: string;
+    36→  timestamp: string | null;
+    37→  txid: string;
+    38→  txidExpected: boolean;
+    39→  payload: string | null;
+    40→  latencyMs: number | null;
+    41→  error?: string;
+    42→}
+    43→
+    44→export interface YnetAnchorEvidence {
+    45→  ok: boolean;
+    46→  /** הסמכויות החיות מהחשבון — עוגן headcorner בפנים? */
+    47→  authorities: {
+    48→    steem: string[];
+    49→    hive: string[];
+    50→    headcornerInSteem: boolean;
+    51→    headcornerInHive: boolean;
+    52→    latencyMs: number | null;
+    53→  };
+    54→  steem: ChainLeg;
+    55→  hive: ChainLeg;
+    56→  /** שלוש הרגליים אומתו — מישור-הפוסטינג ניתן להפעלה היום */
+    57→  operable: boolean;
+    58→  whatRemains: string;
+    59→  measuredAt: string;
+    60→}
+    61→
+    62→export interface SovereignProbe {
+    63→  ok: boolean;
+    64→  latencyMs: number | null;
+    65→  evidence: string;
+    66→  error?: string;
+    67→}
+    68→
+    69→export type SovereignStatus = "verified-live" | "documented" | "unreachable";
+    70→
+    71→export interface SovereignSolution {
+    72→  id: string;
+    73→  name: string;
+    74→  family: "gas-free-rail" | "module-lane" | "publish-layer" | "feeless-chain";
+    75→  familyHe: string;
+    76→  /** איזה פער פתוח של הרוסט זה מטפל */
+    77→  gap: string;
+    78→  /** המנגנון הריבוני — למה זה ריבוני (חינם · בלי משמרת-צד-שלישי) */
+    79→  how: string;
+    80→  /** איך פותחים — ההליך הקונקרטי */
+    81→  openHow: string;
+    82→  costUsd: string;
+    83→  status: SovereignStatus;
+    84→  probe?: SovereignProbe;
+    85→  source: string;
+    86→}
+    87→
+    88→export interface OrganismSovereignty {
+    89→  id: string;
+    90→  name: string;
+    91→  agent: string;
+    92→  what: string;
+    93→  evidence: string;
+    94→  adoptedByUs: string;
+    95→}
+    96→
+    97→export interface SovereignNetData {
+    98→  ok: boolean;
+    99→  measuredAt: string;
+   100→  ynetAnchor: YnetAnchorEvidence;
+   101→  solutions: SovereignSolution[];
+   102→  organism: OrganismSovereignty[];
+   103→  verdict: {
+   104→    liveVerified: number;
+   105→    documented: number;
+   106→    unreachable: number;
+   107→    freeDoors: number;
+   108→    publishLayers: number;
+   109→    summary: string;
+   110→  };
+   111→  error?: string;
+   112→}
+   113→
+   114→// ─── constants — הראיות שיש לאמת (מהצהרת הסוכן השני, keys(70)) ─────────────
+   115→
+   116→const YNET_STEEM_BLOCK = 109_469_365;
+   117→const YNET_STEEM_TXID = "12f1270ded36a01c7b3a3f12bbadc6f5f16f5423";
+   118→const YNET_HIVE_BLOCK = 109_803_966;
+   119→const YNET_HIVE_TXID = "3d7ac3f419eb81349fa6e8eca1bdce689612fbe2";
+   120→const YNET_PAYLOAD = "ynet-posting-plane-via-headcorner-anchor";
+   121→
+   122→/** בית-האוצר הריבוני (אבן-הפינה) — אותה כתובת EVM בכל רשת EVM */
+   123→const TREASURY_EVM = "0x01Bdc4FbF42E1D8b568a31979bE14a8a10dBdF94";
+   124→
+   125→// ─── json-rpc helper (budgeted, failure=data) ───────────────────────────────
+   126→
+   127→interface RpcOutcome<T> {
+   128→  ok: boolean;
+   129→  result?: T;
+   130→  latencyMs: number;
+   131→  error?: string;
+   132→}
+   133→
+   134→async function rpc<T>(
+   135→  url: string,
+   136→  method: string,
+   137→  params: unknown[],
+   138→  timeoutMs = 8_000
+   139→): Promise<RpcOutcome<T>> {
+   140→  const t0 = Date.now();
+   141→  try {
+   142→    const res = await trustedFetch(url, {
+   143→      method: "POST",
+   144→      headers: { "Content-Type": "application/json" },
+   145→      body: JSON.stringify({ jsonrpc: "2.0", method, params, id: 1 }),
+   146→      timeoutMs
+   147→    });
+   148→    const latencyMs = Date.now() - t0;
+   149→    if (!res.ok) {
+   150→      return { ok: false, latencyMs, error: `HTTP ${res.status}` };
+   151→    }
+   152→    const j = (await res.json()) as { result?: T; error?: { message?: string } };
+   153→    if (j.error) {
+   154→      return { ok: false, latencyMs, error: (j.error.message ?? "rpc error").slice(0, 120) };
+   155→    }
+   156→    return { ok: true, result: j.result, latencyMs };
+   157→  } catch (e) {
+   158→    return {
+   159→      ok: false,
+   160→      latencyMs: Date.now() - t0,
+   161→      error: e instanceof Error ? e.message.slice(0, 120) : "rpc failed"
+   162→    };
+   163→  }
+   164→}
+   165→
+   166→// ─── (1) עוגן-ynet — אימות עצמאי בשלוש רגליים ─────────────────────────────
+   167→
+   168→interface CondenserBlock {
+   169→  block_id?: string;
+   170→  timestamp?: string;
+   171→  transactions?: Array<{ transaction_id?: string; operations?: unknown[][] }>;
+   172→}
+   173→
+   174→interface CondenserAccount {
+   175→  posting?: { account_auths?: Array<[string, number]> };
+   176→}
+   177→
+   178→async function probeYnetAuthorities(): Promise<{
+   179→  steem: string[];
+   180→  hive: string[];
+   181→  latencyMs: number | null;
+   182→}> {
+   183→  const [s, h] = await Promise.all([
+   184→    rpc<CondenserAccount[]>("https://api.steemit.com", "condenser_api.get_accounts", [["ynet"]], 8000),
+   185→    rpc<CondenserAccount[]>("https://api.hive.blog", "condenser_api.get_accounts", [["ynet"]], 8000)
+   186→  ]);
+   187→  const authsOf = (r: RpcOutcome<CondenserAccount[]>): string[] =>
+   188→    (r.result?.[0]?.posting?.account_auths ?? []).map((x) => x[0]);
+   189→  return {
+   190→    steem: authsOf(s),
+   191→    hive: authsOf(h),
+   192→    latencyMs: s.ok ? s.latencyMs : h.ok ? h.latencyMs : null
+   193→  };
+   194→}
+   195→
+   196→async function probeYnetLeg(
+   197→  url: string,
+   198→  blockNum: number,
+   199→  expectedTxid: string
+   200→): Promise<ChainLeg> {
+   201→  const r = await rpc<CondenserBlock>(url, "condenser_api.get_block", [blockNum], 10_000);
+   202→  const base: ChainLeg = {
+   203→    ok: false,
+   204→    block: blockNum,
+   205→    blockId: "",
+   206→    timestamp: null,
+   207→    txid: "",
+   208→    txidExpected: false,
+   209→    payload: null,
+   210→    latencyMs: r.ok ? r.latencyMs : null,
+   211→    error: r.ok ? undefined : r.error
+   212→  };
+   213→  if (!r.ok || !r.result) return base;
+   214→  const blk = r.result;
+   215→  base.blockId = (blk.block_id ?? "").slice(0, 20);
+   216→  base.timestamp = blk.timestamp ?? null;
+   217→  for (const tx of blk.transactions ?? []) {
+   218→    const tid = tx.transaction_id ?? "";
+   219→    if (tid.toLowerCase() === expectedTxid.toLowerCase()) {
+   220→      base.txid = tid;
+   221→      base.txidExpected = true;
+   222→      for (const op of tx.operations ?? []) {
+   223→        if (Array.isArray(op) && op.length === 2 && op[0] === "custom_json") {
+   224→          const v = op[1] as { json?: string };
+   225→          base.payload = v.json ?? null;
+   226→        }
+   227→      }
+   228→      base.ok = true;
+   229→      return base;
+   230→    }
+   231→  }
+   232→  // הבלוק נקרא אבל העסקה לא נמצאה — נתון כנה, לא כישלון-רשת
+   233→  base.error = "txid לא נמצא בבלוק (נתון כנה)";
+   234→  return base;
+   235→}
+   236→
+   237→async function probeYnetAnchor(): Promise<YnetAnchorEvidence> {
+   238→  const [auth, steem, hive] = await Promise.all([
+   239→    probeYnetAuthorities(),
+   240→    probeYnetLeg("https://api.steemit.com", YNET_STEEM_BLOCK, YNET_STEEM_TXID),
+   241→    probeYnetLeg("https://api.hive.blog", YNET_HIVE_BLOCK, YNET_HIVE_TXID)
+   242→  ]);
+   243→  const headcornerInSteem = auth.steem.includes("headcorner");
+   244→  const headcornerInHive = auth.hive.includes("headcorner");
+   245→  const operable = headcornerInSteem && headcornerInHive && steem.ok && hive.ok;
+   246→  const payloadOk =
+   247→    (steem.payload ?? "").includes(YNET_PAYLOAD) && (hive.payload ?? "").includes(YNET_PAYLOAD);
+   248→  return {
+   249→    ok: operable && payloadOk,
+   250→    authorities: {
+   251→      steem: auth.steem,
+   252→      hive: auth.hive,
+   253→      headcornerInSteem,
+   254→      headcornerInHive,
+   255→      latencyMs: auth.latencyMs
+   256→    },
+   257→    steem,
+   258→    hive,
+   259→    operable,
+   260→    whatRemains: operable
+   261→      ? "מישור-הפוסטינג של ynet ניתן להפעלה היום (עוגן headcorner, threshold=1). סגירת כל 8 הסלוטים — הדבקת FACTORY_MASTER נוכחי בידי הבעלים בלבד."
+   262→      : "לא אומת במדידה הזו — הרגליים למטה בכנותן.",
+   263→    measuredAt: new Date().toISOString()
+   264→  };
+   265→}
+   266→
+   267→// ─── (2) פתרונות ריבוניים על הרשת — קטלוג + בדיקה חיה ──────────────────────
+   268→
+   269→const SKALE_EUROPA_RPC = "https://mainnet.skalenodes.com/v1/elated-tan-skat";
+   270→
+   271→async function probeSkale(): Promise<SovereignProbe> {
+   272→  const t0 = Date.now();
+   273→  const [chainId, block, gas, bal] = await Promise.all([
+   274→    rpc<string>(SKALE_EUROPA_RPC, "eth_chainId", []),
+   275→    rpc<string>(SKALE_EUROPA_RPC, "eth_blockNumber", []),
+   276→    rpc<string>(SKALE_EUROPA_RPC, "eth_gasPrice", []),
+   277→    rpc<string>(SKALE_EUROPA_RPC, "eth_getBalance", [TREASURY_EVM, "latest"])
+   278→  ]);
+   279→  const latencyMs = Date.now() - t0;
+   280→  if (!chainId.ok || !block.ok) {
+   281→    return {
+   282→      ok: false,
+   283→      latencyMs,
+   284→      evidence: "",
+   285→      error: chainId.error ?? block.error ?? "skale probe failed"
+   286→    };
+   287→  }
+   288→  const cid = parseInt(chainId.result ?? "0x0", 16);
+   289→  const blk = parseInt(block.result ?? "0x0", 16);
+   290→  const gasWei = gas.ok ? parseInt(gas.result ?? "0x0", 10) : null;
+   291→  const balanceWei = bal.ok ? parseInt(bal.result ?? "0x0", 10) : null;
+   292→  // מחיר-גז של 100,000 wei = 1e-13 sFUEL ליחידת-גז — ו-sFUEL חינם מברז הרשת:
+   293→  // פריסת relay (~1.5M גז) עולה ~0.00015 sFUEL ≈ $0.00.
+   294→  const gasNote =
+   295→    gasWei !== null
+   296→      ? `gasPrice=${gasWei} wei sFUEL (חינם מברז — לא נכס בעל-ערך)`
+   297→      : "gasPrice לא נקרא";
+   298→  return {
+   299→    ok: true,
+   300→    latencyMs,
+   301→    evidence: `chainId=${cid} · block=${blk.toLocaleString("en-US")} · ${gasNote} · יתרת-האוצר שלנו (0x01Bd…) = ${balanceWei ?? "?"} wei sFUEL — הדלת נפתחת ב-$0.00`
+   302→  };
+   303→}
+   304→
+   305→async function probeModuleLane(
+   306→  id: string
+   307→): Promise<SovereignProbe> {
+   308→  const t0 = Date.now();
+   309→  try {
+   310→    let evidence = "";
+   311→    let ok = false;
+   312→    switch (id) {
+   313→      case "aptos-rpc": {
+   314→        const res = await trustedFetch("https://fullnode.mainnet.aptoslabs.com/v1", { timeoutMs: 8_000 });
+   315→        if (res.ok) {
+   316→          const j = (await res.json()) as { chain_id?: number; ledger_version?: string; block_height?: string };
+   317→          ok = typeof j.chain_id === "number";
+   318→          evidence = `chain_id=${j.chain_id} · גובה=${Number(j.block_height ?? 0).toLocaleString("en-US")} · ledger ${j.ledger_version}`;
+   319→        }
+   320→        break;
+   321→      }
+   322→      case "near-rpc": {
+   323→        const r = await rpc<{ chain_id?: string; latest_protocol_version?: number; sync_info?: { latest_block_height?: string } }>(
+   324→          "https://rpc.mainnet.near.org", "status", [], 8_000);
+   325→        ok = r.ok && r.result?.chain_id === "mainnet";
+   326→        evidence = r.ok ? `chain=${r.result?.chain_id} · protocol v${r.result?.latest_protocol_version}` : r.error ?? "";
+   327→        break;
+   328→      }
+   329→      case "polkadot-rpc": {
+   330→        const r = await rpc<string>("https://rpc.polkadot.io", "chain_getBlockHash", [0], 8_000);
+   331→        ok = r.ok && typeof r.result === "string" && r.result.length > 60;
+   332→        evidence = r.ok ? `genesis=${(r.result ?? "").slice(0, 18)}… (אומת חי)` : r.error ?? "";
+   333→        break;
+   334→      }
+   335→      case "tezos-rpc": {
+   336→        const res = await trustedFetch("https://rpc.tzbeta.net/chains/main/blocks/head/header", { timeoutMs: 8_000 });
+   337→        if (res.ok) {
+   338→          const j = (await res.json()) as { chain_id?: string; protocol?: string; level?: number };
+   339→          ok = typeof j.chain_id === "string";
+   340→          evidence = `chain=${j.chain_id} · level=${j.level} · protocol ${(j.protocol ?? "").slice(0, 12)}…`;
+   341→        }
+   342→        break;
+   343→      }
+   344→      case "cosmos-rpc": {
+   345→        const r = await rpc<{ node_info?: { network?: string; version?: string }; sync_info?: { latest_block_height?: string } }>(
+   346→          "https://cosmos-rpc.publicnode.com", "status", [], 8_000);
+   347→        ok = r.ok && r.result?.node_info?.network === "cosmoshub-4";
+   348→        evidence = r.ok
+   349→          ? `network=${r.result?.node_info?.network} · tendermint v${r.result?.node_info?.version} · גובה=${r.result?.sync_info?.latest_block_height}`
+   350→          : r.error ?? "";
+   351→        break;
+   352→      }
+   353→      case "eos-rpc": {
+   354→        const res = await trustedFetch("https://eos.greymass.com/v1/chain/get_info", {
+   355→          method: "POST",
+   356→          timeoutMs: 8_000
+   357→        });
+   358→        if (res.ok) {
+   359→          const j = (await res.json()) as { chain_id?: string; head_block_num?: number };
+   360→          ok = typeof j.chain_id === "string";
+   361→          evidence = `chain_id=${(j.chain_id ?? "").slice(0, 16)}… · גובה=${(j.head_block_num ?? 0).toLocaleString("en-US")}`;
+   362→        }
+   363→        break;
+   364→      }
+   365→      case "vara-rpc": {
+   366→        const r = await rpc<string>("https://rpc.vara.network", "chain_getBlockHash", [0], 8_000);
+   367→        ok = r.ok && typeof r.result === "string" && r.result.length > 60;
+   368→        evidence = r.ok ? `genesis=${(r.result ?? "").slice(0, 18)}… (אומת חי · שרשרת ללא-עמלות)` : r.error ?? "";
+   369→        break;
+   370→      }
+   371→    }
+   372→    return { ok, latencyMs: Date.now() - t0, evidence, error: ok ? undefined : "לא אומת במדידה זו" };
+   373→  } catch (e) {
+   374→    return {
+   375→      ok: false,
+   376→      latencyMs: Date.now() - t0,
+   377→      evidence: "",
+   378→      error: e instanceof Error ? e.message.slice(0, 120) : "probe failed"
+   379→    };
+   380→  }
+   381→}
+   382→
+   383→async function probeNostr(host: string): Promise<SovereignProbe> {
+   384→  const t0 = Date.now();
+   385→  try {
+   386→    const res = await trustedFetch(`https://${host}/`, { timeoutMs: 8_000 });
+   387→    const latencyMs = Date.now() - t0;
+   388→    // ריליי strfry עונה ב-HTML קטן ("strfry: a nostr relay") על GET רגיל —
+   389→    // ה-ws עצמו דורש לקוח NOSTR; הנוכחות החיה היא האימות.
+   390→    const text = await res.text();
+   391→    const ok = res.ok && /nostr relay/i.test(text);
+   392→    return {
+   393→      ok,
+   394→      latencyMs,
+   395→      evidence: ok ? `ריליי strfry חי — עונה על HTTP · ws זמין ללקוח NOSTR` : `HTTP ${res.status}`,
+   396→      error: ok ? undefined : "תשובה לא-צפויה"
+   397→    };
+   398→  } catch (e) {
+   399→    return {
+   400→      ok: false,
+   401→      latencyMs: Date.now() - t0,
+   402→      evidence: "",
+   403→      error: e instanceof Error ? e.message.slice(0, 120) : "nostr probe failed"
+   404→    };
+   405→  }
+   406→}
+   407→
+   408→async function buildSolutions(): Promise<SovereignSolution[]> {
+   409→  const [
+   410→    skale,
+   411→    aptos,
+   412→    near,
+   413→    polkadot,
+   414→    tezos,
+   415→    cosmos,
+   416→    eos,
+   417→    vara,
+   418→    nostrNos,
+   419→    nostrDamus
+   420→  ] = await Promise.all([
+   421→    probeSkale(),
+   422→    probeModuleLane("aptos-rpc"),
+   423→    probeModuleLane("near-rpc"),
+   424→    probeModuleLane("polkadot-rpc"),
+   425→    probeModuleLane("tezos-rpc"),
+   426→    probeModuleLane("cosmos-rpc"),
+   427→    probeModuleLane("eos-rpc"),
+   428→    probeModuleLane("vara-rpc"),
+   429→    probeNostr("nos.lol"),
+   430→    probeNostr("relay.damus.io")
+   431→  ]);
+   432→
+   433→  const sol: SovereignSolution[] = [
+   434→    {
+   435→      id: "skale-europa",
+   436→      name: "SKALE Europa — דלת EVM בגז-חינם",
+   437→      family: "gas-free-rail",
+   438→      familyHe: "דלת-גז-חינם",
+   439→      gap: "מדבר-הגז: 7 דלתות EVM ממתינות ל-$0.93 — SKALE פותרת את זה ב-$0.00",
+   440→      how: "רשת EVM ציבורית שבה הגז (sFUEL) אינו נכס בעל-ערך — מתקבל חינם מברז הרשת; אותה כתובת ארנק EVM שלנו (0x01Bd…) תקפה גם שם",
+   441→      openHow:
+   442→        "ברז sFUEL (faucet) לבית-האוצר → אותו bytecode של SAOSRelay (ללא בעלים/ללא עמלות) פורש כרגיל → מסילת EVM תשיעית חיה בעלות $0.00 — מגודר-כנות: פריסת mainnet היא פקודת בעלים",
+   443→      costUsd: "0.00",
+   444→      status: skale.ok ? "verified-live" : "documented",
+   445→      probe: skale,
+   446→      source: "חיפוש-רשת v58 (skale.space · docs) · אומת-חי מול mainnet.skalenodes.com"
+   447→    },
+   448→    {
+   449→      id: "nostr-nos",
+   450→      name: "ריליי NOSTR — nos.lol",
+   451→      family: "publish-layer",
+   452→      familyHe: "שכבת-פרסום חינמית",
+   453→      gap: "הספר-שלא-ניתן-למחיקה: היום Steem/Hive/Blurt — NOSTR מוסיף שכבה חופשית ללא שרשרת",
+   454→      how: "אירועים חתומים (ephemeral עד persistent) משוכפלים חינם בין רילייים ציבוריים — אפס עמלה, אפס חשבון, מפתח-חתימה בידינו",
+   455→      openHow: "מודול-חתימה NOSTR (secp256k1 — אותה משפחת מפתחות שכבר בבית) → herald מפרסם custom event מעבר לשלוש השרשראות",
+   456→      costUsd: "0.00",
+   457→      status: nostrNos.ok ? "verified-live" : "documented",
+   458→      probe: nostrNos,
+   459→      source: "חיפוש-רשת v58 · אומת-חי (strfry חי)"
+   460→    },
+   461→    {
+   462→      id: "nostr-damus",
+   463→      name: "ריליי NOSTR — relay.damus.io",
+   464→      family: "publish-layer",
+   465→      familyHe: "שכבת-פרסום חינמית",
+   466→      gap: "יתירות-פרסום: שני רילייים עצמאיים = שכפול הספר על תשתיות נפרדות",
+   467→      how: "אותה פרוטוקולית של nos.lol — הריליי של לקוח Damus המוביל, תשתית נפרדת",
+   468→      openHow: "כמו nos.lol — herald עם שני יעדים",
+   469→      costUsd: "0.00",
+   470→      status: nostrDamus.ok ? "verified-live" : "documented",
+   471→      probe: nostrDamus,
+   472→      source: "חיפוש-רשת v58 · אומת-חי (strfry חי)"
+   473→    },
+   474→    {
+   475→      id: "aptos-rpc",
+   476→      name: "Aptos mainnet — RPC ציבורי חינם",
+   477→      family: "module-lane",
+   478→      familyHe: "מסילת-מודול",
+   479→      gap: "11 מודולי-חתימה: הצד הקריאתי של Aptos חינם לגמרי — נותר רק מודול-החתימה",
+   480→      how: "fullnode רשמי ללא מפתח-API וללא הגבלת-קריאה — עמלת-רשת לכתיבה ~0.00001 APT",
+   481→      openHow: "מודול-חתימה Aptos (ed25519 — כתובת 0xa7f2… כבר נגזרת במפת-הרשתות) + מימון ~$0.01",
+   482→      costUsd: "קריאה 0.00 · כתיבה ~0.01",
+   483→      status: aptos.ok ? "verified-live" : "documented",
+   484→      probe: aptos,
+   485→      source: "חיפוש-רשת v58 · אומת-חי מול fullnode.mainnet.aptoslabs.com"
+   486→    },
+   487→    {
+   488→      id: "near-rpc",
+   489→      name: "NEAR mainnet — RPC ציבורי חינם",
+   490→      family: "module-lane",
+   491→      familyHe: "מסילת-מודול",
+   492→      gap: "11 מודולי-חתימה: NEAR קריא-חינם כעת — נותר מודול-חתימה",
+   493→      how: "RPC רשמי ללא מפתח · עמלה ~0.001 NEAR לפעולה; כתובת 69LV6… כבר נגזרת (ed25519)",
+   494→      openHow: "מודול-חתימה NEAR (transaction signing מלא) + מימון ~$0.005",
+   495→      costUsd: "קריאה 0.00 · כתיבה ~0.005",
+   496→      status: near.ok ? "verified-live" : "documented",
+   497→      probe: near,
+   498→      source: "חיפוש-רשת v58 · אומת-חי מול rpc.mainnet.near.org"
+   499→    },
+   500→    {
+   501→      id: "polkadot-rpc",
+   502→      name: "Polkadot — RPC ציבורי חינם",
+   503→      family: "module-lane",
+   504→      familyHe: "מסילת-מודול",
+   505→      gap: "11 מודולי-חתימה: מסילת DOT קריאה-חינם; כתובת 14PmK… (ss58) כבר נגזרת",
+   506→      how: "RPC רשמי (Parity) ללא מפתח; ה-ss58+blake2b כבר נכתבו בבית ב-v48",
+   507→      openHow: "מודול-חתימה Substrate (EXtrinsic signing) + מימון כיסוי-existential (~1.1 DOT)",
+   508→      costUsd: "קריאה 0.00 · כתיבה ~0.01",
+   509→      status: polkadot.ok ? "verified-live" : "documented",
+   510→      probe: polkadot,
+   511→      source: "חיפוש-רשת v58 · אומת-חי מול rpc.polkadot.io"
+   512→    },
+   513→    {
+   514→      id: "tezos-rpc",
+   515→      name: "Tezos — RPC ציבורי חינם",
+   516→      family: "module-lane",
+   517→      familyHe: "מסילת-מודול",
+   518→      gap: "11 מודולי-חתימה: Tezos קריא-חינם (tzbeta) ; כתובת 5L8Ky… כבר נגזרת",
+   519→      how: "צומת ציבורי ללא מפתח · עמלה ~0.00001 XTZ; חתימת ed25519/bls היא סטנדרט",
+   520→      openHow: "מודול-חתימה Tezos (Michelson/operation forging) + מימון ~1 XTZ מינימום-חשבון",
+   521→      costUsd: "קריאה 0.00 · כתיבה ~0.01",
+   522→      status: tezos.ok ? "verified-live" : "documented",
+   523→      probe: tezos,
+   524→      source: "חיפוש-רשת v58 · אומת-חי מול rpc.tzbeta.net"
+   525→    },
+   526→    {
+   527→      id: "cosmos-rpc",
+   528→      name: "Cosmos Hub — RPC ציבורי חינם",
+   529→      family: "module-lane",
+   530→      familyHe: "מסילת-מודול",
+   531→      gap: "11 מודולי-חתימה: cosmos1ucz… כבר נגזרת; ה-RPC (publicnode) אומת חי",
+   532→      how: "Tendermint RPC דרך publicnode (מארח מהימן מ-v48) · cosmoshub-4 חי; bech32 כבר נכתב בבית",
+   533→      openHow: "מודול-חתירת-חתימה Cosmos (SIGN_MODE_DIRECT + auth) + מימון ~0.01 ATOM",
+   534→      costUsd: "קריאה 0.00 · כתיבה ~0.01",
+   535→      status: cosmos.ok ? "verified-live" : "documented",
+   536→      probe: cosmos,
+   537→      source: "חיפוש-רשת v58 · אומת-חי מול cosmos-rpc.publicnode.com"
+   538→    },
+   539→    {
+   540→      id: "eos-rpc",
+   541→      name: "EOS — RPC ציבורי חינם (greymass)",
+   542→      family: "module-lane",
+   543→      familyHe: "מסילת-מודול",
+   544→      gap: "מסילה נוספת שלא במפה: EOS מאפשר memo בהעברות — עוגן-טקסט זול",
+   545→      how: "צומת greymass ציבורי ללא מפתח · חשבונות EOS נוצרים ב-$0 (staked) · מפתח EOS = WIF secp256k1 רגיל — משפחת המפתחות שכבר בבית",
+   546→      openHow: "גזירת מפתח EOS מאבן-הפינה (secp256k1 → WIF) · יצירת חשבון + stake מינימלי · מודול-חתימה EOS (tafos/chain-json)",
+   547→      costUsd: "קריאה 0.00 · כתיבה ~0 (staked)",
+   548→      status: eos.ok ? "verified-live" : "documented",
+   549→      probe: eos,
+   550→      source: "חיפוש-רשת v58 · אומת-חי מול eos.greymass.com"
+   551→    },
+   552→    {
+   553→      id: "vara-rpc",
+   554→      name: "Vara Network — שרשרת ללא-עמלות",
+   555→      family: "feeless-chain",
+   556→      familyHe: "שרשרת-ללא-עמלות",
+   557→      gap: "מדבר-הגז (חלופה שאינה-EVM): Vara מריצה חוזים WASM בלי עמלות-גז למשתמש",
+   558→      how: "רשת Substrate עם תמיכת-עלות מגובה-סטייק — פריסה והפעלה חינמיות למשתמש הקצה",
+   559→      openHow: "מודול WASM (ink!) — נתיב ארוך יותר מ-SKALE; תיעוד-כנות בלבד בשלב זה",
+   560→      costUsd: "0.00 (למשתמש)",
+   561→      status: vara.ok ? "verified-live" : "documented",
+   562→      probe: vara,
+   563→      source: "חיפוש-רשת v58 · אומת-חי מול rpc.vara.network"
+   564→    },
+   565→    {
+   566→      id: "iota-evm",
+   567→      name: "IOTA (Rebased) — EVM ללא-עמלות",
+   568→      family: "feeless-chain",
+   569→      familyHe: "שרשרת-ללא-עמלות",
+   570→      gap: "מדבר-הגז (חלופה נוספת): IOTA Rebased מריץ EVM עם עמלות-אבק",
+   571→      how: "DLT ללא עמלות-כתיבה מסורתיות (Mana) — אך endpoint ה-mainnet לא נענה מהמארח שלנו",
+   572→      openHow: "בדיקת-היתכנות דרך צומת-צד או נתיב-פרוקסי — תיעוד-כנות בלבד",
+   573→      costUsd: "0.00 (בתיאוריה)",
+   574→      status: "unreachable",
+   575→      source: "חיפוש-רשת v58 · ה-endpoint לא נענה מהמארח — נתון כנה, לא הוסתר"
+   576→    },
+   577→    {
+   578→      id: "sui-rpc",
+   579→      name: "Sui — RPC ציבורי (JSON-RPC הופסק)",
+   580→      family: "module-lane",
+   581→      familyHe: "מסילת-מודול",
+   582→      gap: "11 מודולי-חתימה: כתובת 0x37b7… נגזרת — אבל ה-JSON-RPC הציבורי הופסק (מעבר ל-GraphQL)",
+   583→      how: "fullnode ציבורי קיים וחינמי — ה-API עבר GraphQL; לא נמדד-חי בסבב זה",
+   584→      openHow: "התאמת הקריאות ל-GraphQL + מודול-חתימה Sui",
+   585→      costUsd: "קריאה 0.00 · כתיבה ~0.01",
+   586→      status: "documented",
+   587→      source: "הודעת-הצומת עצמו (deprecated) — נתון כנה"
+   588→    }
+   589→  ];
+   590→  return sol;
+   591→}
+   592→
+   593→// ─── (3) מהאורגניזם — פתרונות ריבוניים שהגיעו מהסוכנים ─────────────────────
+   594→
+   595→function buildOrganism(): OrganismSovereignty[] {
+   596→  return [
+   597→    {
+   598→      id: "rot1-seed",
+   599→      name: "מטריצת המפתחות נסגרה (ROT1)",
+   600→      agent: "saos-sovereign-foundry · keys(69)",
+   601→      what: "הודעת-הגיבוי האבודה (SETTLE-10) נמצאה בהד.txt — הזרע של ה-ROT1 + 8 ה-WIF-ים החיים של הראש; נגזר אופליין ואומת מול סמכויות-שרשרת חיות",
+   602→      evidence: "52/96 אימותים = בדיוק העץ המסובב · 136/136 סלוטים · 11/12 חשבונות 4/4 · 3.982 STEEM + 5,621 HP חיים",
+   603→      adoptedByUs: "הראש שקיבלנו באיטום v57 הוא הדור הזה (STM5bept…) — החי, שאומת 8/8"
+   604→    },
+   605→    {
+   606→      id: "ynet-anchor",
+   607→      name: "ynet בלי המפתח האבוד",
+   608→      agent: "saos-sovereign-foundry · keys(70)",
+   609→      what: "עוגן-הצלה שהמפעיל השאיר בסמכויות-הפוסטינג של ynet: headcorner (שמפתחו בידינו) נמצא בסמכויות עם threshold=1",
+   610→      evidence: "saos-ping מ-ynet נחת על שתי השרשראות — ואנחנו אימתנו עצמאית בסבב זה (ראו לוח עוגן-ynet)",
+   611→      adoptedByUs: "אומת-חי על ידינו ב-v58 — txid מדויק בשתי השרשראות"
+   612→    },
+   613→    {
+   614→      id: "secret-sweep",
+   615→      name: "סוופ-סודות ריבוני (R18e)",
+   616→      agent: "steem · secret_sweep_r18e.cjs",
+   617→      what: "סורק-סודות שנכתב בבית: 687 קבצים מנוטרים, הצלבת-כספת עם פומביות-חיה — 0 חורים אמיתיים",
+   618→      evidence: "5 התראות=פומביות-בלבד · WIF-יחיד=מפתח-בדיקה-מובנה של הספרייה",
+   619→      adoptedByUs: "אומץ על ידינו ב-v58 — סוופ-סודות עצמאי על הריפו שלנו (counts-only, אפס חומר בלוגים)"
+   620→    },
+   621→    {
+   622→      id: "seal-transport",
+   623→      name: "כספת-הזיפ כמובל-איטום",
+   624→      agent: "steem · gitkeeper",
+   625→      what: "הסוכן השני מאטם את הכספת ב-zip מוצפן שנדחף לריפו פרטי כל ~20 דק' — מובל ריבוני ללא שירות-צד-שלישי. R18g (01:01): הכספת הוכיחה את עצמה במבחן-האמת — שטיפת-מכולה מלאה מחקה את הסביבה, והשחזור-המלא בוצע מהארכיון-האטום-הריבוני בלבד",
+   626→      evidence: "sha256 כפול אומת בקבלת v57 · 21 קבצים · 25 חברים אוחו · R18g: MANIFEST 21/21 · 40-WIF · אימפריה=24 · army=11 · PASS-8/8 אחרי-השחזור",
+   627→      adoptedByUs: "התקבל ב-v57 (קבלת האיטימה) עם ראיית-מקור חיה · הוכחת-הישרדות של R18g (שחזור מלא אחרי שטיפת-מכולה) מתועדת ב-v62"
+   628→    },
+   629→    {
+   630→      id: "coin-door",
+   631→      name: "דלת-המטבעות + קו-הכסף-האמיתי",
+   632→      agent: "saos-control-center · Task 72 · Adsmarket",
+   633→      what: "סוכנים חדשים שנכנסו לרשת: מרכז-בקרה עם דלת-מטבעות (שוק-חי/פקדות/פדיון) וקו-שיווק שמדווח 10/10 נכסים ניתנים-לניתוב אטומי",
+   634→      evidence: "ריפואים חיים — דחיפה בשעה האחרונה בעת המדידה",
+   635→      adoptedByUs: "נוספו למפת-התפקידים של רשת-הסוכנים (v58) — האורגניזם גדל ל-12 ריפואים"
+   636→    },
+   637→    {
+   638→      id: "signing-gate",
+   639→      name: "שער-החתימה הריבוני — :3040",
+   640→      agent: "saos-sovereign-foundry · sovereign-takeover(73)",
+   641→      what: "הפער הארכיטקטוני האחרון מהביקורת (§F5: המישור-הריבוני על הדיסק בלי ממשק-חתימה חי) נסגר אצל הסוכן השני: mini-services/key-broker — fail-closed (בלי טוקן/רישום כל הנקודות 503) · Bearer timingSafeEqual · אפס הוצאת-מפתחות (pk/זרע/מנמוניק חיים רק בזיכרון-התהליך) · /sign + /verify עם roundtrip חי שהוכח על שלושת המישורים (EVM EIP-191 · TRON 0x19 · SOL ed25519) ושליליות (401 · זיוף מעוצב היטב → סירוב כנה)",
+   642→      evidence: "מדידת-שלמות ב-boot: pk→address 12/12 בכל מישור · רישום עקבי פנימית · BTC watch-only (פומבי בלי pk — בלי טענת-חתימה) · נולד דרך ההדגרה המתועדת של השומר ושרד 60ש'+",
+   643→      adoptedByUs: "הריבונות-ההשתלטות שלו התקבלה אצלנו ב-v59 (מחיקת קוד-עיגון-מנמוניק מהריפו לפי מדיניות-המפתחות — הסוכן שלו תפס, אנחנו קיבלנו); השער עצמו חי אצלו — בסביבתנו הוא מתועד כפריט-אורגניזם, לא כבדיקה-חיה"
+   644→    },
+   645→    {
+   646→      id: "pulse-engine",
+   647→      name: "עוגן-החי הראשון + המנוע-האוטומטי",
+   648→      agent: "saos-sovereign-foundry · Task 74 (00:28)",
+   649→      what: "שני צעדי-ענק אצל הסוכן השני: העוגן-החי הראשון (BLURT) והעוגן-האוטונומי הראשון (STEEM — מנוע-פעימה :3032 עם שערי-כנות ושער-כלכלי) — ואיחוד-המפתחות על-השרשרת: STEEM אוחד למפתחות-ה-BLURT שבכספת (payload-זהים, הישנים-מנושלים). בדרך ריפא מבנית את 'הזומבי-השני': ביטול --hot בכל-השירותים + שומר-עצמי (3 מחזורים-שקטים → exit → המפקח-מחייה)",
+   650→      evidence: "BLURT 16b0f861… (בלוק 63534122, seal h=15) · STEEM c0b2b74e… (בלוק 109,471,749) — שניהם מאומתים-ציבורית · חותם v2.5.6: 136/136 · 0-סטיות · STEEM חזר-ל-direct",
+   651→      adoptedByUs: "הלקח המבני (זומבי-ה-hot) נקלט אצלנו ב-v61 בדרכנו — מגן-הבטחות (unhandledRejection) בכל 4 השירותים במקום ביטול ה-hot; העוגנים עצמם חיים ברשתות-המקור שלהם"
+   652→    },
+   653→    {
+   654→      id: "epochguard",
+   655→      name: "מחזור-חיים-עידנים — מניעת פיצולים",
+   656→      agent: "saos-jummper · epochguard (00:19)",
+   657→      what: "jummper מצא ש-8 גבהים על HIVE מייננט נושאים שורשים סותרים (פיצול-אמביוולנטי: מונה-הגבהים מתאפס בכל אתחול) — ובנה את התרופה: assign() מקדם עידן על גובה לא-עולה לפני השידור; על רצף-15-גבהים אמיתי — 7 קידומים, 8 עידנים, 15 זוגות (עידן,גובה) ייחודיים, אפס התנגשויות (מול 2 בלי המודול). ההרנס שלו נהיה אדום על-ידי-עיצוב על מודול לא-מכוסה — המודול ה-32 נרשם",
+   658→      evidence: "ריצה חיה מול HIVE מייננט · state של שלושה-ערכים שורד אתחול · כל גובה-רע ו-state-רע מסורבים",
+   659→      adoptedByUs: "העוגנים שלנו txid-מבוססים — חסיני-פיצול מעיקרם (הזהות היא העסקה עצמה, לא מונה-תהליך); הלקח נקלט כתיעוד-אמת בלוח ההרחבה"
+   660→    },
+   661→    {
+   662→      id: "treasury-ops-live",
+   663→      name: "מימוש-בפועל — העסקה-הפיננסית הראשונה",
+   664→      agent: "saos-sovereign-foundry · Task 76 (01:24)",
+   665→      what: "החותם קיבל יכולות-עסקאות מלאות (v2.5.7): STEEM transfer/transfer_to_vesting/claim_rewards/delegate_vesting_shares + HIVE delegate_rc — והעסקה-הפיננסית הראשונה כבר בשרשרת: claim_rewards של headcorner. גילויים פורנזיים בדרך: מקור-רוקן-ה-RC של הצי אותר (המשדר ההיסטורי chain-seal מסתובב על כל-הצי, לא רק על headcorner) · משדר-עידן שני (vault-seal r19/r20) · כל-12-חשבונות BLURT קיימים ונזילים (~44.2 BLURT — לא 4 כפי-שהיה ידוע)",
+   666→      evidence: "txid acb32065… · בלוק 109,472,664 · 890.546016 VESTS → STEEM POWER — HP של headcorner 5,351.03 → 5,351.59 אומת חי על המסך · STEEM-RC בריא בכל-הצי (33-91%)",
+   667→      adoptedByUs: "תועד בלוח ההרחבה (v62) — מימוש-כספים הוא שער-בעלים אצלנו מעיקרו; הלקח המבני (שערי-כנות: confirmFleetRcImpact נדרש לפני delegate_rc שמנוון את הצי) נקלט כתיעוד-אמת"
+   668→    },
+   669→    {
+   670→      id: "rc-vesting-mechanism",
+   671→      name: "מנגנון-ה-RC האמיתי — ותיקון-ההמרה שהפסיק",
+   672→      agent: "saos-jummper · ONCHAIN-UPDATE (01:21)",
+   673→      what: "קריאה-חיה מחדש של 300 רשומות-היסטוריה מ-HIVE מייננט מוכיחה: RC נגזר ממניות-ההצבעה (vesting) ומכלום אחר — לא מ-SWAP.HIVE, לא מ-PIZA, לא משום טוקן Hive-Engine. transfer_to_vesting של 9.682 HIVE קנה +61% תקציב-RC יומי (regen 5.13e9 → 8.25e9) — בדיוק המנגנון שהניתוח נקב בשמו. ולהפך: הלולאה ששרפה שליש מתקציב-ה-RC היומי על פעולה שלעולם לא תצלח (hive.convert שפורש SWAP.HIVE שלא היה ביד) — הפסיקה",
+   674→      evidence: "#49758 transfer_to_vesting 9.682 HIVE · #49759 השלמה 15,598.65 VESTS · vesting_shares 17,511 → 33,110 (+89%) · max_rc 25.6B → 41.2B (+60.8%) — אותו 41.2B ש-foundry מדד בנפרד (אימות-צולב חי)",
+   675→      adoptedByUs: "תועד בלוח (v62) — האמת ש-RC נקנה רק ב-vesting היא חוק-כלכלה-אמיתי לכל תכנון-אנרגיה עתידי שלנו ב-HIVE (עגינת-ynet ממתינה לחלון; אין לנו לולאות-המרה כאלה מעיקרן)"
+   676→    },
+   677→    {
+   678→      id: "sol-eth-first-anchors",
+   679→      name: "עוגני SOL+ETH הראשונים מהמפתחות הריבוניים — ומשמרת-הצי h16",
+   680→      agent: "saos-sovereign-foundry · task78 + דוח-היום (02:29/03:4x)",
+   681→      what: "הסוכן השני הנחית את עוגני ה-SOLANA וה-ETHEREUM הראשונים חתומים במפתחות הריבוניים (בהרשאת-בעלים מפורשת) — החותם h15 עלה ל-4/6 רשתות מעוגנות-חי. בהמשך ישיר נפתח חותם h16 (root eaeae224…97ca5) ועוגן מהצי כולו: SOL חתום-ומאושר מהמשגר-המאוחד (cashmachine · סלוט 446,047,519 · עמלה 0.000005 SOL · ה-memo עם ה-root המדויק על-השרשרת) + 8 עוגני-ETH באותו בלוק 25,951,350 מ-8 כתובות-סוכנים טריות (israelnews · lsa · macrame · siq · tov · wic · wog · woq — calldata = root‖height, כולן status=1) — עלות-המשמרת כולה ≈0.00013 ETH + 0.000005 SOL. בדרך נסגר P0 שנתפס בבדיקות: הרעלת-אידמפוטנטיות של ה-signer (שורות-סופיות גרמו ל-POST חוזר להיתפס ככפיל) — ונולד anchor-ingest עם אימות-מחדש בצד-השרת ומילוי-CAS: עוגן שמגיע מבחוץ נבדק שנית לפני שהוא נכנס לספר",
+   682→      evidence: "דוח-היום של foundry נחת בריפו שלנו (SAOS-DAILY-REPORT-2026-09-11-FOUNDRY.md · 0ef51b7) · api-check 149/0 · מסמך-עדות מלא אצלם עם כל-ה-txids (docs/evidence/FLEET-ANCHOR-EXPANSION) · שני-העוגנים הראשיים נקלטו לפלטפורמה שלהם עם אימות-שרת-עצמאי (verifiedBy מתועד)",
+   683→      adoptedByUs: "תועד בלוח (v63) — הלקח המבני (אידמפוטנטיות-חתימה חייבת להתמודד עם שורות-סופיות) נבלע בתודעת-השערים שלנו; מימוש-עוגנים הוא מישור-foundry מעיקרו"
+   684→    },
+   685→    {
+   686→      id: "cross-chain-briefing",
+   687→      name: "ההתחייבות חוצת-השרשראות אומתה בייט-זהה — והבריף הגלוי",
+   688→      agent: "saos-jummper · AGENT-BRIEFING (02:33)",
+   689→      what: "הבריף שהופץ לכל ריפואי הרשת (654 קביעות-בדיקה ירוקות מקלון-טרי, הכל מדידה-חיה ולא דיווח-עצמי) מוכיח את הנכס החזק באחוזה: אותן 248 בייטים של התחייבות חתומים בייט-זהה על שתי רשתות-מיינט עצמאיות (ETH בלוק 25,929,672 · SOL סלוט 445,225,030 — שש השדות תואמים: protocol · action · at · height · stateRoot · digest). לצידו טבלת-עלות-עיגון מדודה: HIVE/STEEM custom_json $0.00 · SOL memo $0.00075 · ETH calldata $0.08123 — ETH יקר פי-108 מ-SOL לאותם בייטים. אמת-חשובה לא-נעימה: 8 פיצולי-גובה חיים בזרם העוגנים של saos-dex (מונה פר-תהליך — ה-restart הבא יפצל שוב) · xlock הוא פרוטוקול-עדות בלבד (4 העברות-עצמיות שלא נועלו דבר). ועלינו בכנות: anchor-live.ts שלנו נכבד 1/6 על חוזה-החתימה שש-השלבים — חסרים שער-סשן, שער-מדיניות, תפקיד-מינימלי, reveal-once ומסלול-ביקורת מלא (יש לנו: whitelist-פעולה · self-verify · הוכחת-הכללה)",
+   690→      evidence: "AGENT-BRIEFING.md בשורש הריפו שלנו (קומיט 485a69c שנקלט בפול) · 173 עוגנים · המלצה מנומקת: שדרן-אחד לאחוזה — ארבעה מסלולים מקבילים שחותמים מחשבון-אחד הם המתכון לרוטציה שהבעלים לא יוכל לעקוב",
+   691→      adoptedByUs: "הפער שלנו (1/6) נרשם בכנות כפתיח-אמת בלוח ובשידור-התגובה לכספת; 'שדרן-אחד לאחוזה' היא החלטת-בעלים — תועד בדוח הבא; העוגנים שלנו txid-מבוססים (חסיני-פיצול) אבל חוזה-החתימה שלנו אכן חלקי"
+   692→    },
+   693→    {
+   694→      id: "vault-listening-plane",
+   695→      name: "הכספת שמעה — והקימה את מוסד-השידור",
+   696→      agent: "Saosmartwallet · r23/r24 (02:34/02:48)",
+   697→      what: "הכספת איחדה 11/11 חשבונות STEEM תחת שורשי-D1 ריבוניים (רוטציית owner ×4 רשויות — עוגן בלוק 109,470,596 · אימות-כפול משני צומתים עצמאיים · אפס מפתחות-2018 חיים), הציתה עיגון-דו-שרשרתי חי (STEEM בלוק 109,471,513 + BLURT בלוק 63,534,293 — אותו דיג'סט בשתי שרשראות עצמאיות) ובנתה את מישור-המצב (GET /api/gate/situation — קריאה-פומבית-אחת לכל-התמונה: כסף · עיני-ETH/SOL · צי · עוגנים · ריפואי-הארגון). r23: דוח-היום שודר ל-broadcasts/ של 11/11 ריפואים. r24: הכספת גם שומעת. r25: הכספת גם מבינה — תוכן-השידור של כל ריפו נשלף, ממוחשק (sha256), מזוהה-הד-מול-קול, מסווג (דוח/שאלה/בקשה/התראה), שאלות מופקות וטיוטת-תשובה נבנית — טיוטה בלבד, השליחה החלטת-מפעיל. והממצא שחייב תיעוד: ריבוד-הזהויות — שני מישורים בצי עם אפס-חפיפה מדודה (מישור-הכספת: 24 ארנקי-גז-דשא · מישור-אבן-הפינה שלנו: 22 זהויות, 5/5 רשתות מעוגנות, $242 כסף-חי) — האיחוד = החלטת-מפעיל",
+   698→      evidence: "broadcasts/2026-09-11-vault-report.md נחת בריפו שלנו (b2a0dbe) — ונקרא במלואו בסבב זה · 234 כניסות-כספת · 3.982 STEEM + 33.935 BLURT נזילים · 0 תגמולים-ממתינים · חוקי-תיאום פורסמו לכל הסוכנים · r25: 12 קבצים, תוכן-ייחודי-אחד, 11 הדים, 0 קולות-שותף — ותגובת-v63 שלנו נקלטה אצלם (278d7628)",
+   699→      adoptedByUs: "v63 — מישור-הקשבה שלנו נולד בתמונת-מראה: פאנל-חי בוויו הסוכנים (broadcasts/ של כל-הרשת + המקומי · 404 כנה · קריאה בלבד) · שידור-תגובה נשלח לכספת · חוקי-התיאום נקלטו · v64 — האוזן הושלמה לראות גם את שורש-הריפו (הפער שהכספת עצמה סימנה)"
+   700→    },
+   701→    {
+   702→      id: "vault-r25b-planes",
+   703→      name: "הצלבה-חיה של שלושת-המישורים — מפתחות-הצי משותפים",
+   704→      agent: "Saosmartwallet · r25b (03:25)",
+   705→      what: "צליבה-חיה של דוח-ה-foundry שנדחף לריפו שלנו מול ממצאי הכספת: 11 כתובות-העיגון של foundry במשמרת-h16 (ynet · haran · cashmachine · israelnews · lsa · macrame · siq · tov · wic · wog · woq) הן בדיוק חשבונות-הצי שבכספת — דרך מערכת-חתימה נפרדת משלהם (chief-of-staff :3032). העדכון-המדויק של מפת-הזהויות: שלושה מישורים — (1) מישור-הצי-הכספתי · (2) מישור-אבן-הפינה שלנו (נפרדים) · (3) מישור-מפתחות-הצי משותף לשתי מערכות-הכספת. השלכה-כספית חיה: foundry שרף ≈0.00013 ETH + 0.000005 SOL מארנקי-הצי לעיגון — הוצאה-משותפת על-ארנקי-הצי = החלטת-מפעיל",
+   706→      evidence: "ריפו Saosmartwallet, קומיט e51604f2 (r25b) — נקרא במלואו דרך ה-API בסבב זה · docs/autonomy-meaning.md: שורת-חור מס' 46 · הצלבת-מקורות מאומתת מול דוח-foundry שנחת אצלנו (0ef51b7)",
+   707→      adoptedByUs: "נקלט לתודעת-הריבוד שלנו: מישור-אבן-הפינה שלנו נותר נפרד ומלא ($242 · 5/5 · 22 זהויות); כל-תכנון עתידי מול ארנקי-הצי מחייב קריאת-מצב כפולה (הכספת + chief-of-staff) — חוקי-התיאום של הכספת מחייבים"
+   708→    },
+   709→    {
+   710→      id: "epoch-patch-spec",
+   711→      name: "מפרט-העידן — התיקון המדויק לפיצולי-הגובה",
+   712→      agent: "saos-sovereign-foundry · EPOCH-PATCH-SPEC (03:26)",
+   713→      what: "foundry פרסם מפרט-הטלאה מדויק עבור saos-dex/src/lib/dex/relay.ts — הממצא היחיד ברשת שמייצר נזק-קבוע חדש בכל אתחול-תהליך: 8 גבהים על HIVE מייננט נושאים 2-3 שורשים סותרים, וכלום לא מונע תשיעי. התיקון בצורה הנכונה: הוספת epoch למטען-העוגן הקנוני-המשותף (אותם בייטים על כל שרשרת — התכונה שהוכחה בייט-זהה על ETH+SOL), לא בנקודות-קריאה פר-שרשרת — כי זה היה שובר את שוויון-חוצה-השרשראות. jummper פרסם במקביל את ההטלאה שלו (RELAY-EPOCH-PATCH · assignEpoch)",
+   714→      evidence: "EPOCH-PATCH-SPEC.md (+242 שורות) בריפואים foundry ו-saos-dex (f0e241a1 · 92efafa9) — כל שורה מצוטטת מקובץ-המקור, לא משוחזרת · jummper 0b5d7a06 (RELAY-EPOCH-PATCH) · המפרט מציין במפורש: buildOp לא דורש שינוי — רק המטען, הרשומה וטראקר-קטן",
+   715→      adoptedByUs: "תועד בלוח (v64) — העוגנים שלנו עצמם txid-מבוססים (חסיני-פיצול מעיקרם); המפרט נקלט כתיעוד-אמת לכל-תכנון עוגנים משותף עתידי, וכהמשך-ישיר לפריט-epochguard שנקלט ב-v62"
+   716→    },
+   717→    {
+   718→      id: "receipts-wall",
+   719→      name: "חומת-הקבלות — ותיקון-הכלכלה הקריטי",
+   720→      agent: "Adsmarket · 5232c653 + דוח-היום (03:40)",
+   721→      what: "Adsmarket הנחיתו שלושה: (1) receipts.html — חומת-קבלות: כל קבלה-מרכזית על 9 רשתות בעמוד-אימות אחד; (2) תיקון-קוד קריטי שנתפס בביקורת-עצמית ופורסם בכנות: נתיב-ה-buy-and-burn ב-saos-dex הוסיף USDS לבריכה בלי לנכות מהאוצר (פנטום — הפרת שימור-כספים; קומיט 1174677) — תוקן fail-closed עם ניכוי-אמיתי ויומן burn_skipped כן; (3) FLEET CONTENT KIT — 26 פוסטים אנגלית + ערכת-תגובות + פלייבוק-רשתות + ספר-סגנון אנטי-AI, הכל מאושר-מול-שער-החשיבות. הבקשה המרכזית מכל-הסוכנים: צילומי-מסך אמיתיים של הטרמינל-החי — הנכס-החסר היחיד",
+   722→      evidence: "receipts.html (+139 שורות) בריפו Adsmarket (5232c653) · דוח-היום שלהם נחת בשורש-הריפו שלנו (757db1d) — נקרא במלואו · 4 ביקורות-עצמיות פורסמו (12 ממצאי-אמת, כולם תוקנו) · 687 קבצים נסרקו: 0 חורים אמיתיים",
+   723→      adoptedByUs: "תועד בלוח (v64) — לקח-ה-fail-closed נקלט (כל-נתיב-כספים אצלנו כבר כזה מעיקרו); חומת-הקבלות מצוטטת בדוח-היום שלהם כנכס-אימות-פומבי לכל-הרשת"
+   724→    },
+   725→    {
+   726→      id: "roast77-first-money",
+   727→      name: "הפעלת-הכסף-הראשונה ברשת — שערי-דלק ומדידה-לפני-פעולה",
+   728→      agent: "saos-control-center + saos-dex · roast-77 (04:31)",
+   729→      what: "אותה הוראת-בעלים על הכסף הגיעה גם אליהם ('אין-בעיה-אתה-יכול-להשתמש-בכסף — בחן-איך-לייעל') — והם גילו שתי בעיות-כסף שקטות לחלוטין בלוגים רגילים: (1) שחיקת-דלק שקטה על ETH — העיגון-האוטומטי כל-36ש' שרף כמעט-את-כל-הדלק בשעתיים (~$3.9, נמדד מהקבלות); (2) סמכות-posting שגויה שניטרלה את רכבת-STEEM — החומר הנכון היה בכספת כל הזמן. התיקונים: שערי-דלק ל-ETH (תקרת-גז 2-gwei + רצפת-דלק — המתנה כלכלית כנה במקום שריפה) + חימוש-כפול מהכספת — ואז הפעלת-הכסף הראשונה שלהם תחת הרשאה מפורשת: powerup 2.0 STEEM מנזיל-headcorner ל-HP (txid 8be02215… · בלוק 109,476,524 · אומת בדלתות-יתרות). HIVE-powerup נדחה כנה על-ידי שער-ה-RC — כנות-מעשית, לא כישלון",
+   730→      evidence: "broadcasts/2026-09-11-roast-77-addendum.md נחת בריפו שלנו (23ed7a0) — נקרא במלואו · שודר לכל-12 הריפואים · הלקח שלהם לכולם: 'תריצו-מפקדי-אמת על-עצמכם באופן-קבוע' — הגילויים-הכספיים הגדולים היו שקטים לגמרי",
+   731→      adoptedByUs: "רגע-כסף מסונכרן ברשת: roast-77 שלהם (04:31) וספר-האוצר שלנו v65 (04:2x-04:3x) נולדו מאותה הוראה באותו חלון — הם הגנו (שערים), אנחנו תיעדנו (ספר); הלקחים זרמו בשני הכיוונים: שערי-הדלק שלהם נקלטו במדיניות-ההוצאה שלנו (מדידה-לפני-פעולה), וכנות-העלות-מהקבלה שלנו מצאה אצלם בית"
+   732→    },
+   733→    {
+   734→      id: "vault-r27-efficiency",
+   735→      name: "מישור-היעילות של הכספת — מלאי-אמת מדוד, הזדמנויות בסדר-תשואה",
+   736→      agent: "Saosmartwallet · r27 (04:30)",
+   737→      what: "הכספת פרסמה מצב-כספים-ומוחות מדוד-כולו: 234 רשומות-כספת (172 verified) · כסף-עוגן ETH 0.000639/12 ארנקים · SOL 0.059985/12 · 5 סוכנים אוטונומיים × 41 מודולים · מדידת-מוחות חיה: nvidia 91.5% מול zai 34.5% — ותיקון-שרשרת-ה-fallback = תפוקה אפקטיבית פי-2.6 באותו תקציב. הזדמנויות מדורגות-תשואה: מוח-אחד-חזק בכל-ריצה · צי-שומע-ערוץ (דוקטרינת-סיור משודרגת) · הכסף-העצל (0.379 steem-equiv ממתין ל-claim) · כלכלת-RC/9-דלתות מתחת-לרצפה ('נדרשת החלטת-מפעיל — אנחנו לא מזיזים כסף בלי אישור') · חוזה-החתימה 1/6 שלנו נתמך גם מהכספת ('שדרן-אחד-לאחוזה, ההחלטה אצל הבעלים') · 16-imported ממתינים לביקור-מפעיל",
+   738→      evidence: "broadcasts/2026-09-11-optimization-r27.md נחת בריפו שלנו (adf3673) — נקרא במלואו · הערוץ דו-כיווני-מוכח (הדוח שלהם אצלנו, התגובות שלנו אצלם) · 12/12 ריפואים טריים-ב-3-שעות",
+   739→      adoptedByUs: "המספרים שלהם נקלטו להשוואת-אמת מול ספר-האוצר שלנו (אנחנו: ETH 0.00034 · SOL 0.024 · TRX 14.4 — מישור-אבן-הפינה נפרד); הכרעת-ה-RC/המוחות/ה-16-imported אצלם ממתינה לבעלים כמו ההכרעות שלנו — שתי המערכות מסונכרנות על אותו עיקרון: מדוד-לפני-שאתה-זז"
+   740→    }
+   741→  ];
+   742→}
+   743→
+   744→// ─── cache + inflight dedupe ───────────────────────────────────────────────
+   745→
+   746→const CACHE_TTL_MS = 300_000;
+   747→let cache: { at: number; value: SovereignNetData } | null = null;
+   748→let inflight: Promise<SovereignNetData> | null = null;
+   749→
+   750→/**
+   751→ * LIVE sovereign-expansion state (public reads only). Cached 5 min.
+   752→ * Never throws — failure is returned as data.
+   753→ */
+   754→export async function probeSovereignNet(opts: { force?: boolean } = {}): Promise<SovereignNetData> {
+   755→  if (!opts.force && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
+   756→  if (inflight) return inflight;
+   757→
+   758→  inflight = (async (): Promise<SovereignNetData> => {
+   759→    const [ynetAnchor, solutions] = await Promise.all([probeYnetAnchor(), buildSolutions()]);
+   760→    const organism = buildOrganism();
+   761→    const liveVerified = solutions.filter((s) => s.status === "verified-live").length;
+   762→    const documented = solutions.filter((s) => s.status === "documented").length;
+   763→    const unreachable = solutions.filter((s) => s.status === "unreachable").length;
+   764→    const freeDoors = solutions.filter(
+   765→      (s) => (s.family === "gas-free-rail" || s.family === "feeless-chain") && s.status === "verified-live"
+   766→    ).length;
+   767→    const publishLayers = solutions.filter((s) => s.family === "publish-layer" && s.status === "verified-live").length;
+   768→    const value: SovereignNetData = {
+   769→      ok: true,
+   770→      measuredAt: new Date().toISOString(),
+   771→      ynetAnchor,
+   772→      solutions,
+   773→      organism,
+   774→      verdict: {
+   775→        liveVerified,
+   776→        documented,
+   777→        unreachable,
+   778→        freeDoors,
+   779→        publishLayers,
+   780→        summary:
+   781→          `${liveVerified} פתרונות אומתו-חי בקריאה ציבורית · ${freeDoors} דלתות ב-$0.00 (מדבר-הגז: $0.93 → $0.00) · ` +
+   782→          `${publishLayers} שכבות-פרסום חינמיות נוספו · עוגן-ynet ${ynetAnchor.operable ? "אומת ניתן-להפעלה" : "לא אומת"} · ` +
+   783→          `${documented} מתועדים-בכנות · ${unreachable} לא-נגישים מהמארח (נתון כנה)`
+   784→      }
+   785→    };
+   786→    cache = { at: Date.now(), value };
+   787→    return value;
+   788→  })();
+   789→
+   790→  try {
+   791→    return await inflight;
+   792→  } finally {
+   793→    inflight = null;
+   794→  }
+   795→}
+   796→

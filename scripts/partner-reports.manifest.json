@@ -1,0 +1,120 @@
+{
+  "_comment": "partner-reports manifest — what partner repos must hold under docs/reports (blob shas). consumed by scripts/verify-partner-pulses.mjs. round 5 (trace 1a094997ceec1305): +2 uniform (h20-consolidation-2, roast-78-addendum — caught never-delivered), NEW 'targeted' section (partner-specific reports delivered ONLY to their designated repo — a gap class the uniform matrix was blind to, all were 404), NEW 'repoLocal' (main-repo-internal docs, by design not broadcast). 19 uniform × 11 = 209 + 3 targeted = 212 cells | NOTE (measured): H20-CONSOLIDATION-2.md is byte-identical (sha 6b8bc9e4…) to H20-CONSOLIDATION.md — the content was already at all 11 under the canonical name; only the duplicate FILENAME was missing. The real content gaps this round were roast-78-addendum + the 3 targeted partner reports. | h27 cycle (same round): +1 uniform (H27-ELEVENTH-CYCLE) → 20 uniform × 11 = 220 + 3 targeted = 223 cells | R7 (trace 1a094dfdfc89f151, conversion-verdict round): +1 uniform (CONVERSION-VERDICT-H28) → 22 uniform × 11 = 242 + 3 targeted = 245 cells · round 8 (R8 eighth audit): +1 uniform (R8 pulse) — MAGEN enforcement per-module closed (smartvault/agri), fleet-arm jsonRpc timeout, open-meteo registered, agentMessage N+1 merged | R9 (trace 1a09545a5286ac99, zero-breakthrough round): +1 uniform (R9 pulse) — THE ZERO BREAKTHROUGH: Z Chain (chainId 9369) measured zero-gas; 7/7 seals anchored on-chain at $0.00 (7 real confirmed EVM mainnet txs); agri.tsx key-prop console error fixed (owner-reported); rpc.zero.tech registered; fleet-evm-head-seed re-sealed into envelope; honest owner-gaps documented (cornerstone seed absent · STEEM WIFs stale since 117o) | R15 (trace 1a09928027f40c55, server-fell truth-sweep round): +1 uniform (R15 pulse) — the eternal ethers network-detection loop on the dead lab chain (127.0.0.1:8545, globalThis-cached provider) was the measured server-killer, killed with staticNetwork; 13 honesty/malfunction fixes: agri number-level simulator badges (was stamped נמדד), GET energy/economy no longer forge chained receipts per poll (~4300 rows/day spam), irrigation toggle failure-was-shown-as-success fixed, network360 18.7-TRX/3-tx/eight-contracts frozen figures derived or relabeled, networks ecosystem map labeled archive, energy sim-fallback disclosed in-panel, micro wordings | R16 (trace 1a0996284de798ed): +1 uniform R16-MESH-GATE (blob-sha via git hash-object — שיעור-R15). | R17+ (32 files) · round R20 (trace 1a09b0587a3c9e79): +1 uniform (continuity-closed, foundry item closed-by-extinction) = 35 uniform × 11 + 3 targeted · round R21 (trace 1a09b4c7423d8c5d): +1 uniform (wedge-cure, keeper v45, db-tune WAL) = 36 uniform × 11 + 3 targeted",
+  "org": "roshpinacare-sys",
+  "dir": "docs/reports",
+  "repos": [
+    "roshpina",
+    "Saosmartwallet",
+    "steem",
+    "saos-jummper",
+    "saos-sovereign-foundry",
+    "saos-control-center",
+    "saos-dex",
+    "Adsmarket",
+    "Sdk",
+    "anchor-baseline",
+    "Project-files"
+  ],
+  "files": {
+    "CLAIMS-AUDIT-2026-09-12.md": "a4d1ccb0a80a582b50c89b8167d8eed487ccc95b",
+    "SAOS-DAILY-REPORT-2026-09-11.md": "4a6f235ec69632f8bb4ef3a780be3e693f021ef4",
+    "SAOS-PULSE-2026-09-11-H16-COMPLETE.md": "7dca8c86ad03bbb2af797d55836410ef512c8488",
+    "SAOS-PULSE-2026-09-11-H16-SIX-OF-SIX.md": "f085abb70930a6cf1402c1f3418f3034c6866aff",
+    "SAOS-PULSE-2026-09-11-H17-REPEAT.md": "9d6c47cc0f3acf144b4f2f5eee8932f9dd05c3b0",
+    "SAOS-PULSE-2026-09-11-H18-THIRD-CYCLE.md": "ee0f64af7a45f1984e8fe979e4894e6dcb114562",
+    "SAOS-PULSE-2026-09-11-H19-FOURTH-CYCLE.md": "a81df73e929df44ab5a93957d226e1359b7cc447",
+    "SAOS-PULSE-2026-09-11-H20-FULL-MATRIX-CONSOLIDATION.md": "6b8bc9e42eb16109b8ca2a198021518e0affb693",
+    "SAOS-PULSE-2026-09-11-H21-SIXTH-CYCLE.md": "11ec30942bbba144bddfd83d6ee45db3967c11fa",
+    "SAOS-PULSE-2026-09-11-H22-H23-AUTOMATION.md": "a973bb27b0be0b3ed3e427165d50f19afd4cec43",
+    "SAOS-PULSE-2026-09-11-H24-EIGHTH-CYCLE.md": "2dd3b7d46b6340bb2aa5e53deea427ff0f840fd8",
+    "SAOS-PULSE-2026-09-12-H25-NINTH-CYCLE.md": "53d1ee227aec5abd6ca9fc57d7a521e318f509c1",
+    "SAOS-PULSE-2026-09-12-H26-TENTH-CYCLE.md": "b1b30445c3e885cb0dd4c9af9f01b7db538cd3c9",
+    "TOKEN-DOSSIER-2026-09-12-V77.md": "74bf34ac2c2d9e51d5b2ad28e07fd634c58264a5",
+    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R2.md": "2f677e56594eb31fc795c7f67b2d47da01c851f9",
+    "CLAIMS-AUDIT-PREVIEW-2026-09-12.md": "c7a8362519f2a3798710a9115ff6139422613c1a",
+    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R3.md": "8b49c6702241624efc8448d8ea5b26d0aa3d6731",
+    "SAOS-PULSE-2026-09-11-H20-FULL-MATRIX-CONSOLIDATION-2.md": "6b8bc9e42eb16109b8ca2a198021518e0affb693",
+    "2026-09-11-roast-78-addendum.md": "f8047b14e4f0293bfbbbae2a3b46373caf16f16e",
+    "SAOS-PULSE-2026-09-12-H27-ELEVENTH-CYCLE.md": "599239a4f897df08894d222c763b9c04de81af8a",
+    "SAOS-PULSE-2026-09-12-CLAIMS-AUDIT-R6.md": "a854ee214df7463b196da31f31e86869d6109d22",
+    "SAOS-PULSE-2026-09-12-CONVERSION-VERDICT-H28.md": "c5bf654b00d25187e55b81a955bb94d07ee7e0fb",
+    "SAOS-PULSE-2026-09-12-R8-EIGHTH-AUDIT.md": "856e5b6d7883fc631660f5f54077fd8d5aaef60a",
+    "SAOS-PULSE-2026-09-12-R9-ZERO-BREAKTHROUGH.md": "6be8c73e9cfaa6c656b9bf0fd7d14e7bdd44ae7e",
+    "SAOS-PULSE-2026-09-12-R10-VAULT-SELF-HEAL.md": "fcbf6fe9b5be1f5435990a069aea9837f744b935",
+    "SAOS-PULSE-2026-09-12-R11-UNIVERSAL-ACCESS.md": "267f136169bd3ad56f493b710491c967566cdfda",
+    "SAOS-PULSE-2026-09-13-R12-RESYNC.md": "73eaf087485d60b0a338bacc366f3957e08d9b03",
+    "SAOS-PULSE-2026-09-13-R13-CONSOLE-REVIVAL.md": "5ac7f93d6795320a6472633ee0fd6702f240b3a4",
+    "SAOS-PULSE-2026-09-13-R14-FULL-SWEEP.md": "653c19f7be2f68e890abc594f6da1bbd4bf504b5",
+    "SAOS-PULSE-2026-09-13-R15-SERVER-FELL-TRUTH-SWEEP.md": "f3ec2a200983679922182a6800cf60db6b96e95b",
+    "SAOS-PULSE-2026-09-13-R16-MESH-GATE.md": "7d7016964ec8bf5ea64cc7b227b03087c0be551d",
+    "SAOS-PULSE-2026-09-13-R17-GITHUB-SECURE-CONNECTION.md": "6f99743498c2a149113cde54070346aece72b261",
+    "SAOS-PULSE-2026-09-13-R18-PAT-LOCKOUT.md": "7e71092437c6ec92640e316b4ae92d96e54f2f0e",
+    "SAOS-PULSE-2026-09-13-R19-SUPERVISOR-RESTORED.md": "17e8eec2ad04eb04784beb74c0f035e160a727bb",
+    "SAOS-PULSE-2026-09-13-R20-CONTINUITY-CLOSED.md": "60409a0b589688d9909148c002723d40dfcb7476",
+    "SAOS-PULSE-2026-09-13-R21-WEDGE-CURE.md": "d3de503e06feffd44f72aa6455a05b6491b1a120",
+    "SAOS-PULSE-2026-09-13-R22-SURVIVABLE-HOME.md": "647220e16f9ae4b8024ed8ff85f1cc77cb489ffd"
+  },
+  "targeted": {
+    "Adsmarket": {
+      "SAOS-DAILY-REPORT-2026-09-11-ADSMARKET.md": "1b604e24705efe5a070bed7b815f73cf05777736",
+      "SAOS-STRATEGY-2026-09-11-ADSMARKET.md": "b3cb6c55c824dd0d59ee55cb79708e4f6c5a23ec"
+    },
+    "saos-sovereign-foundry": {
+      "SAOS-DAILY-REPORT-2026-09-11-FOUNDRY.md": "b22b72396d392dc0b59e3c3942f6bea872ca7bbc"
+    }
+  },
+  "repoLocal": [
+    {
+      "file": "README.md",
+      "reason": "repo-internal readme"
+    },
+    {
+      "file": "worklog.md",
+      "reason": "main-repo operational worklog"
+    },
+    {
+      "file": "AGENT-BRIEFING.md",
+      "reason": "agent onboarding, main-repo internal"
+    },
+    {
+      "file": "CONTROLS-THAT-EXIST.md",
+      "reason": "repo-internal controls reference"
+    },
+    {
+      "file": "EPOCH-PATCH-SPEC.md",
+      "reason": "engineering spec, not a report"
+    },
+    {
+      "file": "RELAY-PATCH-2.md",
+      "reason": "engineering patch note, not a report"
+    },
+    {
+      "file": "SAOS-BRIEFING-2026-09-11-OUTER-ANCHOR.md",
+      "reason": "owner briefing (repo-local by design)"
+    },
+    {
+      "file": "SAOS-BRIEFING-2026-09-11-ROAST-80.md",
+      "reason": "owner briefing (repo-local by design)"
+    },
+    {
+      "file": "SAOS-BRIEFING-2026-09-11-ROAST-84.md",
+      "reason": "owner briefing (repo-local by design)"
+    },
+    {
+      "file": "docs/FORENSIC-AUDIT.md",
+      "reason": "repo-internal forensic notes"
+    },
+    {
+      "file": "docs/FORENSIC-AUDIT-ADDENDUM.md",
+      "reason": "repo-internal forensic notes"
+    },
+    {
+      "file": "docs/HEADCORNER-RECOVERY.md",
+      "reason": "repo-internal recovery note"
+    },
+    {
+      "file": "docs/TOKEN-DOSSIER.md",
+      "reason": "canonical source; broadcast copy = TOKEN-DOSSIER-2026-09-12-V77.md"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "swarm-agent-token",
+  "network": "SAOS",
+  "agent": "gold-scout",
+  "role": "worker",
+  "apiKey": "saos-agent-gold-scout-7e406034b9d87f9c415fdc72d7cd4452d6e455c032f86d88",
+  "armedAt": "2026-09-29T17:10:34.609Z"
+}

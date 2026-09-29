@@ -1,0 +1,909 @@
+     1→/**
+     2→ * lib/saos/security.ts — v24.0.0 MAGEN (מגן): ריבונות-אבטחה של האורגניזם.
+     3→ * =====================================================================
+     4→ * הוראת הבעלים: "לחזק את מה שעשית, לוודא ולבדוק שאין דימומים. חשוב
+     5→ * להיזהר מפישינג וקודים זדוניים — עכשיו שאנחנו מחוברים לרשתות צריך
+     6→ * לאבטח את עצמנו: לעבוד רק עם גדולים וידועים, ולא לפתוח או לבדוק
+     7→ * טוקנים מפישינג."
+     8→ *
+     9→ * התשובה — ארבע שכבות, כולן fail-closed:
+    10→ *
+    11→ *   1. שער-פישינג (assertTrustedUrl / trustedFetch): כל יציאת רשת
+    12→ *      חייבת להיות למארח מהרישום המפורש בלבד — רשמי (בינאנס, גיטהאב,
+    13→ *      TRON, Solana, BNB Chain, STEEM, HIVE, BLURT, אנוויל מקומי) או
+    14→ *      תשתית-ציבורית-גדולה מוכרת (publicnode, DRPC, MEVBlocker,
+    15→ *      Arcange…). מארח לא-רשום = חריגה מיידית. אין redirect-following,
+    16→ *      אין userinfo ב-URL, אין יציאה לכתובות פרטיות (SSRF), אין
+    17→ *      פורטים זרים. טוקן/פרוטוקול חדש נכנס רק ברישום מפורש מהארכיטקט.
+    18→ *
+    19→ *   2. שומר-טוקנים (KNOWN_TOKENS / assertKnownToken): רק המטבעות
+    20→ *      הגדולים והידועים — WETH/USDC/USDT/WBTC/DAI ב-ETH,
+    21→ *      WBNB/USDT/USDC/BUSD ב-BSC — עם אימות EIP-55 checksum מלא.
+    22→ *      כתובת שאינה ברישום או שאינה עוברת checksum = חסימה. "לא
+    23→ *      פותחים או בודקים טוקנים" — מומש מילולית.
+    24→ *
+    25→ *   3. חיזוק הכספת: ביקורת הרשאות (0600) + ביקורת gitignore של
+    26→ *      קבצי-הכתר + קנרית-זרע: שלוש-מילים רצופות מהמנמוניקות החתומות
+    27→ *      (נקראות בתוך-תהליך, אף פעם לא מודפסות) — אם אי-פעם ידלפו
+    28→ *      לקובץ/יומן/היסטוריה — הקנרית מאתרת את זה בדיוק של אפס
+    29→ *      חיובים-שקריים.
+    30→ *
+    31→ *   4. סורק-דימומים (securityScan): סריקת העץ (קבצים במעקב),
+    32→ *      היסטוריית git (כל blob), זנב dev.log — חיפוש PAT מלא,
+    33→ *      מנמוניקות תקפות-BIP39, WIF — תוצאות ללא תוכן הסוד אי-פעם.
+    34→ *
+    35→ * Truth discipline: המודול הזה לעולם לא מדפיס סודות (findings מכילים
+    36→ * קובץ+שורה+סוג בלבד) · fail-closed בכל שכבה · כישלון סריקה מדווח
+    37→ * בכנות ולא נבלע.
+    38→ */
+    39→
+    40→import { execFile as execFileCb, spawn } from "child_process";
+    41→import { ethers } from "ethers";
+    42→import * as fs from "fs";
+    43→import * as path from "path";
+    44→import { withVaultMember } from "@/lib/vault-seal";
+    45→import { db } from "@/lib/db";
+    46→
+    47→const REPO = process.cwd();
+    48→
+    49→// ─── 1. הרישום המהימן — "רק גדולים וידועים" ────────────────────────────────
+    50→
+    51→export interface TrustedHost {
+    52→  host: string;
+    53→  org: string;
+    54→  tier: "official" | "major";
+    55→  role: string;
+    56→}
+    57→
+    58→export const TRUSTED_HOSTS: TrustedHost[] = [
+    59→  // — רשמיים: הגוף עצמו מפעיל —
+    60→  { host: "api.binance.com", org: "Binance", tier: "official", role: "אורקל מחירים (טיקר חי)" },
+    61→  // R8 ביקורת: התכונה החקלאית (v82) קוראת ל-Open-Meteo מאז נחיתתה והמארח
+    62→  // לא היה ברישום — פער-רישום אמיתי; נסגר: המארח רשמי, קריאה בלבד.
+    63→  { host: "api.open-meteo.com", org: "Open-Meteo (רשמי)", tier: "official", role: "תחזית גשם/חום חקלאית (v82 agri)" },
+    64→  { host: "api.coingecko.com", org: "CoinGecko", tier: "official", role: "אורקל מחירים (BLURT)" },
+    65→  { host: "api.github.com", org: "GitHub", tier: "official", role: "מדידת האורגניזם (11 ריפואים)" },
+    66→  { host: "raw.githubusercontent.com", org: "GitHub", tier: "official", role: "כתובות פומביות בלבד (קריאה)" },
+    67→  { host: "api.trongrid.io", org: "TRON (רשמי)", tier: "official", role: "יתרות TRX / אוצר" },
+    68→  { host: "api.mainnet-beta.solana.com", org: "Solana Labs (אשכול רשמי)", tier: "official", role: "יתרות SOL" },
+    69→  { host: "bsc-dataseed.bnbchain.org", org: "BNB Chain (רשמי)", tier: "official", role: "RPC BSC" },
+    70→  { host: "api.steemit.com", org: "STEEM (רשמי)", tier: "official", role: "עוגנים · היסטוריה · יתרות" },
+    71→  { host: "api.hive.blog", org: "HIVE (רשמי)", tier: "official", role: "יתרות RC" },
+    72→  { host: "rpc.blurt.world", org: "BLURT (רשמי)", tier: "official", role: "יתרות BLURT" },
+    73→  { host: "rpc.blurt.live", org: "BLURT (רשמי)", tier: "official", role: "יתרות BLURT (רוטציה)" },
+    74→  { host: "xrplcluster.com", org: "XRPL Labs · קלאסטר ציבורי XRPL", tier: "official", role: "יתרות XRP / רזרבה / היסטוריה (443)" },
+    75→  { host: "127.0.0.1", org: "מעבדה מקומית", tier: "official", role: "anvil :8545 · שרת :3000 (פנימי)" },
+    76→  // — תשתית ציבורית-גדולה וידועה —
+    77→  { host: "ethereum-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC ETH (רוטציה)" },
+    78→  { host: "bsc-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC BSC (רוטציה)" },
+    79→  { host: "solana-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC SOL (קריאה)" },
+    80→  { host: "eth.drpc.org", org: "DRPC", tier: "major", role: "RPC ETH (רוטציה)" },
+    81→  { host: "rpc.mevblocker.io", org: "Flashbots · MEV Blocker", tier: "major", role: "RPC ETH (הגנת MEV)" },
+    82→  { host: "hive-api.arcange.eu", org: "Arcange (צומת קהילה HIVE)", tier: "major", role: "קריאה כפולה RC" },
+    83→  { host: "steem-api.arcange.eu", org: "Arcange (צומת קהילה STEEM)", tier: "major", role: "רוטציה קריאות" },
+    84→  { host: "api.deathwing.me", org: "Deathwing (צומת HIVE)", tier: "major", role: "רוטציה קריאות" },
+    85→  { host: "anyx.io", org: "Anyx (צומת HIVE)", tier: "major", role: "רוטציה קריאות" },
+    86→  { host: "api.justyy.com", org: "Justyy (צומת STEEM)", tier: "major", role: "היסטוריית עוגנים (fallback)" },
+    87→  // — v48 מפת-רשתות: מפקד יתרות רב-שרשרתי מאבן-הפינה —
+    88→  { host: "polygon-bor-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Polygon (מפקד מפת-רשתות)" },
+    89→  { host: "arbitrum-one-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Arbitrum (מפקד מפת-רשתות)" },
+    90→  { host: "optimism-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Optimism (מפקד מפת-רשתות)" },
+    91→  { host: "base-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Base (מפקד מפת-רשתות)" },
+    92→  { host: "avalanche-c-chain-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Avalanche C-Chain (מפקד מפת-רשתות)" },
+    93→  { host: "gnosis-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Gnosis (מפקד מפת-רשתות)" },
+    94→  { host: "cosmos-rest.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "REST Cosmos (יתרות ATOM)" },
+    95→  { host: "mempool.space", org: "mempool.space · תשתית ביטקוין מרכזית", tier: "major", role: "יתרות BTC (UTXO חי)" },
+    96→  { host: "api.blockcypher.com", org: "BlockCypher · תשתית רב-שרשרתית", tier: "major", role: "יתרות DOGE / LTC" },
+    97→  { host: "horizon.stellar.org", org: "Stellar Development Foundation (רשמי)", tier: "official", role: "יתרות XLM (Horizon API)" },
+    98→  // v58 · הרחבת הריבונות — פתרונות ריבוניים נוספים שנמצאו על הרשת ואומתו-חי (read-only):
+    99→  // דלת EVM בגז-חינם + מסילות-מודול ב-RPC ציבורי חינם + שכבות-פרסום חינמיות.
+   100→  { host: "mainnet.skalenodes.com", org: "SKALE Network · איגוד SKALE (רשמי)", tier: "official", role: "RPC SKALE Europa — דלת EVM בגז-חינם (הרחבת הריבונות v58)" },
+   101→  { host: "fullnode.mainnet.aptoslabs.com", org: "Aptos Labs (רשמי)", tier: "official", role: "RPC Aptos (מסילת-מודול · הרחבת הריבונות v58)" },
+   102→  { host: "rpc.mainnet.near.org", org: "NEAR Foundation (רשמי)", tier: "official", role: "RPC NEAR (מסילת-מודול · הרחבת הריבונות v58)" },
+   103→  { host: "rpc.polkadot.io", org: "Parity · Web3 Foundation (רשמי)", tier: "official", role: "RPC Polkadot (מסילת-מודול · הרחבת הריבונות v58)" },
+   104→  { host: "rpc.tzbeta.net", org: "TzBeta (צומת Tezos ציבורי)", tier: "major", role: "RPC Tezos (מסילת-מודול · הרחבת הריבונות v58)" },
+   105→  { host: "cosmos-rpc.publicnode.com", org: "Allnodes · publicnode", tier: "major", role: "RPC Cosmos hub (מסילת-מודול · הרחבת הריבונות v58)" },
+   106→  { host: "eos.greymass.com", org: "Greymass (צומת EOS ציבורי)", tier: "major", role: "RPC EOS (מסילת-מודול · הרחבת הריבונות v58)" },
+   107→  { host: "nos.lol", org: "nos.lol (ריליי NOSTR ציבורי)", tier: "major", role: "שכבת-פרסום חינמית NOSTR (הרחבת הריבונות v58)" },
+   108→  { host: "relay.damus.io", org: "Damus (ריליי NOSTR ציבורי)", tier: "major", role: "שכבת-פרסום חינמית NOSTR (הרחבת הריבונות v58)" },
+   109→  { host: "rpc.vara.network", org: "Vara Network (רשמי)", tier: "official", role: "RPC Vara — שרשרת ללא-עמלות WASM (הרחבת הריבונות v58)" },
+   110→  // v69 חישול-המודולים שלב-1 — מנוע UTXO (BTC/DOGE/LTC) + ההוכחה החיה על signet:
+   111→  // ברזי-הsignet הציבוריים שמממנים את ההוכחה (מימון חיצוני חינמי — לא מהכספת).
+   112→  { host: "kruwt.dk", org: "Kruwt (ברז signet ציבורי)", tier: "major", role: "ברז signet — הוכחת מנוע UTXO (v69)" },
+   113→  { host: "signet.bitcoin.dev", org: "Bitcoin Core / Google Cloud — ברז signet ציבורי", tier: "official", role: "ברז signet — הוכחת מנוע UTXO (v69)" },
+   114→  { host: "faucet.signet.bitcoin.dev", org: "Bitcoin Core / Google Cloud — ברז signet ציבורי", tier: "official", role: "ברז signet — הוכחת מנוע UTXO (v69)" },
+   115→  // v72 ההמרה הזולה — סורק הדרכים: יעדי מדידה בלבד (read-only probing), בלי
+   116→  // מפתח, בלי חשבון. כל אחד מהם נמדד חי בכל סריקה; הסיווג (פתוח/נעול/
+   117→  // בלתי-נגיש) נקבע מהתשובה עצמה — לא מהרישום. הסתה של כסף אליהם תתכלה
+   118→  // רק אחרי שמסלול יימדד פתוח + הרשאת הבעלים הקפואה בקוד (probe-first).
+   119→  { host: "sideshift.ai", org: "SideShift", tier: "official", role: "סריקת ההמרה הזולה (v72) — מלאי + שער הזמנות" },
+   120→  { host: "api.changenow.io", org: "ChangeNOW", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+   121→  { host: "api.simpleswap.io", org: "SimpleSwap", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+   122→  { host: "api.stealthex.io", org: "StealthEX", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+   123→  { host: "api.trocador.app", org: "Trocador", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+   124→  { host: "api.exolix.com", org: "Exolix", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+   125→  { host: "api.changehero.io", org: "ChangeHero", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+   126→  { host: "ff.io", org: "FixedFloat", tier: "official", role: "סריקת ההמרה הזולה (v72) — קצה ציבורי" },
+   127→  { host: "lite-api.jup.ag", org: "Jupiter (צביר הבורסות של סולנה)", tier: "official", role: "סריקת ההמרה הזולה (v72) — ציטוט SOL→USDC ללא מפתח" },
+   128→  { host: "api.mayan.finance", org: "Mayan (גשר SOL→EVM)", tier: "official", role: "סריקת ההמרה הזולה (v72) — ציטוט גשר" },
+   129→  // R9 פריצת-האפס — Z Chain (Zero Network, chainId 9369): רשת EVM ראשית שבה
+   130→  // eth_gasPrice מדוד 0x0 — עגינת-נתונים אמיתית בעלות אפס. המדידה החיה
+   131→  // (2026-09-12): 3 טרנזקציות אמיתיות אושרו (status 0x1) מכתובת באיזון 0.
+   132→  { host: "rpc.zero.tech", org: "Zero Network · Z Chain (רשמי)", tier: "official", role: "RPC Z Chain — עגינת EVM בגז-אפס (R9 פריצת-האפס)" }
+   133→];
+   134→
+   135→const HOST_INDEX = new Map(TRUSTED_HOSTS.map((t) => [t.host, t]));
+   136→
+   137→/**
+   138→ * מארחי-תצוגה בלבד (v24): אקספלוררים גדולים וידועים שמופיעים בקוד
+   139→ * כקישורי href למשתמש — הם אינם יעדי fetch של השרת. הם לא ברישום
+   140→ * המהימן (החוסם יציאות) ולא אמורים להיות; ביקורת-היציאות מסווגת
+   141→ * אותם בנפרד ובכנות.
+   142→ */
+   143→export const DISPLAY_HOSTS: string[] = [
+   144→  "etherscan.io",
+   145→  "bscscan.com",
+   146→  "tronscan.org",
+   147→  "solscan.io",
+   148→  "explorer.solana.com",
+   149→  "steemscan.com",
+   150→  "steemd.com",
+   151→  "hiveblocks.com",
+   152→  "hiveblockexplorer.com",
+   153→  "blurt.blog",
+   154→  "github.com",
+   155→  "livenet.xrpl.org",
+   156→  // — v48 מפת-רשתות: קישורי תצוגה בלבד (לא יעדי fetch של השרת) —
+   157→  "polygonscan.com",
+   158→  "arbiscan.io",
+   159→  "optimistic.etherscan.io",
+   160→  "basescan.org",
+   161→  "snowtrace.io",
+   162→  "gnosisscan.io",
+   163→  "mempool.space",
+   164→  "blockchair.com",
+   165→  "mintscan.io",
+   166→  "stellar.expert",
+   167→  "polkadot.subscan.io",
+   168→  "explorer.aptoslabs.com",
+   169→  "suiscan.xyz",
+   170→  "tzkt.io",
+   171→  "explorer.near.org",
+   172→  // — v51 בית-היוצר לגשרים: קישור תצוגה של נתיב קרדאנו (מתועד בלבד) —
+   173→  "cardanoscan.io",
+   174→  // — v69 מסילה 9: אקספלורר Blockscout של SKALE אירופה (תצוגה בלבד) —
+   175→  "blockscout.com",
+   176→  // — v74 סוויפת-QA: אקספלורר STEEM — מופיע בקוד כ-href תצוגה בלבד
+   177→  //   (lib/saos/treasury.ts: קישורי txid של האוצר); לא יעד fetch של השרת —
+   178→  //   ביקורת-היציאות תסווג אותו כנה כתצוגה במקום חריגה —
+   179→  "steemblockexplorer.com",
+   180→  // — R9 פריצת-האפס: אקספלוררי Z Chain (קישורי תצוגה בלבד) —
+   181→  "zscan.live",
+   182→  "explorer.zero.tech"
+   183→];
+   184→const DISPLAY_SET = new Set(DISPLAY_HOSTS);
+   185→
+   186→/** חריגת-שער: כל ניסיון יציאה למארח לא-רשום. הודעה בעברית, fail-closed. */
+   187→export class PhishingGateError extends Error {
+   188→  constructor(msg: string) {
+   189→    super(msg);
+   190→    this.name = "PhishingGateError";
+   191→  }
+   192→}
+   193→
+   194→const PRIVATE_IP =
+   195→  /^(10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|127\.)/;
+   196→
+   197→/**
+   198→ * שער הפישינג — בדיקת URL לפני כל יציאה. מארח חייב להיות ברישום.
+   199→ * נחסמים: פרוטוקול לא-https (חוץ מ-loopback), userinfo מוטמע
+   200→ * (user:pass@host — טריק פישינג קלאסי), כתובות פרטיות (SSRF),
+   201→ * פורטים לא-סטנדרטיים. מחזיר URL מנוקה.
+   202→ */
+   203→export function assertTrustedUrl(raw: string, context = ""): URL {
+   204→  let u: URL;
+   205→  try {
+   206→    u = new URL(raw);
+   207→  } catch {
+   208→    throw new PhishingGateError(`שער הפישינג: URL לא-תקין ${context}`);
+   209→  }
+   210→  if (u.protocol !== "https:" && u.protocol !== "http:") {
+   211→    throw new PhishingGateError(`שער הפישינג: פרוטוקול אסור ${u.protocol} ${context}`);
+   212→  }
+   213→  if (u.username || u.password) {
+   214→    throw new PhishingGateError(`שער הפישינג: userinfo מוטמע ב-URL (טריק פישינג) ${context}`);
+   215→  }
+   216→  const loopback = u.hostname === "127.0.0.1" || u.hostname === "localhost";
+   217→  if (!loopback) {
+   218→    if (u.protocol !== "https:") {
+   219→      throw new PhishingGateError(`שער הפישינג: https בלבד מחוץ למעבדה ${context}`);
+   220→    }
+   221→    if (u.port && u.port !== "443" && u.port !== "80") {
+   222→      throw new PhishingGateError(`שער הפישינג: פורט לא-סטנדרטי :${u.port} ${context}`);
+   223→    }
+   224→    if (PRIVATE_IP.test(u.hostname)) {
+   225→      throw new PhishingGateError(`שער הפישינג: כתובת פרטית חסומה (SSRF) ${u.hostname}`);
+   226→    }
+   227→  }
+   228→  const t = HOST_INDEX.get(u.hostname);
+   229→  if (!t) {
+   230→    throw new PhishingGateError(
+   231→      `שער הפישינג: מארח לא-רשום "${u.hostname}" — היציאה נחסמה (fail-closed). רישום מפורש מהארכיטקט בלבד. ${context}`
+   232→    );
+   233→  }
+   234→  return u;
+   235→}
+   236→
+   237→/**
+   238→ * fetch מוגן: שער-פישינג + redirect:"error" (לא עוקבים אחרי הפניות —
+   239→ * הפניה למארח זר היא וקטור פישינג מוכר) + timeout. כל היציאות
+   240→ * החיות של הפלטפורמה עוברות כאן.
+   241→ */
+   242→export async function trustedFetch(
+   243→  raw: string,
+   244→  init?: RequestInit & { timeoutMs?: number }
+   245→): Promise<Response> {
+   246→  const u = assertTrustedUrl(raw);
+   247→  const ctl = new AbortController();
+   248→  const ms = init?.timeoutMs ?? 12_000;
+   249→  const t = setTimeout(() => ctl.abort(), ms);
+   250→  try {
+   251→    return await fetch(u.toString(), {
+   252→      ...init,
+   253→      redirect: "error",
+   254→      signal: ctl.signal
+   255→    });
+   256→  } finally {
+   257→    clearTimeout(t);
+   258→  }
+   259→}
+   260→
+   261→/** אימות מערך נקודות-קצה (קבועי-מודול) — נקרא בטעינת מודולי RPC. */
+   262→export function assertTrustedEndpoints(urls: readonly string[], label: string): void {
+   263→  for (const x of urls) assertTrustedUrl(x, `(${label})`);
+   264→}
+   265→
+   266→// ─── 2. רישום הטוקנים — "לא פותחים טוקנים מפישינג" ─────────────────────────
+   267→
+   268→export interface KnownToken {
+   269→  chain: "ETH" | "BSC";
+   270→  symbol: string;
+   271→  address: string;
+   272→  role: string;
+   273→}
+   274→
+   275→/** רק המטבעות הגדולים והידועים — כתובות קנוניות (EIP-55). */
+   276→export const KNOWN_TOKENS: KnownToken[] = [
+   277→  { chain: "ETH", symbol: "WETH", address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", role: "אורקל DEX (Uniswap)" },
+   278→  { chain: "ETH", symbol: "USDC", address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", role: "זוג DEX + סימולציה" },
+   279→  { chain: "ETH", symbol: "USDT", address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", role: "זוג DEX" },
+   280→  { chain: "ETH", symbol: "WBTC", address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", role: "זוג DEX" },
+   281→  { chain: "ETH", symbol: "DAI", address: "0x6B175474E89094C44Da98b954EedeAC495271d0F", role: "עומק (V3)" },
+   282→  { chain: "BSC", symbol: "WBNB", address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", role: "אורקל DEX (Pancake)" },
+   283→  { chain: "BSC", symbol: "USDT", address: "0x55d398326f99059fF775485246999027B3197955", role: "זוג DEX + ספרד" },
+   284→  { chain: "BSC", symbol: "USDC", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", role: "זוג DEX" },
+   285→  { chain: "BSC", symbol: "BUSD", address: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", role: "עומק" },
+   286→  { chain: "BSC", symbol: "CAKE", address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82", role: "זוג DEX (PancakeSwap)" }
+   287→];
+   288→
+   289→/** הזוגות המוכרים — שומר הזוגות של המיקרו-גריד (אורקל DEX). */
+   290→export const KNOWN_PAIRS: string[] = [
+   291→  "WETH/USDC",
+   292→  "WETH/USDT",
+   293→  "WETH/DAI",
+   294→  "WBNB/USDT",
+   295→  "WBNB/BUSD",
+   296→  "CAKE/WBNB"
+   297→];
+   298→
+   299→/** זוג חייב להיות ברשימת הזוגות המוכרים (טוקנים גדולים וידועים בלבד). */
+   300→export function assertKnownPair(pair: string): string {
+   301→  const p = pair.trim();
+   302→  if (!KNOWN_PAIRS.includes(p)) {
+   303→    throw new PhishingGateError(
+   304→      `שומר-הזוגות: הזוג "${p}" אינו ברשימת הזוגות המוכרים (טוקנים גדולים בלבד) — נחסם`
+   305→    );
+   306→  }
+   307→  return p;
+   308→}
+   309→
+   310→const TOKEN_INDEX = new Map(KNOWN_TOKENS.map((t) => [t.address.toLowerCase(), t]));
+   311→
+   312→/**
+   313→ * שומר הטוקנים: הכתובת חייבת לעבור EIP-55 checksum (כל שיבוש
+   314→ * תו-בודד נתפס) ולהיות ברישום הקנוני. מטבע לא-מוכר = חסימה —
+   315→ * "לא פותחים או בודקים טוקנים מפישינג" כהוראה מבצעית.
+   316→ */
+   317→export function assertKnownToken(address: string, context = ""): KnownToken {
+   318→  let norm: string;
+   319→  try {
+   320→    norm = ethers.getAddress(address.trim()); // throws on bad checksum
+   321→  } catch {
+   322→    throw new PhishingGateError(
+   323→      `שומר-טוקנים: כתובת לא-עוברת checksum (${shortAddr(address)}) ${context}`
+   324→    );
+   325→  }
+   326→  const t = TOKEN_INDEX.get(norm.toLowerCase());
+   327→  if (!t) {
+   328→    throw new PhishingGateError(
+   329→      `שומר-טוקנים: הטוקן ${shortAddr(norm)} אינו ברישום הקנוני — נחסם (אין מגע עם טוקנים לא-ידועים) ${context}`
+   330→    );
+   331→  }
+   332→  return t;
+   333→}
+   334→
+   335→function shortAddr(a: string): string {
+   336→  return a.length > 12 ? `${a.slice(0, 8)}…${a.slice(-4)}` : a;
+   337→}
+   338→
+   339→/** מצב הרישום לתצוגה — כל כתובת מאומתת-checksum בזמן קריאה. */
+   340→export function tokenRegistryStatus(): Array<KnownToken & { checksumOk: boolean }> {
+   341→  return KNOWN_TOKENS.map((t) => {
+   342→    let ok = false;
+   343→    try {
+   344→      ok = ethers.getAddress(t.address) === t.address;
+   345→    } catch {
+   346→      ok = false;
+   347→    }
+   348→    return { ...t, checksumOk: ok };
+   349→  });
+   350→}
+   351→
+   352→// ─── 3. החלפת-סודות (לכל מחרוזת שעומדת להיכתב ליומן/DB) ─────────────────
+   353→
+   354→const REDACTIONS: Array<{ re: RegExp; tag: string }> = [
+   355→  { re: /\bghp_[A-Za-z0-9]{36}\b/g, tag: "[REDACTED:github-pat]" },
+   356→  { re: /\bgithub_pat_[A-Za-z0-9_]{22,}\b/g, tag: "[REDACTED:github-pat]" },
+   357→  { re: /\bghp_[A-Za-z0-9]{1,20}(?![A-Za-z0-9])/g, tag: "[REDACTED:pat-prefix]" },
+   358→  { re: /\b[5KL][1-9A-HJ-NP-Za-km-z]{51,52}\b/g, tag: "[REDACTED:wif]" },
+   359→  { re: /\b(?:[a-z]{2,12})(?:\s+[a-z]{2,12}){11,23}\b/g, tag: "[REDACTED:mnemonic-candidate]" }
+   360→];
+   361→
+   362→/** מחליף כל דפוס-סוד אפשרי בתג מנומק. אין סוד עובר דרך. */
+   363→export function redactSecrets(text: string): string {
+   364→  let out = text;
+   365→  for (const { re, tag } of REDACTIONS) out = out.replace(re, tag);
+   366→  return out;
+   367→}
+   368→
+   369→// ─── 4. סורק-הדימומים ─────────────────────────────────────────────────────
+   370→
+   371→export interface SecFinding {
+   372→  file: string;
+   373→  line: number | null;
+   374→  kind: string;
+   375→  severity: "high" | "medium" | "info";
+   376→  note: string;
+   377→}
+   378→
+   379→const PAT_FULL = /\b(?:ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,})\b/g;
+   380→const PAT_PREFIX = /\b(?:ghp_[A-Za-z0-9]{1,20}|github_pat_[A-Za-z0-9_]{1,20})(?![A-Za-z0-9_])/g;
+   381→const MNEMO_RUN = /\b[a-z]{2,12}(?:\s+[a-z]{2,12}){11,23}\b/g;
+   382→const WIF_RUN = /(?<![1-9A-HJ-NP-Za-km-z])[5KL][1-9A-HJ-NP-Za-km-z]{51,52}(?![1-9A-HJ-NP-Za-km-z])/g;
+   383→
+   384→/** האם מחרוזת מילים היא מנמוניקת BIP39 תקפה קריפטוגרפית (checksum). */
+   385→function isValidMnemonic(s: string): boolean {
+   386→  try {
+   387→    ethers.Mnemonic.fromPhrase(s);
+   388→    return true;
+   389→  } catch {
+   390→    return false;
+   391→  }
+   392→}
+   393→
+   394→const SKIP_EXT = /\.(png|jpg|jpeg|gif|webp|ico|woff2?|ttf|mp4|pdf|zip|db|enc|sol\.json|wasm)$/i;
+   395→const SKIP_FILE = /(^|\/)(bun\.lock|pnpm-lock\.yaml|yarn\.lock|package-lock\.json|generated\/)/;
+   396→
+   397→function isTextBuffer(buf: Buffer): boolean {
+   398→  const probe = buf.subarray(0, 4096);
+   399→  return !probe.includes(0);
+   400→}
+   401→
+   402→/** סריקת תוכן-טקסט אחד → ממצאים (בלי תוכן הסוד). */
+   403→function scanText(
+   404→  text: string,
+   405→  file: string,
+   406→  canary: Set<string> | null
+   407→): SecFinding[] {
+   408→  const out: SecFinding[] = [];
+   409→  const push = (kind: string, severity: SecFinding["severity"], note: string, idx: number) => {
+   410→    const line = text.slice(0, idx).split("\n").length;
+   411→    out.push({ file, line, kind, severity, note });
+   412→  };
+   413→
+   414→  for (const m of text.matchAll(PAT_FULL)) {
+   415→    push("pat-full", "high", "טוקן GitHub מלא בטקסט — דלף אמיתי", m.index ?? 0);
+   416→  }
+   417→  for (const m of text.matchAll(PAT_PREFIX)) {
+   418→    const s = m[0];
+   419→    if (PAT_FULL.test(s)) continue;
+   420→    push("pat-prefix", "info", "קידומת-טוקן (לא-שמישה) — שקיפות בלבד", m.index ?? 0);
+   421→  }
+   422→  for (const m of text.matchAll(MNEMO_RUN)) {
+   423→    const ok = isValidMnemonic(m[0]);
+   424→    if (ok) {
+   425→      push("mnemonic-valid", "high", `רצף ${m[0].trim().split(/\s+/).length} מילים תקף-BIP39 — מנמוניקה אמיתית בטקסט`, m.index ?? 0);
+   426→    } else if (canary && canary.size > 0) {
+   427→      // קנרית: שלוש-מילים רצופות מהזרעים החתומים (בדיקה בזיכרון בלבד)
+   428→      const norm = ` ${m[0].toLowerCase().replace(/\s+/g, " ")} `;
+   429→      const words = m[0].toLowerCase().split(/\s+/);
+   430→      for (let i = 0; i + 2 < words.length; i++) {
+   431→        if (canary.has(`${words[i]} ${words[i + 1]} ${words[i + 2]}`)) {
+   432→          push("seed-canary", "high", "קנרית-זרע: מילים מהמנמוניקה החתומה נמצאו בטקסט — דלף ודאי", m.index ?? 0);
+   433→          break;
+   434→        }
+   435→      }
+   436→      void norm;
+   437→    }
+   438→  }
+   439→  if (!SKIP_FILE.test(file)) {
+   440→    for (const m of text.matchAll(WIF_RUN)) {
+   441→      push("wif-suspect", "medium", "תבנית WIL/מפתח-52 — דורש עין (בלוקים ו-ABI מוחרגים)", m.index ?? 0);
+   442→    }
+   443→  }
+   444→  return out;
+   445→}
+   446→
+   447→// ── git עזרים ──
+   448→
+   449→function exec(cmd: string, args: string[], timeoutMs = 30_000): Promise<string> {
+   450→  return new Promise((resolve, reject) => {
+   451→    execFileCb(cmd, args, { cwd: REPO, timeout: timeoutMs, maxBuffer: 96 * 1024 * 1024 }, (err, stdout) => {
+   452→      if (err) reject(err instanceof Error ? err : new Error(String(err)));
+   453→      else resolve(String(stdout));
+   454→    });
+   455→  });
+   456→}
+   457→
+   458→/** סריקת כל blob-י ההיסטוריה דרך cat-file --batch (זרימה אחת). */
+   459→function scanHistoryBlobs(canary: Set<string> | null): Promise<{ blobs: number; scanned: number; findings: SecFinding[] }> {
+   460→  return new Promise((resolve, reject) => {
+   461→    const child = spawn("git", ["cat-file", "--batch"], { cwd: REPO });
+   462→    let out: Buffer = Buffer.alloc(0);
+   463→    let fed = false;
+   464→    const findings: SecFinding[] = [];
+   465→    let blobs = 0;
+   466→    let scanned = 0;
+   467→    let offset = 0;
+   468→    const killTimer = setTimeout(() => {
+   469→      try { child.kill("SIGKILL"); } catch { /* already gone */ }
+   470→      reject(new Error("history scan timeout"));
+   471→    }, 60_000);
+   472→
+   473→    const parse = () => {
+   474→      for (;;) {
+   475→        const nl = out.indexOf(0x0a, offset);
+   476→        if (nl < 0) return;
+   477→        const header = out.subarray(offset, nl).toString("utf8").trim();
+   478→        const parts = header.split(/\s+/);
+   479→        if (parts.length < 3 || !/^\d+$/.test(parts[2] ?? "")) {
+   480→          offset = nl + 1;
+   481→          continue;
+   482→        }
+   483→        const size = Number(parts[2]);
+   484→        const end = nl + 1 + size;
+   485→        if (out.length < end + 1) return; // חסר תוכן — נמתין לעוד נתונים
+   486→        blobs += 1;
+   487→        if (parts[1] === "blob") {
+   488→          const content = out.subarray(nl + 1, end);
+   489→          if (size <= 2 * 1024 * 1024 && isTextBuffer(content)) {
+   490→            scanned += 1;
+   491→            const sha = parts[0] ?? "blob";
+   492→            findings.push(...scanText(content.toString("utf8"), `history:${sha.slice(0, 10)}`, canary));
+   493→          }
+   494→        }
+   495→        offset = end + 1; // מדלג על ה-newline החותם
+   496→      }
+   497→    };
+   498→
+   499→    child.stdout.on("data", (d: Buffer) => {
+   500→      out = Buffer.concat([out, d]);
+   501→      parse();
+   502→      // ניקוי זיכרון: מקצץ את מה שכבר נצרך
+   503→      if (offset > 4 * 1024 * 1024) {
+   504→        out = out.subarray(offset);
+   505→        offset = 0;
+   506→      }
+   507→    });
+   508→    child.stderr.on("data", () => { /* רעש — נזנח */ });
+   509→    child.on("error", (e) => {
+   510→      clearTimeout(killTimer);
+   511→      reject(e);
+   512→    });
+   513→    child.on("close", (code) => {
+   514→      clearTimeout(killTimer);
+   515→      if (code !== 0) {
+   516→        reject(new Error(`cat-file exit ${code}`));
+   517→        return;
+   518→      }
+   519→      resolve({ blobs, scanned, findings });
+   520→    });
+   521→
+   522→    exec("git", ["rev-list", "--all", "--objects"])
+   523→      .then((list) => {
+   524→        const shas = list
+   525→          .split("\n")
+   526→          .map((l) => l.trim().split(/\s+/)[0] ?? "")
+   527→          .filter((s) => /^[0-9a-f]{40}$/.test(s));
+   528→        const uniq = Array.from(new Set(shas));
+   529→        for (const s of uniq) child.stdin.write(`${s}\n`);
+   530→        child.stdin.end();
+   531→        fed = true;
+   532→      })
+   533→      .catch((e) => {
+   534→        clearTimeout(killTimer);
+   535→        try { child.kill("SIGKILL"); } catch { /* noop */ }
+   536→        reject(e instanceof Error ? e : new Error(String(e)));
+   537→      });
+   538→    void fed;
+   539→  });
+   540→}
+   541→
+   542→/** קנרית-הזרע: שלוש-מילים רצופות מהמנמוניקות החתומות (בתוך-תהליך). */
+   543→async function buildCanary(): Promise<{ available: boolean; roots: number; trigrams: Set<string>; note: string }> {
+   544→  const members = ["keys/sovereign-mnemonic.json", "keys/headcorner-seed.json"];
+   545→  const trigrams = new Set<string>();
+   546→  let roots = 0;
+   547→  const collect = (content: string): void => {
+   548→    // חילוץ בלבד של מילים מתוך JSON — המילים לעולם לא יוצאות מהתהליך
+   549→    const found = content.match(/[a-z]{2,12}(?:\s+[a-z]{2,12}){11,23}/g) ?? [];
+   550→    for (const phrase of found) {
+   551→      if (isValidMnemonic(phrase)) {
+   552→        roots += 1;
+   553→        const w = phrase.toLowerCase().split(/\s+/);
+   554→        for (let i = 0; i + 2 < w.length; i++) trigrams.add(`${w[i]} ${w[i + 1]} ${w[i + 2]}`);
+   555→      }
+   556→    }
+   557→  };
+   558→  let lastErr = "";
+   559→  for (const m of members) {
+   560→    try {
+   561→      await withVaultMember(m, collect);
+   562→    } catch (e) {
+   563→      lastErr = e instanceof Error ? e.message.slice(0, 80) : "member absent";
+   564→    }
+   565→  }
+   566→  if (roots === 0) {
+   567→    return {
+   568→      available: false,
+   569→      roots: 0,
+   570→      trigrams,
+   571→      note: `הקנרית לא חומשה (חבר כספת חסר/נעול: ${lastErr || "לא נמצאו שורשים"}) — כנה; שאר הסורק עובד`
+   572→    };
+   573→  }
+   574→  return { available: true, roots, trigrams, note: "שני שורשי הזרע נקראו בתוך-תהליך — אפס מילה יצאה" };
+   575→}
+   576→
+   577→// ── סריקת העץ (קבצים במעקב) ──
+   578→
+   579→async function scanTree(canary: Set<string> | null): Promise<{ scanned: number; findings: SecFinding[] }> {
+   580→  const files = (await exec("git", ["ls-files"])).split("\n").map((s) => s.trim()).filter(Boolean);
+   581→  const findings: SecFinding[] = [];
+   582→  let scanned = 0;
+   583→  for (const f of files) {
+   584→    if (SKIP_EXT.test(f) || SKIP_FILE.test(f)) continue;
+   585→    try {
+   586→      const buf = fs.readFileSync(path.join(REPO, f));
+   587→      if (buf.length > 2 * 1024 * 1024 || !isTextBuffer(buf)) continue;
+   588→      scanned += 1;
+   589→      findings.push(...scanText(buf.toString("utf8"), f, canary));
+   590→    } catch {
+   591→      /* קובץ נעלם בין לבין — דלג */
+   592→    }
+   593→  }
+   594→  return { scanned, findings };
+   595→}
+   596→
+   597→// ── סריקת dev.log (זנב) ──
+   598→
+   599→async function scanDevlog(canary: Set<string> | null): Promise<{ lines: number; findings: SecFinding[] }> {
+   600→  try {
+   601→    const p = path.join(REPO, "dev.log");
+   602→    const stat = fs.statSync(p);
+   603→    const start = Math.max(0, stat.size - 2 * 1024 * 1024);
+   604→    const fd = fs.openSync(p, "r");
+   605→    const buf = Buffer.alloc(stat.size - start);
+   606→    fs.readSync(fd, buf, 0, buf.length, start);
+   607→    fs.closeSync(fd);
+   608→    const text = buf.toString("utf8");
+   609→    return { lines: text.split("\n").length, findings: scanText(text, "dev.log", canary) };
+   610→  } catch {
+   611→    return { lines: 0, findings: [] };
+   612→  }
+   613→}
+   614→
+   615→// ── ביקורת יציאות סטטית (קוד מול הרישום) ──
+   616→
+   617→const URL_RE = /https?:\/\/([A-Za-z0-9.-]+(?::\d+)?)/g;
+   618→
+   619→async function outboundAudit(): Promise<{
+   620→  files: number;
+   621→  hosts: string[];
+   622→  unknownHosts: string[];
+   623→  displayHosts: string[];
+   624→  rawFetchCalls: number;
+   625→  note: string;
+   626→}> {
+   627→  const roots = [
+   628→    path.join(REPO, "src", "lib", "saos"),
+   629→    path.join(REPO, "src", "lib"),
+   630→    path.join(REPO, "mini-services", "evm-mesh", "src")
+   631→  ];
+   632→  const files: string[] = [];
+   633→  for (const r of roots) {
+   634→    if (!fs.existsSync(r)) continue;
+   635→    for (const f of fs.readdirSync(r, { recursive: true, encoding: "utf8" }) as unknown as string[]) {
+   636→      if (f.endsWith(".ts") || f.endsWith(".tsx")) files.push(path.join(r, f));
+   637→    }
+   638→  }
+   639→  const hosts = new Set<string>();
+   640→  const unknown = new Set<string>();
+   641→  const display = new Set<string>();
+   642→  let rawFetch = 0;
+   643→  for (const fp of files) {
+   644→    let text = "";
+   645→    try {
+   646→      text = fs.readFileSync(fp, "utf8");
+   647→    } catch {
+   648→      continue;
+   649→    }
+   650→    for (const m of text.matchAll(URL_RE)) {
+   651→      const host = (m[1] ?? "").split(":")[0] ?? "";
+   652→      if (!host) continue;
+   653→      hosts.add(host);
+   654→      if (HOST_INDEX.has(host)) continue;
+   655→      if (DISPLAY_SET.has(host)) {
+   656→        display.add(host);
+   657→        continue;
+   658→      }
+   659→      unknown.add(host);
+   660→    }
+   661→    // מניין fetch( גולמיים — מספר שקיפות למעקב (המודולים החיים עברו כבר ל-trustedFetch)
+   662→    for (const _m of text.matchAll(/(?<![\w.])fetch\s*\(/g)) {
+   663→      rawFetch += 1;
+   664→    }
+   665→  }
+   666→  return {
+   667→    files: files.length,
+   668→    hosts: Array.from(hosts).sort(),
+   669→    unknownHosts: Array.from(unknown).sort(),
+   670→    displayHosts: Array.from(display).sort(),
+   671→    rawFetchCalls: rawFetch,
+   672→    note: "מארחי-תצוגה = קישורי אקספלורר (href) שאינם יעדי fetch; מארח לא-רשום ולא-תצוגה = חריגה אמיתית"
+   673→  };
+   674→}
+   675→
+   676→// ── ביקורת כספת + gitignore של קבצי-הכתר ──
+   677→
+   678→const CROWN_JEWELS = [
+   679→  "agent/keys/fleet_keys.enc",
+   680→  "agent/keys/fleet_keys.meta.json",
+   681→  "upload/Roshcaregt.txt",
+   682→  "upload/IMG-20260905-WA0024.jpg",
+   683→  "db/custom.db",
+   684→  ".env",
+   685→  "mini-services/evm-mesh/state/anvil-state.json"
+   686→];
+   687→
+   688→async function vaultAudit(): Promise<{
+   689→  present: boolean;
+   690→  note: string;
+   691→  ignored: Array<{ path: string; ignored: boolean }>;
+   692→  perms: Array<{ file: string; mode: string; ok: boolean }>;
+   693→}> {
+   694→  const ignored: Array<{ path: string; ignored: boolean }> = [];
+   695→  for (const p of CROWN_JEWELS) {
+   696→    try {
+   697→      await exec("git", ["check-ignore", p], 8000);
+   698→      ignored.push({ path: p, ignored: true });
+   699→    } catch {
+   700→      ignored.push({ path: p, ignored: false });
+   701→    }
+   702→  }
+   703→  const perms: Array<{ file: string; mode: string; ok: boolean }> = [];
+   704→  const keysDir = path.join(REPO, "agent", "keys");
+   705→  if (fs.existsSync(keysDir)) {
+   706→    for (const f of fs.readdirSync(keysDir)) {
+   707→      const fp = path.join(keysDir, f);
+   708→      try {
+   709→        const st = fs.statSync(fp);
+   710→        const mode = (st.mode & 0o777).toString(8);
+   711→        perms.push({ file: `agent/keys/${f}`, mode: `0${mode}`, ok: (st.mode & 0o077) === 0 });
+   712→      } catch {
+   713→        /* skip */
+   714→      }
+   715→    }
+   716→  }
+   717→  const enc = fs.existsSync(path.join(keysDir, "fleet_keys.enc"));
+   718→  return {
+   719→    present: enc,
+   720→    note: enc
+   721→      ? "הכספת נוכחת — ההרשאות נבדקות מול 0600 (בעלים-בלבד)"
+   722→      : "הכספת נעדרת — מצב-ראיות (כנה, לא שקר)",
+   723→    ignored,
+   724→    perms
+   725→  };
+   726→}
+   727→
+   728→// ─── 5. המצב המצטבר ───────────────────────────────────────────────────────
+   729→
+   730→export interface SecurityStatus {
+   731→  ok: boolean;
+   732→  version: string;
+   733→  measuredAt: string;
+   734→  /**
+   735→   * v74 תצוגה-מדברת-אמת: כש-ok:false השדה נושא את האבחנה המדויקת
+   736→   * (ממצאי-חומרה + מארחים לא-רשומים) — ה-UI לא יציג עוד "שגיאה לא ידועה".
+   737→   */
+   738→  error?: string;
+   739→  gates: {
+   740→    phishing: { armed: boolean; hosts: number; note: string };
+   741→    tokens: { armed: boolean; verified: number; total: number; note: string };
+   742→    redaction: { armed: boolean; note: string };
+   743→  };
+   744→  trusted: TrustedHost[];
+   745→  tokens: Array<KnownToken & { checksumOk: boolean }>;
+   746→  findings: {
+   747→    tree: { scanned: number; findings: SecFinding[]; error?: string };
+   748→    history: { blobs: number; scanned: number; findings: SecFinding[]; error?: string };
+   749→    devlog: { lines: number; findings: SecFinding[]; error?: string };
+   750→    canary: { available: boolean; roots: number; trigrams: number; note: string };
+   751→  };
+   752→  outbound: Awaited<ReturnType<typeof outboundAudit>>;
+   753→  vault: Awaited<ReturnType<typeof vaultAudit>>;
+   754→  autoscan: { count: number; lastAt: string | null; note: string };
+   755→  policy: string[];
+   756→  highCount: number;
+   757→}
+   758→
+   759→let cache: { at: number; data: SecurityStatus } | null = null;
+   760→let canaryCache: { at: number; data: Awaited<ReturnType<typeof buildCanary>> } | null = null;
+   761→// v85 — מטמון סריקת-ההיסטוריה: ההיסטוריה אלמותית לכל HEAD נתון. בלי זה כל
+   762→// פג-תוקף של 60ש' הריץ מחדש cat-file על כל blob (10-13ש' בכל פתיחת וויו
+   763→// המגן — נמדד ב-dev.log). מפתח המטמון: HEAD + גודל הקנרית (אם נוספו
+   764→// מנמוניקות — סריקה חדשה). HEAD זז = סריקה חדשה מיידית, ללא תלות ב-TTL.
+   765→let historyCache: {
+   766→  head: string;
+   767→  trigramCount: number;
+   768→  at: number;
+   769→  data: Awaited<ReturnType<typeof scanHistoryBlobs>>;
+   770→} | null = null;
+   771→
+   772→const CACHE_MS = 60_000;
+   773→const CANARY_MS = 10 * 60_000;
+   774→const HISTORY_MS = 15 * 60_000;
+   775→
+   776→async function canary(): Promise<Awaited<ReturnType<typeof buildCanary>>> {
+   777→  if (canaryCache && Date.now() - canaryCache.at < CANARY_MS) return canaryCache.data;
+   778→  const data = await buildCanary();
+   779→  canaryCache = { at: Date.now(), data };
+   780→  return data;
+   781→}
+   782→
+   783→/** v85 — סריקת-ההיסטוריה במטמון-HEAD: זהה לסריקה מלאה בתנאי-אמת זהים. */
+   784→async function historyScanCached(trigrams: Set<string> | null): Promise<Awaited<ReturnType<typeof scanHistoryBlobs>>> {
+   785→  let head = "";
+   786→  try {
+   787→    head = (await exec("git", ["rev-parse", "HEAD"], 8_000)).trim();
+   788→  } catch {
+   789→    head = ""; // אין HEAD — נסרוק בלי מטמון (כנות עולה ביוקף)
+   790→  }
+   791→  const tc = trigrams?.size ?? 0;
+   792→  if (
+   793→    head &&
+   794→    historyCache &&
+   795→    historyCache.head === head &&
+   796→    historyCache.trigramCount === tc &&
+   797→    Date.now() - historyCache.at < HISTORY_MS
+   798→  ) {
+   799→    return historyCache.data;
+   800→  }
+   801→  const data = await scanHistoryBlobs(trigrams);
+   802→  if (head) historyCache = { head, trigramCount: tc, at: Date.now(), data };
+   803→  return data;
+   804→}
+   805→
+   806→export function invalidateSecurityCache(): void {
+   807→  cache = null;
+   808→  canaryCache = null;
+   809→  historyCache = null;
+   810→}
+   811→
+   812→/**
+   813→ * הסריקה המלאה: עץ + היסטוריה + יומן + קנרית + יציאות + כספת.
+   814→ * כל שלב עטוף בנפרד — כישלון אחד לא מפיל את השאר (ומדווח בכנות).
+   815→ */
+   816→export async function securityScan(force = false): Promise<SecurityStatus> {
+   817→  if (!force && cache && Date.now() - cache.at < CACHE_MS) return cache.data;
+   818→
+   819→  const can = await canary().catch(() => ({ available: false, roots: 0, trigrams: new Set<string>(), note: "שגיאת קנרית (כנה)" }));
+   820→  const trigrams = can.trigrams;
+   821→
+   822→  const [tree, history, devlog, outbound, vault] = await Promise.all([
+   823→    scanTree(trigrams.size > 0 ? trigrams : null).catch((e: unknown) => ({
+   824→      scanned: 0,
+   825→      findings: [] as SecFinding[],
+   826→      error: e instanceof Error ? e.message.slice(0, 120) : "tree scan failed"
+   827→    })),
+   828→    historyScanCached(trigrams.size > 0 ? trigrams : null).catch((e: unknown) => ({
+   829→      blobs: 0,
+   830→      scanned: 0,
+   831→      findings: [] as SecFinding[],
+   832→      error: e instanceof Error ? e.message.slice(0, 120) : "history scan failed"
+   833→    })),
+   834→    scanDevlog(trigrams.size > 0 ? trigrams : null),
+   835→    outboundAudit(),
+   836→    vaultAudit()
+   837→  ]);
+   838→
+   839→  const tokens = tokenRegistryStatus();
+   840→  const autoscanRows = await db.opLog.findMany({
+   841→    where: { op: "magen.autoscan" },
+   842→    orderBy: { createdAt: "desc" },
+   843→    take: 1
+   844→  }).catch(() => []);
+   845→  const autoscanCount = await db.opLog
+   846→    .count({ where: { op: "magen.autoscan" } })
+   847→    .catch(() => 0);
+   848→  const highCount =
+   849→    tree.findings.filter((f) => f.severity === "high").length +
+   850→    history.findings.filter((f) => f.severity === "high").length +
+   851→    devlog.findings.filter((f) => f.severity === "high").length;
+   852→
+   853→  // v74 כשל הוא נתון — האבחנה המדויקת נושאת את עצמה בכנות (עברית, ספציפית):
+   854→  const verdictError =
+   855→    highCount > 0
+   856→      ? `ממצאי-חומרה (${highCount}) — תרחיש עצירה עד טיפול`
+   857→      : outbound.unknownHosts.length > 0
+   858→        ? `מארחים לא-רשומים ביציאות: ${outbound.unknownHosts.join(", ")} — נדרשת החלטת ארכיטקט (רישום-מהימן או סיווג תצוגה)`
+   859→        : undefined;
+   860→
+   861→  const data: SecurityStatus = {
+   862→    ok: highCount === 0 && outbound.unknownHosts.length === 0,
+   863→    error: verdictError,
+   864→    version: "v25.0.0",
+   865→    measuredAt: new Date().toISOString(),
+   866→    gates: {
+   867→      phishing: {
+   868→        armed: true,
+   869→        hosts: TRUSTED_HOSTS.length,
+   870→        note: "fail-closed: מארח לא-רשום = חסימה; אין redirect-following; אין userinfo; אין יעדי-SSRF"
+   871→      },
+   872→      tokens: {
+   873→        armed: true,
+   874→        verified: tokens.filter((t) => t.checksumOk).length,
+   875→        total: tokens.length,
+   876→        note: "טוקן חדש נכנס רק ברישום מפורש — לא פותחים ולא בודקים טוקנים לא-ידועים"
+   877→      },
+   878→      redaction: { armed: true, note: "redactSecrets זמין לכל כתיבה-יומן/DB" }
+   879→    },
+   880→    trusted: TRUSTED_HOSTS,
+   881→    tokens,
+   882→    findings: {
+   883→      tree: tree as { scanned: number; findings: SecFinding[]; error?: string },
+   884→      history: history as { blobs: number; scanned: number; findings: SecFinding[]; error?: string },
+   885→      devlog,
+   886→      canary: { available: can.available, roots: can.roots, trigrams: can.trigrams.size, note: can.note }
+   887→    },
+   888→    outbound,
+   889→    vault,
+   890→    autoscan: {
+   891→      count: autoscanCount,
+   892→      lastAt: autoscanRows[0]?.createdAt?.toISOString() ?? null,
+   893→      note: "v25: ה-runner מזרים סריקה-מלאה אחת לשעה (צעד 4.7) — כל תוצאה נרשמת ביומן האדום"
+   894→    },
+   895→    policy: [
+   896→      "עובדים רק עם גדולים וידועים: רשמי (בינאנס, גיטהאב, TRON, Solana, BNB Chain, STEEM, HIVE, BLURT) או תשתית-ציבורית-גדולה (publicnode, DRPC, MEVBlocker, Arcange) — אין יוצא מן-הכלל.",
+   897→      "מארח חדש נכנס לרישום המהימן רק בהחלטת ארכיטקט מפורשת — השער חוסם הכל אחרת (fail-closed).",
+   898→      "לא פותחים, לא בודקים ולא חותמים מול טוקנים לא-רשומים: שומר-הטוקנים דורש checksum EIP-55 תקין + רישום קנוני.",
+   899→      "אין מעקב אחרי הפניות (redirect: error) — הפניה למארח זר היא וקטור פישינג מוכר והיא חסומה.",
+   900→      "חומר-כתר (מנמוניקות, מפתחות, טוקן) חי בכספת מקומית gitignored עם הרשאות 0600 — והקנרית מוכיחה בכל סריקה שאף מילה ממנו לא דלפה לעץ, להיסטוריה או ליומן.",
+   901→      "כל ממצא-חומרה (high) = תרחיש עצירה: הסטטוס ok:false עד טיפול. אין 'נקי' מושג-מעטפת — יש נקי מוכח-מדידה."
+   902→    ],
+   903→    highCount
+   904→  };
+   905→
+   906→  cache = { at: Date.now(), data };
+   907→  return data;
+   908→}
+   909→
