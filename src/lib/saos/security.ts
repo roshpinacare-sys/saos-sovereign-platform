@@ -770,6 +770,11 @@ let historyCache: {
 } | null = null;
 
 const CACHE_MS = 60_000;
+/** v94 — stale-while-revalidate ceiling: a scan snapshot may be served for
+ * up to 30min while a fresh scan runs in the background. The full-history
+ * git-blob scan (~18s measured) used to ride the request path on every new
+ * HEAD; the served snapshot stays honest (its measuredAt is in the payload). */
+const STALE_SERVE_MS = 30 * 60_000;
 const CANARY_MS = 10 * 60_000;
 const HISTORY_MS = 15 * 60_000;
 
@@ -814,8 +819,27 @@ export function invalidateSecurityCache(): void {
  * כל שלב עטוף בנפרד — כישלון אחד לא מפיל את השאר (ומדווח בכנות).
  */
 export async function securityScan(force = false): Promise<SecurityStatus> {
-  if (!force && cache && Date.now() - cache.at < CACHE_MS) return cache.data;
+  const now = Date.now();
+  if (!force && cache && now - cache.at < CACHE_MS) return cache.data;
 
+  // v94 — stale-while-revalidate: inside the serving window return the last
+  // snapshot immediately and refresh in the background (one flight).
+  if (!force && cache && now - cache.at < STALE_SERVE_MS) {
+    if (!backgroundScan) {
+      backgroundScan = runSecurityScan()
+        .catch(() => undefined)
+        .finally(() => {
+          backgroundScan = null;
+        });
+    }
+    return cache.data;
+  }
+  return runSecurityScan();
+}
+
+let backgroundScan: Promise<void> | null = null;
+
+async function runSecurityScan(): Promise<SecurityStatus> {
   const can = await canary().catch(() => ({ available: false, roots: 0, trigrams: new Set<string>(), note: "שגיאת קנרית (כנה)" }));
   const trigrams = can.trigrams;
 

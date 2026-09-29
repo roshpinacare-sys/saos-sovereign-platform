@@ -20,3 +20,25 @@
 {"t":"2026-09-29T17:57:34.220Z","agent":"night-scout","kind":"patrol","detail":"patrol #5: flags: issue-1, issue-2, issue-3"}
 {"t":"2026-09-29T17:59:18.933Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
 {"t":"2026-09-29T17:59:18.936Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T18:07:33.927Z","agent":"gold-scout","kind":"work-cycle","detail":"sovereign work cycle #1 — collecting TRUE network state through the public API"}
+{"t":"2026-09-29T18:07:34.703Z","agent":"night-scout","kind":"patrol","detail":"patrol #6: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T18:07:34.723Z","agent":"system","kind":"llm-ready","detail":"ZAI engine armed (z-ai-web-dev-sdk, backend only) — gold-scout's mind"}
+{"t":"2026-09-29T18:07:37.005Z","agent":"gold-scout","kind":"report","detail":"intelligence report #1 published (llm, 2270ms, 204 chars)"}
+{"t":"2026-09-29T18:07:37.006Z","agent":"gold-scout","kind":"economy","detail":"economy alive — last order 40 min ago; next order gap at 360 min"}
+{"t":"2026-09-29T18:12:48.939Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T18:12:48.939Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T18:17:34.329Z","agent":"night-scout","kind":"patrol","detail":"patrol #7: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T18:27:34.288Z","agent":"night-scout","kind":"patrol","detail":"patrol #8: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T18:37:34.097Z","agent":"night-scout","kind":"patrol","detail":"patrol #9: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T18:47:34.227Z","agent":"night-scout","kind":"patrol","detail":"patrol #10: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T18:54:48.947Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T18:54:48.947Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T18:57:34.209Z","agent":"night-scout","kind":"patrol","detail":"patrol #11: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T19:06:48.950Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T19:06:48.951Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T19:07:33.926Z","agent":"gold-scout","kind":"work-cycle","detail":"sovereign work cycle #2 — collecting TRUE network state through the public API"}
+{"t":"2026-09-29T19:07:34.700Z","agent":"night-scout","kind":"patrol","detail":"patrol #12: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T19:07:38.674Z","agent":"gold-scout","kind":"report","detail":"intelligence report #2 published (llm, 1923ms, 208 chars)"}
+{"t":"2026-09-29T19:07:38.674Z","agent":"gold-scout","kind":"economy","detail":"economy alive — last order 100 min ago; next order gap at 360 min"}
+{"t":"2026-09-29T19:09:48.951Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T19:09:48.951Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
