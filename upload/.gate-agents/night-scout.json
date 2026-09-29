@@ -1,8 +1,0 @@
-{
-  "kind": "swarm-agent-token",
-  "network": "SAOS",
-  "agent": "night-scout",
-  "role": "worker",
-  "apiKey": "saos-agent-night-scout-36411ad9c6ee69910c0cfe24d79dcf47e7f377c04fd36597",
-  "armedAt": "2026-09-29T17:10:34.765Z"
-}

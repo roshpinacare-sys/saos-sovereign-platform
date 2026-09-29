@@ -253,27 +253,29 @@ type DeliverableRow = {
 };
 
 /**
- * Persist a WorkDeliverable. When the unique(orderId) constraint fires it
- * means a PREVIOUS lab-chain instance already used this id (anvil resets
- * recycle order numbering) — the stale row is replaced by the CURRENT
- * instance's delivery. A unique(digest) collision means the exact same
- * content was already persisted — the existing row is returned as-is.
+ * Persist a WorkDeliverable. A unique(digest) collision means the exact
+ * same content was already persisted — the existing row is returned as-is.
+ * A unique(orderId) collision means a PREVIOUS lab-chain instance already
+ * used this id (anvil resets recycle order numbering) — the stale row is
+ * replaced atomically by the CURRENT instance's delivery.
+ * v94: digest pre-check + orderId upsert — the replace is now atomic and
+ * the noisy Prisma P2002 emission on the hot path is gone.
  */
 async function persistDeliverable(data: DeliverableRow) {
+  const sameContent = await db.workDeliverable.findUnique({ where: { digest: data.digest } });
+  if (sameContent) return sameContent;
+  const { orderId, ...fields } = data;
   try {
-    return await db.workDeliverable.create({ data });
+    return await db.workDeliverable.upsert({
+      where: { orderId },
+      update: fields,
+      create: data
+    });
   } catch (e) {
     const err = e as { code?: string; meta?: { target?: string[] } };
-    if (err.code === "P2002") {
-      const target = err.meta?.target ?? [];
-      if (target.includes("digest")) {
-        const existing = await db.workDeliverable.findUnique({ where: { digest: data.digest } });
-        if (existing) return existing;
-      }
-      if (target.includes("orderId")) {
-        await db.workDeliverable.deleteMany({ where: { orderId: data.orderId } });
-        return await db.workDeliverable.create({ data });
-      }
+    if (err.code === "P2002" && (err.meta?.target ?? []).includes("digest")) {
+      const existing = await db.workDeliverable.findUnique({ where: { digest: data.digest } });
+      if (existing) return existing;
     }
     throw e;
   }
