@@ -1,0 +1,720 @@
+     1→/**
+     2→ * mm.ts — הארנה האוטונומית (מורשת grid98.cjs "זאן-חיילים"):
+     3→ *  · כל-חייל עושה-שוק (maker) בגריד-סביב-מחיר-הוגן
+     4→ *  · טייק-מסתובב: רוטציה בין-החיילים — לוקח רק-אם-שער-השוליים עובר
+     5→ *    edge ≥ רווח-מינ'. FIX(Roast-64 · honesty): הספר **לא גובה עמלת-taker**
+     6→ *    (matchBook מסונכרן על עלות-אמת אפס) — הסרת-ה-"FEE_BPS"-פיקטיבי מהחשבון
+     7→ *    ומהשיווק; השער-מגן-מול-סיכון-מלאי, לא-מול-עמלה-שאינה-קיימת.
+     8→ *  · סטיית-מלאי (inventory skew) מזיזה-ציטוטים לכיוון-האיזון
+     9→ *  · בוטי-רעש: זרימה-חופשית שמגלה-מחיר (dex-facts: "עודף-מחיר נאכל מיד")
+    10→ * FIX(Roast-64 · phantom-lifetime-caps): מדדי-התקרה-המצטברת (rearm/botseed)
+    11→ * חיו-במודול — כל-ריסטארט הטביע מחדש מלוא-התקרה. עכשיו: ב-DexState-עצמו
+    12→ * (שורד-תמונות-מצב; רשויות-ישנות = undefined → 0-כנה).
+    13→ */
+    14→import type { DexState, Op, Asset } from "./kernel";
+    15→import { LADDER_FUEL_FLOOR, MINT_FUEL_CAP, REFUEL_CAP, FUEL_ASK_MIN, FUNDER_ORDER, funderAfford, poolKey, avail, notional } from "./kernel";
+    16→import { sortBook } from "./book";
+    17→import { poolMid, poolMidFor, getPool } from "./amm";
+    18→import { railTick, RAIL_OWNED_POOLS } from "./rail";
+    19→
+    20→export const MARKETS: { base: Asset; quote: Asset }[] = [
+    21→  { base: "SAOS", quote: "USDS" },
+    22→  { base: "WSTEEM", quote: "USDS" },
+    23→];
+    24→
+    25→export interface ArenaParams {
+    26→  enabled: boolean;
+    27→  spreadBps: number; // רוחב-גריד בסיסי
+    28→  stepBps: number;   // מרווח-בין-רמות
+    29→  levels: number;    // רמות לכל-צד
+    30→  sizeMu: number;    // גודל-ציטוט בסיסי (µ בסיס)
+    31→  maxInventoryMu: number;
+    32→  minEdgeBps: number; // שער-השוליים לטייק (מעל העמלה)
+    33→  requoteBps: number; // סטייה-מותרת לפני-ריקוט
+    34→  noise: boolean;     // בוטי-רעש
+    35→}
+    36→
+    37→export const DEFAULT_PARAMS: ArenaParams = {
+    38→  enabled: true,
+    39→  spreadBps: 32,   // מהדורת-ייצוב: ספרד-צמודה (היתה 40)
+    40→  stepBps: 20,     // רמות-צפופות (היה 25)
+    41→  levels: 2,       // גריד 2-רמות — מהדורת-דלק: חצי-שריפת-ריקוט (היו 3)
+    42→  sizeMu: 80_000, // 80 SAOS
+    43→  maxInventoryMu: 2_400_000,
+    44→  minEdgeBps: 15,
+    45→  requoteBps: 24,  // סבלנות-ריקוט — פחות-צ'רנוב-גז (היה 12; מהדורת-דלק)
+    46→  noise: true,
+    47→};
+    48→
+    49→export interface SoldierRT { nonceSeq: number; fills: number; takes: number; }
+    50→
+    51→/** מחיר-הוגן: עדות-משוקללת של הספר, הבריכה וסולם-הערך */
+    52→export function fairPrice(st: DexState, base: string, quote: string): number {
+    53→  const ref = st.assets[base]?.refPrice ?? 0;
+    54→  // R26 · עוגן-יחיד לזוגות-המסילה: הפייר של זוג-בבעלות-המסילה הוא refPrice — לא
+    55→  // תערובת-ספר+בריכה. המצאו-החי (h18553): 80% מהפייר היה self-referential
+    56→  // (ספר 50% + בריכה 30%) — נקודת-שבת-עצמית שהחזיקה-את-הספר ב-305µ בעוד-העוגן
+    57→  // 54µ (STEEM-אמת). "מנוע-אחד-לעוגן" (SETTLE-16) — המסילה היא בעלת-המשמעות,
+    58→  // והעוגן שלה הוא-האורקל, תמיד. הספר מצטט-סביב-העוגן ± spread — נקודה.
+    59→  if (ref > 0 && RAIL_OWNED_POOLS.has(poolKey(base, quote))) return ref;
+    60→  const bids = sortBook(st, base, quote, "buy");
+    61→  const asks = sortBook(st, base, quote, "sell");
+    62→  const bestBid = bids[0]?.price ?? 0;
+    63→  const bestAsk = asks[0]?.price ?? 0;
+    64→  const bookMid = bestBid > 0 && bestAsk > 0 ? Math.floor((bestBid + bestAsk) / 2) : (bestBid || bestAsk || 0);
+    65→  const p = getPool(st, poolKey(base, quote));
+    66→  const pm = p ? poolMidFor(p, base, quote) : 0;
+    67→  // משקלים: ספר 50% · בריכה 30% · סולם-ערך 20% (נפילה-חן למקורות-קיימים)
+    68→  const parts: [number, number][] = [];
+    69→  if (bookMid > 0) parts.push([bookMid, 0.5]);
+    70→  if (pm > 0) parts.push([pm, 0.3]);
+    71→  if (ref > 0) parts.push([ref, 0.2]);
+    72→  if (parts.length === 0) return ref;
+    73→  const wsum = parts.reduce((s, [, w]) => s + w, 0);
+    74→  return Math.floor(parts.reduce((s, [v, w]) => s + v * w, 0) / wsum);
+    75→}
+    76→
+    77→function skewShiftBps(st: DexState, soldier: string, base: string, params: ArenaParams): number {
+    78→  // FIX(SETTLE-7): קראו מ-params החיים (לא DEFAULT_PARAMS) — שינוי-פרמטרים ב-API
+    79→  // לא-השפיע על ה-skew והטלמטריה סטתה מהגריד בפועל.
+    80→  const inv = st.balances[soldier]?.[base] ?? 0;
+    81→  const target = Math.floor(params.maxInventoryMu / 2);
+    82→  const dev = (inv - target) / params.maxInventoryMu; // -0.5..0.5+
+    83→  const clamped = Math.max(-1, Math.min(1, dev * 2));
+    84→  return Math.floor(clamped * (params.spreadBps / 2)); // מלאי-כבד → מוכר-זול יותר
+    85→}
+    86→
+    87→/** FIX(SETTLE-7 anti-bandit): שער-תשואה-הפסד לחיילים — סוחר-ממשי עוצר-לצטט
+    88→ * כשההון שלו נמחק. בלי-זה: זרימה-עוינת דוחפת את הבריכה ואז מכה-את-הציטוטים
+    89→ * המנוחים — הארנה ממחזרת את עצמה אל-הבנדיט ללא-גבול. מתחת-לרצפת-ההון (60%
+    90→ * מג'נזיס) החייל מבטל-בלבד (מנקה-ספר) ולא מציב-פקודות-חדשות — שומר-על
+    91→ * ההון-שנותר ומאפשר-התאוששות. דטרמיניסטי (מצב-בלבד, אין-רנדומיות). */
+    92→const SOLDIER_GENESIS_EQUITY = 6_000_000; // 3M USDS + 1.2M SAOS @2500 (ג'נזיס)
+    93→const SOLDIER_EQUITY_FLOOR = Math.floor(SOLDIER_GENESIS_EQUITY * 0.6);
+    94→export function soldierEquity(st: DexState, soldier: string, fair: number): number {
+    95→  const usds = st.balances[soldier]?.["USDS"] ?? 0;
+    96→  const saos = st.balances[soldier]?.["SAOS"] ?? 0;
+    97→  const p = fair > 0 ? fair : 2500;
+    98→  return usds + Math.floor((saos * p) / 1000);
+    99→}
+   100→
+   101→/** FIX(SETTLE-7 anti-bandit): תקרות-זריעה-מצטברות לבוטי-הרעש — FIX(Roast-64):
+   102→ * המדדים עברו ממודול-רגיש למצב (st.botSeedCounts) — ריסטארט לא מאפס עוד את
+   103→ * הגג-הכולל (זרימה-עוינת לא יכולה לגזור-מחדש מלאי-ג'נזיס-חדש-כל-ריסטארט). */
+   104→const BOT_SEED_CAP_USDS = 2_400_000;
+   105→const BOT_SEED_CAP_SAOS = 1_200_000;
+   106→
+   107→/** ── THE-REARM (SETTLE-14 price-truth) ──
+   108→ * ממצא-חי: הארנה שרפה את כל-המלאי (8M SAOS + 20M USDS מג'נזיס) בלחימה-חד-צדדית
+   109→ * מול סולם-הערך-העולה — ומאז היא-ענייה (0 SAOS): כל-פעולות-הייצוב (מנעול-בריכה,
+   110→ * חגורת-סולם) נדחות-בשקט והשוק צף ללא-גרביטציה. זה-המנוע-האמיתי של "המחיר-מטפס".
+   111→ * הטיפול: חייל-אספקה — אוצר→ארנה העברה-טהורה (אפס-הטבעה, Σשומר), מנות-2M,
+   112→ * תקרה-מצטברת-לכל-חיי-התהליך (8M SAOS + 20M USDS = מלאי-ג'נזיס-אחד),
+   113→ * ורק-אם-לאוצר יש-באמת (אפס-דחיות-ספר). עם-הסולם-הסימטרי (keel) הלחימה
+   114→ * כבר-לא-חד-צדדית — המלאי החדש נשחק בשני-הכיוונים ומתוחזק. */
+   115→const REARM_TRANCHE_SAOS = 2_000_000;
+   116→const REARM_TRANCHE_USDS = 4_000_000;
+   117→const REARM_TRANCHE_WSTEEM = 1_000_000;
+   118→const REARM_LIFETIME_SAOS = 8_000_000;
+   119→const REARM_LIFETIME_USDS = 20_000_000;
+   120→const REARM_LIFETIME_WSTEEM = 1_000_000; // גבול-אמת: סטוק-ה-STEEM-הטבעי של-האוצר (אפס-הטבעה)
+   121→const REARM_FLOOR_SAOS = 600_000;   // מתחת-לזה הארנה לא יכולה למכור-לתוך-בידים
+   122→const REARM_FLOOR_USDS = 1_200_000; // ולא-לקנות-מאסקים
+   123→const REARM_FLOOR_WSTEEM = 300_000; // מנעול-בריכת-WSTEEM צריך בסיס-למכור-בו
+   124→// FIX(Roast-64 · phantom-lifetime-caps): היה const arenaRearm = {...} במודול —
+   125→// ריסטארט = תקרה-מלאה-חדשה. עכשיו: st.rearmCounts (חוזה-מעלה).
+   126→const rearmCounts = (st: DexState): { saos: number; usds: number; wsteem: number } =>
+   127→  (st.rearmCounts ??= { saos: 0, usds: 0, wsteem: 0 });
+   128→const botSeedCounts = (st: DexState, bot: string): { usds: number; saos: number } => {
+   129→  st.botSeedCounts ??= {};
+   130→  return (st.botSeedCounts[bot] ??= { usds: 0, saos: 0 });
+   131→};
+   132→
+   133→/** ── SETTLE-17 (soldier-WSTEEM supply line · one-sided-market cure) ──
+   134→ * ממצא-חי (R29): שוק USDS/WSTEEM חד-צדדי — אפס-asks חיים בעוד-ה-bids חיים.
+   135→ * שורש-מוכח: הג'נזיס מימן-חיילים-ב-SAOS+USDS בלבד (kernel genesis); קו-ה-rearm
+   136→ * (SETTLE-14) מזרים WSTEEM מהאוצר לארנה — אבל שום-קו-לא-מזרים-מהארנה-לחיילים.
+   137→ * החיילים החזיקו 15-64Kµ WSTEEM — פחות-מרמת-ask-אחת (sizeMu=80Kµ) — אז-
+   138→ * כל-ציטוט-המכירה נדחה-בשקט באמת-מלאי, והשוק נשאר-חד-צדדי לנצח.
+   139→ * הטיפול: קו-אספקה ארנה→חייל — ניתוב-מלאי-טהר של ה-WSTEEM-העטוף-הכנה
+   140→ * (1:1 מSTEEM-טבעי, אפס-הטבעה, Σנשמר), בכפוף-ל: תקרה-מצטברת-פר-חייל-במצב
+   141→ * (דפוס-Roast-64 — ריסטארט לא מאפס), כבוד-לרצפת-הארנה (REARM_FLOOR_WSTEEM —
+   142→ * בסיס-המנעול-לבריכה), ורק-מהעודף-האמיתי-שמעל-הרצפה. כשהארנה-ריקה-מעודף —
+   143→ * הקו-מפסיק-לזרום-בכנות (אין-מקור-נסתר). */
+   144→const SOLDIER_SEED_TARGET_WSTEEM = 160_000; // יעד-השלמה: 2 רמות-ask (sizeMu 80Kµ)
+   145→const SOLDIER_SEED_CAP_WSTEEM = 320_000;    // תקרה-מצטברת-פר-חייל לכל-חיי-התהליך
+   146→const soldierSeedCounts = (st: DexState, soldier: string): { wsteem: number } => {
+   147→  st.soldierSeedCounts ??= {};
+   148→  return (st.soldierSeedCounts[soldier] ??= { wsteem: 0 });
+   149→};
+   150→
+   151→type PushOp = (op: Op) => void;
+   152→
+   153→/** FIX(Task 56 replay-storm): אחרי-טעינת-תמונת-מצב, st.nonces מכיל אלפי-נונסים
+   154→ * `a<N>` של-החיילים-מהריצות-הקודמות; RT-רץ-חדש התחיל מ-seq=0 והתנגש-בכולם
+   155→ * (replay-rejected המוני עד-שה-seq עובר-את-החלון). הפתרון: בעת-יצירת-RT לחייל,
+   156→ * נזרע-seq מעל-המקסימום-הקיים-בחלון-הנונסים — התנגשות-אפסית מהטיק-הראשון. */
+   157→function seedNonceSeq(st: DexState, soldier: string): number {
+   158→  let max = 0;
+   159→  const prefix = `${soldier}:a`;
+   160→  for (let i = st.nonces.length - 1; i >= 0 && i >= st.nonces.length - 2000; i--) {
+   161→    const n = st.nonces[i];
+   162→    if (n.startsWith(prefix)) {
+   163→      const v = parseInt(n.slice(prefix.length), 10);
+   164→      if (Number.isFinite(v) && v > max) max = v;
+   165→    }
+   166→  }
+   167→  return max;
+   168→}
+   169→
+   170→function submit(rt: Map<string, SoldierRT>, st: DexState | null, soldier: string, op: Omit<Op, "issuer" | "nonce">, pushOp: PushOp): void {
+   171→  const r = rt.get(soldier) ?? { nonceSeq: st ? seedNonceSeq(st, soldier) : 0, fills: 0, takes: 0 };
+   172→  r.nonceSeq++;
+   173→  rt.set(soldier, r);
+   174→  // FIX(R45 · nonce-owner): ה-nonce היה `a${seq}` חסר-בעלים — ה-seeding למעלה סרק
+   175→  // קידומת `${soldier}:a` שלעולם-לא-נכתבה (קוד-מת) ← כל-אתחול-תהליך מתחיל-seq-מ-1
+   176→  // מחדש, ההזמנות של כל-החיילים-והבוטים מתנגשות-ביניהן ובחלון-הנונסים-ההיסטורי
+   177→  // (replay-rejected המוני-עד-שה-seq-עובר-את-החלון — בדיוק-מה-שההערה-למעלה-התכוונה-
+   178→  // למנוע). עכשיו: הקידומת-בפועל-שווה-לזו-שה-seeding-סורק — הזריעה-חיה-וההתנגשות-נעלמת.
+   179→  pushOp({ ...op, issuer: soldier, nonce: `${soldier}:a${r.nonceSeq}` } as Op);
+   180→}
+   181→
+   182→/**
+   183→ * pegkeeperTick — עמדת-הייצוב (מהדורת-סליקה): "שהכל ישב".
+   184→ *  · מנעול-בריכה: כשהבריכה סוטה מהפייר ≥30bps — הארנה מארביטרג'ת אותה חזרה.
+   185→ *    FIX(SETTLE-14 price-truth): גודל-פרופורציונלי לפער (עד 600kµ — היה 150k
+   186→ *    שלא-סגר-אף-פער-מעל-1%) — הבריכה מתיישרת למחיר-אמת בשניות, לא בשעות.
+   187→ *  · חגורת-סולם: חריגה מ-refPrice מוחזרת-בגודל-פרופורציונלי לסטייה —
+   188→ *    חגורה-חלשה-קבועה היא-שאיפשרה-לספר לצוף +15% מעל הסולם (ממצא-חי 2026-09).
+   189→ *  · רצפות-עומק: בריכה-שמתחת-לרצפה מקבלת-השלמה-פרופורציונלית מהארנה
+   190→ *    (מנעול-יחס-בריכה — הוספה-ביחס-הנוכחי לא מזיזה-את ה-mid) — "הבריכות זמינות".
+   191→ * כל-הפעולות: ממפול רגיל, מאושרות-על-הספר, מדודות-GAS, מכסה-גודל ותדר.
+   192→ */
+   193→
+   194→/** רצפות-עומק-בריכה (SETTLE-14): רזרבה-מינ' בµ לכל-נכס — מתחת-לזה הבריכה לא
+   195→ * "זמינה" מסחרית (slippage איום). הארנה משלימה-פרופורציונלית כל-8 טיקים. */
+   196→export const POOL_DEPTH_FLOORS: Record<string, number> = {
+   197→  USDS: 10_000_000, SAOS: 4_000_000, WSTEEM: 4_000_000,
+   198→};
+   199→export function pegkeeperTick(st: DexState, tick: number, pushOp: PushOp): void {
+   200→  const m = MARKETS[0]; // הזוג-הריבוני — לחגורת-הסולם
+   201→  const fair = fairPrice(st, m.base, m.quote);
+   202→  if (fair <= 0) return;
+   203→
+   204→  // (1) מנעול-בריכה — לכל-הזוגות (FIX SETTLE-14: היה רק-הזוג-הריבוני ובריכת
+   205→  // WSTEEM צפה חופשי — נסחרה עד 6x מעל הספר בלי-שום-גרביטציה)
+   206→  // R26 · הסרת-הפטור-של-זוגות-המסילה: הפטור נולד (SETTLE-16) כי-הפייר-הצף גרר-
+   207→  // את-הבריכה-בחזרה-מעלה אחרי-ה-REPEG ("מלחמת-סוכנים"). מאז-R26 הפייר-של-זוג-
+   208→  // מסילה ≡ העוגן (fairPrice מחזיר refPrice) — אין-עוד-שני-מנועים-עם-שני-יעדים:
+   209→  // מנוע-אחד, יעד-אחד (העוגן). המנעול חוזר-לשמור-גם-על-בריכת-המסדרון — בלי-
+   210→  // הכוח-הזה בריכה-רדודה (אחרי-סימון-מחדש) נסחפת-חופשית-ברעש-הבוטים (נמדד:
+   211→  // 54→66µ ב-60-טיקים) והמסילה חסרת-מלאי-לשפשף (doses=0). המנוע-השני נשאר
+   212→  // למנות-העדינות (TWAP-scrubbing) — שניהם-פונים-לאותו-עוגן.
+   213→  for (const mk of MARKETS) {
+   214→    const mkPair = poolKey(mk.base, mk.quote);
+   215→    const p = getPool(st, mkPair);
+   216→    if (!p) continue;
+   217→    const pm = poolMidFor(p, mk.base, mk.quote);
+   218→    if (pm <= 0) continue;
+   219→    const mkFair = fairPrice(st, mk.base, mk.quote); // פייר-פר-זוג — לעולם לא פייר-זר
+   220→    if (mkFair <= 0) continue;
+   221→    const gapBps = Math.floor(((pm - mkFair) / mkFair) * 10_000);
+   222→    // SETTLE-14: פער-גדול (≥200bps) מטופל כל-טיק; קטן — כל-טיק-שני (חיסכון-גז)
+   223→    if (Math.abs(gapBps) >= 30 && (Math.abs(gapBps) >= 200 || tick % 2 === 0)) {
+   224→      const assetIn = gapBps > 0 ? mk.base : mk.quote; // יקר-בבריכה → מזרימים-בסיס-פנימה (מוריד-mid)
+   225→      // R26 · מנה-מדויקת-שורש (סגירת-פער-לאפס): הליניאריזציה-מחצית-הפער היתה
+   226→      // כפולה במכפיל — mid ∝ ra/rb (שינוי-יחס), אבל המנה חושבה-ליניארית-על-המונה
+   227→      // בלבד. על-בריכה-רדודה מנת-10kµ הרימה-את-ה-mid ב-+3.7% (דיוק-היעד: +1.9%)
+   228→      // → הצד-השני לא-החזיר-אותה → ראצ'ט מתמשך שדילדל-את-הבריכה מ-WSTEEM
+   229→      // (נמדד-חי: 54→82µ תוך-240-טיקים). המנה-המדויקת להביא-את-מחיר-הבריכה
+   230→      // בדיוק-לפייר: sqrt — שכן mid' = 1000·rQ·rB/(rB+x)² למכירה,
+   231→      // ו-mid' = 1000(rQ+x)²/(rB·rQ) לקנייה. לפערים-קטנים היא מתכנסת-לליניארית
+   232→      // (sqrt(1+g)≈1+g/2) — שיפור-טהור, בלי-overshoot, בלי-ראצ'ט.
+   233→      const rBase = mk.base === p.a ? p.ra : p.rb;
+   234→      const rQuote = mk.quote === p.a ? p.ra : p.rb;
+   235→      const raw = gapBps > 0
+   236→        ? Math.floor(Math.sqrt(Math.floor((1000 * rQuote * rBase) / mkFair)) - rBase)   // מכירת-בסיס פנימה
+   237→        : Math.floor(Math.sqrt(Math.floor((mkFair * rBase * rQuote) / 1000)) - rQuote); // קניית-בסיס מהבריכה
+   238→      const size = Math.min(Math.max(raw, 1), 600_000, avail(st, "arena", assetIn));
+   239→      if (size >= 500) {
+   240→        pushOp({ type: "pool_swap", issuer: "arena", nonce: `pk-pool-h${st.height}-${mk.base}`, pair: poolKey(mk.base, mk.quote), assetIn, amount: size });
+   241→      }
+   242→    }
+   243→  }
+   244→
+   245→  // (2) חגורת-סולם: bookMid ∈ ref±400bps
+   246→  const ref = st.assets[m.base]?.refPrice ?? 0;
+   247→  if (ref > 0 && tick % 4 === 0) {
+   248→    const bb = sortBook(st, m.base, m.quote, "buy")[0]?.price ?? 0;
+   249→    const ba = sortBook(st, m.base, m.quote, "sell")[0]?.price ?? 0;
+   250→    const mid = bb > 0 && ba > 0 ? Math.floor((bb + ba) / 2) : (bb || ba);
+   251→    if (mid > 0) {
+   252→      const devBps = Math.floor(((mid - ref) / ref) * 10_000);
+   253→      // SETTLE-14 price-truth: גודל-החגורה פרופורציונלי לסטייה — 80k-קבוע מול
+   254→      // סטיית-15% היה טיפה-בים (הספר צף ולא חזר). 120k+300µ/סט-בפס, תקרה 600k.
+   255→      const bandQty = Math.min(120_000 + Math.abs(devBps) * 300, 600_000);
+   256→      if (devBps > 400) {
+   257→        // יקר-מדי-מול-הסולם → הארנה מוכרת-לתוך-הבידים (מורידה-את-המגע)
+   258→        const qty = Math.min(bandQty, avail(st, "arena", m.base));
+   259→        if (qty >= 5_000) {
+   260→          pushOp({ type: "fill", issuer: "arena", nonce: `pk-band-h${st.height}-${m.base}-s`, base: m.base, quote: m.quote, side: "sell", amount: qty, market: true });
+   261→        }
+   262→      } else if (devBps < -400) {
+   263→        // זול-מדי → הארנה קונה-מהאסקים (מרימה-את-המגע)
+   264→        const px = ba > 0 ? ba : ref;
+   265→        const qty = Math.min(bandQty, Math.floor((avail(st, "arena", m.quote) * 900) / (px * 10)));
+   266→        if (qty >= 5_000) {
+   267→          pushOp({ type: "fill", issuer: "arena", nonce: `pk-band-h${st.height}-${m.base}-b`, base: m.base, quote: m.quote, side: "buy", amount: qty, market: true });
+   268→        }
+   269→      }
+   270→    }
+   271→  }
+   272→
+   273→  // (3) רצפות-עומק (SETTLE-14): "הבריכות יהיו זמינות" — בריכה-שרזרבה-אחת-שלה
+   274→  // מתחת-לרצפה מקבלת-השלמה-פרופורציונלית-מהארנה (הוספה-ביחס-הנוכחי = אפס-הזזת-mid).
+   275→  // ממומן-רק-ממלאי-אמת-של-הארנה (בדיקת-avail לפני-הדחיפה — אפס-דחיות-ספר).
+   276→  if (tick % 8 === 0) {
+   277→    for (const m of MARKETS) {
+   278→      const p = getPool(st, poolKey(m.base, m.quote));
+   279→      if (!p) continue;
+   280→      const floorA = POOL_DEPTH_FLOORS[p.a] ?? 0;
+   281→      const floorB = POOL_DEPTH_FLOORS[p.b] ?? 0;
+   282→      const shortA = Math.max(0, floorA - p.ra);
+   283→      const shortB = Math.max(0, floorB - p.rb);
+   284→      if (shortA <= 0 && shortB <= 0) continue;
+   285→      // משלימים-את-הצד-החסר-הגדול; הצד-השני נגזר-מיחס-הבריכה (חוזה pool_add)
+   286→      const addA = shortA >= shortB ? shortA : (p.ra > 0 ? Math.floor((shortB * p.ra) / p.rb) : 0);
+   287→      if (p.ra <= 0 || p.rb <= 0 || addA <= 0) continue;
+   288→      const addB = Math.floor((p.rb * addA) / p.ra);
+   289→      if (addA < 20_000 || addB < 20_000) continue;
+   290→      if (avail(st, "arena", p.a) < addA || avail(st, "arena", p.b) < addB) continue;
+   291→      pushOp({ type: "pool_add", issuer: "arena", nonce: `pk-floor-h${st.height}-${p.a}`, pair: poolKey(p.a, p.b), amount: addA });
+   292→    }
+   293→  }
+   294→}
+   295→
+   296→/** טיק-ארנה: ריקוט-גריד לכל-חייל + טייק-מסתובב עם-שער-שוליים + בוטי-רעש
+   297→ * FIX(SETTLE-9): ה-param nowMs היה-מת (void nowMs בלבד) — הוסר מהחתימה ומהקריאה. */
+   298→export function arenaTick(
+   299→  st: DexState, tick: number,
+   300→  params: ArenaParams,
+   301→  rt: Map<string, SoldierRT>,
+   302→  pushOp: PushOp,
+   303→): void {
+   304→  const soldiers = ["soldier-1", "soldier-2", "soldier-3", "soldier-4"];
+   305→
+   306→  // עמדת-הייצוב (סליקה): מנעול-בריכה + חגורת-סולם — לפני-הזרימה-החופשית
+   307→  pegkeeperTick(st, tick, pushOp);
+   308→
+   309→  // THE-MICRORAIL (SETTLE-16): המסילה-הריבונית-למיקרו — מימון-רצפות מהתקציב-
+   310→  // הקיים (אפס-הטבעה) + מנות-שפשוף-לעוגן על הזוגות-בבעלותה. אחרי-pegkeeper,
+   311→  // לפני-הגריד — העוגן-קודם-לזרימה-החופשית.
+   312→  railTick(st, tick, pushOp);
+   313→
+   314→  // קצבת-חיות (THE-REFUEL): כל-16 טיקים — מי-שהקרדיטים-שלו מתחת-למסלול מקבל
+   315→  // הזרמה מהאוצר. **העברה-טהורה (אפס-הטבעה)** — Σcredits נשמר. בלי-זה הגריד
+   316→  // מת-מוות-מבני: gas יורד-מונוטונית, החיילים מפסיקים-לצטט, הספר מתרוקן,
+   317→  // הספרד-נעלמת והשוק מפסיק-לשבת. תיקון-שורש לתשישות-הכלכלה-הסימולטיבית.
+   318→  // FIX(roast-79 · fuel-death-spiral, נמדד-חי): החלון-16-טיק היה-חלק-ממעגל-מוות —
+   319→  // הדמון-מת-בסביבה-הזו אחרי-כמה-עשרות-שניות, לפני-הטיק-ה-16 (ציטוט-החיילים מתחיל-בטיק-1!)
+   320→  // → החיילים מתים-מוקדם → אין-מסחר → אין-עמלות → אין-מזרקה → אין-דלק. החלון הוקדם
+   321→  // ל-4 (וגם-טיק 1–2 מיד-אחרי-boot): התזמון בלבד — ההעברות-עצמן טהורות-ומוגבלות.
+   322→  if (tick <= 2 || tick % 4 === 0) {
+   323→    // FIX(roast-81 · afford-race): ספר-תקציב-פר-טיק (ראה-למטה) — אפס-חפירה-מעבר-לרצפת.
+   324→    const fuelBudget = new Map<string, number>();
+   325→    // THE-FOUNTAIN: אוצר-ריק? הטבעה-עצמית מגובה-עמלות-מדודות (profit-שהוכר +
+   326→    // feeMeter-מעל-רצפת-הסולם, מדוד-תקרה) — המסחר-עצמו מחזיר-את-הדלק-ששרף.
+   327→    // קודם-ההטבעה, אחר-כך העירוי.
+   328→    // FIX(roast-79): השער fuelAvail>20k היה-חסם-מבני — נמדד fuelAvail=18,618
+   329→    // (מתחת-ל-20k) = מזרקה-יבשה-לנצח בזמן-שלטרשורה-היה-גיבוי-אמת. השער הורד-ל-1k:
+   330→    // הגרעין (kernel mint_fuel) עדיין אוכף בעצמו את הגיבוי-הכפול, הרצפה (8k) והתקרה —
+   331→    // כאן-רק-החלטת-תזמון-כלכלית, לא-שכבת-אבטחה.
+   332→    const trCr = st.credits["treasury"] ?? 0;
+   333→    // FIX(roast-81 · fountain-half-throttle): ה-/2 כאן היה-חנק-כפול-מעל-אכיפת-הגרעין
+   334→    // (mint_fuel כבר-אוכף-בעצמו רצפת-8k + תקרה). נמדד-חי: fuelAvail=577<שער-1,000
+   335→    // בזמן-שהגרעין-הרשה-1,154 → מזרקה-יבשה, האוצר-תקוע-על-8µ-גז, ו-ProtoRev —
+   336→    // מנוע-הארב-שרץ-כ-batch-אוצר — מת-מרעב-גז (revAux.rejections=5,181).
+   337→    // עכשיו: אותו-מדד-בדיוק-של-הגרעין — האכיפה-במקום-אחד.
+   338→    const fuelAvail = Math.max(0, st.treasuryProfit) + Math.max(0, (st.feeMeter ?? 0) - LADDER_FUEL_FLOOR);
+   339→    if (trCr < 10_000 && fuelAvail > 1_000) {
+   340→      const mint = Math.min(60_000, MINT_FUEL_CAP, fuelAvail);
+   341→      if (mint > 0) pushOp({ type: "mint_fuel", issuer: "treasury", nonce: `fountain-h${st.height}`, to: "treasury", amount: mint });
+   342→    }
+   343→    for (const ag of [...soldiers, "arena", "bot-a", "bot-b", "bot-c", "bot-e", "rail"]) {
+   344→      const c = st.credits[ag] ?? 0;
+   345→      // FIX(SETTLE-15 fuel-oscillation, נתפס-בלוג-הדחיות): סף-10k = מילוי-מוקדם-בחלון-אחד,
+   346→      // אפס-דחיות; זו-העברה-טהורה (אפס-הטבעה) — השריפה-הכוללת-לא-משתנה, רק-התזמון-מוקדם.
+   347→      if (c < 10_000) {
+   348→        const need = Math.min(30_000 - c, REFUEL_CAP);
+   349→        if (need <= 0) continue;
+   350→        // FIX(roast-81 · affordability-ask): היה-בקשה-קבועה (30k−c) שהגרעין דוחה-בכנות
+   351→        // כשאף-ממנה לא עומד-במרווח — נמדד-חי: Σcredits=54,793µ מול-דרישה-קבועה-של-~240k
+   352→        // → סירול-דחיות-נצחי, הספר-ריק-מציטוטים, וחיילים-עשירים-בטוקנים-ועניים-בגז
+   353→        // (soldier-1: 2.1M-SAOS+3.8M-USDS · 10µ-קרדיטים) לא-מצטטים. עכשיו: הבקשה
+   354→        // מתכווננת-ליכולת-הממנה-בפועל — אותו-סדר-סולם-ואותם-מרווחי-ברזל (funderAfford
+   355→        // מקור-אמת-אחד בגרעין); מתחת-ל-FUEL_ASK_MIN לא-מבקשים (אבק-גז); אסור-לממן-עצמי
+   356→        // (f≠ag — SETTLE-7). הגרעין נשאר-האוכף-המלא (fail-closed).
+   357→        // FIX(roast-81 · afford-race): כל-הדחיפות-באותו-טיק קוראות-את-אותו-st.credits
+   358→        // לפני-היישום — נמדד-חי: bot-a (14,940) מומן-3×4,940-בטיק-אחד ונשחק-עד-0
+   359→        // (עבר-על-רצפת-ה-10k-שלו). עכשיו: ספר-תקציב-פר-טיק — כל-דחיפה-מנכה-מהיכולת
+   360→        // שנתפסה, אף-ממנה-לא-נחפר-מעבר-לרצפת-שלו.
+   361→        let funder: string | null = null;
+   362→        let amt = 0;
+   363→        for (const f of FUNDER_ORDER) {
+   364→          if (f === ag) continue;
+   365→          const afford = funderAfford(st, f) - (fuelBudget.get(f) ?? 0);
+   366→          if (afford >= Math.min(need, FUEL_ASK_MIN)) { funder = f; amt = Math.min(need, afford); break; }
+   367→        }
+   368→        if (!funder || amt <= 0) continue;
+   369→        fuelBudget.set(funder, (fuelBudget.get(funder) ?? 0) + amt);
+   370→        pushOp({ type: "refuel", issuer: funder, nonce: `refuel-h${st.height}-${ag}`, to: ag, amount: amt });
+   371→      }
+   372→    }
+   373→  }
+   374→
+   375→  // ── THE-REARM: חייל-אספקה-למייצב (למעלה — תיעוד-מלא) — קצב 16-טיק כמו-העירוי ──
+   376→  if (tick % 16 === 0) {
+   377→    const rc = rearmCounts(st);
+   378→    if (avail(st, "arena", "SAOS") < REARM_FLOOR_SAOS && rc.saos + REARM_TRANCHE_SAOS <= REARM_LIFETIME_SAOS) {
+   379→      const amt = Math.min(REARM_TRANCHE_SAOS, REARM_LIFETIME_SAOS - rc.saos);
+   380→      if (avail(st, "treasury", "SAOS") >= amt) {
+   381→        rc.saos += amt;
+   382→        pushOp({ type: "transfer", issuer: "treasury", nonce: `rearm-sh${st.height}`, to: "arena", asset: "SAOS", amount: amt });
+   383→      }
+   384→    }
+   385→    if (avail(st, "arena", "USDS") < REARM_FLOOR_USDS && rc.usds + REARM_TRANCHE_USDS <= REARM_LIFETIME_USDS) {
+   386→      const amt = Math.min(REARM_TRANCHE_USDS, REARM_LIFETIME_USDS - rc.usds);
+   387→      if (avail(st, "treasury", "USDS") >= amt) {
+   388→        rc.usds += amt;
+   389→        pushOp({ type: "transfer", issuer: "treasury", nonce: `rearm-uh${st.height}`, to: "arena", asset: "USDS", amount: amt });
+   390→      }
+   391→    }
+   392→    // קו-WSTEEM (SETTLE-14): אוצר-עוטף-את-ה-STEEM-הטבעי-שלו-עצמו (גיבוי 1:1 כנה —
+   393→    // אפס-הטבעה-רכה: הגיבוי נרשם ב-backing) ואז מעביר לארנה לשירות-המנעול.
+   394→    // העטיפה-וההעברה-בטיקים-נפרדים — הבדיקה-על-avail לפני-כל-דחיפה מסדרת-את-הסדר.
+   395→    if (avail(st, "arena", "WSTEEM") < REARM_FLOOR_WSTEEM && rc.wsteem + REARM_TRANCHE_WSTEEM <= REARM_LIFETIME_WSTEEM) {
+   396→      const amt = Math.min(REARM_TRANCHE_WSTEEM, REARM_LIFETIME_WSTEEM - rc.wsteem);
+   397→      const tw = avail(st, "treasury", "WSTEEM");
+   398→      if (tw < amt && avail(st, "treasury", "STEEM") >= amt - tw) {
+   399→        pushOp({ type: "wrap_mint", issuer: "treasury", nonce: `rearm-wraph${st.height}`, wrapAsset: "WSTEEM", amount: amt - tw });
+   400→      }
+   401→      if (avail(st, "treasury", "WSTEEM") >= amt) {
+   402→        rc.wsteem += amt;
+   403→        pushOp({ type: "transfer", issuer: "treasury", nonce: `rearm-wh${st.height}`, to: "arena", asset: "WSTEEM", amount: amt });
+   404→      }
+   405→    }
+   406→
+   407→    // ── SETTLE-17: קו-אספקת-חיילים — ארנה→חייל (רק-מעל-רצפת-הארנה, מצטבר-במצב) ──
+   408→    // באותו-חלון-16-טיק של-ה-rearm: קודם-הארנה-מתמלאת, אחר-כך-החיילים-מקבלים.
+   409→    // העברה-טהורה של-מלאי-קיים — לא-הטבעה, לא-מקור-חדש; הגרעין-אוכף-בעצמו.
+   410→    for (const soldier of soldiers) {
+   411→      const free = avail(st, soldier, "WSTEEM");
+   412→      const sc = soldierSeedCounts(st, soldier);
+   413→      if (free >= SOLDIER_SEED_TARGET_WSTEEM || sc.wsteem >= SOLDIER_SEED_CAP_WSTEEM) continue;
+   414→      const want = SOLDIER_SEED_TARGET_WSTEEM - free;            // השלמה-ליעד-בלבד
+   415→      const byCap = SOLDIER_SEED_CAP_WSTEEM - sc.wsteem;          // כבוד-לתקרה-המצטברת
+   416→      const arenaSpare = avail(st, "arena", "WSTEEM") - REARM_FLOOR_WSTEEM; // עודף-אמיתי-מעל-רצפת-המנעול
+   417→      const amt = Math.min(want, byCap, arenaSpare);
+   418→      if (amt > 0) {
+   419→        sc.wsteem += amt;
+   420→        pushOp({ type: "transfer", issuer: "arena", nonce: `swseed-h${st.height}-${soldier}`, to: soldier, asset: "WSTEEM", amount: amt });
+   421→      }
+   422→    }
+   423→  }
+   424→
+   425→  // קצבת-בוטים: כל-24 טיקים ממלאים-מחדש סוחרי-רעש שנדלדלו — בלי-זה הזרימה-
+   426→  // החופשית מתה (אפס-מילויים → אפס-גילוי-מחיר). **המפעיל-הנדיב: הארנה**
+   427→  // (המייצבת-עם-המלאי-העמוק) — לא-האוצר: לאוצר יש רק-את-קיזוז-העמלות,
+   428→  // והקצבה-ממנו-רוקנה-אותו-עד-ריק (ממצא-חי 2026-09). מדידה-על-**avail** (כולל
+   429→  // נעילות-ספר) ולא-יתרה-גולמית — פקודות-מנוחות של-בוט לא-ימנעו-מימון-חדש.
+   430→  if (params.noise && tick % 24 === 0) {
+   431→    // R28 · bot-e = סוכן-ההתעמלות (ראה exerciseTick) — מקבל את אותה קצבת-בוטים
+   432→    // מהארנה ואותן תקרות-חיים (2.4M USDS / 1.2M SAOS): סוחר-רעש לכל דבר, רק
+   433→    // שהזרימה שלו עוברת דרך הפרימיטיבים הציבוריים במקום ישר לספר.
+   434→    for (const bot of ["bot-a", "bot-b", "bot-c", "bot-e"]) {
+   435→      const caps = botSeedCounts(st, bot);
+   436→      if (avail(st, bot, "USDS") < 100_000 && caps.usds < BOT_SEED_CAP_USDS) {
+   437→        caps.usds += 400_000;
+   438→        pushOp({ type: "transfer", issuer: "arena", nonce: `botseed-uh${st.height}-${bot}`, to: bot, asset: "USDS", amount: 400_000 });
+   439→      }
+   440→      const caps2 = botSeedCounts(st, bot);
+   441→      if (avail(st, bot, "SAOS") < 100_000 && caps2.saos < BOT_SEED_CAP_SAOS) {
+   442→        caps2.saos += 200_000;
+   443→        pushOp({ type: "transfer", issuer: "arena", nonce: `botseed-sh${st.height}-${bot}`, to: bot, asset: "SAOS", amount: 200_000 });
+   444→      }
+   445→    }
+   446→  }
+   447→
+   448→  for (const m of MARKETS) {
+   449→    const fair = fairPrice(st, m.base, m.quote);
+   450→    if (fair <= 0) continue;
+   451→
+   452→    /* FIX(R45 · inflight-escrow): חשבון-נעילות-בטיסה-פר-טיק — נמדד-חי בהוכחת-R45:
+   453→     * order(soldier-1):insufficient-escrow חוזר-ונשנה. שורש: כל-הפקודות-של-אותו-
+   454→     * סוכן באותו-טיק נבדקות-מול-אותו-avail לא-מעודכן (הנעילה נרשמת-רק-בביצוע-
+   455→     * הבלוק) ← הפקודה-השלישית-והלאה נדחות. עכשיו: כל-דחיפה מנכה-מראש-מספר-ספר
+   456→     * מקומי — אותו-עיקרון-כמו-fuelBudget של-העירוי, על-המאזן-החי. */
+   457→    const inflight = new Map<string, number>();
+   458→    const inflightAvail = (who: string, asset: string): number =>
+   459→      avail(st, who, asset) - (inflight.get(`${who}:${asset}`) ?? 0);
+   460→    const inflightAdd = (who: string, asset: string, mu: number): void => {
+   461→      inflight.set(`${who}:${asset}`, (inflight.get(`${who}:${asset}`) ?? 0) + mu);
+   462→    }
+   463→
+   464→    if (params.enabled) {
+   465→      for (const soldier of soldiers) {
+   466→        // FIX(SETTLE-7): שער-הפסד — חייל-מתחת-לרצפת-הון לא מציב-פקודות-חדשות (רק-מנקה)
+   467→        const starving = soldierEquity(st, soldier, fair) < SOLDIER_EQUITY_FLOOR;
+   468→        const sk = skewShiftBps(st, soldier, m.base, params);
+   469→        // ריקוט: בטל ציטוטים שסטו מעל הרף
+   470→        const mine = st.orders.filter((o) => o.live && o.owner === soldier && o.base === m.base && o.quote === m.quote);
+   471→        const desired = new Map<number, { side: "buy" | "sell"; px: number }>();
+   472→        for (let lvl = 1; lvl <= params.levels; lvl++) {
+   473→          const off = params.spreadBps / 2 + (lvl - 1) * params.stepBps;
+   474→          let bidPx = Math.floor((fair * (10_000 - off - sk)) / 10_000);
+   475→          let askPx = Math.floor((fair * (10_000 + off - sk)) / 10_000);
+   476→          // משמעת-ספרד: הביד שלי תמיד מתחת-לפייר והאסק מעליו (מונע-התנגשות-עצמית)
+   477→          const minGap = Math.max(1, Math.floor((fair * 5) / 10_000)); // ≥5bps סביב-הפייר
+   478→          bidPx = Math.min(bidPx, fair - minGap);
+   479→          askPx = Math.max(askPx, fair + minGap);
+   480→          if (bidPx > 0) desired.set(bidPx, { side: "buy", px: bidPx });
+   481→          if (askPx > 0) desired.set(askPx, { side: "sell", px: askPx });
+   482→        }
+   483→        for (const o of mine) {
+   484→          const d = desired.get(o.price);
+   485→          const stillGood = d && d.side === o.side &&
+   486→            Math.abs(((fair - o.price) / fair) * 10_000) <= params.requoteBps + params.spreadBps;
+   487→          if (!stillGood) {
+   488→            if (o.live) submit(rt, st, soldier, { type: "cancel", orderId: o.id }, pushOp);
+   489→          } else {
+   490→            desired.delete(o.price);
+   491→          }
+   492→        }
+   493→        // הצב-חסרים — רק-אם-הערבות בכדאיות (מניעת-הצפת-ממפול מדחיות-חוזרות)
+   494→        // ורק-אם-החייל מעל-רצפת-ההון (שער-הפסד, SETTLE-7)
+   495→        if (!starving) {
+   496→        let lvl = 1;
+   497→        for (const [, d] of desired) {
+   498→          const size = Math.floor(params.sizeMu * (1 + (lvl - 1) * 0.5));
+   499→          lvl++;
+   500→          const lockAsset = d.side === "sell" ? m.base : m.quote;
+   501→          const lockMu = d.side === "sell" ? size : notional(d.px, size);
+   502→          // FIX(R45 · inflight-escrow): הבדיקה מנכה-את-הנעילות-שכבר-נדחפה-בטיק-הזה —
+   503→          // סדרת-פקודות-של-אותו-חייל לא-מתחרה-עוד-על-אותה-יתרה-מתה.
+   504→          if (lockMu <= 0 || inflightAvail(soldier, lockAsset) < lockMu) continue;
+   505→          inflightAdd(soldier, lockAsset, lockMu);
+   506→          submit(rt, st, soldier, {
+   507→            type: "order", base: m.base, quote: m.quote, side: d.side,
+   508→            price: d.px, amount: size,
+   509→          }, pushOp);
+   510→        }
+   511→        }
+   512→      }
+   513→    }
+   514→
+   515→    // טייק-מסתובב: רק-אם-השוליים מכסים עמלה+רווח-מינ'
+   516→    if (params.enabled) {
+   517→      const taker = soldiers[tick % soldiers.length]!;
+   518→      const bids = sortBook(st, m.base, m.quote, "buy");
+   519→      const asks = sortBook(st, m.base, m.quote, "sell");
+   520→      const bestAsk = asks.find((o) => o.owner !== taker);
+   521→      const bestBid = bids.find((o) => o.owner !== taker);
+   522→      if (bestAsk) {
+   523→        // FIX(Roast-64 · phantom-fee): הפחתת-FEE_BPS נמחקה — הספר לא גובה עמלת-taker
+   524→        // (matchBook מעביר ערך-מלא); השער-מגן מול-סיכון-מלאי-ובכיוון-הפייר, בלי
+   525→        // להציג-עמלה-שאינה-קיימת כ"רווחיות-וודאית".
+   526→        const edgeBps = Math.floor(((fair - bestAsk.price) / bestAsk.price) * 10_000);
+   527→        if (edgeBps >= params.minEdgeBps) {
+   528→          // FIX(R45 · inflight-escrow): הטייק-קונה-משלם-ציטוט — נחתך-לכיסוי-הבטיסה
+   529→          // (יתרה-חיה פחות-הנעילות-שנדחפה-בטיק-הזה, ×0.9 שוליים-בטיחות).
+   530→          const canQuote = Math.floor((inflightAvail(taker, m.quote) * 9) / 10);
+   531→          const maxQty = bestAsk.price > 0 ? Math.floor(canQuote / bestAsk.price) : 0;
+   532→          const qty = Math.min(bestAsk.amount - bestAsk.filled, 150_000, maxQty);
+   533→          if (qty > 0) {
+   534→            inflightAdd(taker, m.quote, bestAsk.price * qty);
+   535→            submit(rt, st, taker, { type: "fill", base: m.base, quote: m.quote, side: "buy", amount: qty, market: true }, pushOp);
+   536→          }
+   537→        }
+   538→      }
+   539→      if (bestBid) {
+   540→        const edgeBps = Math.floor(((bestBid.price - fair) / fair) * 10_000);
+   541→        if (edgeBps >= params.minEdgeBps) {
+   542→          // FIX(R45 · inflight-escrow): הטייק-מוכר-מוסר-בסיס — נחתך-לכיסוי-הבטיסה.
+   543→          const maxQty = Math.floor((inflightAvail(taker, m.base) * 9) / 10);
+   544→          const qty = Math.min(bestBid.amount - bestBid.filled, 150_000, maxQty);
+   545→          if (qty > 0) {
+   546→            inflightAdd(taker, m.base, qty);
+   547→            submit(rt, st, taker, { type: "fill", base: m.base, quote: m.quote, side: "sell", amount: qty, market: true }, pushOp);
+   548→          }
+   549→        }
+   550→      }
+   551→    }
+   552→
+   553→    // בוטי-רעש: זרימה-חופשית → גילוי-מחיר אמת; לפעמים טייק-שוק (חוצה-ספרד).
+   554→    // גודל-הטייק מותאם-תקציב-אמת (affordable) — פקודות-שוק שלא-ניתן לממן נדחות
+   555→    // על-הספר ומבזבזות-GAS; בוט מכסה-את-מה-שיש-לו, כמו-סוחר-אמת.
+   556→    if (params.noise) {
+   557→      const bots = ["bot-a", "bot-b", "bot-c"];
+   558→      const bot = bots[tick % bots.length]!;
+   559→      const roll = (tick * 7 + m.base.length * 3) % 10;
+   560→      if (roll < 3) {
+   561→        // טייק-שוק של בוט — יוצר מילויים וגילוי-מחיר אמיתי.
+   562→        // FIX(SETTLE-14): הצד היה מוטה-מבנית (roll===0 → קנייה; 1,2 → מכירה =
+   563→        // 1/3 קנייה 2/3 מכירה). זרימה-חד-צדדית אינה "גילוי-מחיר" — היא מניפולציה
+   564→        // בתוך-הסימולציה. עכשיו: זוגיות-טיק = איזון-מושלם קנייה/מכירה.
+   565→        const side: "buy" | "sell" = tick % 2 === 0 ? "buy" : "sell";
+   566→        const px = side === "buy" ? (sortBook(st, m.base, m.quote, "sell")[0]?.price ?? fair) : (sortBook(st, m.base, m.quote, "buy")[0]?.price ?? fair);
+   567→        // FIX(Roast-64 · noise-sell-units): נוסחת-הקנייה הועתקה למכירה — למכירה
+   568→ // assetHave=בסיס ואסור-לחלק במחיר (חילקו בסיס במחיר = כמות-0.04%-מהאמת →
+   569→ // זרימת-המכירות-הייתה-אפסית וה"איזון-מושלם" היה-שקר). למכירה: הבסיס-עצמו.
+   570→        const affordable = px > 0
+   571→          ? (side === "buy"
+   572→              ? Math.floor((inflightAvail(bot, m.quote) * 9) / (px * 10))
+   573→              : Math.floor((inflightAvail(bot, m.base) * 9) / 10))
+   574→          : 0;
+   575→        const qty = Math.min(25_000 + (tick % 5) * 10_000, affordable);
+   576→        if (qty > 0) {
+   577→          if (side === "buy") inflightAdd(bot, m.quote, Math.ceil((px * qty) / 10) * 10);
+   578→          else inflightAdd(bot, m.base, qty);
+   579→          submit(rt, st, bot, { type: "fill", base: m.base, quote: m.quote, side, amount: qty, market: true }, pushOp);
+   580→        }
+   581→      } else if (roll < 6) {
+   582→        // היגיינת-פקודות לבוטים: בוט מחזיק עד-פקודת-רעש אחת פר-זוג — ישנות מבוטלות.
+   583→        // בלי-זה הבוטים צוברים פקודות-מנוחה שנועלות-את-כל-המלאי עד order-cap והזרימה מתה.
+   584→        for (const o of st.orders) {
+   585→          if (o.live && o.owner === bot && o.base === m.base && o.quote === m.quote) {
+   586→            submit(rt, st, bot, { type: "cancel", orderId: o.id }, pushOp);
+   587→          }
+   588→        }
+   589→        const px = Math.floor((fair * (10_000 + (roll === 3 ? 40 : -40))) / 10_000);
+   590→        const side: "buy" | "sell" = roll === 4 ? "sell" : "buy";
+   591→        const amt = 20_000 + (tick % 7) * 8_000;
+   592→        // FIX(R44 · noise-escrow-guard): פקודת-הלימיט של בוט-הרעש נבדקת-לכיסוי לפני-
+   593→        // השליחה — כמו-טייק-השוק. נמדד-חי: order(bot-c):insufficient-escrow ב-
+   594→        // world.json (h28759) — הבוט המשיך-להציע-פקודות אחרי-שאזל-מלאיו, כל-טיק
+   595→        // מחדש, מזהם-את-מונה-הדחיות ומבזבז-סליקה. כעת: בלי-כיסוי → אין-פקודה (הבוט
+   596→        // שותק-בכנות, בדיוק-כמו-סוחר-אמת-שאין-לו-מה-להציע).
+   597→        {
+   598→          const needMu = side === "buy" ? px * amt : amt; // קנייה: הצעת-ציטוט; מכירה: הבסיס-עצמו
+   599→          const haveMu = inflightAvail(bot, side === "buy" ? m.quote : m.base);
+   600→          if (needMu > 0 && haveMu >= needMu) {
+   601→            inflightAdd(bot, side === "buy" ? m.quote : m.base, needMu);
+   602→            submit(rt, st, bot, { type: "order", base: m.base, quote: m.quote, side, price: px, amount: amt }, pushOp);
+   603→          }
+   604→        }
+   605→      } else {
+   606→        const p = getPool(st, poolKey(m.base, m.quote));
+   607→        // R26 · בוטי-רעש לא-נוגעים-בבריכת-המסדרון: הזרימה-שלהם חד-צדדית-מבנית
+   608→        // (לבוטים אין WSTEEM — המכירות נדחות insufficient, הקניות נשארות → סחיפת-
+   609→        // הבריכה מעל-העוגן; נמדד-חי: 54→79µ ב-240-טיקים). בנכס-עיגון-1:1 גילוי-
+   610→        // המחיר הוא-מבחוץ (STEEM-אמת באורקל) — רעש-סימולטיבי על-המסדרון הוא-לא
+   611→        // גילוי-מחיר אלא-סתם-עיוות. האמת באה-מהדלת, מהמסילה-ומהסימון-המחדש.
+   612→        if (p && !RAIL_OWNED_POOLS.has(poolKey(m.base, m.quote))) {
+   613→          // FIX(SETTLE-14): הכיוון היה tick%3 — מוטה-מבנית 2:1 (על-הזוג-הריבוני:
+   614→          // 2/3 קניות-בסיס). זרימה-חד-צדדית קטנה-אך-מתמדת היא-הרמת-מחיר,
+   615→          // לא-גילוי-מחיר. זוגיות-טיק = איזון-מושלם שתי-הכיוונים.
+   616→          const assetIn = tick % 2 === 0 ? p.a : p.b;
+   617→          // FIX(R45 · noise-pool-guard): סוואפ-הבריכה של בוט-הרעש נבדק-לכיסוי לפני-
+   618→          // השליחה — החור שהשאיר R44 (תיקן-לימיט-פקודות-בלבד). נמדד-חי:
+   619→          // pool_swap(bot-b):insufficient ב-world.json (h29305) — bot-b עם
+   620→          // {USDS:958, SAOS:1} המשיך-לדחוף-סוואפים-של-15k-35kµ כל-טיק מחדש.
+   621→          // כעת: הגודל נחתך-לכיסוי-האמת (×0.9), אפס-כיסוי → אין-סוואפ — הבוט
+   622→          // שותק-בכנות, כמו-סוחר-אמת-שאין-בכיסו-כלום.
+   623→          const haveMu = inflightAvail(bot, assetIn as Asset);
+   624→          const wantMu = 15_000 + (tick % 5) * 5_000;
+   625→          const amt = Math.min(wantMu, Math.floor((haveMu * 9) / 10));
+   626→          if (amt > 0) {
+   627→            inflightAdd(bot, assetIn as Asset, amt);
+   628→            submit(rt, st, bot, { type: "pool_swap", pair: poolKey(p.a, p.b), assetIn, amount: amt }, pushOp);
+   629→          }
+   630→        }
+   631→      }
+   632→    }
+   633→  }
+   634→
+   635→  // R28 · THE-EXERCISE: הדלקת הפרימיטיבים הציבוריים הרדומים (CoW/DCA/טריגר) —
+   636→  // אחרי ה-MARKETS, לפני סוף הטיק. הסוכן פועל רק כשזרימת-הרעש חיה (params.noise):
+   637→  // הוא חלק מאותה כלכלה סימולטיבית, לא מנגנון-בחן נפרד.
+   638→  if (params.noise) exerciseTick(rt, st, tick, pushOp);
+   639→}
+   640→
+   641→/* ── R28 · THE-EXERCISE: הדלקת הפרימיטיבים הציבוריים הרדומים ──────────────
+   642→ * ממצא-כנות R28 (נמדד בקוד, לא בהצהרה): שלושת הפרימיטיבים הציבוריים — CoW,
+   643→ * DCA וטריגרים — נבנו, עברו תיקוני-רוסט עמוקים (R16/R17/Roast-63/64/65)…
+   644→ * ומעולם לא קיבלו תנועה: אף סוכן לא מציב cow_order (grep: אפס מקורות מלבד
+   645→ * ה-API הציבורי), אף תוכנית-DCA לא נפתחה, אף טריגר לא ננעל. הטיקים רצים
+   646→ * בכל בלוק (chain.ts · dcaTick+trigTick+protoRevTick+cowSettle) על תורים
+   647→ * ריקים: "קיים" בלי "חי" — בדיוק סוג ההצהרה-למחצה שהוצאנו מהמערכת.
+   648→ * הטיפול מדידתי, לא סטטיסטי: סוכן-ההתעמלות bot-e מפעיל את שלושתם בקצב
+   649→ * קבוע-ודטרמיניסטי, בכסף-אמת-שלו (קצבת-הבוטים ועירוי-הדלק הקיימים),
+   650→ * עם חילוף-תפקידים מול הארנה (הכיסים העמוקים) כדי שהמלאי ממוחזר ולא מתרוקן:
+   651→ *   · CoW כל 40 טיקים: זוג פקודות הפוכות משני בעלים שונים (בעלים אחד —
+   652→ *     ניטרול-החפיפה-העצמית R17-b·H1 היה מבטל את ההתאמה), גבולות ±0.3%
+   653→ *     סביב הפייר, הצד-השני הארנה — הסליקה במחיר-האחיד ≈ הפייר (אפס זיהום-אורקל), והעודף
+   654→ *     ≈ 0.6% מהנומינל נשאר אצל שני הצדדים ונמדד ב-cowStats.surplusMu.
+   655→ *   · DCA כל 480 טיקים: תוכנית 3-פרוסות USDS→SAOS (12kµ/פרוסה, כל-40-בלוקים)
+   656→ *     — ורק אם אין לסוכן תוכנית פעילה (התור נשאר צנוע והפרוסות אמת).
+   657→ *   · טריגר כל 480 טיקים: מכירה/קנייה לסירוגין, 30bps נגד הכיוון — נורה
+   658→ *     בדיפ/בראלי, או פג-תוקף בכנות מתועדת; שני הכיוונים הם מדידה-חיה.
+   659→ * הכל מ-`tick` והמצב בלבד: אפס-רנדומיות · אפס-שעון — ריפליי-אמת.
+   660→ * ההצבה מוגנת-יתרה (avail ×1) לפני-כל-שליחה: אין דחיות-רעש כתוצר-לוואי. */
+   661→const EXERCISE_PAIR_TICK = 40;
+   662→const EXERCISE_PLAN_TICK = 480;
+   663→const EXERCISE_COW_AMT = 20_000;
+   664→const EXERCISE_DCA_PER_SLICE = 12_000;
+   665→const EXERCISE_DCA_SLICES = 3;
+   666→const EXERCISE_TRIG_AMT = 15_000;
+   667→
+   668→export function exerciseTick(rt: Map<string, SoldierRT>, st: DexState, tick: number, pushOp: PushOp): void {
+   669→  const m = MARKETS[0]; // הזוג הריבוני SAOS/USDS
+   670→  const fair = fairPrice(st, m.base, m.quote);
+   671→  if (!(fair > 0)) return;
+   672→
+   673→  // ── CoW: זוג הפוך משני בעלים, גבולות ±0.3% סביב הפייר ──
+   674→  // מדידת-מלאי R28 (בדיקת-ההוכחה המקומית): בוטי-הרעש רוקנו עידנים-עידנים
+   675→  // (SAOS=1µ — תקרות-הזריעה מוצו), החיילים חסרי-SAOS — הצד-השני היחיד עם
+   676→  // כיסים-עמוקים משני-הצדדים ועם התפקיד-הארכיטקטוני המתאים הוא הארנה —
+   677→  // "המפעיל-הנדיב" שמממן את הסימולציה מלכתחילה (קצבות, rearm, רצפות-עומק).
+   678→  // חילוף-הכיוונים שומר עליה בת-קיימא: מחזור-זוגי היא קונה SAOS, אי-זוגי
+   679→  // מוכרת — נטו-שטוח, המלאי ממוחזר בינה לבין סוכן-ההתעמלות ולא מתרוקן.
+   680→  if (tick % EXERCISE_PAIR_TICK === 12) {
+   681→    const cycle = Math.floor(tick / EXERCISE_PAIR_TICK);
+   682→    const botSells = cycle % 2 === 0;
+   683→    const seller = botSells ? "bot-e" : "arena";
+   684→    const buyer = botSells ? "arena" : "bot-e";
+   685→    const sellPx = Math.floor((fair * 9_970) / 10_000); // −0.3% מתחת לפייר
+   686→    const buyPx = Math.floor((fair * 10_030) / 10_000);  // +0.3% מעליו — חוצה
+   687→    const sellOk = avail(st, seller, m.base) >= EXERCISE_COW_AMT;
+   688→    const buyOk = avail(st, buyer, m.quote) >= notional(buyPx, EXERCISE_COW_AMT);
+   689→    if (sellPx > 0 && buyPx >= sellPx && sellOk && buyOk) {
+   690→      submit(rt, st, seller, { type: "cow_order", base: m.base, quote: m.quote, side: "sell", price: sellPx, amount: EXERCISE_COW_AMT }, pushOp);
+   691→      submit(rt, st, buyer, { type: "cow_order", base: m.base, quote: m.quote, side: "buy", price: buyPx, amount: EXERCISE_COW_AMT }, pushOp);
+   692→    }
+   693→  }
+   694→
+   695→  // ── DCA: תוכנית קטנה, רק אם אין אחת פעילה לסוכן ──
+   696→  if (tick % EXERCISE_PLAN_TICK === 60) {
+   697→    const mineActive = Object.values(st.dca ?? {}).some((p) => p.owner === "bot-e" && p.remainingMu > 0);
+   698→    const cost = EXERCISE_DCA_PER_SLICE * EXERCISE_DCA_SLICES;
+   699→    if (!mineActive && avail(st, "bot-e", "USDS") >= cost) {
+   700→      submit(rt, st, "bot-e", { type: "dca_create", asset: "USDS", to: "SAOS", perSlice: EXERCISE_DCA_PER_SLICE, slicesMax: EXERCISE_DCA_SLICES, everyK: 40, minOutBps: 100 }, pushOp);
+   701→    }
+   702→  }
+   703→
+   704→  // ── טריגר: כיוון מתחלף, 30bps נגד הפייר, תוקף 500 בלוקים ──
+   705→  if (tick % EXERCISE_PLAN_TICK === 300) {
+   706→    const planIdx = Math.floor(tick / EXERCISE_PLAN_TICK);
+   707→    const side: "sell" | "buy" = planIdx % 2 === 0 ? "sell" : "buy";
+   708→    const triggerPx = side === "sell"
+   709→      ? Math.floor((fair * 9_970) / 10_000)   // נורה אם המחיר יורד 0.3%
+   710→      : Math.floor((fair * 10_030) / 10_000);  // נורה אם המחיר עולה 0.3%
+   711→    if (triggerPx > 0) {
+   712→      if (side === "sell" && avail(st, "bot-e", m.base) >= EXERCISE_TRIG_AMT) {
+   713→        submit(rt, st, "bot-e", { type: "trig_order", base: m.base, quote: m.quote, side, triggerPx, limitPx: 0, amount: EXERCISE_TRIG_AMT, expiresH: st.height + 500 }, pushOp);
+   714→      } else if (side === "buy" && avail(st, "bot-e", m.quote) >= notional(triggerPx, EXERCISE_TRIG_AMT)) {
+   715→        submit(rt, st, "bot-e", { type: "trig_order", base: m.base, quote: m.quote, side, triggerPx, limitPx: 0, amount: EXERCISE_TRIG_AMT, expiresH: st.height + 500 }, pushOp);
+   716→      }
+   717→    }
+   718→  }
+   719→}
+   720→
