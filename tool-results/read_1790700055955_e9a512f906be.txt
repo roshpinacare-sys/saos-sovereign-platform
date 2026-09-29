@@ -1,0 +1,1901 @@
+     1→/**
+     2→ * mini-services/evm-mesh/src/index.ts — SAOS-EVM service entry.
+     3→ *
+     4→ * Responsibilities:
+     5→ *   1. run anvil (the sovereign laboratory chain) on :8545, chainId 31337
+     6→ *   2. deploy the 9-contract CONTRACT MESH + wire the chain
+     7→ *   3. AUTO-RUNNER v20: every 120s the HQ posts a REAL work order THROUGH
+     8→ *      the platform's solution engine (POST /api/saos/mesh/work realWork:
+     9→ *      LLM generates the actual deliverable, sha256 digest anchored on the
+    10→ *      SAOS-WORK rail, hash-chained receipt) — soldiers deliver on-chain,
+    11→ *      the payroll pays. Honest fallback: if the web tier is unreachable,
+    12→ *      the order is posted dry (on-chain, no LLM content).
+    13→ *      v20 MICROGRID: before the dispatch the HQ posts fresh REAL DEX
+    14→ *      prices to the SAOSMicrogrid oracle (ALL 6 KNOWN_PAIRS since v28);
+    15→ *      the run itself ticks the grids (mesh link #6 — one transaction);
+    16→ *      after the run the accrued profit is swept to the work-board payroll.
+    17→ *      v28 EXCHANGE (step 4.9, mesh link #7): the SAOS EXCHANGE cycle —
+    18→ *      soldiers trade on the pools, the treasury's ARB BOT keeps the
+    19→ *      pools aligned with the oracle policy price, the harvest flows OUT
+    20→ *      to the REAL WORK payroll, empty soldiers are refilled, and all 6
+    21→ *      known microgrid pairs are kept as live grids ("לסדר את הבריכות").
+    22→ *   4. WATCHDOG: respawn anvil + redeploy if the chain dies
+    23→ *   5. ARTIFACT WATCHER: redeploy when the canonical SAOSMesh.json changes
+    24→ *
+    25→ * bun run dev  →  bun --hot src/index.ts (hot reload with clean child
+    26→ * process handover through globalThis).
+    27→ */
+    28→
+    29→import * as fs from "fs";
+    30→import * as path from "path";
+    31→import { ethers } from "ethers";
+    32→import {
+    33→  deployMesh,
+    34→  loadArtifact,
+    35→  readState,
+    36→  fetchLiveAnchors,
+    37→  fetchFleetAgents,
+    38→  fetchJson,
+    39→  MESH_RPC,
+    40→  MESH_CHAIN_ID,
+    41→  STATE_PATH,
+    42→  SAOS_M_USD_POLICY,
+    43→  type HubContract,
+    44→  type LedgerContract,
+    45→  type ExchangeContract
+    46→} from "./deploy";
+    47→
+    48→const ARTIFACT_PATH = path.resolve(import.meta.dir, "..", "..", "..", "src", "lib", "saos", "generated", "SAOSMesh.json");
+    49→const ANVIL_BIN = process.env.MESH_ANVIL_BIN ?? `${process.env.HOME ?? "/home/z"}/.foundry/bin/anvil`;
+    50→const PORT = 8545;
+    51→
+    52→// v61 מגן ההבטחות (THE PROMISE GUARD) — הראנר לא נופל יותר מהבטחות-רפאים.
+    53→// האמת שנתפסה חי (00:2x, אחרי tick=59 ב-38.2ש'): כשמרוץ-הקבלות מציל קבלה
+    54→// (poll wins), ההמתנה הפנימית של ethers (tx.wait) נשארת חיה ברקע עם
+    55→// PollingTransactionSubscriber רשום על ה-hash — וה-_poll שלו קורא
+    56→// getTransactionReceipt בלי שאף אחד ממתין להבטחתו. בסוף המחזור
+    57→// provider.destroy() (תיקון דליפת-השקעים v26.1) דוחה את הקריאה שבטיסה
+    58→// ("provider destroyed; cancelled request", provider-jsonrpc batch-reject —
+    59→// ללא קריאת רשת, המנגנון של v56 לא רואה אותה כלל) → unhandledRejection
+    60→// → bun מפיל את התהליך → השומר מחייה (קרס ב-00:20, pid 27374→29044).
+    61→// הריפוי בשתי שכבות: (א) המגן הזה — כל דחיית-רפאים נספגת ומתועדת
+    62→// בכנות, התהליך חי (אומת ב-bun: exit=0 עם המאזין); (ב) קטיעת המנוי
+    63→// הפנימי ב-waitTx מיד אחרי ההצלה — מקור הרפאים עצמו מפורק. השומר
+    64→// נשאר קו-הגנה האחרון לכל רפא-עתידי שטרם פגשנו. דגל על globalThis —
+    65→// חסין-ל-hot-swap (רישום כפול של מאזינים אסור).
+    66→const GUARD_G = globalThis as unknown as { __saosPromiseGuard?: boolean };
+    67→if (!GUARD_G.__saosPromiseGuard) {
+    68→  GUARD_G.__saosPromiseGuard = true;
+    69→  process.on("unhandledRejection", (reason: unknown) => {
+    70→    const msg = reason instanceof Error ? reason.message : String(reason);
+    71→    const op = reason instanceof Error && "operation" in (reason as object)
+    72→      ? ` · ${(reason as unknown as { operation: string }).operation}`
+    73→      : "";
+    74→    console.log(
+    75→      `[evm-mesh] v61 promise-guard: ghost rejection absorbed (process lives) — ${msg.slice(0, 140)}${op}`
+    76→    );
+    77→  });
+    78→}
+    79→
+    80→// v55 לולאת-המוות — RPC DEADLINE קשיח לכל קריאת ethers: ethers דיבר דרך
+    81→// שכבת-התאימות node:http של bun, שבה request.setTimeout(300ש') מעולם לא
+    82→// ירה על שקע תקוע — נתפס חי: register[0] תלוי 10+ דקות עם אפס קריאות
+    83→// שהגיעו ל-anvil (18:28→18:38). getUrl קורא את המענה כולו (כותרות+גוף)
+    84→// לפני שהוא מחזיר — מירוץ אחד סביבו חוסם את כל ה-round-trip. המפסיד
+    85→// נבלע; ה-try/catch של הקורא הופך את הדחייה לדילוג-כנה — המחזור לעולם
+    86→// לא ייתלה על השרשרת, באף שכבה (fetch-ווב · node:http · ethers).
+    87→// v56 מנוע-הקצב — RPC-DEADLINE מוקצף: 20ש'→8ש'. נמדד חי אחרי כיווני v54:
+    88→// p95 22-76ms · max 59.4ms — 8ש' הוא שולי-בטחה של פי-135. בזמן שה-rpc-deadline
+    89→// נשרף (20ש' ב-v55) כל קריאה תקועה האטה את המחזור פי-2.5 לחינם; כעת
+    90→// הקריאה התקועה נכשלת ב-8ש' והדילוג-הכנה מגיע מוקדם.
+    91→const RPC_DEADLINE_MS = 8_000;
+    92→{
+    93→  const probe = new ethers.FetchRequest(MESH_RPC);
+    94→  const defaultGetUrl = probe.getUrlFunc as (req: ethers.FetchRequest, signal?: unknown) => Promise<unknown>;
+    95→  ethers.FetchRequest.registerGetUrl(((req: ethers.FetchRequest, signal?: unknown) => {
+    96→    // v55 שקע-מצובר-מת: bun שומר שקעים ב-pool גם אחרי שמתו — והבקשה הבאה
+    97→    // רוכבת על גופה (נתפס חי: register[8]/[9]/[11]/[12] נתקעו זה אחר זה).
+    98→    // Connection: close = שקע טרי לכל בקשה; ב-loopback מחיר-ה-handshake זניח
+    99→    // מול 90ש' של תלייה על גופה.
+   100→    req.setHeader("connection", "close");
+   101→    const rp = defaultGetUrl(req, signal);
+   102→    rp.catch(() => { /* swallowed — the race may abandon it */ });
+   103→    // v56 — חגורת-ביטחון ל-dחיית-ה-deadline: כשהמירוץ כבר הוכרע (rp ניצח
+   104→    // מוקדם) הטיימר עדיין יורה 8ש' מאוחר יותר ודוחה את ההבטחה; אחרי
+   105→    // hot-swap של bun המנויים של המירוץ יכולים להיות מנותקים מהגרף —
+   106→    // הריג'קציה נחשבת "לא-מטופלת" ומפילה את התהליך. מסמנים אותה מטופלת
+   107→    // בעצם ההיווצרות — המירוץ רואה אותה בדיוק כמו קודם.
+   108→    const deadline = new Promise<never>((_resolve, reject) => {
+   109→      setTimeout(() => {
+   110→        reject(new Error(`rpc-deadline: ${req.method} ${req.url} stalled >${RPC_DEADLINE_MS}ms (bun node:http socket-timeout never fires)`));
+   111→      }, RPC_DEADLINE_MS);
+   112→    });
+   113→    deadline.catch(() => { /* handled by construction — hot-swap can't orphan it */ });
+   114→    return Promise.race([rp, deadline]);
+   115→  }) as ethers.FetchGetUrlFunc);
+   116→}
+   117→
+   118→// v18.1 — PERSISTENT LAB CHAIN: anvil dumps its state (every 30s + on exit)
+   119→// and reloads it on boot, so on-chain ids (orders, runs, agents) NEVER
+   120→// regress across service restarts / hot reloads / watchdog respawns.
+   121→// Root cause fixed: a recycled WorkBoard id used to collide with the
+   122→// persistent WorkDeliverable rows (unique orderId) and break deliveries.
+   123→const ANVIL_STATE = path.resolve(import.meta.dir, "..", "state", "anvil-state.json");
+   124→// v33 שחזור — MULTI-HOME CHAIN STATE: the 3rd sandbox rebuild of 09/09 wiped
+   125→// the gitignored state dir (3rd regenesis of the day) while upload/ survived
+   126→// EVERY rebuild so far (the vault's anchor home). The chain state now lives
+   127→// in TWO homes: the runtime dir + a mirror inside upload/.mesh-state. Boot
+   128→// self-heals the primary from the mirror; a timer mirrors every 5 min.
+   129→const MIRROR_STATE = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".mesh-state", "anvil-state.json");
+   130→const STATE_DUMP_SECONDS = 30;
+   131→// v54 מכוונן-הרשת — STATE SURGERY (מדידת-המגביל):
+   132→// קובץ-המצב תפח ל-125MB כי --dump-state כותב את כל ההיסטוריה (12.5K בלוקים
+   133→// + 12.7K עסקאות עם קבלות מלאות — 89MB עסקאות + 29MB בלוקים) וכותב אותה
+   134→// מחדש כל 30 שנ'. נמדד חי (upload/tuner-stallprobe-before-v54.json): כל dump
+   135→// מקפיא את הצומת 400-900ms (2 נתקים בחלון 35ש', מתואמים לרגעי הכתיבה),
+   136→// והכתיבה עצמה לא-אטומית (truncate+מקצים — חלון-שחיתה בקריסה).
+   137→// הניתוח: גוזזים את קובץ-המצב ל-SURGERY_KEEP בלוקים אחרונים + העסקאות
+   138→// שלהם (החשבונות — כל האמת החיה — נשארים שלמים) ומריצים את anvil עם
+   139→// --transaction-block-keeper SURGERY_KEEP כדי שגם בזמן-ריצה ההיסטוריה
+   140→// לא תצטבר חזרה. תוצאה נמדדת: 125MB → ~7.5MB (x17), הקפאה מוגבלת
+   141→// לחלון לנצח. מי שנפגע (בכנות): קבלות עסקאות מחוץ לחלון חוזרות null
+   142→// (אין צרכן כזה — נבדק), שאילתות blockTag מתחת לנקודת-הטעינה נכשלות
+   143→// (ההוכחות שואלות בלוקים שנוצרו בזמן הריצה — post-boot). לפני הניתוח:
+   144→// גיבוי חד-פעמי ל-anvil-state.pre-v54.json.
+   145→const SURGERY_KEEP_BLOCKS = 96;
+   146→const SURGERY_THRESHOLD_MB = 24; // מתחת לזה הקובץ כבר רזה — אין מה לנתח
+   147→const ANVIL_PRE_V54 = path.resolve(import.meta.dir, "..", "state", "anvil-state.pre-v54.json");
+   148→// v35 רציפות — the chain-state mirror tick dropped from 5 min to 60s.
+   149→// anvil rewrites the dump every 30s while blocks flow, so a 60s tick with
+   150→// copy-on-change keeps the survivable home ≤ ~90s behind the chain head
+   151→// (was ≤5 min). The copy itself gained two v35 guards the blind v33/v34
+   152→// copy never had: (1) change-detection (idle chain = zero disk traffic),
+   153→// (2) JSON validation of the tmp BEFORE the atomic promote — anvil rewrites
+   154→// the dump in place, so a blind copy could catch it MID-WRITE and mirror a
+   155→// TORN file; a torn mirror would brick the v33 boot self-heal. A parse
+   156→// failure now keeps the last good mirror and retries next tick.
+   157→const STATE_MIRROR_MS = 60_000;
+   158→// v34 אוטרקיה — THE BINARY LIVES IN THE SURVIVABLE HOME TOO. The 3rd rebuild
+   159→// of 09/09 wiped /home/z/.foundry (anvil ENOENT) while upload/ survived: the
+   160→// runner crash-looped for 30 minutes and 31 keeper revives could not fix a
+   161→// MISSING BINARY (the honest boundary of v33). The answer: a mirror of the
+   162→// anvil binary inside upload/.mesh-state/bin — boot self-heals ENOENT from
+   163→// it (offline, no foundryup, no network). Same for deployment.json (the
+   164→// contract-mesh addresses): without it a resumed chain would point at no
+   165→// mesh → pointless redeploy. The mirror arms itself on boot when sizes
+   166→// differ (foundryup upgrades included).
+   167→const MIRROR_DIR = path.dirname(MIRROR_STATE);
+   168→const MIRROR_BIN = path.join(MIRROR_DIR, "bin", "anvil");
+   169→const MIRROR_DEPLOYMENT = path.join(MIRROR_DIR, "deployment.json");
+   170→const DEPLOYMENT_STATE = path.resolve(import.meta.dir, "..", "state", "deployment.json");
+   171→
+   172→function stateFileExists(): boolean {
+   173→  try {
+   174→    fs.statSync(ANVIL_STATE);
+   175→    return fs.statSync(ANVIL_STATE).size > 0;
+   176→  } catch {
+   177→    // v33: primary gone (sandbox rebuild) — self-heal from the mirror home
+   178→    try {
+   179→      const mirrored = fs.statSync(MIRROR_STATE);
+   180→      if (mirrored.size > 0) {
+   181→        fs.mkdirSync(path.dirname(ANVIL_STATE), { recursive: true });
+   182→        fs.copyFileSync(MIRROR_STATE, ANVIL_STATE);
+   183→        console.log(`[evm-mesh] v33 chain-state self-heal: primary restored from the mirror home (${(mirrored.size / 1e6).toFixed(1)}MB) — NO regenesis`);
+   184→        return true;
+   185→      }
+   186→    } catch {
+   187→      // no mirror either — honest fresh genesis
+   188→    }
+   189→    return false;
+   190→  }
+   191→}
+   192→
+   193→/** v33 → v35 — mirrors the chain state to the survivable home.
+   194→ *  v35: copy-on-change + validated + atomic (see STATE_MIRROR_MS note). */
+   195→let lastStateMirrorSig = ""; // `${mtimeMs}:${size}` of the last mirrored dump
+   196→function mirrorChainState(): void {
+   197→  try {
+   198→    const st = fs.statSync(ANVIL_STATE);
+   199→    const sig = `${st.mtimeMs}:${st.size}`;
+   200→    if (st.size > 0 && sig !== lastStateMirrorSig) {
+   201→      fs.mkdirSync(path.dirname(MIRROR_STATE), { recursive: true });
+   202→      const dstTmp = `${MIRROR_STATE}.tmp`;
+   203→      fs.copyFileSync(ANVIL_STATE, dstTmp);
+   204→      // v35 validation — a torn (mid-dump) copy must never reach the home:
+   205→      // parse the tmp, promote only a loadable state, else keep the last
+   206→      // good mirror and let the next tick retry (anvil dumps every 30s).
+   207→      try {
+   208→        JSON.parse(fs.readFileSync(dstTmp, "utf8"));
+   209→        fs.renameSync(dstTmp, MIRROR_STATE);
+   210→        lastStateMirrorSig = sig;
+   211→      } catch {
+   212→        try { fs.unlinkSync(dstTmp); } catch { /* already gone */ }
+   213→        console.log("[evm-mesh] v35 mirror guard: torn anvil-state dump caught — kept the last good mirror");
+   214→      }
+   215→    }
+   216→  } catch {
+   217→    // state not dumped yet / disk issue — honest skip, next tick retries
+   218→  }
+   219→  // v34 — the deployment.json (contract addresses) rides in the same
+   220→  // survivable home: a chain resumed from the state mirror with a MISSING
+   221→  // deployment would redeploy for nothing (new addresses, same chain).
+   222→  try {
+   223→    const st = fs.statSync(DEPLOYMENT_STATE);
+   224→    if (st.size > 0) {
+   225→      const dstTmp = `${MIRROR_DEPLOYMENT}.tmp`;
+   226→      fs.copyFileSync(DEPLOYMENT_STATE, dstTmp);
+   227→      fs.renameSync(dstTmp, MIRROR_DEPLOYMENT);
+   228→    }
+   229→  } catch {
+   230→    // deployment not written yet (pre-first-deploy) — honest skip
+   231→  }
+   232→}
+   233→
+   234→/** v34 אוטרקיה — anvil binary self-sufficiency: heal ANVIL_BIN from the
+   235→ *  survivable mirror when the off-repo home was wiped (ENOENT — the exact
+   236→ *  root cause of the 09/09 crash-loop), and ARM the mirror when it is
+   237→ *  absent or its size differs (a foundryup upgrade changes the size). */
+   238→function ensureAnvilBinary(): void {
+   239→  try {
+   240→    fs.statSync(ANVIL_BIN);
+   241→  } catch {
+   242→    try {
+   243→      const st = fs.statSync(MIRROR_BIN);
+   244→      if (st.size > 1_000_000) {
+   245→        fs.mkdirSync(path.dirname(ANVIL_BIN), { recursive: true });
+   246→        fs.copyFileSync(MIRROR_BIN, ANVIL_BIN);
+   247→        fs.chmodSync(ANVIL_BIN, 0o755);
+   248→        console.log(`[evm-mesh] v34 binary self-heal: anvil ENOENT — restored ${(st.size / 1048576).toFixed(1)}MB from the survivable home (offline, no foundryup)`);
+   249→        return;
+   250→      }
+   251→    } catch {
+   252→      // no mirror either — spawn will fail honestly (v33 boundary, now rarer)
+   253→    }
+   254→    return;
+   255→  }
+   256→  // the binary answers — keep the mirror armed (size-compare: cheap stat,
+   257→  // no 55MB re-hash on every boot; upgrades change the size)
+   258→  try {
+   259→    const live = fs.statSync(ANVIL_BIN);
+   260→    let mirrored = 0;
+   261→    try {
+   262→      mirrored = fs.statSync(MIRROR_BIN).size;
+   263→    } catch {
+   264→      mirrored = -1;
+   265→    }
+   266→    if (mirrored !== live.size) {
+   267→      fs.mkdirSync(path.dirname(MIRROR_BIN), { recursive: true });
+   268→      const tmp = `${MIRROR_BIN}.tmp`;
+   269→      fs.copyFileSync(ANVIL_BIN, tmp);
+   270→      fs.renameSync(tmp, MIRROR_BIN);
+   271→      console.log(`[evm-mesh] v34 binary mirror armed: ${(live.size / 1048576).toFixed(1)}MB → ${MIRROR_BIN} (the home that survives every rebuild)`);
+   272→    }
+   273→  } catch {
+   274→    // stat race — next boot retries
+   275→  }
+   276→}
+   277→
+   278→/** v34 — deployment.json self-heal from the survivable home (rebuild wiped
+   279→ *  the gitignored state dir: chain-state restores via stateFileExists, the
+   280→ *  contract addresses restore here — same chain, SAME mesh, no redeploy). */
+   281→function selfHealDeployment(): void {
+   282→  try {
+   283→    fs.statSync(DEPLOYMENT_STATE);
+   284→  } catch {
+   285→    try {
+   286→      const st = fs.statSync(MIRROR_DEPLOYMENT);
+   287→      if (st.size > 0) {
+   288→        fs.mkdirSync(path.dirname(DEPLOYMENT_STATE), { recursive: true });
+   289→        fs.copyFileSync(MIRROR_DEPLOYMENT, DEPLOYMENT_STATE);
+   290→        console.log(`[evm-mesh] v34 deployment self-heal: contract-mesh addresses restored from the survivable home (${(st.size / 1024).toFixed(0)}KB) — same chain, same mesh, no redeploy`);
+   291→      }
+   292→    } catch {
+   293→      // no mirror — an honest first deploy will write it fresh
+   294→    }
+   295→  }
+   296→}
+   297→
+   298→// ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
+   299→
+   300→interface MeshRuntime {
+   301→  anvil: ReturnType<typeof Bun.spawn> | null;
+   302→  timers: ReturnType<typeof setInterval>[];
+   303→  artifactMtime: number;
+   304→  busy: boolean;
+   305→}
+   306→// v62 מכנס הדורות (THE GENERATION CONVERGENCE) — כל הערכה מחדש של המודול
+   307→// היא "דור" חדש. האמת שנתפסה חי ביומן (tick=63: 5×, tick=64 ואילך: 7×):
+   308→// main() האסינכרוני רץ דקות (waitRpc · deployMesh · meshAlive — קריאות RPC
+   309→// ארוכות); סערת-העריכות של הסבב הקודם העריכה את המודול מחדש בזמן ש-main()-ים
+   310→// ישנים עדיין בטיסה — הניקוי למטה רוקן ספר-טיימרים ריק/חלקי, ואחר-כך
+   311→// ה-main() הישן הדחיק את 4 הטיימרים שלו ל-RT הישן שלו — טיימרים יתומים
+   312→// שאף ניקוי עתידי לא רואה (הוא מנקה רק את ה-RT החדש). שבעה דורות שרדו כך
+   313→// — שבעה מחזורים מלאים על השרשרת כל 120ש' (כפול LLM · כפול עוגנים ·
+   314→// כפול מסחר · כתיבות-טיק מתחרות). הריפוי בשלוש שכבות: (א) מזהה-דור על
+   315→// globalThis — כל טיימר בודק בכל הפעלה אם דורו עדיין הנוכחי, יתום מפרק
+   316→// את עצמו בכנות בהפעלה הבאה שלו; (ב) ספר-טיימרים גלובלי — הניקוי מרוקן
+   317→// גם אותו; (ג) נעילת-טיסה-יחידה גלובלית על המחזור — גם יתום שכבר בטיסה,
+   318→// דור אחר מדלג בכנות עד שיסיים.
+   319→const G = globalThis as unknown as {
+   320→  __meshRuntime?: MeshRuntime;
+   321→  __meshGen?: number;
+   322→  __meshAllTimers?: ReturnType<typeof setInterval>[];
+   323→  __meshCycleBusy?: boolean;
+   324→};
+   325→G.__meshGen = (G.__meshGen ?? 0) + 1;
+   326→const MY_GEN = G.__meshGen;
+   327→if (!G.__meshAllTimers) G.__meshAllTimers = [];
+   328→if (G.__meshRuntime) {
+   329→  for (const t of G.__meshRuntime.timers) clearInterval(t);
+   330→  for (const t of G.__meshAllTimers) clearInterval(t); // v62 — גם יתומים שנדחפו אחרי ניקוי קודם (מרוץ ה-main האסינכרוני)
+   331→  G.__meshAllTimers = [];
+   332→  try {
+   333→    // v54 — SIGKILL (לא SIGTERM): יציאה חיננית מפעילה exit-dump מלא שיכתב
+   334→    // על הקובץ הגזוז בדיוק ברגע שהניתוח כותב אותו; הריגה מיידית = אין
+   335→    // dump-יציאה, הקובץ נשאר כפי שהיה ב-dump ה-30ש' האחרון (חלון-אובדן
+   336→    // זהה לקריסה — מקובל ממילא, והשומר/מחזור הבא ממשיכים).
+   337→    G.__meshRuntime.anvil?.kill(9);
+   338→  } catch {
+   339→    /* fresh boot */
+   340→  }
+   341→}
+   342→const RT: MeshRuntime = { anvil: null, timers: [], artifactMtime: 0, busy: false };
+   343→G.__meshRuntime = RT;
+   344→
+   345→/** v62 — טיימר ממוגן-דור: נרשם בשני הספרים (מקומי + גלובלי) ובודק בכל
+   346→ *  הפעלה את תקפות-הדור שלו — יתום (הדור שלו כבר לא הנוכחי) מפרק את עצמו
+   347→ *  בכנות בהפעלה הבאה שלו. זה סוגר את מרוץ ה-main האסינכרוני לנצח: גם אם
+   348→ *  טיימר נדחף ל-RT ישן אחרי שהניקוי כבר רץ, הוא עוד יפרק את עצמו. */
+   349→function genTimer(label: string, fn: () => void, ms: number): ReturnType<typeof setInterval> {
+   350→  const t = setInterval(() => {
+   351→    if (MY_GEN !== G.__meshGen) {
+   352→      clearInterval(t);
+   353→      console.log(`[evm-mesh] v62 generation retire: stale ${label} timer (gen ${MY_GEN}) retired itself — current gen ${G.__meshGen}`);
+   354→      return;
+   355→    }
+   356→    fn();
+   357→  }, ms);
+   358→  RT.timers.push(t);
+   359→  G.__meshAllTimers?.push(t);
+   360→  return t;
+   361→}
+   362→
+   363→// ─── v54 מכוון-הרשת — STATE SURGERY ─────────────────────────────────────
+   364→
+   365→/** מוצא את ה-PID של anvil המחזיק ב-:8545 (סריקת /proc, בלי תלות חיצונית). */
+   366→function findAnvilPid(): number | null {
+   367→  try {
+   368→    const pids = fs.readdirSync("/proc").filter((d) => /^\d+$/.test(d));
+   369→    for (const pid of pids) {
+   370→      try {
+   371→        const cmd = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8");
+   372→        if (cmd.includes("anvil") && cmd.includes("--port") && cmd.includes(String(PORT))) return Number(pid);
+   373→      } catch { /* gone */ }
+   374→    }
+   375→  } catch { /* /proc unreadable */ }
+   376→  return null;
+   377→}
+   378→
+   379→/** מנתח את קובץ-המצב אם תפח מעל הסף: גיבוי חד-פעמי → גיזום ל-96 בלוקים
+   380→ *  אחרונים + העסקאות שלהם (החשבונות שלמים) → כתיבה אטומית (tmp+rename).
+   381→ *  חסין-כשל מלא: כל כישלון מדלג בכנות — anvil יעלה עם הקובץ כמו שהוא
+   382→ *  + ה-keeper שבדגלים ירזה את ה-dump הבא בכל מקרה (המנגנון האמיתי).
+   383→ *  מהמם את anvil החי (SIGKILL — בלי exit-dump שידרוס את הגזיזה) — רק
+   384→ *  כשהקובץ תפוח, כלומר יש מופע ישן בלי דגלי-הkeeper. */
+   385→function compactAnvilState(): void {
+   386→  try {
+   387→    const st = fs.statSync(ANVIL_STATE);
+   388→    if (!st.size || st.size < SURGERY_THRESHOLD_MB * 1048576) return; // כבר רזה
+   389→    // anvil חי עם קובץ תפוח = מופע ישן בלי הkeeper — מומם ונותח (ההמשך:
+   390→    // main() יגלה שהפורט מת ויפרוש מחדש עם הדגלים)
+   391→    const pid = findAnvilPid();
+   392→    if (pid) {
+   393→      try {
+   394→        process.kill(pid, "SIGKILL"); // SIGKILL: בלי exit-dump שמתחרה בגזיזה
+   395→        console.log(`[evm-mesh] v54 surgery: stale anvil pid ${pid} (bloated dump, no keeper flags) — SIGKILL`);
+   396→        for (let i = 0; i < 50; i++) { // המתנת יציאה עד 5ש' (שינה סינכרונית)
+   397→          try { fs.statSync(`/proc/${pid}`); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100); } catch { break; }
+   398→        }
+   399→      } catch { /* already dead */ }
+   400→    }
+   401→    // גיבוי חד-פעמי — ההיסטוריה המלאה לפני הניתוח נשמרת לצורך ביקורת
+   402→    if (!fs.existsSync(ANVIL_PRE_V54)) fs.copyFileSync(ANVIL_STATE, ANVIL_PRE_V54);
+   403→    const before = st.size;
+   404→    const parsed = JSON.parse(fs.readFileSync(ANVIL_STATE, "utf8")) as {
+   405→      best_block_number?: number; blocks?: Array<{ header?: { number?: unknown } }>; transactions?: Array<{ block_number?: unknown }>; [k: string]: unknown;
+   406→    };
+   407→    const best = Number(parsed.best_block_number ?? 0);
+   408→    const bnOf = (v: unknown): number =>
+   409→      typeof v === "number" ? v : String(v ?? "").startsWith("0x") ? parseInt(String(v), 16) : parseInt(String(v ?? "0"), 10);
+   410→    const from = best - SURGERY_KEEP_BLOCKS;
+   411→    const blocks = (parsed.blocks ?? []).filter((b) => bnOf(b?.header?.number) >= from);
+   412→    const txs = (parsed.transactions ?? []).filter((t) => bnOf(t?.block_number) >= from);
+   413→    if (blocks.length === 0) throw new Error("no blocks survived the filter");
+   414→    const trimmed = { ...parsed, blocks, transactions: txs };
+   415→    const tmp = `${ANVIL_STATE}.surgery-tmp`;
+   416→    fs.writeFileSync(tmp, JSON.stringify(trimmed));
+   417→    fs.renameSync(tmp, ANVIL_STATE); // אטומי — אין חלון-שחיתה
+   418→    const after = fs.statSync(ANVIL_STATE).size;
+   419→    console.log(`[evm-mesh] v54 STATE SURGERY: ${(before / 1048576).toFixed(1)}MB → ${(after / 1048576).toFixed(1)}MB · blocks ${parsed.blocks?.length ?? 0}→${blocks.length} · txs ${parsed.transactions?.length ?? 0}→${txs.length} · best=${best} · backup anvil-state.pre-v54.json`);
+   420→  } catch (e) {
+   421→    console.log(`[evm-mesh] v54 surgery skipped (honest): ${e instanceof Error ? e.message.slice(0, 120) : "unknown"} — ה-keeper בדגלים ירזה את ה-dump הבא בכל מקרה`);
+   422→  }
+   423→}
+   424→
+   425→function spawnAnvil(): ReturnType<typeof Bun.spawn> {
+   426→  ensureAnvilBinary(); // v34 — ENOENT heals offline from the survivable home
+   427→  // v54 מכוונן-הרשת — --transaction-block-keeper: anvil שומר נתוני-עסקה
+   428→  // ל-96 הבלוקים האחרונים בלבד; ה-dump הבא כבר ייכתב רזה וישאר רזה.
+   429→  const args = ["--port", String(PORT), "--chain-id", String(MESH_CHAIN_ID), "--dump-state", ANVIL_STATE, "--state-interval", String(STATE_DUMP_SECONDS), "--transaction-block-keeper", String(SURGERY_KEEP_BLOCKS)];
+   430→  const resume = stateFileExists();
+   431→  if (resume) args.unshift("--load-state", ANVIL_STATE);
+   432→  console.log(`[evm-mesh] starting anvil on :${PORT} (chainId ${MESH_CHAIN_ID})${resume ? " — RESUMING persisted state" : " — fresh genesis"}${" · v54 keeper=" + SURGERY_KEEP_BLOCKS}`);
+   433→  fs.mkdirSync(path.dirname(ANVIL_STATE), { recursive: true });
+   434→  const proc = Bun.spawn([ANVIL_BIN, ...args], {
+   435→    stdout: "inherit",
+   436→    stderr: "inherit"
+   437→  });
+   438→  RT.anvil = proc;
+   439→  return proc;
+   440→}
+   441→
+   442→/** is the mesh (per deployment.json) live on the current chain?
+   443→ *  v28: the hub must exist AND the SAOSExchange must be live with seeded
+   444→ *  pools — a v3 state file (no exchange) is NOT alive: deployMesh() runs
+   445→ *  on the LIVE persistent chain (no regenesis, ids continue — the
+   446→ *  WorkDeliverable collision layer handles the residue). */
+   447→async function meshAlive(): Promise<boolean> {
+   448→  const state = readState();
+   449→  const hub = state?.ok ? state.contracts?.SAOSMeshHub : null;
+   450→  const exchangeAddr = state?.ok ? state.contracts?.SAOSExchange : null;
+   451→  if (!hub || !exchangeAddr) return false;
+   452→  let provider: ethers.JsonRpcProvider | null = null;
+   453→  try {
+   454→    provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
+   455→    const code = await provider.getCode(hub);
+   456→    if (typeof code !== "string" || code.length <= 2) return false;
+   457→    const xcode = await provider.getCode(exchangeAddr);
+   458→    if (typeof xcode !== "string" || xcode.length <= 2) return false;
+   459→    // הבריכות נזרעו? (ריצה read-only — אמת מהשרשרת עצמה)
+   460→    const abi = loadArtifact().contracts.find((c) => c.name === "SAOSExchange")?.abi ?? [];
+   461→    const xc = new ethers.Contract(exchangeAddr, abi, provider);
+   462→    const pools = await xc.poolCount();
+   463→    return Number(pools) > 0;
+   464→  } catch {
+   465→    return false;
+   466→  } finally {
+   467→    try {
+   468→      provider?.destroy();
+   469→    } catch {
+   470→      /* already dead */
+   471→    }
+   472→  }
+   473→}
+   474→
+   475→async function waitRpc(timeoutMs = 20000): Promise<ethers.JsonRpcProvider> {
+   476→  // v54 — ריעוף 120ms: המתנת-עלייה מגיבה מהר פי-33
+   477→  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
+   478→  const start = Date.now();
+   479→  for (;;) {
+   480→    try {
+   481→      await provider.send("eth_chainId", []);
+   482→      return provider;
+   483→    } catch {
+   484→      if (Date.now() - start > timeoutMs) throw new Error("anvil RPC did not come up within 20s");
+   485→      await new Promise((r) => setTimeout(r, 400));
+   486→    }
+   487→  }
+   488→}
+   489→
+   490→// ─── the auto-runner: real mesh activity, forever ──────────────────────────
+   491→
+   492→const INTENTS = [
+   493→  "mesh pulse: 8-chain anchor scan",
+   494→  "מיפוי רשת: סריקת מסילות חיות",
+   495→  "value scan: efficiency audit",
+   496→  "soldier cycle: sovereign payout",
+   497→  "solution seed: breakthrough proposals",
+   498→  "anchor refresh: seal roots replay",
+   499→  "zero-fee rail: value movement test",
+   500→  "חוזה ⇄ חוזה: דגימת שרשרת מלאה"
+   501→];
+   502→
+   503→// v2 — the HQ's rotating missions (פקודות עבודה): posted as open orders,
+   504→// delivered by the next mesh run, paid from the payroll (zero fee).
+   505→// v18 — REAL MISSIONS: operational tasks of the actual platform, posted
+   506→// through the solution engine so every delivery carries an LLM-generated
+   507→// REAL deliverable (summary/steps/risks/value) anchored on SAOS-WORK.
+   508→const MISSIONS: Array<{ mission: string; difficulty: number; reward: bigint }> = [
+   509→  { mission: "תוכנית אנרגיה: ניצול אוצר TRON לרוחב-פס חיילים", difficulty: 3, reward: ethers.parseEther("8") },
+   510→  { mission: "ביקורת גז: מציאת הדילוג היקר בשרשרת והצעת ייעול", difficulty: 3, reward: ethers.parseEther("7") },
+   511→  { mission: "סיכוני משמורת: סקירת גישות לכספת והקשחתן", difficulty: 4, reward: ethers.parseEther("10") },
+   512→  { mission: "מפת נזילות: מסלולי ניטור לאוצר המפקדה", difficulty: 2, reward: ethers.parseEther("6") },
+   513→  { mission: "איכות קבלות: אימות שלמות שרשרת-האש בספר הראיות", difficulty: 2, reward: ethers.parseEther("5") },
+   514→  { mission: "גיוס חיילים: מסלול הצטרפות מינימלי-סיכון", difficulty: 1, reward: ethers.parseEther("4") }
+   515→];
+   516→
+   517→// v18 — the web tier that carries the solution engine (LLM, server-side).
+   518→// Server-to-server call (internal); the browser-only gateway rules don't
+   519→// apply to this direction.
+   520→const WORK_API = "http://127.0.0.1:3000/api/saos/mesh/work";
+   521→
+   522→/** post a work order WITH a real LLM deliverable through the web tier. */
+   523→// v55 לולאת-המוות — תקציב-צעד קשיח: repro-abort.ts הוכיח ש-bun לעולם לא דוחה
+   524→// קריאת-גוף תקועה ב-abort (ניסוי B: תלייה>15ש'). כל fetch ישיר במחזור רץ
+   525→// עכשיו במירוץ נגד deadline שתמיד מסתיים — המחזור לעולם לא נתלה על הווב,
+   526→// גם כשהווב במצוקה (RSS-עסקה · page-hang · גוף שנתקע באמצע).
+   527→// v56 מנוע-הקצב — סגירת שקע מלאה: בזמן שהמירוץ ניצח, ה-abort שלנו נורה
+   528→// עכשיו בפועל (AbortController משלנו + העברת אות-הקריאה) — גם אם bun
+   529→// לא דוחה את ההבטחה התקועה, השקע נסגר ברמת-מערכת-ההפעלה והדליפה חסומה
+   530→// לגודל ההבטחה בלבד (לא שקע+מאגרים לנצח).
+   531→async function webJson<T>(url: string, init: RequestInit | undefined, budgetMs: number): Promise<T | null> {
+   532→  let done = false;
+   533→  let timer: ReturnType<typeof setTimeout> | null = null;
+   534→  // v56 — בקר-ביטול משלנו: אות-הקריאה של הקורא מועברת פנימה, וה-abort
+   535→  // שלנו נורה גם בפקיעת-התקציב וגם באות חיצוני — השקע נסגר תמיד.
+   536→  const ctrl = new AbortController();
+   537→  const extSignal = (init as { signal?: AbortSignal | null } | undefined)?.signal;
+   538→  if (extSignal) {
+   539→    if (extSignal.aborted) ctrl.abort();
+   540→    else extSignal.addEventListener("abort", () => ctrl.abort(), { once: true });
+   541→  }
+   542→  const bail = new Promise<null>((resolve) => {
+   543→    timer = setTimeout(() => {
+   544→      if (done) return;
+   545→      ctrl.abort(); // v56 — סגירת-שקע אקטיבית: הדליפה חסומה בגודל-הבטחה
+   546→      console.log(`[evm-mesh] v55 step-budget: ${url} exceeded ${budgetMs}ms — honest skip (stalled fetch/body cannot hang the cycle)`);
+   547→      resolve(null);
+   548→    }, budgetMs);
+   549→  });
+   550→  try {
+   551→    const fp = fetch(url, { ...init, signal: ctrl.signal });
+   552→    fp.catch(() => { /* swallowed — the race may abandon it */ });
+   553→    const res = await Promise.race([fp, bail]);
+   554→    if (!res || !res.ok) return null;
+   555→    const jp = res.json() as Promise<T>;
+   556→    jp.catch(() => { /* swallowed — the race may abandon it */ });
+   557→    return (await Promise.race([jp, bail])) ?? null;
+   558→  } catch {
+   559→    return null;
+   560→  } finally {
+   561→    done = true;
+   562→    if (timer) clearTimeout(timer);
+   563→  }
+   564→}
+   565→
+   566→async function postRealWorkOrder(job: { mission: string; difficulty: number; reward: bigint }): Promise<boolean> {
+   567→  try {
+   568→    const out = await webJson<{ ok?: boolean; error?: string }>(WORK_API, {
+   569→      method: "POST",
+   570→      headers: { "Content-Type": "application/json" },
+   571→      body: JSON.stringify({
+   572→        mission: job.mission,
+   573→        difficulty: job.difficulty,
+   574→        reward: Number(ethers.formatEther(job.reward)),
+   575→        realWork: true
+   576→      }),
+   577→      signal: AbortSignal.timeout(60_000) // v30 — 100→60ש': מחזור-120ש' לא מחכה ל-LLM שנתקע; ה-fallback היבש הכן קיים
+   578→    }, 75_000); // v55 — ה-abort הפנימי (60ש') + מירוץ קשיח חיצוני (75ש'): קריאת-גוף תקועה לא תלה את המחזור
+   579→    if (!out) return false; // web tier down / stalled body — honest dry fallback below
+   580→    if (out.ok) {
+   581→      console.log(`[evm-mesh] REAL WORK delivered: "${job.mission}" (LLM solution + anchor)`);
+   582→      return true;
+   583→    }
+   584→    console.log(`[evm-mesh] real work failed honestly: ${out.error ?? "unknown"}`);
+   585→    return false;
+   586→  } catch {
+   587→    return false; // web tier down / timeout — honest dry fallback below
+   588→  }
+   589→}
+   590→
+   591→let runTick = 0;
+   592→// v46 — שימור-runTick על פני הפעלות-מחדש: כל הרוטציות (מיזוג-חיילים ·
+   593→// משימות · פעימת-XRP כל-עשירי · קציר כל-שלישי · העברה-ללא-עמלה כל-שלישי)
+   594→// מוזנות מ-runTick — שהיה זיכרון-בלבד. הכלב-השומר/השומר מחזירים ראנר טרי
+   595→// עם runTick=0 והרוטציה חוזרת להתחלה לנצח — חיילים 6/7/8 לא רצו אף פעם
+   596→// (runs=0 בשרשרת — הוכחה חיה מהרוסט v46). הטיק נשמר בדיסק ונטען באתחול:
+   597→// הפאזה שורדת מוות.
+   598→const RUNTICK_PATH = path.resolve(import.meta.dir, "..", "state", "runner-tick.json");
+   599→function loadRunTick(): number {
+   600→  try {
+   601→    const j = JSON.parse(fs.readFileSync(RUNTICK_PATH, "utf8")) as { tick?: number; at?: string };
+   602→    if (typeof j.tick === "number" && Number.isFinite(j.tick) && j.tick >= 0) {
+   603→      console.log(`[evm-mesh] v46 runTick resumed at ${j.tick} (saved ${j.at ?? "?"}) — rotations survive restarts`);
+   604→      return j.tick;
+   605→    }
+   606→  } catch {
+   607→    /* first boot / torn write — tick 0 */
+   608→  }
+   609→  return 0;
+   610→}
+   611→function saveRunTick(t: number): void {
+   612→  try {
+   613→    const tmp = `${RUNTICK_PATH}.tmp`;
+   614→    fs.writeFileSync(tmp, JSON.stringify({ tick: t, at: new Date().toISOString() }));
+   615→    fs.renameSync(tmp, RUNTICK_PATH);
+   616→  } catch {
+   617→    /* state dir gone — honest skip, next cycle retries */
+   618→  }
+   619→}
+   620→runTick = loadRunTick();
+   621→let keeperFails = 0; // v26 — mutual-watch fail streak for the keeper :3005
+   622→
+   623→// v28 — "לסדר את הבריכות": כל 6 הזוגות הידועים של המיקרו-גריד (האורקל
+   624→// מפרסם את כולם, וגריד חי קיים לכל אחד מהם — השלמה אוטומטית ב-4.9.f).
+   625→const KNOWN_PAIRS = ["WETH/USDC", "WETH/USDT", "WETH/DAI", "WBNB/USDT", "WBNB/BUSD", "CAKE/WBNB"] as const;
+   626→
+   627→const minBig = (a: bigint, b: bigint): bigint => (a < b ? a : b);
+   628→
+   629→/** תצוגת-סכום קצרה בעברית ליומן הבורסה. */
+   630→const fmtAmt = (v: bigint): string => {
+   631→  const n = Number(ethers.formatEther(v));
+   632→  return n >= 100 ? n.toFixed(2) : n >= 1 ? n.toFixed(4) : n.toPrecision(4);
+   633→};
+   634→
+   635→// v26.1 — CYCLE WATCHDOG: the runner froze twice tonight on a dead
+   636→// keep-alive RPC socket (an in-flight ethers request that anvil never
+   637→// answered — promise pending forever, cycle #1 frozen mid-identity-sync,
+   638→// blocks stuck, process "alive" but dead). A cycle is bounded by design;
+   639→// a cycle that exceeds this bound is a freeze BY DEFINITION — the runner
+   640→// says so loudly and self-terminates; the keeper (≤60s) revives it fresh.
+   641→// A sick cell dies visibly; the organism grows a new one.
+   642→// v30 — האורגניזם גדל והמחזור התמלא: REAL WORK (≤60ש') + מיקרו-גריד + שושנים
+   643→// + מגן + בורסה (חיבור+תזוזה+מסחר+ארב'+קציר) — מחזור מלא נמדד ~4-4.5 דקות.
+   644→// v46 — הכלב-השומר הרג את הראנר שלו: תקרת 8 דקות נקבעה כשהמחזור ארך
+   645→// 4-4.5 דקות, אבל v30/v32 הוסיפו צעדים איטיים כנים (LLM 60ש' + שושן
+   646→// 90ש' + מגן 110ש' + תזוזות ≤200ש'×5 + XRP 60ש') — מקרה-הקצה הלגיטימי
+   647→// התנגש בתקרה: 6 התאבדויות-שומר בחלון לוג אחד, כל אחת מאפסת את runTick.
+   648→// אבחנה מדויקת: תליית-שקע מתה אמיתית עדיין תיתפס — אבל מחזור בריא
+   649→// שנעשה ארוך מ-timeout-ים כנים אינו מוות. התקרה עולה 8→20 דקות (מעל
+   650→// סכום-גרוע-המקרה ~17 דק') + הסוויפים נחתכו 200→120ש'.
+   651→const CYCLE_MAX_MS = 20 * 60_000;
+   652→
+   653→async function meshContracts(provider: ethers.JsonRpcProvider): Promise<{
+   654→  hub: ethers.Contract;
+   655→  identity: ethers.Contract;
+   656→  ledger: ethers.Contract;
+   657→  bridge: ethers.Contract;
+   658→  workboard: ethers.Contract;
+   659→  microgrid: ethers.Contract;
+   660→} | null> {
+   661→  const state = readState();
+   662→  if (!state?.ok) return null;
+   663→  const artifact = loadArtifact();
+   664→  const abiOf = (n: string) => artifact.contracts.find((c) => c.name === n)?.abi;
+   665→  const signer = await provider.getSigner(0);
+   666→  const mk = (name: string, withSigner: boolean) => {
+   667→    const a = state.contracts[name];
+   668→    const abi = abiOf(name);
+   669→    if (!a || !abi) return null;
+   670→    return new ethers.Contract(a, abi, withSigner ? signer : provider);
+   671→  };
+   672→  const hub = mk("SAOSMeshHub", true);
+   673→  const identity = mk("SAOSIdentity", true);
+   674→  const ledger = mk("SAOSLedger", true);
+   675→  const bridge = mk("SAOSBridge", true);
+   676→  const workboard = mk("SAOSWorkBoard", true);
+   677→  const microgrid = mk("SAOSMicrogrid", true);
+   678→  if (!hub || !identity || !ledger || !bridge || !workboard || !microgrid) return null;
+   679→  return { hub, identity, ledger, bridge, workboard, microgrid };
+   680→}
+   681→
+   682→// v55 אינסטרומנטציה — מד-צעדים: כל await במחזור מתועד בהתחלה/סיום עם מילישניות.
+   683→// אבחון לולאת-המוות שנתפסה חי (restart #1/#2 ב-18:01/18:12): המחזור קופא
+   684→// בין צעדים ללא יוצא מן הכלל — הצעד התלוי הוא האחרון שהתחיל ולא סיים.
+   685→const STEP_T0 = Date.now();
+   686→function step(name: string, done = false): void {
+   687→  const ms = Date.now() - STEP_T0;
+   688→  console.log(`[step] ${done ? "∎" : "▶"} ${name} +${ms}ms (tick=${runTick})`);
+   689→}
+   690→
+   691→// v55 לולאת-המוות — תקציב-צעד אקטיבי: ethers v6 מלא שערי-המתנה שקטים
+   692→// (מנוי בלוקים שמת · טיימרים נדחים · תור-בקשות שלא מתרוקן) — נתפס חי:
+   693→// register[2] תלוי 4+ דקות עם אפס בקשות יוצאות מצד אפס טיימרים. אף
+   694→// עטיפה פנימית לא מכסה את כולם — הפתרון הפרודוקטיבי: כל await קריטי
+   695→// במחזור רץ תחת מירוץ שתמיד מסתיים. ההבטחה הננטשת נבלעת; המחזור
+   696→// ממשיך תמיד — לולאת-המוות של השומר (הרג כל 10 דק') נסגרה סופית.
+   697→async function stepB<T>(name: string, fn: () => Promise<T>, budgetMs: number): Promise<T | null> {
+   698→  step(name);
+   699→  let t2: ReturnType<typeof setTimeout> | null = null;
+   700→  try {
+   701→    return await Promise.race([
+   702→      (async () => {
+   703→        try {
+   704→          return await fn();
+   705→        } catch (e) {
+   706→          // v55 — כישלון צעד הוא דילוג-כנה, לא ביטול-מחזור: revert של
+   707→          // estimateGas היה מפיל מחזורים שלמים ("auto-cycle skipped").
+   708→          console.log(`[evm-mesh] v55 step-fail: ${name} — ${e instanceof Error ? e.message.slice(0, 110) : "unknown"} — honest skip`);
+   709→          return null;
+   710→        }
+   711→      })(),
+   712→      new Promise<null>((resolve) => {
+   713→        t2 = setTimeout(() => {
+   714→          console.log(`[evm-mesh] v55 step-budget: ${name} exceeded ${budgetMs}ms — honest skip (the await was abandoned; the cycle lives)`);
+   715→          resolve(null);
+   716→        }, budgetMs);
+   717→      }),
+   718→    ]);
+   719→  } finally {
+   720→    if (t2) clearTimeout(t2);
+   721→    step(name, true);
+   722→  }
+   723→}
+   724→
+   725→// v56 מנוע-הקצב — שער-המתנה השקט של tx.wait() נסגר בשניות:
+   726→// האמת החיה מהמדידה (Task 51 + הלוג החי): כל מחזור מעורער שרף 10-12
+   727→// תקציבי-צעד שלמים (45-300ש' כ"א — tick=13 ב-950ש' · tick=14 ב-1481ש')
+   728→// בגלל שערי-המתנה שקטים: הקבלה קיימת אך אין אירוע-בלוק שמעיר, אפס
+   729→// קריאות יוצאות — ה-rpc-deadline לא מכסה (אין קריאה!), ורק תקציב-הצעד
+   730→// הציל. התרופה המדויקת: ethers v6 TransactionResponse.wait(confirms,
+   731→// timeout) — אותר ואומת בקוד-המקור (providers/provider.js): ה-timeout
+   732→// מיושם ב-setTimeout רגיל — שנטען חי אצלנו ב-bun (התקציבים יורים
+   733→// תמיד). כל tx.wait() במחזור רץ עכשיו עם דדליין-המתנה משלו — שער
+   734→// שקט נפגע ב-15ש' במקום לשרוף 45-120ש' של תקציב.
+   735→// העסקה עצמה עשויה להיכרות מאוחר יותר — כל פעולות המחזור אידמפוטנטיות
+   736→// והמחזור הבא משלים; הדילוג הכנה ומהיר.
+   737→const WAIT_TX_MS = 15_000;
+   738→
+   739→// v59 מרוץ-הקבלות (THE RECEIPT RACE) — האמת שנמדדה חי אחרי v56: השער
+   740→// השקט לא נעלם, הוא נספג: הלוג החי מראה wait-deadline שנורה בדיוק ב-15ש'
+   741→// על עסקאות נגד anvil מקומי (automine — הקבלה קיימת תוך אלפי-שניות!)
+   742→// כלומר מנוי-האירועים (block-event) של ethers מת בשכבת-השקע של bun,
+   743→// אבל setTimeout עצמו יורה תמיד (הדדליין מגיע במדויק). התרופה: לא לחכות
+   744→// לאירוע שלא יגיע — לשאול את השרשרת ישירות. מרוץ תלת-רגלי בכל המתנה:
+   745→//   (1) אירוע ethers (המסלול המהיר כשהוא חי) · (2) סקר-קבלה אקטיבי —
+   746→//   בקשת JSON-RPC רגילה (בלי מנויים בכלל) כל 200ms, מוכרעת ב-2.5ש'
+   747→//   לקריאה · (3) דדליין המחזור של v56. כשהרגל האקטיבית מוצאת קבלה
+   748→//   שהאירוע לא העיר עליה — הצלה מתועדת. אפס סיכון-רגרסיה: המסלול
+   749→//   הישן נשאר במרוץ, וכששניהם שותקים — הדילוג הכן של v56 נשמר.
+   750→const RECEIPT_POLL_MS = 200; // קצב סקר-הקבלות — עדין לצומת מקומי
+   751→const RECEIPT_CALL_MS = 2_500; // תקציב לקריאת-קבלה בודדת (ה-rpc-deadline 8ש' מעליו)
+   752→
+   753→function raceMs<T>(p: Promise<T>, ms: number): Promise<T | null> {
+   754→  return new Promise((resolve) => {
+   755→    const t = setTimeout(() => resolve(null), ms);
+   756→    p.then(
+   757→      (v) => { clearTimeout(t); resolve(v); },
+   758→      () => { clearTimeout(t); resolve(null); }
+   759→    );
+   760→  });
+   761→}
+   762→
+   763→async function waitTx(tx: ethers.TransactionResponse, ms: number = WAIT_TX_MS): Promise<ethers.TransactionReceipt | null> {
+   764→  const t0 = Date.now();
+   765→  const hash = tx.hash;
+   766→  let stopped = false;
+   767→  // רגל-הסקר: בדיקה ראשונה מיידית (automine — הקבלה שם כבר), ואז כל 200ms
+   768→  const poller = (async (): Promise<ethers.TransactionReceipt | null> => {
+   769→    while (!stopped) {
+   770→      const left = ms - (Date.now() - t0);
+   771→      if (left <= 0) return null;
+   772→      try {
+   773→        const rc = await raceMs(tx.provider.getTransactionReceipt(hash), RECEIPT_CALL_MS);
+   774→        if (rc) return rc;
+   775→      } catch {
+   776→        /* קריאה תקועה/נכשלה — מוכרעת ב-2.5ש', הסבב הבא מיד */
+   777→      }
+   778→      await new Promise((r) => setTimeout(r, Math.min(RECEIPT_POLL_MS, Math.max(0, ms - (Date.now() - t0)))));
+   779→    }
+   780→    return null;
+   781→  })();
+   782→  const evWait = tx.wait(1, ms).then(
+   783→    (rc) => ({ rc, via: "event" as const }),
+   784→    () => ({ rc: null as ethers.TransactionReceipt | null, via: "gate" as const })
+   785→  );
+   786→  const taggedPoller = poller.then((rc) => ({ rc, via: rc ? ("poll" as const) : ("timeout" as const) }));
+   787→  const winner = await Promise.race([evWait, taggedPoller]);
+   788→  stopped = true;
+   789→  if (winner.via === "poll") {
+   790→    // v61 — קטיעת המנוי-הפנימי של ethers על ה-hash: ברגע שהקבלה בידינו,
+   791→    // ההמתנה הפנימית של tx.wait (PollingTransactionSubscriber — מנוי-רשת
+   792→    // פעיל על ה-hash) היא משקל-מת שממשיך לסקר getTransactionReceipt על
+   793→    // כל בלוק עד הדדליין; ובסוף-המחזור provider.destroy() דוחה את הקריאה
+   794→    // שבטיסה כ-unhandledRejection שהפילה את הראנר. מפרקים את המנוי מיד —
+   795→    // ההמתנה שלנו כבר הוכרעה; ה-waiter הפנימי ייסגר בדדליין שלו בשקט
+   796→    // (ה-handlers שלנו על evWait קיימים). בראנר כל hash הוא יחידאי — אין
+   797→    // מאזינים אחרים לפרק.
+   798→    try {
+   799→      tx.provider.removeAllListeners(tx.hash);
+   800→    } catch {
+   801→      /* provider כבר מת/המנוי כבר פורק */
+   802→    }
+   803→    console.log(
+   804→      `[evm-mesh] v59 receipt-race: ${hash.slice(0, 14)}… rescued by active poll (+${Date.now() - t0}ms) — the event-gate was silent, the chain had the receipt`
+   805→    );
+   806→  } else if (winner.via === "gate") {
+   807→    console.log(
+   808→      `[evm-mesh] v56 wait-deadline: ${hash.slice(0, 14)}… stalled >${ms}ms — honest skip (silent wait-gate; the poll saw no receipt either)`
+   809→    );
+   810→  }
+   811→  return winner.rc;
+   812→}
+   813→
+   814→async function autoCycle(): Promise<void> {
+   815→  if (G.__meshCycleBusy) {
+   816→    // v62 — טיסה-יחידה חוצת-דורות: מחזור מדור אחר עדיין בטיסה (יתום שכבר
+   817→    // יצא לדרך או מחזור קודם שעוד רץ, חסום נעילת-המחזור שלו) — דילוג כנה;
+   818→    // הטיק שלנו הבא ירוץ כשהנעילה תתפנה.
+   819→    console.log("[evm-mesh] v62 single-flight: another generation's cycle is in flight — this fire skips honestly");
+   820→    return;
+   821→  }
+   822→  if (RT.busy) return;
+   823→  G.__meshCycleBusy = true; // v62 — נעילה גלובלית חסינת-הוט-סוואפ: דור אחד בלבד מריץ מחזור בכל רגע
+   824→  RT.busy = true;
+   825→  const startTick = runTick; // v56 — אמת-הלוג: הטיק שבו המחזור התחיל (ההדפסה ב-DONE הדפיסה טיק מוקדם אחרי ההעלאה)
+   826→  const CYCLE_T0 = Date.now(); // v56 — אמת-הלוג: משך-המחזור נמדד מתחילתו (היה נמדד מה-boot — מספר מטעה)
+   827→  console.log(`[cycle] START tick=${runTick} at ${new Date().toISOString()}`);
+   828→  const cycleWatchdog = setTimeout(() => {
+   829→    console.log(
+   830→      `[evm-mesh] CYCLE WATCHDOG: cycle exceeded ${Math.round(CYCLE_MAX_MS / 60_000)}min (frozen RPC socket / hung await) — self-terminating; the keeper revives a fresh runner. runTick=${runTick} block≈stuck`
+   831→    );
+   832→    process.exit(1);
+   833→  }, CYCLE_MAX_MS);
+   834→  // v54 מכוון-הרשת — ריעוף 120ms: המחזור עושה עשרות tx.wait(); ברירת-המחדל
+   835→  // 4000ms של ethers האטה כל רגל עד 4ש' (מקור פערי-הבלוק p50=4ש' שנמדדו)
+   836→  const provider = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
+   837→  try {
+   838→    const c = await stepB("contracts", () => meshContracts(provider), 30_000);
+   839→    if (!c) throw new Error("mesh not deployed");
+   840→
+   841→    // 1. LIVE 8-chain anchors flow INTO the mesh (דבר מוביל לדבר)
+   842→    const anchors = await stepB("anchors-fetch", () => fetchLiveAnchors(), 10_000);
+   843→    if (anchors) {
+   844→      await stepB("anchors-tx", async () => {
+   845→        const tx = await c.bridge.anchorExternalBulk(anchors.chains, anchors.heights, anchors.digests);
+   846→        await waitTx(tx);
+   847→        return true;
+   848→      }, 40_000); // v56 — תקציב מוקצף: שליחה (8ש' rpc) + המתנה (15ש') מכוסים במלואם
+   849→    }
+   850→
+   851→    // 2. fleet identity sync — the REAL organism's agents (idempotent)
+   852→    const fleet = await stepB("fleet-fetch", () => fetchFleetAgents(), 15_000); // v56 — 30→15ש' (fetch ווב עם מירוץ פנימי)
+   853→    let regIdx = 0;
+   854→    for (const agent of fleet ?? []) {
+   855→      // v56 — 25ש' בלבד: waitTx סוגר שער-המתנה שקט ב-15ש' (היה 45ש' שרוף
+   856→      // בכל רישום תקוע); גרוע-המקרה (13 סוכנים × 25ש') נשאר מתחת לחלון-הזומבי.
+   857→      await stepB(`register[${regIdx}] ${agent.handle}`, async () => {
+   858→        const tx = await c.identity.register(agent.address, agent.handle);
+   859→        await waitTx(tx);
+   860→        return true;
+   861→      }, 25_000);
+   862→      regIdx += 1;
+   863→    }
+   864→
+   865→    // 3. the HQ posts a REAL work order through the solution engine —
+   866→    //    LLM deliverable + SAOS-WORK anchor + receipt; dry fallback below
+   867→    step("workorder");
+   868→    const job = MISSIONS[runTick % MISSIONS.length] as { mission: string; difficulty: number; reward: bigint };
+   869→    const delivered = await postRealWorkOrder(job);
+   870→    step("workorder", true);
+   871→    if (!delivered) {
+   872→      await stepB("dry-order", async () => {
+   873→        await waitTx(await c.workboard.postOrder(job.mission, job.difficulty, job.reward));
+   874→        console.log(`[evm-mesh] HQ posted DRY work order (web tier down): "${job.mission}"`);
+   875→        return true;
+   876→      }, 30_000).catch(() => null); /* board full/miss — the run still happens */
+   877→    }
+   878→
+   879→    // 3.5 v20 — MICROGRID ORACLE: fresh REAL DEX prices (the web tier's
+   880→    //      60s-cached read-only probe) posted BEFORE the dispatch, so the
+   881→    //      run itself ticks the grids with live market data (link #6).
+   882→    //      v28 — ALL 6 KNOWN_PAIRS (במקום 2) — כל הגרידים מקבלים מחיר טרי.
+   883→    try {
+   884→      await stepB("oracle-prices", async () => {
+   885→        const dex = await fetchJson("http://127.0.0.1:3000/api/saos/dex");
+   886→        const pairs = (dex?.pairs ?? []) as Array<{ pair?: string; price?: string | null; exists?: boolean }>;
+   887→        for (const pair of KNOWN_PAIRS) {
+   888→          const p = pairs.find((x) => x.pair === pair && x.exists && x.price);
+   889→          const num = p?.price ? Number(p.price) : NaN;
+   890→          if (Number.isFinite(num) && num > 0) {
+   891→            const tx = await c.microgrid.postPrice(pair, BigInt(Math.round(num * 1e6)));
+   892→            await waitTx(tx);
+   893→          }
+   894→        }
+   895→        return true;
+   896→      }, 45_000); // v56 — 120→45ש' (6 זוגות × (שליחה 8 + המתנה 15) בנחירות)
+   897→    } catch {
+   898→      /* oracle best-effort — grids tick on the last posted price (honest) */
+   899→    }
+   900→
+   901→    // 4. a real mesh run — rotating initiators deliver the work + auto-enlist.
+   902→    //    v20: the run passes through SAOSMicrogrid (link #6) — every dispatch
+   903→    //    ticks the grids on-chain with the prices just posted.
+   904→    //    v46 — ספסל-מלא: הרוטציה %5 הותירה את חיילים 6/7/8 מובטלים לנצח
+   905→    //    (runs=0 בשרשרת — נתפס ברוסט v46). כל 8 החיילים ברוטציה — כולם
+   906→    //    נרשמו, כולם ממולאים, כולם מקבלים ריצות.
+   907→    // 4. a real mesh run — rotating initiators deliver the work + auto-enlist.
+   908→    const intent = INTENTS[runTick % INTENTS.length] as string;
+   909→    const rc = await stepB("dispatch", async () => {
+   910→      const initiator = await provider.getSigner(1 + (runTick % 8));
+   911→      const tx = await (c.hub as unknown as HubContract).connect(initiator).dispatch(intent);
+   912→      return await waitTx(tx);
+   913→    }, 45_000); // v56 — 150→45ש' (העסקה מתכרהת מייד ב-automine; שער שקט נסגר ב-15ש')
+   914→    console.log(`[evm-mesh] auto run #${runTick} "${intent}" gas=${rc?.gasUsed ?? "?"}`);
+   915→
+   916→    // 4.2 v21 — ANTI-GRID-DEATH: re-anchor any grid pinned at its band edge
+   917→    //      (cursor exhausted) or paused by the drift limit to the FRESH price
+   918→    //      just posted — the grid never dies on a trending market.
+   919→    try {
+   920→      await stepB("grids", async () => {
+   921→        const gridCount = Number(await c.microgrid.gridCount());
+   922→        for (let i = 0; i < gridCount; i++) {
+   923→          try {
+   924→            const g = (await c.microgrid.gridAt(i)) as unknown as {
+   925→              pair: string; cursor: number; levels: number; live: boolean;
+   926→            };
+   927→            const exhausted = Number(g.cursor) <= -Number(g.levels) || Number(g.cursor) >= Number(g.levels);
+   928→            const paused = !g.live;
+   929→            if (!exhausted && !paused) continue;
+   930→            const price = (await c.microgrid.priceOf(g.pair)) as bigint;
+   931→            if (price <= 0n) continue; // no fresh posted price — honest skip
+   932→            const rtx = await c.microgrid.reanchor(BigInt(i));
+   933→            await waitTx(rtx);
+   934→            console.log(`[evm-mesh] microgrid grid#${i} ${g.pair} re-anchored → ${Number(price) / 1e6}`);
+   935→          } catch {
+   936→            /* honest skip — the next cycle tries again */
+   937→          }
+   938→        }
+   939→        return true;
+   940→      }, 60_000); // v56 — 120→60ש': סריקת gridAt קריאות-קריאה בלבד
+   941→    } catch {
+   942→      /* grid scan best-effort */
+   943→    }
+   944→
+   945→    // 4.5 v20 — MICROGRID FLYWHEEL: sweep accrued profit → work-board
+   946→    //      payroll (zero-fee rail). Honest: capped by the real balance.
+   947→    try {
+   948→      await stepB("sweep", async () => {
+   949→        const realizedBefore = await c.microgrid.totalRealized();
+   950→        const sweptTx = await c.microgrid.sweepAllToPayroll();
+   951→        await waitTx(sweptTx);
+   952→        const realized = Number(ethers.formatEther(realizedBefore));
+   953→        if (realized > 0) {
+   954→          console.log(`[evm-mesh] microgrid realized so far: ${realized.toFixed(4)} SAOS-M (swept → payroll)`);
+   955→        }
+   956→        return true;
+   957→      }, 35_000); // v56 — 60→35ש' (שליחה 8 + המתנה 15 + שוליים)
+   958→    } catch {
+   959→      /* sweep best-effort — no grids / no balance yet (honest) */
+   960→    }
+   961→
+   962→    // 4.6 v23 — ROSE BLOOM: every cycle the NEXT agent in the round-robin
+   963→    //      is derived from the sealed seed (through the web tier's vault)
+   964→    //      and signs its own dispatch — the chain pays it RUN_REWARD (10
+   965→    //      SAOS-M). The fleet blooms in rotation, forever: "כל הסוכנים גם
+   966→    //      יוכלו לפי הצורך לבצע דרך הזרע". Honest skip on failure.
+   967→    try {
+   968→      const out = await webJson<{ ok?: boolean; agent?: string; block?: number; runId?: number; error?: string }>(
+   969→        "http://127.0.0.1:3000/api/saos/roses",
+   970→        {
+   971→          method: "POST",
+   972→          headers: { "Content-Type": "application/json" },
+   973→          body: JSON.stringify({ action: "bloom" }),
+   974→          signal: AbortSignal.timeout(90_000)
+   975→        },
+   976→        100_000 // v55 — מירוץ קשיח: גוף תקוע לא תולה את המחזור
+   977→      );
+   978→      if (out?.ok) {
+   979→        console.log(`[evm-mesh] ROSE bloomed: ${out.agent} signed run #${out.runId} via the seed (block ${out.block})`);
+   980→      } else if (out) {
+   981→        console.log(`[evm-mesh] rose bloom skipped honestly: ${out.error ?? "unknown"}`);
+   982→      }
+   983→    } catch {
+   984→      /* web tier down / timeout — honest skip, next cycle tries again */
+   985→    }
+   986→
+   987→    // 4.7 v25 — MAGEN AUTO-SCAN: the shield runs itself. Every cycle the
+   988→    //      runner reads the live security status (a full scan happens on
+   989→    //      each cache-miss anyway — the shield is ALWAYS fresh). What is
+   990→    //      missing without this step is the JOURNALED verdict: once an
+   991→    //      hour, if the last journaled magen.autoscan is older than 55
+   992→    //      minutes (or none exists), the runner forces a POST scan — the
+   993→    //      verdict lands redacted in the opLog and surfaces in the
+   994→    //      מגן + רשות views. Honest skip on failure — next cycle retries.
+   995→    try {
+   996→      const s = await webJson<{ autoscan?: { lastAt: string | null } }>(
+   997→        "http://127.0.0.1:3000/api/saos/security",
+   998→        { signal: AbortSignal.timeout(30_000) },
+   999→        35_000 // v55 — מירוץ קשיח
+  1000→      );
+  1001→      const lastJournaled = s?.autoscan?.lastAt ? Date.parse(s.autoscan.lastAt) : 0;
+  1002→      if (!lastJournaled || Date.now() - lastJournaled > 55 * 60_000) {
+  1003→        const o = await webJson<{ ok?: boolean; highCount?: number }>(
+  1004→          "http://127.0.0.1:3000/api/saos/security",
+  1005→          {
+  1006→            method: "POST",
+  1007→            headers: { "Content-Type": "application/json" },
+  1008→            body: JSON.stringify({ action: "scan" }),
+  1009→            signal: AbortSignal.timeout(110_000)
+  1010→          },
+  1011→          120_000 // v55 — מירוץ קשיח
+  1012→        );
+  1013→        if (o) {
+  1014→          console.log(
+  1015→            `[evm-mesh] MAGEN auto-scan: ${o.ok ? "clean" : `SEVERE (${o.highCount} high) — verdict journaled`} (hourly, step 4.7)`
+  1016→          );
+  1017→        }
+  1018→      }
+  1019→    } catch {
+  1020→      /* web tier down / timeout — honest skip, next cycle tries again */
+  1021→    }
+  1022→
+  1023→    // 4.9 v28 — EXCHANGE CYCLE: הבורסה שלנו על הרשת שלנו, בכל מחזור —
+  1024→    //      חיילים סוחרים, הארב' של האוצר מיישר את הבריכות למחיר-המדיניות,
+  1025→    //      הקציר זורם החוצה לקופת-העבודה, החיילים ממולאים, וכל 6 הזוגות
+  1026→    //      של המיקרו-גריד מסודרים (best-effort, דילוג כנה בכשל — המחזור
+  1027→    //      הבא ממשיך).
+  1028→    try {
+  1029→      await stepB("exchange", () => exchangeCycle(provider), 300_000);
+  1030→    } catch {
+  1031→      /* הבורסה best-effort — המחזור הבא מנסה שוב */
+  1032→    }
+  1033→
+  1034→    // 4.8 v26→v36 — KEEPER MUTUAL REVIVE (function-based): the keeper
+  1035→    //      (mini-services/keeper, :3005) watches the web tier + this runner
+  1036→    //      + anvil + machine memory and revives any confirmed-dead member.
+  1037→    //      This step is the other half of the loop. v36 closes the blind
+  1038→    //      spot a live incident exposed today: a keeper process can be
+  1039→    //      ALIVE and ANSWERING :3005 while its cycle timers are dead
+  1040→    //      (bun --hot teardown race — the zombie-watcher class: pids
+  1041→    //      1649/3896/14741 all lived today; alive ≠ serving). The port is
+  1042→    //      no longer the truth: lastCheckAt must ADVANCE (cycle=10s; stale
+  1043→    //      >3min = frozen watcher). The cure follows the proven
+  1044→    //      self-watchdog doctrine: SIGTERM the frozen process + detached
+  1045→    //      respawn — the fresh keeper takes the stale seat over (v36 seat
+  1046→    //      lock). No member of the organism can stay FUNCTION-dead:
+  1047→    //      web ⇄ keeper ⇄ runner ⇄ anvil.
+  1048→    try {
+  1049→      const st = await webJson<{ lastCheckAt?: string; pid?: number }>("http://127.0.0.1:3005/", { signal: AbortSignal.timeout(3_000) }, 5_000);
+  1050→      const lastMs = st?.lastCheckAt ? Date.parse(st.lastCheckAt) : NaN;
+  1051→      if (st && Number.isFinite(lastMs) && Date.now() - lastMs <= 180_000) {
+  1052→        keeperFails = 0; // honestly watching — the cycle advances
+  1053→      } else if (st) {
+  1054→        keeperFails += 2; // zombie-watcher: port answers, function frozen
+  1055→        console.log(`[evm-mesh] keeper zombie-watcher: lastCheckAt ${st?.lastCheckAt ?? "none"} stale >3min — port-live but function-dead (v36)`);
+  1056→        if (st?.pid && st.pid !== process.pid) {
+  1057→          try { process.kill(st.pid, "SIGTERM"); } catch { /* already gone */ }
+  1058→        }
+  1059→      } else {
+  1060→        keeperFails += 1; // v55 — unreachable/stalled body — honest fail
+  1061→      }
+  1062→    } catch {
+  1063→      keeperFails += 1;
+  1064→    }
+  1065→    if (keeperFails >= 2) {
+  1066→      keeperFails = 0;
+  1067→      try {
+  1068→        Bun.spawn(
+  1069→          ["bash", "-c", "sleep 1.5; cd /home/z/my-project/mini-services/keeper && exec bun run dev >> keeper.log 2>&1"],
+  1070→          { detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }
+  1071→        );
+  1072→        console.log("[evm-mesh] keeper function-dead — SIGTERM'd if zombie, revived detached (step 4.8 v36, function-based mutual watch)");
+  1073→      } catch {
+  1074→        /* spawn failed — next cycle retries */
+  1075→      }
+  1076→    }
+  1077→
+  1078→    // 5. every 3rd cycle: a zero-fee value movement (ללא עמלה — forever 0)
+  1079→    if (runTick % 3 === 2) {
+  1080→      await stepB("zero-fee", async () => {
+  1081→        const count = Number(await c.identity.agentCount());
+  1082→        if (count > 1) {
+  1083→          const idx = runTick % count;
+  1084→          const agent = (await c.identity.agentAt(idx)) as unknown as { 0: string };
+  1085→          const dest = String(agent[0]);
+  1086→          if (dest) {
+  1087→            const t2 = await c.ledger.transfer(dest, ethers.parseEther("1"));
+  1088→            await waitTx(t2);
+  1089→            console.log(`[evm-mesh] zero-fee transfer → ${dest.slice(0, 10)}… (fee=0)`);
+  1090→          }
+  1091→        }
+  1092→        return true;
+  1093→      }, 30_000); // v56 — 90→30ש' (שליחה 8 + המתנה 15 + שוליים)
+  1094→    }
+  1095→    // 6. v54 מכוון-הרשת — נטיל-WRXP אוטומטית: חלון-המדידה של מפקד-ה-XRP
+  1096→    //    בקצב-הגשה (v53: "WRXP ממתין בכנות לחלון-מדידה"). כל 10 מחזורים
+  1097→    //    (~20 דק') הראנר מזמין reserve-sync מהווב: נכסים מסונכרנים
+  1098→    //    מדלגים באידמפוטנטיות; WRXP מנסה שוב את המפקד — וכשהחלון
+  1099→    //    נפתח, השריפה פרו-רטה רצה והמראה חוזרת ל-5/5 בלי יד אדם.
+  1100→    //    timeout 25ש' בלבד — לעולם לא עוצר את המחזור עצמו.
+  1101→    if (runTick > 0 && runTick % 10 === 3) {
+  1102→      try {
+  1103→        const out = await webJson<{ ok?: boolean; sync?: { rows?: Array<{ wrap?: string; driftHe?: string; residualNoteHe?: string }> } }>(
+  1104→          "http://127.0.0.1:3000/api/saos/conversion",
+  1105→          {
+  1106→            method: "POST",
+  1107→            headers: { "Content-Type": "application/json" },
+  1108→            body: JSON.stringify({ action: "reserve-sync" }),
+  1109→            signal: AbortSignal.timeout(25_000)
+  1110→          },
+  1111→          30_000 // v55 — מירוץ קשיח
+  1112→        );
+  1113→        if (out) {
+  1114→          const wrxp = out.sync?.rows?.find((r) => r.wrap === "WRXP");
+  1115→          console.log(`[evm-mesh] v54 WRXP watcher: reserve-sync ok=${String(out.ok ?? false)} · WRXP: ${wrxp?.residualNoteHe ?? "לא בספר"}`);
+  1116→        } else {
+  1117→          console.log(`[evm-mesh] v54 WRXP watcher: web tier stalled/down (honest skip)`);
+  1118→        }
+  1119→      } catch {
+  1120→        console.log("[evm-mesh] v54 WRXP watcher: unreachable (honest skip — next window in ~20min)");
+  1121→      }
+  1122→    }
+  1123→    runTick += 1;
+  1124→    saveRunTick(runTick); // v46 — הפאזה שורדת מוות: הטיק נשמר בכל סוף-מחזור
+  1125→    console.log(`[cycle] DONE tick=${startTick} in ${((Date.now() - CYCLE_T0) / 1000).toFixed(1)}s`); // v56 — טיק-ההתחלה + משך אמיתי מתחילת המחזור
+  1126→  } catch (e) {
+  1127→    console.log(`[evm-mesh] auto-cycle skipped: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`);
+  1128→  } finally {
+  1129→    clearTimeout(cycleWatchdog);
+  1130→    // v26.1 — socket-leak fix: every cycle used to LEAK its provider (and
+  1131→    // its keep-alive connection to anvil). Over hours this accumulates
+  1132→    // dead sockets — one of which froze the runner mid-await tonight.
+  1133→    try {
+  1134→      provider.destroy();
+  1135→    } catch {
+  1136→      /* already dead */
+  1137→    }
+  1138→    RT.busy = false;
+  1139→    G.__meshCycleBusy = false; // v62 — הנעילה הגלובלית משתחררת תמיד (חסינת-קריסה: גם אם המחזור זרק)
+  1140→  }
+  1141→}
+  1142→
+  1143→// ─── v28 — the exchange cycle (step 4.9): הבורסה חיה ────────────────────────
+  1144→
+  1145→/**
+  1146→ * 4.9 v28 — EXCHANGE CYCLE: הבורסה שלנו, על הרשת שלנו, בכל מחזור 120ש'.
+  1147→ *   א. מחירי אורקל חיים (Binance דרך מכ"ם-הנזילות של הפלטפורמה) — אין?
+  1148→ *      הארב' מדולג בכנות (שאר הצעדים ממשיכים).
+  1149→ *   ב. בוט-ארב' (האוצר): סטייה > 0.8% ממחיר-המדיניות → האוצר מתקן — מוכר
+  1150→ *      נכס לתוך כוח, קונה לתוך חולשה (2% מהרזרבה, מינימום-יציאה 98%,
+  1151→ *      תמיד בטוח-תקרת ההחלפה 5%).
+  1152→ *   ג. מסחר חיילים: חייל מתחלף ברוטציה (1..8) קונה/מוכר לפי זוגיות הטיק;
+  1153→ *      מכירה — רק אם החייל מחזיק את הנכס ≥ 2% מהבריכה (אחרת קנייה).
+  1154→ *   ד. כל מחזור שלישי — קציר החוצה: harvestAll → wSAOS שנצבר באוצר נשלף
+  1155→ *      וזורם במסילה ללא-עמלה לקופת-העבודה האמיתית (REAL WORK payroll).
+  1156→ *   ה. מילוי: חייל שירד מ-50 wSAOS — ה-HQ ממלא ל-300 (רק אם הכיסוי יש).
+  1157→ *   ו. "לסדר את הבריכות": כל 6 הזוגות הידועים יהיו גרידים חיים + מימון
+  1158→ *      קרן-הרווח של המיקרו-גריד (50 SAOS-M כשירדה מתחת ל-10).
+  1159→ */
+  1160→/**
+  1161→ * 4.10 v29 — FOUND-MONEY CONNECT (חיבור): הכסף שהבעלים מצא בארנק אבן-הפינה
+  1162→ * (אבק ETH + BNB על אותה כתובת Coinomi + XRP ב-XRPL) מחובר לבורסה החיה —
+  1163→ * בלי ריג'נסיס, בלי להוציא אף יחידה אמיתית מהארנק:
+  1164→ *   א. רישום WBNB + WRXP על הבורסה הקיימת (registerAsset — owner-only).
+  1165→ *   ב. הטבעת אספקת-גיבוי 1:1 מול מדידת-מכ"ם חיה + זריעת בריכות WBNB/wSAOS
+  1166→ *      ו-WRXP/wSAOS במחיר-המדיניות ($0.001): 80% לבריכה, 20% הון-יוצר-שוק.
+  1167→ *   ג. סנכרון-גיבוי WETH: האספקה עוקבת אחרי האוצר האמיתי הנמדד — דלתא
+  1168→ *      חיובית → mint להון-יוצר-השוק של האוצר; שלילית → burn best-effort.
+  1169→ * אידמפוטנטי לחלוטין: DupAsset נחסם בשרשרת, בריכה קיימת לא נזרעת שוב,
+  1170→ * דלתא 0 = אין פעולה. הריאליזציה: הנכסים האמיתיים נשארים בארנק (מתחת
+  1171→ * לעלות-גז / רזרבת XRPL) — ההפעלה הריבונית היא עטיפת-התביעה החיה.
+  1172→ */
+  1173→
+  1174→/** v30 — המרת מדידות float ל-wei בלי underflow: חיבור מספרים
+  1175→ *  בנקודה-צפה מייצר >18 ספרות עשרוניות (0.00034550888168315505) —
+  1176→ *  parseEther נופל. עוגלים ל-18 (הדיוק של 1 wei). באג שנתפס חי בלוג. */
+  1177→function unitsToWei(units: number): bigint {
+  1178→  return ethers.parseEther(units.toFixed(18));
+  1179→}
+  1180→async function foundMoneyConnect(
+  1181→  provider: ethers.JsonRpcProvider,
+  1182→  exchange: ethers.Contract,
+  1183→  treasuryAddr: string
+  1184→): Promise<void> {
+  1185→  try {
+  1186→    const hq = (await provider.getSigner(0)) as ethers.Signer;
+  1187→    const hqAddr = await hq.getAddress();
+  1188→    const xc = exchange.connect(hq) as typeof exchange;
+  1189→
+  1190→    // א. מדידה חיה מהמכ"ם (flow) — שורות headcorner לפי הכתובות שנמצאו
+  1191→    let realBnb = 0, realXrp = 0, realEth = 0, xrpUsd = 0, bnbUsd = 0;
+  1192→    try {
+  1193→      const flow = await fetchJson("http://127.0.0.1:3000/api/saos/flow", 25000);
+  1194→      const rows = (((flow?.radar as { assets?: unknown[] } | undefined)?.assets) ?? []) as Array<{
+  1195→        symbol?: string; holder?: string; address?: string;
+  1196→        balanceNum?: number; priceUsd?: number | null;
+  1197→      }>;
+  1198→      for (const r of rows) {
+  1199→        if (r.holder !== "headcorner" || typeof r.address !== "string") continue;
+  1200→        const units = typeof r.balanceNum === "number" ? r.balanceNum : 0;
+  1201→        const usd = typeof r.priceUsd === "number" ? r.priceUsd : 0;
+  1202→        // v30 תזוזה — סכימת כל כתובות האוצר (הכסף זז ל-0x01Bd; המסנן
+  1203→        // הישן 0x97ad השאיר את ה-BNB מחוץ לאחר הסוויפ — באג שנתפס חי).
+  1204→        if (r.symbol === "BNB" && r.address.toLowerCase().startsWith("0x")) { realBnb += units; bnbUsd = usd; }
+  1205→        if (r.symbol === "XRP" && r.address.startsWith("r3Tq66")) { realXrp = units; xrpUsd = usd; }
+  1206→        if (r.symbol === "ETH" && r.address.toLowerCase().startsWith("0x")) realEth += units; // 0x2767 (צי) + 0x01Bd (בית) + 0x97Ad (שארית)
+  1207→      }
+  1208→    } catch {
+  1209→      return; // אין מכ"ם — דילוג כנה, המחזור הבא ינסה
+  1210→    }
+  1211→
+  1212→    // ב. נכסים חדשים — WBNB + WRXP (רק אם יש מדידה > 0; הרישום חד-פעמי)
+  1213→    const wsaosId = Number(await xc.assetIdOf("WSAOS"));
+  1214→    const specs = [
+  1215→      { symbol: "WBNB", units: realBnb, usd: bnbUsd, note: "BNB עטוף — מגובה 1:1 ב-BNB האמיתי שנמצא (Coinomi m/44'/60'/0'/0)" },
+  1216→      { symbol: "WRXP", units: realXrp, usd: xrpUsd, note: "XRP עטוף — מגובה 1:1 ב-XRP האמיתי שנמצא (Coinomi m/44'/144', XRPL)" }
+  1217→    ] as const;
+  1218→    for (const spec of specs) {
+  1219→      if (!(spec.units > 0) || !(spec.usd > 0)) continue;
+  1220→      let id: number;
+  1221→      try {
+  1222→        id = Number(await xc.assetIdOf(spec.symbol)); // כבר רשום — רק סנכרון
+  1223→      } catch {
+  1224→        // רישום חדש + הטבעה + בריכה + זריעה (חד-פעמי)
+  1225→        const tx0 = await xc.registerAsset(spec.symbol, spec.note);
+  1226→        await waitTx(tx0);
+  1227→        console.log(`[evm-mesh] חיבור v29: נכס ${spec.symbol} נרשם — "${spec.note}"`);
+  1228→        id = Number(await xc.assetIdOf(spec.symbol));
+  1229→        const totalWei = unitsToWei(spec.units);
+  1230→        const poolAsset = (totalWei * 80n) / 100n;
+  1231→        const treasuryAsset = totalWei - poolAsset;
+  1232→        const perSaos = BigInt(Math.round((spec.usd / SAOS_M_USD_POLICY) * 1e6));
+  1233→        const poolSaos = (poolAsset * perSaos) / 1_000_000n;
+  1234→        const tx1 = await xc.mintAsset(id, hqAddr, totalWei, `${spec.units} ${spec.symbol} אמיתיים (מכ"ם v29)`);
+  1235→        await waitTx(tx1);
+  1236→        const tx2 = await xc.transfer(id, treasuryAddr, treasuryAsset);
+  1237→        await waitTx(tx2);
+  1238→        const tx3 = await xc.createPool(id, wsaosId);
+  1239→        await waitTx(tx3);
+  1240→        const poolId = Number(await xc.poolCount()) - 1;
+  1241→        const tx4 = await xc.addLiquidity(poolId, poolAsset, poolSaos);
+  1242→        await waitTx(tx4);
+  1243→        console.log(
+  1244→          `[evm-mesh] חיבור v29: בריכה ${spec.symbol}/wSAOS #${poolId} נזרעה — ${ethers.formatEther(poolAsset)} ${spec.symbol} · ${ethers.formatEther(poolSaos)} wSAOS (מחיר מדיניות $0.001)`
+  1245→        );
+  1246→        continue;
+  1247→      }
+  1248→
+  1249→      // סנכרון-גיבוי לנכס קיים: האספקה עוקבת אחרי המדידה החיה (mint לדלתא)
+  1250→      const a = (await xc.assets(BigInt(id))) as unknown as { totalMinted: bigint };
+  1251→      const totalWei = unitsToWei(spec.units);
+  1252→      const delta = totalWei - a.totalMinted;
+  1253→      if (delta > ethers.parseEther("0.000000001")) {
+  1254→        const tx = await xc.mintAsset(id, treasuryAddr, delta, `סנכרון גיבוי v29: +${ethers.formatEther(delta)} ${spec.symbol} במדידה`);
+  1255→        await waitTx(tx);
+  1256→        console.log(`[evm-mesh] חיבור v29: סנכרון ${spec.symbol} +${ethers.formatEther(delta)} → הון-יוצר-שוק באוצר`);
+  1257→      } else if (delta < -ethers.parseEther("0.000000001")) {
+  1258→        // v30 תזוזה — דלתא שלילית (דמי-שריפה בפעימת XRPL / גז): burn
+  1259→        const burnWei = -delta;
+  1260→        const held = (await xc.balanceOf(BigInt(id), treasuryAddr)) as bigint;
+  1261→        const burnable = burnWei > held ? held : burnWei;
+  1262→        if (burnable > 0n) {
+  1263→          const tx = await xc.burnAsset(id, treasuryAddr, burnable, `סנכרון גיבוי v30: ${ethers.formatEther(burnable)} ${spec.symbol} נשרף (דמי תזוזה)`);
+  1264→          await waitTx(tx);
+  1265→          console.log(`[evm-mesh] תזוזה v30: סנכרון ${spec.symbol} -${ethers.formatEther(burnable)} (נשרף — הגיבוי עוקב)`);
+  1266→        }
+  1267→      }
+  1268→    }
+  1269→
+  1270→    // ג. סנכרון-גיבוי WETH — אבק ה-ETH שנמצא מצטרף לגיבוי (מנגנון v28-next)
+  1271→    if (realEth > 0) {
+  1272→      const wethId = Number(await xc.assetIdOf("WETH"));
+  1273→      const a = (await xc.assets(BigInt(wethId))) as unknown as { totalMinted: bigint };
+  1274→      const totalWei = unitsToWei(realEth);
+  1275→      const delta = totalWei - a.totalMinted;
+  1276→      if (delta > ethers.parseEther("0.000000001")) {
+  1277→        const tx = await xc.mintAsset(wethId, treasuryAddr, delta, `סנכרון גיבוי v29: +${ethers.formatEther(delta)} ETH במדידה (אבק אבן-הפינה)`);
+  1278→        await waitTx(tx);
+  1279→        console.log(`[evm-mesh] חיבור v29: סנכרון WETH +${ethers.formatEther(delta)} → הון-יוצר-שוק באוצר`);
+  1280→      } else if (delta < -ethers.parseEther("0.000000001")) {
+  1281→        // v30 תזוזה — סנכרון שלילי: הכסף זז/נשרף בגז אמיתי → האספקה העטופה
+  1282→        // נשרפת מהון-יוצר-השוק של האוצר (מוגבל ליתרה שבאמת שם — אמת גלויה).
+  1283→        const burnWei = -delta;
+  1284→        const held = (await xc.balanceOf(BigInt(wethId), treasuryAddr)) as bigint;
+  1285→        const burnable = burnWei > held ? held : burnWei;
+  1286→        if (burnable > 0n) {
+  1287→          const tx = await xc.burnAsset(wethId, treasuryAddr, burnable, `סנכרון גיבוי v30: ${ethers.formatEther(burnable)} ETH יצא/נשרף (גז התזוזה)`);
+  1288→          await waitTx(tx);
+  1289→          console.log(`[evm-mesh] תזוזה v30: סנכרון WETH -${ethers.formatEther(burnable)} (נשרף — הגיבוי עוקב אחרי האמת שבשרשרת)`);
+  1290→        }
+  1291→      }
+  1292→    }
+  1293→  } catch (e) {
+  1294→    console.log(
+  1295→      `[evm-mesh] חיבור v29: דילוג כנה — ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`
+  1296→    );
+  1297→  }
+  1298→}
+  1299→
+  1300→// ─── 4.11 v30 — PHYSICAL MOVE CYCLE (תזוזה): הכסף זז פיזית ───────────────────
+  1301→
+  1302→/**
+  1303→ * הוראת הבעלים: "הוא חייב לזוז פיזית". הכסף שנמצא (אבק ETH + BNB על
+  1304→ * 0x97Ad · XRP על r3Tq66) זז בעסקאות אמיתיות בשרשרות האמיתיות — החתימה
+  1305→ * והשידור מתבצעים בשכבת-הווב (הכספת + שער-הפישינג שם); הראנר מזמין:
+  1306→ *   א. sweep-eth — רק כשמדידה חיה אומרת שיש מה להזיז (canMove).
+  1307→ *   ב. sweep-bsc — באותו תנאי.
+  1308→ *   ג. heartbeat-xrp — כל מחזור עשירי: החשבון חותם תשלום-עצמי אמיתי
+  1309→ *      בספר XRPL (דמי-שריפה 12 drops בלבד; רזרבה נמדדת חיה).
+  1310→ * לולאת-בקרה כפולה: ה-API עצמו מודד שוב לפני חתימה — הראנר מזמין,
+  1311→ * השכבה מחליטה לפי האמת שנמדדת בשני הצדדים.
+  1312→ */
+  1313→async function postPlatform(path: string, body: Record<string, unknown>, timeoutMs = 180_000): Promise<Record<string, unknown> | null> {
+  1314→  try {
+  1315→    // v24 מגן (runner): loopback בלבד — כמו fetchJson
+  1316→    const u = new URL(`http://127.0.0.1:3000${path}`);
+  1317→    // v55 — אותו מירוץ קשיח: קריאת-גוף תקועה (הבאג מ-repro-abort.ts ניסוי B)
+  1318→    // לעולם לא תלה את המחזור; ה-abort ממשיך לכסות עד סוף הקריאה.
+  1319→    const ctl = new AbortController();
+  1320→    const t = setTimeout(() => ctl.abort(), timeoutMs);
+  1321→    try {
+  1322→      const res = await fetch(u, {
+  1323→        method: "POST",
+  1324→        headers: { "content-type": "application/json" },
+  1325→        body: JSON.stringify(body),
+  1326→        signal: ctl.signal
+  1327→      });
+  1328→      if (!res.ok) return null;
+  1329→      const jp = res.json() as Promise<Record<string, unknown>>;
+  1330→      jp.catch(() => { /* swallowed — the race may abandon it */ });
+  1331→      return await new Promise<Record<string, unknown> | null>((resolve) => {
+  1332→        const t2 = setTimeout(() => {
+  1333→          console.log(`[evm-mesh] v55 body-deadline: ${path} stalled >${timeoutMs}ms — honest null`);
+  1334→          resolve(null);
+  1335→        }, timeoutMs);
+  1336→        jp.then(
+  1337→          (v) => { clearTimeout(t2); resolve(v); },
+  1338→          () => { clearTimeout(t2); resolve(null); }
+  1339→        );
+  1340→      });
+  1341→    } finally {
+  1342→      clearTimeout(t);
+  1343→    }
+  1344→  } catch {
+  1345→    return null;
+  1346→  }
+  1347→}
+  1348→
+  1349→async function physicalMoveCycle(): Promise<void> {
+  1350→  try {
+  1351→    const st = await fetchJson("http://127.0.0.1:3000/api/saos/physical-move", 30_000);
+  1352→    if (!st) return; // אין מצב — דילוג כנה, המחזור הבא יזמין
+  1353→    const eth = st.ethereum as { canMove?: boolean } | undefined;
+  1354→    const bsc = st.bsc as { canMove?: boolean } | undefined;
+  1355→    const xrp = st.xrp as { ok?: boolean } | undefined;
+  1356→    const legacy = st.legacy as
+  1357→      | { evm?: { canMove?: boolean }; trx?: { canMove?: boolean }; sol?: { canMove?: boolean } }
+  1358→      | undefined;
+  1359→
+  1360→    if (eth?.canMove) {
+  1361→      // v46 — 200→120ש': הסוויפ בפועל מסיים בשניות; 200ש' נתנו משקל-מוות
+  1362→      // למחזור הכללי (הכלב-השומר נתלה עליהם). מיתון כנה.
+  1363→      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-eth" }, 120_000);
+  1364→      console.log(
+  1365→        `[evm-mesh] תזוזה v30: sweep-eth → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} ETH` : String(r?.reason ?? "דילוג כנה")}`
+  1366→      );
+  1367→    }
+  1368→    if (bsc?.canMove) {
+  1369→      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-bsc" }, 90_000);
+  1370→      console.log(
+  1371→        `[evm-mesh] תזוזה v30: sweep-bsc → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} BNB` : String(r?.reason ?? "דילוג כנה")}`
+  1372→      );
+  1373→    }
+  1374→    // v32 המשך — הארנקים הישנים (המפתחות ששרדו בכספת, תגלית v31):
+  1375→    // ETH ישן 0x2767 → בית-האוצר · TRX TG6Srs → TMXHfFQd · SOL 9knfn → A2Y1d3
+  1376→    if (legacy?.evm?.canMove) {
+  1377→      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-legacy-eth" }, 120_000);
+  1378→      console.log(
+  1379→        `[evm-mesh] תזוזה v32: sweep-legacy-eth → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} ETH` : String(r?.reason ?? "דילוג כנה")}`
+  1380→      );
+  1381→    }
+  1382→    if (legacy?.trx?.canMove) {
+  1383→      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-legacy-trx" }, 120_000);
+  1384→      console.log(
+  1385→        `[evm-mesh] תזוזה v32: sweep-legacy-trx → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} TRX` : String(r?.reason ?? "דילוג כנה")}`
+  1386→      );
+  1387→    }
+  1388→    if (legacy?.sol?.canMove) {
+  1389→      const r = await postPlatform("/api/saos/physical-move", { action: "sweep-legacy-sol" }, 120_000);
+  1390→      console.log(
+  1391→        `[evm-mesh] תזוזה v32: sweep-legacy-sol → ${r?.moved ? `זז! tx ${String(r.txid).slice(0, 16)}… · ${r.amount} SOL` : String(r?.reason ?? "דילוג כנה")}`
+  1392→      );
+  1393→    }
+  1394→    if (xrp?.ok && runTick % 10 === 9) {
+  1395→      const r = await postPlatform("/api/saos/physical-move", { action: "heartbeat-xrp" }, 60_000);
+  1396→      console.log(
+  1397→        `[evm-mesh] תזוזה v30: פעימת XRPL → ${r?.moved ? `חתומה בספר! tx ${String(r.txid).slice(0, 16)}…` : String(r?.reason ?? "דילוג כנה")}`
+  1398→      );
+  1399→    }
+  1400→  } catch {
+  1401→    /* דילוג כנה — המחזור הבא */
+  1402→  }
+  1403→}
+  1404→
+  1405→async function exchangeCycle(provider: ethers.JsonRpcProvider): Promise<void> {
+  1406→  const state = readState();
+  1407→  if (!state?.ok || !state.contracts?.SAOSExchange) return;
+  1408→  const artifact = loadArtifact();
+  1409→  const xAbi = artifact.contracts.find((c) => c.name === "SAOSExchange")?.abi;
+  1410→  const lAbi = artifact.contracts.find((c) => c.name === "SAOSLedger")?.abi;
+  1411→  const mAbi = artifact.contracts.find((c) => c.name === "SAOSMicrogrid")?.abi;
+  1412→  if (!xAbi || !lAbi || !mAbi) return;
+  1413→  const hq = await provider.getSigner(0);
+  1414→  const hqAddr = await hq.getAddress();
+  1415→  const treasury = await provider.getSigner(9);
+  1416→  const treasuryAddr = await treasury.getAddress();
+  1417→  const exchange = new ethers.Contract(state.contracts.SAOSExchange, xAbi, hq) as unknown as ExchangeContract;
+  1418→  const ledger = new ethers.Contract(state.contracts.SAOSLedger, lAbi, hq) as unknown as LedgerContract;
+  1419→  const microgrid = new ethers.Contract(state.contracts.SAOSMicrogrid, mAbi, hq);
+  1420→  const wsaosId = Number(await exchange.assetIdOf("WSAOS"));
+  1421→
+  1422→  // 4.10 v29 — FOUND-MONEY CONNECT (חיבור): WBNB + WRXP + סנכרון WETH —
+  1423→  // הכסף שנמצא מחובר לבורסה החיה לפני המסחר של המחזור הזה (אידמפוטנטי).
+  1424→  await foundMoneyConnect(provider, exchange, treasuryAddr);
+  1425→
+  1426→  // 4.11 v30 — PHYSICAL MOVE CYCLE (תזוזה): הכסף זז פיזית — sweep-eth /
+  1427→  // sweep-bsc כשיש מה להזיז + פעימת XRPL כל מחזור עשירי (חתימת הכספת
+  1428→  // בשכבת-הווב; הראנר מזמין דרך ה-API המגודר — אותה החלטה, אותה שרשרת).
+  1429→  await stepB("physical-move", () => physicalMoveCycle(), 240_000);
+  1430→
+  1431→  // א. מחירי אורקל חיים — מכ"ם הפלטפורמה (Binance). אין → ארב' מדולג כנה.
+  1432→  let oracle: Record<string, number> = {};
+  1433→  try {
+  1434→    const flow = await fetchJson("http://127.0.0.1:3000/api/saos/flow", 25000);
+  1435→    const rows = (((flow?.radar as { assets?: unknown[] } | undefined)?.assets) ?? []) as Array<{
+  1436→      symbol?: string;
+  1437→      holder?: string;
+  1438→      address?: string;
+  1439→      priceUsd?: number | null;
+  1440→    }>;
+  1441→    const pick = (sym: string, prefix: string): number => {
+  1442→      const a = rows.find(
+  1443→        (x) => x.symbol === sym && x.holder === "headcorner" && typeof x.address === "string" && x.address.startsWith(prefix)
+  1444→      );
+  1445→      return a && typeof a.priceUsd === "number" && a.priceUsd > 0 ? a.priceUsd : 0;
+  1446→    };
+  1447→    oracle = {
+  1448→      WTRX: pick("TRX", "TG6Srs"),
+  1449→      WSOL: pick("SOL", "9knfnF"),
+  1450→      WETH: pick("ETH", "0x2767") || pick("ETH", "0x97Ad"),
+  1451→      WBNB: pick("BNB", "0x97Ad"),
+  1452→      WRXP: pick("XRP", "r3Tq66")
+  1453→    };
+  1454→  } catch {
+  1455→    /* אורקל best-effort — החיילים סוחרים גם בלי ארב' */
+  1456→  }
+  1457→
+  1458→  // קריאת הבריכות פעם אחת למחזור
+  1459→  const poolCount = Number(await exchange.poolCount());
+  1460→  const pools: Array<{ id: number; aId: number; rA: bigint; rB: bigint }> = [];
+  1461→  const symbolOf: Record<number, string> = {};
+  1462→  for (let i = 0; i < poolCount; i++) {
+  1463→    const p = (await exchange.pools(BigInt(i))) as unknown as { aId: bigint; rA: bigint; rB: bigint };
+  1464→    const aId = Number(p.aId);
+  1465→    if (symbolOf[aId] === undefined) {
+  1466→      const a = (await exchange.assets(aId)) as unknown as { symbol: string };
+  1467→      symbolOf[aId] = String(a.symbol);
+  1468→    }
+  1469→    pools.push({ id: i, aId, rA: p.rA, rB: p.rB });
+  1470→  }
+  1471→
+  1472→  // ב. בוט-ארב' (האוצר): הבריכות מיושרות אל מחיר-המדיניות (oracleUsd/0.001)
+  1473→  //    v46 — מגן-אבק: הרוסט תפס את הארב' "מתקן" סטייה 26% במכירת 2.18e-13
+  1474→  //    WSOL — עסקה של $0.00000000000004. סחר-אבק אינו תיקון; גודל שאינו
+  1475→  //    שווה ≥0.05 wSAOS (או שהמכסה שלו) נדלג בכנות — היומן אומר זאת.
+  1476→  const ARB_MIN_WSAOS = ethers.parseEther("0.05");
+  1477→  for (const p of pools) {
+  1478→    try {
+  1479→      if (p.rA === 0n || p.rB === 0n) continue;
+  1480→      const symbol = symbolOf[p.aId] ?? "?";
+  1481→      const usd = oracle[symbol] ?? 0;
+  1482→      if (usd <= 0) continue; // אין מחיר אורקל — דילוג כנה
+  1483→      const target = usd / 0.001;
+  1484→      const implied = Number(p.rB) / Number(p.rA); // wSAOS ליחידת נכס
+  1485→      const dev = implied / target - 1;
+  1486→      if (Math.abs(dev) <= 0.008) continue;
+  1487→      if (dev > 0) {
+  1488→        // הנכס יקר בבריכה → האוצר מוכר נכס לתוך הבריכה (2% מרזרבת הנכס)
+  1489→        const treasuryBal = (await exchange.balanceOf(p.aId, treasuryAddr)) as bigint;
+  1490→        const size = minBig((p.rA * 2n) / 100n, treasuryBal);
+  1491→        if (size <= 0n) {
+  1492→          console.log(`[evm-mesh] בורסה: ארב' ${symbol} — אין מלאי אוצר (דילוג כנה)`);
+  1493→          continue;
+  1494→        }
+  1495→        const q = (await exchange.quote(p.id, true, size)) as bigint;
+  1496→        if (q <= 0n) continue;
+  1497→        if (q < ARB_MIN_WSAOS) {
+  1498→          console.log(`[evm-mesh] בורסה: ארב' ${symbol} — סחר-אבק (שווי ${fmtAmt(q)} wSAOS < 0.05) — דילוג כנה v46`);
+  1499→          continue;
+  1500→        }
+  1501→        const tx = await exchange.connect(treasury).swapExactIn(p.id, true, size, (q * 98n) / 100n);
+  1502→        await waitTx(tx);
+  1503→        console.log(`[evm-mesh] בורסה: ארב' ${symbol} — האוצר מכר ${fmtAmt(size)} (סטייה ${(dev * 100).toFixed(2)}% ← תיקון)`);
+  1504→      } else {
+  1505→        // הנכס זול בבריכה → האוצר קונה (2% מהשווי ה-wSAOS — כפי יתרת האוצר)
+  1506→        const treasuryWsaos = (await exchange.balanceOf(wsaosId, treasuryAddr)) as bigint;
+  1507→        const size = minBig((p.rB * 2n) / 100n, treasuryWsaos);
+  1508→        if (size <= 0n) {
+  1509→          console.log(`[evm-mesh] בורסה: ארב' ${symbol} — אין wSAOS באוצר (דילוג כנה)`);
+  1510→          continue;
+  1511→        }
+  1512→        if (size < ARB_MIN_WSAOS) {
+  1513→          console.log(`[evm-mesh] בורסה: ארב' ${symbol} — סחר-אבק (${fmtAmt(size)} wSAOS < 0.05) — דילוג כנה v46`);
+  1514→          continue;
+  1515→        }
+  1516→        const q = (await exchange.quote(p.id, false, size)) as bigint;
+  1517→        if (q <= 0n) continue;
+  1518→        const tx = await exchange.connect(treasury).swapExactIn(p.id, false, size, (q * 98n) / 100n);
+  1519→        await waitTx(tx);
+  1520→        console.log(`[evm-mesh] בורסה: ארב' ${symbol} — האוצר קנה ב-${fmtAmt(size)} wSAOS (סטייה ${(dev * 100).toFixed(2)}% ← תיקון)`);
+  1521→      }
+  1522→    } catch {
+  1523→      /* בריכה/ארב' best-effort — המחזור הבא ינסה שוב */
+  1524→    }
+  1525→  }
+  1526→
+  1527→  // ג. מסחר חיילים — חייל מתחלף, קנייה/מכירה לפי זוגיות, מינימום-יציאה 99%
+  1528→  try {
+  1529→    if (pools.length > 0) {
+  1530→      const sIdx = 1 + (runTick % 8);
+  1531→      const soldier = await provider.getSigner(sIdx);
+  1532→      const soldierAddr = await soldier.getAddress();
+  1533→      const p = pools[runTick % pools.length]!;
+  1534→      const symbol = symbolOf[p.aId] ?? "?";
+  1535→      let traded = false;
+  1536→      if (runTick % 2 !== 0) {
+  1537→        // מכירה — רק אם החייל מחזיק את הנכס ≥ 2% מהבריכה; אחרת — קנייה
+  1538→        const held = (await exchange.balanceOf(p.aId, soldierAddr)) as bigint;
+  1539→        const threshold = (p.rA * 2n) / 100n;
+  1540→        if (held >= threshold && held > 0n) {
+  1541→          let wsaosAmt = ethers.parseEther(String(20 + ((runTick * 7) % 60)));
+  1542→          const capSaos = (p.rB * 4n) / 100n; // בטוח-תקרה (5%) — שולי בטחון
+  1543→          if (wsaosAmt > capSaos) wsaosAmt = capSaos;
+  1544→          let assetAmt = (wsaosAmt * p.rA) / p.rB; // שווי מקורב בצד הנכס
+  1545→          const capAsset = (p.rA * 4n) / 100n;
+  1546→          if (assetAmt > capAsset) assetAmt = capAsset;
+  1547→          if (assetAmt > held) assetAmt = held;
+  1548→          if (assetAmt > 0n) {
+  1549→            const q = (await exchange.quote(p.id, true, assetAmt)) as bigint;
+  1550→            if (q > 0n) {
+  1551→              const tx = await exchange.connect(soldier).swapExactIn(p.id, true, assetAmt, (q * 99n) / 100n);
+  1552→              await waitTx(tx);
+  1553→              console.log(`[evm-mesh] בורסה: soldier-${sIdx} מכר ${fmtAmt(assetAmt)} ${symbol}`);
+  1554→              traded = true;
+  1555→            }
+  1556→          }
+  1557→        }
+  1558→      }
+  1559→      if (!traded) {
+  1560→        // קנייה — wSAOS ← נכס, בגודל 20..60 wSAOS (מותאם לתקרת ההחלפה)
+  1561→        let amt = ethers.parseEther(String(20 + ((runTick * 7) % 60)));
+  1562→        const capSaos = (p.rB * 4n) / 100n;
+  1563→        if (amt > capSaos) amt = capSaos;
+  1564→        const soldierWsaos = (await exchange.balanceOf(wsaosId, soldierAddr)) as bigint;
+  1565→        if (amt > 0n && soldierWsaos >= amt) {
+  1566→          const q = (await exchange.quote(p.id, false, amt)) as bigint;
+  1567→          if (q > 0n) {
+  1568→            const tx = await exchange.connect(soldier).swapExactIn(p.id, false, amt, (q * 99n) / 100n);
+  1569→            await waitTx(tx);
+  1570→            console.log(`[evm-mesh] בורסה: soldier-${sIdx} קנה ${symbol} ב-${fmtAmt(amt)} wSAOS`);
+  1571→          }
+  1572→        } else if (amt > 0n) {
+  1573→          console.log(`[evm-mesh] בורסה: soldier-${sIdx} חסר wSAOS — המילוי (ה.) יטפל (דילוג כנה)`);
+  1574→        }
+  1575→      }
+  1576→    }
+  1577→  } catch {
+  1578→    /* מסחר חייל best-effort */
+  1579→  }
+  1580→
+  1581→  // ד. כל מחזור שלישי — קציר החוצה: הנזילות זורמת לשכר-העבודה האמיתי
+  1582→  try {
+  1583→    if (runTick % 3 === 1) {
+  1584→      // v28.1 הערת-אמת חיה: ל-harvestAll() בחוזה באג מדיד — הוא קורא
+  1585→      // this.harvest(i) פנימי → msg.sender = החוזה ≠ owner → NotOwner
+  1586→      // (חוזר בשרשרת החיה). לכן הקציר לפי בריכה: אותה תוצאה — הבעלים
+  1587→      // קוצר ישירות כל קופה לא-ריקה.
+  1588→      const pc = Number(await exchange.poolCount());
+  1589→      let harvestedPools = 0;
+  1590→      for (let i = 0; i < pc; i++) {
+  1591→        const hp = (await exchange.pools(BigInt(i))) as unknown as { potA: bigint; potB: bigint };
+  1592→        if (hp.potA === 0n && hp.potB === 0n) continue; // קופה ריקה — דילוג כנה
+  1593→        await waitTx(await exchange.harvest(BigInt(i)));
+  1594→        harvestedPools += 1;
+  1595→      }
+  1596→      // v46 — רזרבת-ארב' לאוצר: הקציר הישן שאב את כל ה-wSAOS של האוצר
+  1597→      // (יתרה 0) ושיתק את בוט-הארב' בצד-הקנייה — בריכת WSOL נתקעה
+  1598→      // בסטייה 26-29% כי "אין wSAOS באוצר" (נתפס ברוסט v46). מעתה נשארים
+  1599→      // 50 wSAOS באוצר כרזרבת-ארב'; רק העודף זורם לקופת-העבודה. הגיבוי
+  1600→      // לעולם לא נשבר: wSaosLive מכסה 1:1 (נאמת חי — GAP=0).
+  1601→      const ARB_RESERVE = ethers.parseEther("50");
+  1602→      const treasuryWsaos = (await exchange.balanceOf(wsaosId, treasuryAddr)) as bigint;
+  1603→      if (treasuryWsaos > ARB_RESERVE + ethers.parseEther("2")) {
+  1604→        const drain = treasuryWsaos - ARB_RESERVE;
+  1605→        await waitTx(await exchange.connect(treasury).withdrawSaos(drain));
+  1606→        const tBal = (await ledger.balanceOf(treasuryAddr)) as bigint;
+  1607→        if (tBal > 0n) {
+  1608→          await waitTx(await ledger.connect(treasury).transfer(state.contracts.SAOSWorkBoard as string, tBal));
+  1609→          console.log(
+  1610→            `[evm-mesh] בורסה: קציר-החוצה — ${harvestedPools} בריכות · ${fmtAmt(drain)} SAOS-M נזילות זרמו לקופת-העבודה (REAL WORK) · 50 wSAOS נשמרו כרזרבת-ארב' (v46)`
+  1611→          );
+  1612→        }
+  1613→      }
+  1614→    }
+  1615→  } catch {
+  1616→    /* קציר best-effort */
+  1617→  }
+  1618→
+  1619→  // ה. מילוי — חייל מתחת ל-50 wSAOS מוזרם ל-300 (רק אם יתרת ה-HQ מכסה).
+  1620→  //      העטיפה של החייל: ה-HQ מעביר במסילה → החייל מפקיד בעצמו
+  1621→  //      (ledger.transfer(exchange) ורק אז depositSaos — כפי שהחוזה דורש).
+  1622→  try {
+  1623→    let hqLedgerBal = (await ledger.balanceOf(hqAddr)) as bigint;
+  1624→    const fillAmt = ethers.parseEther("300");
+  1625→    for (let i = 1; i <= 8; i++) {
+  1626→      const s = await provider.getSigner(i);
+  1627→      const sAddr = await s.getAddress();
+  1628→      const w = (await exchange.balanceOf(wsaosId, sAddr)) as bigint;
+  1629→      if (w < ethers.parseEther("50") && hqLedgerBal >= fillAmt) {
+  1630→        await waitTx(await ledger.transfer(sAddr, fillAmt));
+  1631→        await waitTx(await ledger.connect(s).transfer(state.contracts.SAOSExchange as string, fillAmt));
+  1632→        await waitTx(await exchange.connect(s).depositSaos(fillAmt));
+  1633→        hqLedgerBal -= fillAmt;
+  1634→        console.log(`[evm-mesh] בורסה: soldier-${i} מולא ל-300 wSAOS (למלא את החיילים)`);
+  1635→      }
+  1636→    }
+  1637→  } catch {
+  1638→    /* מילוי best-effort */
+  1639→  }
+  1640→
+  1641→  // ו. "לסדר את הבריכות" — גריד חי לכל 6 הזוגות הידועים + מימון קרן-הרווח
+  1642→  try {
+  1643→    const dex = await fetchJson("http://127.0.0.1:3000/api/saos/dex", 25000);
+  1644→    const pairs = (dex?.pairs ?? []) as Array<{ pair?: string; price?: string | null; exists?: boolean }>;
+  1645→    const priceOf = (pair: string): number | null => {
+  1646→      const x = pairs.find((y) => y.pair === pair && y.exists && y.price);
+  1647→      const n = x?.price ? Number(x.price) : NaN;
+  1648→      return Number.isFinite(n) && n > 0 ? n : null;
+  1649→    };
+  1650→    const gridCount = Number(await microgrid.gridCount());
+  1651→    const have = new Set<string>();
+  1652→    for (let i = 0; i < gridCount; i++) {
+  1653→      const g = (await microgrid.gridAt(BigInt(i))) as unknown as { pair: string };
+  1654→      have.add(String(g.pair));
+  1655→    }
+  1656→    for (const pair of KNOWN_PAIRS) {
+  1657→      if (have.has(pair)) continue;
+  1658→      const price = priceOf(pair);
+  1659→      if (price === null) continue; // אין מחיר חי — דילוג כנה
+  1660→      await waitTx(await microgrid.postPrice(pair, BigInt(Math.round(price * 1e6))));
+  1661→      await waitTx(await microgrid.createGrid(pair, 24));
+  1662→      have.add(pair);
+  1663→      console.log(`[evm-mesh] מיקרו-גריד: גריד ${pair} ×24 נוצר — לסדר את הבריכות (${have.size}/6)`);
+  1664→    }
+  1665→    // מימון קרן-הרווח — פעם אחת כשיורדת מתחת ל-10 SAOS-M
+  1666→    const profitFund = (await ledger.balanceOf(state.contracts.SAOSMicrogrid as string)) as bigint;
+  1667→    if (profitFund < ethers.parseEther("10")) {
+  1668→      const hqBal = (await ledger.balanceOf(hqAddr)) as bigint;
+  1669→      if (hqBal >= ethers.parseEther("50")) {
+  1670→        await waitTx(await ledger.transfer(state.contracts.SAOSMicrogrid as string, ethers.parseEther("50")));
+  1671→        console.log("[evm-mesh] מיקרו-גריד: קרן-הרווח מומנה מחדש (50 SAOS-M)");
+  1672→      }
+  1673→    }
+  1674→  } catch {
+  1675→    /* סידור בריכות best-effort */
+  1676→  }
+  1677→}
+  1678→
+  1679→// ─── watchdog + artifact watcher ───────────────────────────────────────────
+  1680→
+  1681→/** v20.1: burn a corrupted snapshot and boot a fresh genesis (honest reset). */
+  1682→async function burnAndRegenesis(): Promise<void> {
+  1683→  console.log("[evm-mesh] state snapshot unbootable — fresh genesis");
+  1684→  try { fs.rmSync(ANVIL_STATE, { force: true }); } catch { /* ignore */ }
+  1685→  try { RT.anvil?.kill(); } catch { /* dead */ }
+  1686→  await new Promise((r) => setTimeout(r, 500));
+  1687→  spawnAnvil();
+  1688→  await waitRpc();
+  1689→}
+  1690→
+  1691→async function watchdog(): Promise<void> {
+  1692→  if (RT.busy) return;
+  1693→  RT.busy = true;
+  1694→  try {
+  1695→    // v20.1 — RPC-FIRST truth: an adopted (external) anvil keeps RT.anvil
+  1696→    // null, and a crashed child with a still-live chain means someone else
+  1697→    // holds :8545. The RPC answer is the truth; the child is bookkeeping.
+  1698→    // (The old child-first check crash-looped EADDRINUSE forever when the
+  1699→    // runner restarted next to its own orphaned anvil.)
+  1700→    const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
+  1701→    let rpcUp = false;
+  1702→    try {
+  1703→      await probe.send("eth_blockNumber", []);
+  1704→      rpcUp = true;
+  1705→    } catch {
+  1706→      /* chain down */
+  1707→    }
+  1708→    probe.destroy();
+  1709→    if (rpcUp) {
+  1710→      if (RT.anvil && RT.anvil.exitCode !== null) {
+  1711→        console.log("[evm-mesh] watchdog: child anvil exited but :8545 still answers — ADOPTING the live chain");
+  1712→        RT.anvil = null; // adopted — do not respawn into EADDRINUSE
+  1713→      }
+  1714→      return; // alive (owned or adopted)
+  1715→    }
+  1716→    console.log("[evm-mesh] watchdog: chain down — respawn");
+  1717→    try {
+  1718→      RT.anvil?.kill();
+  1719→    } catch {
+  1720→      /* already dead */
+  1721→    }
+  1722→    await new Promise((r) => setTimeout(r, 500));
+  1723→    spawnAnvil();
+  1724→    try {
+  1725→      await waitRpc();
+  1726→    } catch {
+  1727→      // corrupted snapshot — burn it and boot fresh (honest regenesis)
+  1728→      await burnAndRegenesis();
+  1729→    }
+  1730→    selfHealDeployment(); // v34 — addresses may have been wiped with the state
+  1731→    if (!(await meshAlive())) await deployMesh();
+  1732→    runTick = 0;
+  1733→    saveRunTick(0); // v46 — איפוס-מודע נשמר (regenesis = פאזה חדשה)
+  1734→  } catch (e) {
+  1735→    console.log(`[evm-mesh] watchdog failed: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`);
+  1736→  } finally {
+  1737→    RT.busy = false;
+  1738→  }
+  1739→}
+  1740→
+  1741→async function artifactWatcher(): Promise<void> {
+  1742→  if (RT.busy) return;
+  1743→  try {
+  1744→    const st = fs.statSync(ARTIFACT_PATH);
+  1745→    if (RT.artifactMtime === 0) {
+  1746→      RT.artifactMtime = st.mtimeMs;
+  1747→      return;
+  1748→    }
+  1749→    if (st.mtimeMs > RT.artifactMtime) {
+  1750→      RT.busy = true;
+  1751→      console.log("[evm-mesh] artifact changed — redeploying the mesh");
+  1752→      RT.artifactMtime = st.mtimeMs;
+  1753→      await deployMesh();
+  1754→      runTick = 0;
+  1755→      saveRunTick(0); // v46 — איפוס-מודע נשמר (redeploy = פאזה חדשה)
+  1756→      RT.busy = false;
+  1757→    }
+  1758→  } catch {
+  1759→    /* stat race — skip */
+  1760→  }
+  1761→}
+  1762→
+  1763→// ─── v36 אכסניית-המושב-היחיד (SINGLE SEAT) ─────────────────────────────────
+  1764→// Root fix for the live double-boot incident: /start.sh re-ran over live
+  1765→// services and the second mesh runner ADOPTED the live chain — silently
+  1766→// doubling every 120s cycle for hours (two runners, one chain: double LLM,
+  1767→// double orders, double blooms), because the v20.1 adoption logic was built
+  1768→// for an orphaned-chain recovery, not for a second full runner. The seat is
+  1769→// a PID lockfile in state/: a second instance exits CLEANLY when a live
+  1770→// owner actually serves (its port answers — the zombie lesson: alive ≠
+  1771→// serving), takes over a stale seat (dead owner), replaces a broken zombie
+  1772→// (owner alive, port dead), and always keeps its own PID (bun --hot
+  1773→// re-eval). Fail-safe direction: at most an honest "not starting", never a
+  1774→// duplicate runner on the sovereign chain.
+  1775→function acquireSeat(tag: string, probePort: number): void {
+  1776→  const stateDir = path.join(import.meta.dir, "..", "state");
+  1777→  const lockPath = path.join(stateDir, "seat.lock");
+  1778→  try { fs.mkdirSync(stateDir, { recursive: true }); } catch { /* exists */ }
+  1779→  const release = (): void => {
+  1780→    try { if (fs.readFileSync(lockPath, "utf8").trim() === String(process.pid)) fs.rmSync(lockPath, { force: true }); } catch { /* not ours */ }
+  1781→  };
+  1782→  const GS = globalThis as unknown as { __seatExitBound?: boolean };
+  1783→  if (!GS.__seatExitBound) { GS.__seatExitBound = true; process.on("exit", release); }
+  1784→  const portAnswers = (): boolean => {
+  1785→    try {
+  1786→      const r = Bun.spawnSync(["bash", "-c", `exec 3<>/dev/tcp/127.0.0.1/${probePort} 2>/dev/null && exec 3<&- 3>&-`], { timeout: 1500 });
+  1787→      return r.exitCode === 0;
+  1788→    } catch { return false; }
+  1789→  };
+  1790→  for (let attempt = 1; attempt <= 3; attempt++) {
+  1791→    try {
+  1792→      const fd = fs.openSync(lockPath, "wx"); // atomic — EEXIST means the seat is taken
+  1793→      fs.writeSync(fd, String(process.pid));
+  1794→      fs.closeSync(fd);
+  1795→      console.log(`[${tag}] seat acquired (pid ${process.pid}) — single-instance doctrine`);
+  1796→      return;
+  1797→    } catch (e) {
+  1798→      const code = (e as { code?: string })?.code;
+  1799→      if (code !== "EEXIST") throw e; // real IO error — crash honestly
+  1800→      let ownerPid = 0;
+  1801→      try { ownerPid = Number(fs.readFileSync(lockPath, "utf8").trim()); } catch { /* torn write */ }
+  1802→      if (ownerPid === process.pid) return; // our own seat — bun --hot re-eval
+  1803→      let ownerAlive = false;
+  1804→      if (Number.isFinite(ownerPid) && ownerPid > 0) { try { process.kill(ownerPid, 0); ownerAlive = true; } catch { /* dead */ } }
+  1805→      if (ownerAlive && portAnswers()) {
+  1806→        console.log(`[${tag}] seat: pid ${ownerPid} already serves (port ${probePort} answers) — exiting cleanly, no duplicate`);
+  1807→        process.exit(0);
+  1808→      }
+  1809→      console.log(`[${tag}] seat: ${ownerAlive ? `pid ${ownerPid} alive but NOT serving (zombie)` : `pid ${ownerPid} dead (stale)`} — taking over the seat`);
+  1810→      try { fs.rmSync(lockPath, { force: true }); } catch { /* race — retry */ }
+  1811→    }
+  1812→  }
+  1813→  console.log(`[${tag}] seat: contention unresolved — exiting cleanly, no duplicate`);
+  1814→  process.exit(0);
+  1815→}
+  1816→
+  1817→// ─── main ──────────────────────────────────────────────────────────────────
+  1818→
+  1819→async function main(): Promise<void> {
+  1820→  acquireSeat("evm-mesh", PORT); // v36 — a duplicate runner exits before touching the chain
+  1821→  RT.artifactMtime = 0;
+  1822→  // v34 אוטרקיה — binary self-sufficiency FIRST (arm the mirror / heal
+  1823→  // ENOENT) so every boot path below spawns a real binary.
+  1824→  ensureAnvilBinary();
+  1825→  // v34 — the contract-mesh addresses heal from the survivable home BEFORE
+  1826→  // the meshAlive() decision (a resumed chain + missing deployment would
+  1827→  // redeploy for nothing).
+  1828→  selfHealDeployment();
+  1829→  // v54 מכוון-הרשת — STATE SURGERY לפני בדיקת-האימוץ: אם קובץ-המצב תפוח
+  1830→  // (מופע ישן בלי דגלי-keeper מחזיק בפורט) — המופע הומם, הקובץ מגווז,
+  1831→  // והאימוץ למטה ייכשל כברירת-מחדל → spawnAnvil עם הדגלים. קובץ רזה =
+  1832→  // אין מה לנתח (ה-keeper כבר פועל שם) — הפונקציה מדלגת בכנות.
+  1833→  compactAnvilState();
+  1834→  // v20.1 ADOPT — an anvil from a previous run may still hold :8545 with
+  1835→  // the persisted chain alive (orphaned child). Spawning a second anvil
+  1836→  // hits EADDRINUSE and the runner crash-loops forever while the chain
+  1837→  // lives untouched — the silent death of the whole mesh API. Adopt instead.
+  1838→  let adopted = false;
+  1839→  {
+  1840→    const probe = new ethers.JsonRpcProvider(MESH_RPC, MESH_CHAIN_ID, { batchMaxCount: 1, pollingInterval: 120 });
+  1841→    try {
+  1842→      await probe.send("eth_chainId", []);
+  1843→      adopted = true;
+  1844→      console.log("[evm-mesh] anvil already LIVE on :8545 — ADOPTING the live chain (no respawn, no regenesis)");
+  1845→    } catch {
+  1846→      /* port free — we own the chain from here */
+  1847→    }
+  1848→    probe.destroy();
+  1849→  }
+  1850→  if (!adopted) spawnAnvil();
+  1851→  try {
+  1852→    await waitRpc();
+  1853→  } catch {
+  1854→    if (adopted) {
+  1855→      // the adopted chain vanished between the probe and now — take ownership
+  1856→      console.log("[evm-mesh] adopted chain vanished — spawning our own");
+  1857→      spawnAnvil();
+  1858→      try {
+  1859→        await waitRpc();
+  1860→      } catch {
+  1861→        await burnAndRegenesis();
+  1862→      }
+  1863→    } else {
+  1864→      // snapshot unbootable (corrupt/old format) — burn and boot fresh
+  1865→      await burnAndRegenesis();
+  1866→    }
+  1867→  }
+  1868→  if (await meshAlive()) {
+  1869→    console.log("[evm-mesh] MESH RESUMED — persisted chain, order/run ids continue (no regenesis)");
+  1870→  } else {
+  1871→    await deployMesh();
+  1872→  }
+  1873→  RT.artifactMtime = fs.statSync(ARTIFACT_PATH).mtimeMs;
+  1874→  // v30 — המחזור הראשון מיידי בהפעלה (במקום 120ש' מתות): אחרי כל החייאה
+  1875→  // של השומר לספר-הזמנים יש יותר אוויר מתחת לתקרת-5-הדקות של ה-cycle
+  1876→  // watchdog (המחזורים התארכו ב-v30: פיזי-זוזה+מיזוג+LLM — נלמד חי).
+  1877→  void autoCycle();
+  1878→  genTimer("auto-cycle", () => void autoCycle(), 120_000);
+  1879→  genTimer("watchdog", () => void watchdog(), 10_000);
+  1880→  genTimer("artifact-watcher", () => void artifactWatcher(), 5_000);
+  1881→  // v33 שחזור — chain-state mirror to the survivable home (first copy now,
+  1882→  // then every 5 min; anvil dumps every 30s so the mirror lags ≤5min of
+  1883→  // blocks — a future rebuild resumes instead of regenesis)
+  1884→  mirrorChainState();
+  1885→  genTimer("state-mirror", () => mirrorChainState(), STATE_MIRROR_MS);
+  1886→  console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
+  1887→  console.log("[evm-mesh] auto-runner v30: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה + burn לדלתא שלילית) · PHYSICAL MOVE 4.11 (תזוזה v30: הכסף זז פיזית — sweep-eth/sweep-bsc לבית-האוצר 0x01Bd · פעימת XRPL חתומה כל מחזור עשירי) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 20min v46 (self-terminate on true frozen socket — healthy slow cycles live) · runTick PERSISTED v46 (rotations survive restarts) · provider destroyed per cycle (socket-leak fix) · v62 GENERATION CONVERGENCE (orphan timers self-retire · global single-flight cycle lock — one cycle per moment, across hot-swap generations)");
+  1888→}
+  1889→
+  1890→void main().catch((e) => {
+  1891→  console.error("[evm-mesh] FATAL", e);
+  1892→  process.exit(1);
+  1893→});
+  1894→
+  1895→// v32 touch — reload heal
+  1896→
+  1897→// v35 hot-reload trigger
+  1898→// v35 reload-2
+  1899→
+  1900→// v36 reload-verify — clean single-write trigger
+  1901→

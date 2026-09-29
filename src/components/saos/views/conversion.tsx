@@ -1,0 +1,1048 @@
+"use client";
+
+/**
+ * SAOS v53 — חדר ההמרה (THE CONVERSION CHAMBER):
+ * התשובה החיה להוראת הבעלים "יש לנו קצת כסף בtron וsol... צריך להבין איך
+ * ניתן להמיר הכל על הרשת שלנו וליישם... לא באמת מוכן עדיין יש עוד הרבה מה
+ * להכין... נסה להוכיח פריצת דרך אפשרית על הרשת שלנו... בצע ודחוף".
+ *
+ * שמונה שכבות — הכל מדידה חיה, אפס מספר מומצא:
+ *   (1) פסק-דין — התשובה הישירה מהנתונים
+ *   (1.5) ההחלטה המואצלת — v69: הבעלים האציל את ההחלטה בדבריו, האורגניזם
+ *         פסק בכוח הראיות (ההרשאה כלשונה · הראיות · הנתיבים הפתוחים)
+ *   (1.7) הניסיון המאושר — v70: הבעלים אישר לנסות, האורגניזם ניסה — ההרשאה
+ *         הקפואה מעל הפקודה שרצה בפועל
+ *   (1.8) ההמרה הזולה — v72: הניסיון שנעשה קבוע — סורק-דרכים חי שמודד
+ *         בכל קריאה את כל מסלולי-ההמרה החיצוניים הזולים בלי מפתח; ההרשאה
+ *         העומדת של הבעלים ("נסה להמיר איכשהו בדרך זולה") קפואה בקוד
+ *   (2) מחוונים — משמרת · מראה · פער · הוכחה · מוכנות
+ *   (3) המשמרת הריבונית מול המראה — הכסף שבחוץ מול הייצוג על הרשת
+ *   (4) שני מסלולי המרה — עטיפה-ריבונית (הפריצה) מול איחוד חיצוני
+ *   (5) סנכרון-המראה — הפער נשרף פרו-רטה, המראה חוזרת לאמת המשמרת
+ *   (6) הוכחת-הפריצה החיה — מעגל SOL↔TRX על השרשרת שלנו, נמדד
+ *   (7) יומן המוכנות — מה עוד צריך להכין לקראת ההמרה האמיתית
+ */
+
+import { useCallback, useState } from "react";
+import {
+  ArrowLeftRight, BookOpenCheck, CheckCircle2, Coins, Database, Flame, Gavel,
+  Layers, ListChecks, Lock, Radar, Repeat, Rocket, ShieldCheck, Sparkles, Timer, Vault
+} from "lucide-react";
+import {
+  Btn, Callout, CopyBtn, ErrorNotice, Kpi, Panel, PanelBody, PanelHeader, Pill,
+  SkeletonPanel, Table, Tag, Td, Th
+} from "../ui";
+import { postJson, short, useLive, timeAgo } from "../lib";
+import { PageHead } from "../shell";
+import { SAOS_VERSION } from "@/lib/saos/version";
+import { cn } from "../ui";
+import type {
+  ChamberActionResult, ConversionChamberData, DelegatedDecision, MintOrderResult, ProofRunResult, ReadinessItem, RouteCard, TryAuthorization
+} from "@/lib/saos/conversion-chamber";
+import type { CheapRoute, CheapRouteScan } from "@/lib/saos/cheap-routes";
+
+// ─── עזרי-תצוגה ─────────────────────────────────────────────────────────────
+
+const fmtNative = (n: number | null): string => {
+  if (n === null) return "—";
+  if (n === 0) return "0";
+  const s = Math.abs(n) < 0.001 ? n.toFixed(8) : Math.abs(n) < 1 ? n.toFixed(6) : n.toFixed(4);
+  return s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+};
+
+const fmtUsd = (n: number | null): string => {
+  if (n === null || !Number.isFinite(n)) return "—";
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n >= 0.01) return `$${n.toFixed(3)}`;
+  return `$${n.toPrecision(2)}`;
+};
+
+const fmtGas = (wei: string): string => {
+  try {
+    const n = Number(BigInt(wei));
+    return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n.toLocaleString("en-US");
+  } catch {
+    return "—";
+  }
+};
+
+const fmtLabEth = (v: string): string => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  if (n === 0) return "0";
+  return n < 0.001 ? n.toPrecision(3) : n.toFixed(6);
+};
+
+// ─── (1.5) ההחלטה המואצלת — v69 ─────────────────────────────────────────────
+
+/** כתובת EVM (40 hex) המופיעה בתוך מלל עברי — מוצגת מונו + העתקה, בלי לשבור שורה */
+const ADDR_RE = /0x[0-9a-fA-F]{40}/g;
+
+function TextWithAddresses({ text }: { text: string }) {
+  const parts = text.split(ADDR_RE);
+  const addrs = text.match(ADDR_RE) ?? [];
+  return (
+    <span>
+      {parts.map((p, i) => (
+        <span key={`p${i}`}>
+          {p}
+          {addrs[i] && (
+            <span dir="ltr" className="inline-flex items-center gap-1 align-baseline">
+              <span className="font-mono text-emerald-300/90 break-all">{addrs[i]}</span>
+              <CopyBtn text={addrs[i]} size={12} />
+            </span>
+          )}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function DelegatedDecisionPanel({ d }: { d: DelegatedDecision }) {
+  return (
+    <Panel accent className="border-emerald-400/25">
+      <PanelHeader
+        icon={<Gavel size={15} />}
+        title={`ההחלטה המואצלת — פסק-דין בחוכמה (${d.grantedAt})`}
+        sub="הבעלים האציל את ההחלטה אל האורגניזם בדבריו עצמם — והאורגניזם החליט בכוח הראיות שנמדדו. ההרשאה והפסק-דין קפואים בקוד: מתוארכים, ניתנים לביקורת, לא ניתנים לערעור בשקט."
+        actions={<Pill tone="green">שער נעול — החלטה שנעשתה</Pill>}
+      />
+      <PanelBody className="space-y-4">
+        {/* ההרשאה — כלשונה, בציטוט */}
+        <blockquote className="relative rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-4 py-3 ps-5">
+          <span
+            aria-hidden
+            className="absolute inset-y-0 start-0 w-[3px] rounded-full bg-gradient-to-b from-amber-400/60 to-emerald-400/40"
+          />
+          <p className="text-[10.5px] font-semibold text-amber-300/80 mb-1">
+            ההרשאה — דברי הבעלים, כלשונם ({d.grantedAt}):
+          </p>
+          <p className="text-[13px] leading-relaxed text-amber-100 font-medium">
+            «{d.authorizationHe}»
+          </p>
+        </blockquote>
+
+        {/* הפסק-דין */}
+        <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/[0.05] px-4 py-3">
+          <p className="text-[10.5px] font-bold text-emerald-300 mb-1">פסק-הדין שנעשה בכוח ההרשאה:</p>
+          <p className="text-[12.5px] leading-relaxed text-emerald-100 font-semibold">{d.verdictHe}</p>
+        </div>
+
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {/* הראיות */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+              <ShieldCheck size={13} className="text-emerald-400/80" />
+              הראיות שעליהן ההחלטה עומדת ({d.evidenceHe.length}, נמדדו חי):
+            </p>
+            <ul className="space-y-1.5">
+              {d.evidenceHe.map((e, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="shrink-0 mt-1 h-1.5 w-1.5 rounded-full bg-emerald-400/70" aria-hidden />
+                  <p className="text-[11px] leading-relaxed text-zinc-400">{e}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* הנתיבים הפתוחים לבעלים */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+              <Vault size={13} className="text-amber-400/80" />
+              הנתיבים שנשארו פתוחים לבעלים ({d.openPathsHe.length}):
+            </p>
+            <ol className="space-y-2">
+              {d.openPathsHe.map((p, i) => (
+                <li
+                  key={i}
+                  className="rounded-lg border border-white/[0.07] bg-zinc-900/45 p-3 transition-colors hover:border-white/[0.12]"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span className="shrink-0 mt-0.5 w-5 h-5 rounded-md border border-amber-400/20 bg-amber-400/[0.06] text-amber-300/90 text-[10.5px] font-bold flex items-center justify-center">
+                      {["א", "ב", "ג", "ד", "ה"][i] ?? i + 1}
+                    </span>
+                    <p className="text-[11px] leading-relaxed text-zinc-300 min-w-0 break-words">
+                      <TextWithAddresses text={p} />
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+
+        {/* הפניית-החוכמה — הערת סיום */}
+        <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-4 py-2.5 border-t">
+          <p className="text-[10.5px] leading-relaxed text-zinc-500">
+            <span className="text-zinc-400 font-semibold">הפניית-החוכמה: </span>
+            {d.wiseRedirectHe}
+          </p>
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+// ─── (1.7) הניסיון המאושר — v70 ─────────────────────────────────────────────
+
+function AuthorizedTryPanel({ t, onMint, mintBusy }: { t: TryAuthorization; onMint: () => void; mintBusy: boolean }) {
+  return (
+    <Panel accent className="border-amber-400/30">
+      <PanelHeader
+        icon={<Sparkles size={15} />}
+        title={`הניסיון המאושר — ההמרה רצה (${t.grantedAt})`}
+        sub="הבעלים אישר לנסות במילים פשוטות — והניסיון רץ במלואו על הרשת שלנו: סנכרון-המראה נורה, מעגל SOL↔TRX חי הוכח, ופקודת ההטבעה נחתמה. הכסף לא זז מהמשמרת — הערך נכנס לרשת"
+        actions={<Pill tone="gold">פקודת הטבעה — בוצע</Pill>}
+      />
+      <PanelBody className="space-y-4">
+        {/* ההרשאה — כלשונה, בציטוט */}
+        <blockquote className="relative rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-4 py-3 ps-5">
+          <span
+            aria-hidden
+            className="absolute inset-y-0 start-0 w-[3px] rounded-full bg-gradient-to-b from-amber-400/60 to-emerald-400/40"
+          />
+          <p className="text-[10.5px] font-semibold text-amber-300/80 mb-1">
+            ההרשאה לניסיון — דברי הבעלים, כלשונם ({t.grantedAt}):
+          </p>
+          <p className="text-[13px] leading-relaxed text-amber-100 font-medium">
+            «{t.textHe}»
+          </p>
+        </blockquote>
+
+        {/* מה ההרשאה פתחה */}
+        <div className="rounded-lg border border-white/[0.08] bg-zinc-900/45 px-4 py-3">
+          <p className="text-[10.5px] font-bold text-zinc-300 mb-1">הניסיון שאושר:</p>
+          <p className="text-[12px] leading-relaxed text-zinc-300">{t.scopeHe}</p>
+        </div>
+
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {/* הביצוע — מהחי */}
+          <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/[0.05] px-4 py-3">
+            <p className="text-[10.5px] font-bold text-emerald-300 mb-1 flex items-center gap-1.5">
+              <CheckCircle2 size={12} />
+              מה נעשה בפועל (מהחי — שורת ה-oplog האחרונה):
+            </p>
+            {t.executedHe ? (
+              <p className="text-[11.5px] leading-relaxed text-emerald-100 font-medium">
+                <TextWithAddresses text={t.executedHe} />
+              </p>
+            ) : (
+              <p className="text-[11.5px] leading-relaxed text-zinc-400">
+                פקודת ההטבעה טרם רצה עם טפיפות בפועל — הכפתור למטה מריץ אותה (הטבעת הגירעון בלבד, fail-closed).
+              </p>
+            )}
+          </div>
+
+          {/* ההוכחה — מהחי */}
+          <div className="rounded-lg border border-white/[0.08] bg-zinc-900/45 px-4 py-3">
+            <p className="text-[10.5px] font-bold text-zinc-300 mb-1 flex items-center gap-1.5">
+              <Repeat size={12} className="text-emerald-400/80" />
+              הוכחת-הפריצה שרצה בכוח ההרשאה:
+            </p>
+            {t.proofHe ? (
+              <p className="text-[11.5px] leading-relaxed text-zinc-300">{t.proofHe}</p>
+            ) : (
+              <p className="text-[11.5px] leading-relaxed text-zinc-400">טרם רצה — הכפתור בפאנל ההוכחה למטה מריץ מעגל SOL↔TRX חי.</p>
+            )}
+          </div>
+        </div>
+
+        {/* כפתור הפקודה — מטפטף גירעון חדש אם צמחה המשמרת */}
+        <div className="flex items-center justify-between gap-3 flex-wrap rounded-lg border border-white/[0.07] bg-white/[0.02] px-4 py-2.5">
+          <p className="text-[10.5px] leading-relaxed text-zinc-500 max-w-xl">
+            הפקודה אידמפוטנטית מטבעה: היא מטפיעה אך ורק את הגירעון שנוצר (custody − mirror) — טפיפות עתיד של
+            צמיחת משמרת. מסילות-הרשת (WETH · WBNB · WRXP) בסמכות איבר-הגיבוי האוטונומי והפקודה לא נוגעת בהן.
+          </p>
+          <Btn variant="primary" size="sm" loading={mintBusy} onClick={onMint} title="הטבעת גירעון-המשמרת 1:1 (fail-closed)">
+            הרץ פקודת הטבעה (1:1)
+          </Btn>
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+// ─── (1.8) ההמרה הזולה — v72: הניסיון שנעשה קבוע ───────────────────────────
+
+function routeStatePill(s: CheapRoute["state"]): { tone: "green" | "amber" | "zinc"; he: string } {
+  if (s === "open") return { tone: "green", he: "פתוח ללא מפתח" };
+  if (s === "blocked") return { tone: "amber", he: "נעול במייל האחרון" };
+  return { tone: "zinc", he: "בלתי-נגיש" };
+}
+
+function CheapRoutesPanel({ scan }: { scan: CheapRouteScan }) {
+  const openCount = scan.routes.filter((r) => r.state === "open").length;
+  const kindHe = (k: CheapRoute["kind"]): string =>
+    k === "instant-exchange" ? "בורסת-מייד" : k === "solana-dex" ? "בורסת-רשת (לא-משמורתית)" : "גשר";
+  return (
+    <Panel accent className={scan.gate === "open" ? "border-emerald-400/40" : "border-teal-400/25"}>
+      <PanelHeader
+        icon={<Radar size={15} />}
+        title="ההמרה הזולה — הניסיון שנעשה קבוע (v72)"
+        sub="הוראת הבעלים הפכה למנגנון: כל מסלול-המרה חיצוני זול נמדד חי בכל סריקה — בלי מפתח, בלי חשבון, בכנות מלאה. הסביבה משתנה (SideShift היה בלתי-נגיש ב-v69 ונגיש ב-v72) — והסורק זז איתה."
+        actions={
+          <>
+            <Pill tone={scan.gate === "open" ? "green" : "amber"} pulse={scan.gate === "open"}>
+              {scan.gate === "open" ? "השער פתוח — probe-first מורשה" : "השער סגור — עובדה נמדדת"}
+            </Pill>
+            <Pill tone="zinc">{scan.routes.length} מסלולים · {(scan.tookMs / 1000).toFixed(1)} שניות</Pill>
+          </>
+        }
+      />
+      <PanelBody className="space-y-4">
+        {/* ההרשאה — כלשונה, בציטוט */}
+        <blockquote className="relative rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-4 py-3 ps-5">
+          <span
+            aria-hidden
+            className="absolute inset-y-0 start-0 w-[3px] rounded-full bg-gradient-to-b from-amber-400/60 to-teal-400/40"
+          />
+          <p className="text-[10.5px] font-semibold text-amber-300/80 mb-1">
+            ההרשאה העומדת — דברי הבעלים, כלשונם ({scan.authorization.grantedAt}):
+          </p>
+          <p className="text-[13px] leading-relaxed text-amber-100 font-medium">
+            «{scan.authorization.textHe}»
+          </p>
+          <p className="text-[11px] leading-relaxed text-zinc-400 mt-2">{scan.authorization.scopeHe}</p>
+        </blockquote>
+
+        {/* יופיטר — העובדה החיה היחידה שעובדת ללא מפתח */}
+        {scan.jupiter?.ok && scan.jupiter.usdcOut !== null && (
+          <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.05] p-3.5">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-1.5">
+              <p className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                <CheckCircle2 size={13} /> מה שכן עובד היום ללא מפתח — נמדד חי
+              </p>
+              <Pill tone="green">
+                {(scan.jupiter.solNative ?? 0).toFixed(9)} SOL ≈ {scan.jupiter.usdcOut.toFixed(3)} USDC
+              </Pill>
+            </div>
+            <p className="text-[11px] text-zinc-300 leading-relaxed">{scan.jupiter.detailHe}</p>
+          </div>
+        )}
+
+        {/* טבלת המסלולים */}
+        <div className="overflow-x-auto -mx-1 px-1">
+          <Table>
+            <thead>
+              <tr>
+                <Th>מסלול</Th>
+                <Th>סוג</Th>
+                <Th>מצב</Th>
+                <Th>מה חוסם</Th>
+                <Th>המדידה החיה</Th>
+                <Th>גז-EVM</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {scan.routes.map((r) => {
+                const st = routeStatePill(r.state);
+                return (
+                  <tr key={r.id} className="align-top">
+                    <Td className="whitespace-nowrap font-semibold">{r.he}</Td>
+                    <Td className="whitespace-nowrap text-zinc-400 text-[11px]">{kindHe(r.kind)}</Td>
+                    <Td className="whitespace-nowrap">
+                      <Pill tone={st.tone}>{st.he}</Pill>
+                      {r.httpStatus !== null && (
+                        <span className="ms-1.5 text-[10px] text-zinc-600 font-mono" dir="ltr">HTTP {r.httpStatus}</span>
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap text-[11px] text-zinc-400">{r.blockerHe ?? "—"}</Td>
+                    <Td className="text-[11px] text-zinc-400 leading-relaxed min-w-[220px]">{r.detailHe}</Td>
+                    <Td className="whitespace-nowrap">
+                      {r.reachesEvmGas ? <Tag tone="green">מגיע</Tag> : <Tag tone="zinc">לא — בתוך-הרשת</Tag>}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </div>
+
+        {/* פסק-דין הסריקה */}
+        <div className="rounded-lg border border-teal-400/25 bg-teal-400/[0.05] px-4 py-3">
+          <p className="text-[10.5px] font-bold text-teal-300 mb-1">פסק-דין הסריקה ({openCount} פתוחים · {scan.routes.length - openCount} נעולים/בלתי-נגישים)</p>
+          <p className="text-[11.5px] leading-relaxed text-zinc-300">{scan.verdictHe}</p>
+        </div>
+
+        {/* השער העומד */}
+        <div className={cn(
+          "rounded-lg border px-4 py-3",
+          scan.gate === "open" ? "border-emerald-400/40 bg-emerald-400/[0.06]" : "border-white/[0.07] bg-white/[0.02]"
+        )}>
+          <p className="text-[10.5px] font-bold text-zinc-400 mb-1">השער העומד</p>
+          <p className="text-[11.5px] leading-relaxed text-zinc-300">{scan.gateHe}</p>
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+// ─── (4) שני מסלולי ההמרה ───────────────────────────────────────────────────
+
+function RouteCards({ routes }: { routes: RouteCard[] }) {
+  return (
+    <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+      {routes.map((r) => (
+        <article
+          key={r.id}
+          className={cn(
+            "rounded-xl border p-4 transition-colors space-y-3",
+            r.tone === "gold"
+              ? "border-amber-400/30 bg-gradient-to-br from-amber-400/[0.07] to-zinc-900/45 hover:border-amber-400/50"
+              : "border-white/[0.07] bg-zinc-900/45 hover:border-white/[0.12]"
+          )}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className={cn("text-sm font-bold", r.tone === "gold" ? "text-amber-200" : "text-zinc-200")}>{r.he}</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">{r.taglineHe}</p>
+            </div>
+            {r.tone === "gold" ? (
+              <span className="grid place-items-center h-8 w-8 shrink-0 rounded-lg border border-amber-400/30 bg-amber-400/10 text-amber-300">
+                <Rocket size={16} />
+              </span>
+            ) : (
+              <span className="grid place-items-center h-8 w-8 shrink-0 rounded-lg border border-white/[0.09] bg-white/[0.03] text-zinc-500">
+                <Layers size={16} />
+              </span>
+            )}
+          </div>
+          <ol className="space-y-1.5">
+            {r.stepsHe.map((s, i) => (
+              <li key={i} className="text-[11px] leading-relaxed text-zinc-400 flex gap-2">
+                <span className={cn(
+                  "shrink-0 grid place-items-center h-4 w-4 mt-0.5 rounded-full text-[9px] font-bold tabular-nums",
+                  r.tone === "gold" ? "bg-amber-400/15 text-amber-300" : "bg-zinc-800 text-zinc-500"
+                )} aria-hidden>
+                  {i + 1}
+                </span>
+                {s}
+              </li>
+            ))}
+          </ol>
+          <div className="flex items-center gap-2 text-[11px] pt-1 border-t border-white/[0.06]">
+            <Coins size={13} className="text-zinc-500 shrink-0" />
+            <span className="text-zinc-500">עלות:</span>
+            <span className={cn("font-semibold", r.tone === "gold" ? "text-emerald-300" : "text-amber-300")}>{r.costHe}</span>
+          </div>
+          <div className="text-[10px] text-zinc-600 leading-relaxed">
+            <span className="text-zinc-500">דרוש: </span>
+            {r.requirementsHe.join(" · ")}
+          </div>
+          <Pill tone={r.tone === "gold" ? "gold" : "zinc"}>{r.readinessHe}</Pill>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+// ─── (7) יומן המוכנות ────────────────────────────────────────────────────────
+
+const READY_META: Record<ReadinessItem["status"], { he: string; tone: "green" | "gold" | "rose" }> = {
+  ready: { he: "מוכן", tone: "green" },
+  built: { he: "נבנה — ממתין להפעלה", tone: "gold" },
+  missing: { he: "חסר", tone: "rose" }
+};
+
+const ACTOR_HE: Record<ReadinessItem["actor"], string> = {
+  owner: "הבעלים",
+  organism: "האורגניזם",
+  both: "בעלים + אורגניזם"
+};
+
+function ReadinessTable({ rows }: { rows: ReadinessItem[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <thead>
+          <tr>
+            <Th>ההכנה</Th>
+            <Th>מצב</Th>
+            <Th>בידי מי</Th>
+            <Th>הפירוט החי</Th>
+            <Th>מה זה פותח</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const meta = READY_META[r.status];
+            return (
+              <tr key={r.id} className="align-top">
+                <Td className="font-semibold text-zinc-200 whitespace-nowrap">{r.he}</Td>
+                <Td>
+                  <Pill tone={meta.tone}>{meta.he}</Pill>
+                </Td>
+                <Td className="whitespace-nowrap text-zinc-400">{ACTOR_HE[r.actor]}</Td>
+                <Td className="text-zinc-400 min-w-[220px]">{r.detailHe}</Td>
+                <Td className="text-emerald-300/80 min-w-[160px]">{r.unblocksHe}</Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+    </div>
+  );
+}
+
+// ─── (6) הוכחת-הפריצה החיה ──────────────────────────────────────────────────
+
+function ProofPanel({ proof }: { proof: ProofRunResult | null }) {
+  if (!proof) {
+    return (
+      <div className="rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] p-5 text-center">
+        <p className="text-xs text-zinc-400 leading-relaxed">
+          ההוכחה טרם רצה. לחיצה על ״הרץ הוכחה״ מפעילה מעגל SOL↔TRX אמיתי על השרשרת שלנו —
+          הכנת עמדה + סבבים של מכירה וקנייה דרך הבריכות — וכל רגל נמדדת: זמן, בלוק, גז,
+          והאטומיות מוכחת מהמצב ההיסטורי.
+        </p>
+      </div>
+    );
+  }
+  const s = proof.stats;
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi label="רגליים שנמדדו" value={s.swaps} icon={<Repeat size={15} />} hint="כל רגל = עסקה אטומית אחת" />
+        <Kpi
+          label="אטומיות מהמצב"
+          value={`${s.atomicVerified}/${s.swaps}`}
+          icon={<ShieldCheck size={15} />}
+          tone={s.allAtomic ? "green" : "default"}
+          hint="שתי הרגליים באותו בלוק — הוכחה מ-historical state"
+        />
+        <Kpi label="p50 / p95" value={`${s.p50Ms ?? "—"} / ${s.p95Ms ?? "—"}ms`} icon={<Timer size={15} />} tone="gold" hint="submit → receipt, נמדד" />
+        <Kpi label="מקס הפרש-בלוקים" value={s.maxBlockDelta} icon={<Layers size={15} />} hint={`בלוקים שנחצו: ${s.blocksTraversed}`} />
+        <Kpi label="גז כולל" value={fmtGas(s.gasTotal)} icon={<Flame size={15} />} hint="סכום gasUsed מהקבלות" />
+        <Kpi label="עמלת מעבדה" value={`${fmtLabEth(s.feeTotalLabEth)} lab-ETH`} icon={<Coins size={15} />} tone="green" hint="ערך פנימי — לא כסף חוץ" />
+      </div>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <thead>
+            <tr>
+              <Th>רגל</Th>
+              <Th>מעגל</Th>
+              <Th>קלט</Th>
+              <Th>פלט</Th>
+              <Th>זמן</Th>
+              <Th>בלוק (Δ)</Th>
+              <Th>אטומי</Th>
+              <Th>tx</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {proof.swaps.map((w) => (
+              <tr key={w.seq}>
+                <Td className="whitespace-nowrap font-semibold text-zinc-300">{w.legHe}</Td>
+                <Td className="whitespace-nowrap text-zinc-500">{w.circuitHe}</Td>
+                <Td className="tabular-nums text-zinc-300" dir="ltr">{w.amountInHe}</Td>
+                <Td className="tabular-nums text-emerald-300/90" dir="ltr">{w.amountOutHe}</Td>
+                <Td className="tabular-nums text-amber-300" dir="ltr">{w.latencyMs}ms</Td>
+                <Td className="tabular-nums text-zinc-400" dir="ltr">#{w.blockNumber} (+{w.blockDelta})</Td>
+                <Td>{w.atomic === null ? <Tag tone="zinc">לא נמדד</Tag> : w.atomic ? <Tag tone="green">✓ אותו בלוק</Tag> : <Tag tone="rose">✗</Tag>}</Td>
+                <Td className="text-zinc-500" dir="ltr">
+                  <span className="tabular-nums">{short(w.txHash, 8)}</span>
+                  <CopyBtn text={w.txHash} size={12} />
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </div>
+
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+        <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.05] p-3">
+          <p className="text-[11px] font-bold text-emerald-300 mb-1">בתוך הרשת שלנו (נמדד)</p>
+          <p className="text-[11px] text-zinc-300 leading-relaxed">{proof.compare.internalHe}</p>
+        </div>
+        <div className="rounded-xl border border-white/[0.08] bg-zinc-900/45 p-3">
+          <p className="text-[11px] font-bold text-zinc-300 mb-1">אותה המרה בחוץ (מודל-כנות)</p>
+          <p className="text-[11px] text-zinc-400 leading-relaxed">{proof.compare.externalHe}</p>
+        </div>
+        <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-3">
+          <p className="text-[11px] font-bold text-amber-300 mb-1">הפער — היתרון המהפכני</p>
+          <p className="text-[11px] text-zinc-300 leading-relaxed">{proof.compare.deltaHe}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── הוויו ───────────────────────────────────────────────────────────────────
+
+export function ConversionView() {
+  const live = useLive<ConversionChamberData>("/api/saos/conversion", 60_000);
+  const d = live.data;
+
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [proofBusy, setProofBusy] = useState(false);
+  const [mintBusy, setMintBusy] = useState(false);
+  const [syncResult, setSyncResult] = useState<ChamberActionResult["sync"] | null>(null);
+  const [mintResult, setMintResult] = useState<MintOrderResult | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const runAction = useCallback(
+    async (action: "reserve-sync" | "run-proof" | "mint-order") => {
+      setActionError(null);
+      if (action === "reserve-sync") {
+        setSyncBusy(true);
+        setSyncResult(null);
+      } else if (action === "mint-order") {
+        setMintBusy(true);
+        setMintResult(null);
+      } else {
+        setProofBusy(true);
+      }
+      const res = await postJson<ChamberActionResult>("/api/saos/conversion", { action, rounds: 3 });
+      if (res.ok && res.data?.ok) {
+        if (action === "reserve-sync") setSyncResult(res.data.sync ?? null);
+        if (action === "mint-order") setMintResult(res.data.mint ?? null);
+        live.refresh();
+      } else {
+        setActionError(res.error ?? res.data?.error ?? "הפעולה נכשלה (כנה)");
+      }
+      if (action === "reserve-sync") setSyncBusy(false);
+      else if (action === "mint-order") setMintBusy(false);
+      else setProofBusy(false);
+    },
+    [live]
+  );
+
+  // v87 — שגיאה היא נתון: הודעה כנה במקום שלד-אינסופי כשהמסילה נופלת
+  if (live.error && !d) {
+    return (
+      <div className="space-y-4">
+        <PageHead
+          title="חדר ההמרה (THE CONVERSION CHAMBER)"
+          sub="הכסף שב-TRON וב-SOL — איך הכל נטבע על הרשת שלנו · ההוכחה החיה · מה עוד מוכן"
+        />
+        <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
+      </div>
+    );
+  }
+
+  if (!d) {
+    return (
+      <div className="space-y-4">
+        <PageHead
+          title="חדר ההמרה (THE CONVERSION CHAMBER)"
+          sub="הכסף שב-TRON וב-SOL — איך הכל נטבע על הרשת שלנו · ההוכחה החיה · מה עוד מוכן"
+        />
+        <SkeletonPanel rows={7} />
+        <SkeletonPanel rows={4} />
+      </div>
+    );
+  }
+
+  const needsBurn = d.sync.rows.filter((r) => r.needsBurn).length;
+
+  return (
+    <div className="space-y-5">
+      <PageHead
+        title="חדר ההמרה (THE CONVERSION CHAMBER)"
+        sub='התשובה החיה ל"איך ממירים הכל על הרשת שלנו" — המשמרת הריבונית מול המראה על SAOS-NET, שני מסלולים, סנכרון-אמת, והוכחת-המרה חיה שנמדדת על השרשרת עצמה'
+        actions={
+          <>
+            <Pill tone="gold" pulse>{SAOS_VERSION}</Pill>
+            <Pill tone="green">מדידה חיה · אפס מפתחות בקריאה</Pill>
+            {live.updatedAt && (
+              <button
+                onClick={() => live.refresh()}
+                className="text-[10px] text-zinc-500 hover:text-zinc-300 underline decoration-dotted underline-offset-2"
+                type="button"
+              >
+                טרי {timeAgo(live.updatedAt)}
+              </button>
+            )}
+          </>
+        }
+      />
+
+      {/* (1) פסק-דין */}
+      <Callout tone="gold" icon={<ArrowLeftRight size={14} />}>
+        <p className="font-bold text-amber-200 mb-1">פסק-דין — ההמרה על הרשת שלנו</p>
+        {d.verdictHe}
+      </Callout>
+
+      {/* (1.5) ההחלטה המואצלת — v69: הבעלים האציל, האורגניזם החליט */}
+      <DelegatedDecisionPanel d={d.decision} />
+
+      {/* (1.7) הניסיון המאושר — v70: הבעלים אישר לנסות, האורגניזם ניסה */}
+      <AuthorizedTryPanel t={d.try} mintBusy={mintBusy} onMint={() => void runAction("mint-order")} />
+
+      {/* (1.8) ההמרה הזולה — v72: הניסיון שנעשה קבוע */}
+      {d.cheapRoutes && <CheapRoutesPanel scan={d.cheapRoutes} />}
+
+      {/* (2) מחוונים */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi
+          label="המשמרת שבחוץ"
+          value={fmtUsd(d.kpis.custodyUsd)}
+          icon={<Vault size={15} />}
+          tone="gold"
+          hint="TRX · SOL · XRP · ETH · BNB — מפקד חי"
+        />
+        <Kpi
+          label="המראה על הרשת"
+          value={fmtUsd(d.kpis.mirroredUsd)}
+          icon={<Layers size={15} />}
+          hint="totalMinted מהחוזה החי"
+        />
+        <Kpi
+          label="פער-סנכרון"
+          value={fmtUsd(d.kpis.driftUsd)}
+          icon={<Lock size={15} />}
+          tone={needsBurn === 0 ? "green" : "rose"}
+          hint={needsBurn > 0 ? `${needsBurn} נכסים מגזימים — ניתן לסנכרן` : "המראה שווה למשמרת (בגבולות דיוק המפקד)"}
+        />
+        <Kpi
+          label="רגלי ההוכחה"
+          value={d.kpis.proofSwaps ?? "טרם רצה"}
+          icon={<Repeat size={15} />}
+          tone={d.kpis.proofSwaps ? "green" : "default"}
+          hint={d.kpis.proofP50Ms !== null ? `p50: ${d.kpis.proofP50Ms}ms` : "מעגל SOL↔TRX חי"}
+        />
+        <Kpi
+          label="מוכנות להמרה"
+          value={`${d.kpis.readinessReady}/${d.kpis.readinessTotal}`}
+          icon={<ListChecks size={15} />}
+          tone={d.kpis.readinessReady >= 5 ? "green" : "gold"}
+          hint="זהות · זירה · סנכרון · פקודה · צופה · איגום · חוץ · רב-חותמים"
+        />
+        <Kpi
+          label="מסלול הפריצה"
+          value="עטיפה-ריבונית"
+          icon={<Rocket size={15} />}
+          tone="gold"
+          hint="אפס תלות חיצונית · אפס ספים · הכסף לא זז"
+        />
+      </div>
+
+      {/* (3) המשמרת מול המראה */}
+      <Panel>
+        <PanelHeader
+          title="הכסף שבחוץ מול המראה שבפנים"
+          sub="המשמרת הריבונית (מפקד מפת-הרשתות — הסמכות) מול הנכסים העטופים על השרשרת שלנו (החוזה החי). הפער נחשף בכנות: מה שהמראה מצהירה מול מה שבאמת במשמרת"
+          icon={<Vault size={15} />}
+          actions={<Pill tone="gold">{d.rails.filter((r) => r.custody !== null && r.custody > 0).length} מסילות ממומנות</Pill>}
+        />
+        <PanelBody>
+          <div className="overflow-x-auto">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>רשת</Th>
+                  <Th>המשמרת (הכתובת הריבונית)</Th>
+                  <Th>משמרת</Th>
+                  <Th>שווי</Th>
+                  <Th>המראה על הרשת</Th>
+                  <Th>הפער</Th>
+                  <Th>עלות-יציאה (מסלול ב׳)</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.rails.map((r) => {
+                  const driftTone = r.meshManaged ? "gold" : r.synced ? "green" : r.drift === null ? "zinc" : r.drift > 0 ? "rose" : "amber";
+                  return (
+                    <tr key={r.id}>
+                      <Td className="font-semibold text-zinc-200 whitespace-nowrap">
+                        {r.he}
+                        <span className="block text-[10px] text-zinc-600">{r.symbol} → {r.wrap}</span>
+                        {r.meshManaged && (
+                          <span className="inline-block mt-1 text-[9px] font-bold text-amber-300/90 border border-amber-400/25 bg-amber-400/[0.06] rounded px-1.5 py-0.5">
+                            אוטונומי — איבר-הגיבוי של הרשת
+                          </span>
+                        )}
+                      </Td>
+                      <Td className="text-zinc-400" dir="ltr">
+                        {r.address ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="tabular-nums">{short(r.address, 10)}</span>
+                            <CopyBtn text={r.address} size={12} />
+                            {r.explorer && (
+                              <a
+                                href={`${r.explorer}${r.address}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-amber-400/80 hover:text-amber-300 text-[10px]"
+                              >
+                                ↗
+                              </a>
+                            )}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </Td>
+                      <Td className="tabular-nums text-zinc-200" dir="ltr">
+                        {r.custody !== null ? `${fmtNative(r.custody)} ${r.symbol}` : "—"}
+                      </Td>
+                      <Td className="tabular-nums text-emerald-300/90" dir="ltr">{fmtUsd(r.custodyUsd)}</Td>
+                      <Td className="tabular-nums text-zinc-300" dir="ltr">
+                        {r.mirrored !== null ? `${fmtNative(r.mirrored)} ${r.wrap}` : "—"}
+                        <span className="block text-[10px] text-zinc-600">{fmtUsd(r.mirroredUsd)}</span>
+                      </Td>
+                      <Td>
+                        <Tag tone={driftTone as "green" | "rose" | "amber" | "zinc" | "gold"}>
+                          {r.meshManaged ? "איבר-רשת" : r.drift !== null ? `${r.drift > 0 ? "+" : ""}${fmtNative(r.drift)}` : "—"}
+                        </Tag>
+                        {!r.meshManaged && (
+                          <span className="block text-[10px] text-zinc-600 mt-0.5" dir="ltr">{fmtUsd(r.driftUsd)}</span>
+                        )}
+                      </Td>
+                      <Td className="text-zinc-500 text-[10px] max-w-[200px] leading-relaxed">
+                        <span className={r.exitBasis === "measured" ? "text-emerald-400/80" : "text-zinc-500"}>
+                          {r.exitBasis === "measured" ? "נמדד: " : "מודל: "}
+                        </span>
+                        {r.exitCostHe}
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
+          <p className="mt-3 text-[10px] text-zinc-600 leading-relaxed">
+            המראה נקראת מהחוזה החי ב-bigint מדויק · המשמרת מהמפקד הריבוני (דה-דופ כתובות — תאומי ה-XRP הן אותו חשבון) ·
+            פער חיובי = המראה מצהירה יותר ממה שיש (עוגני v49 שרפו גז מהמשמרת אחרי ההטבעה) · פער שלילי = הפרש הטבעה זמין.
+            שים לב: עמודת הגיבוי בוויו הבורסה ניזונה מהמכ״ם המשני — כאן הסמכות היא המפקד.
+          </p>
+        </PanelBody>
+      </Panel>
+
+      {/* (4) שני מסלולי ההמרה */}
+      <Panel>
+        <PanelHeader
+          title="שני מסלולי ההמרה — הפריצה מול הדרך הרגילה"
+          sub='התשובה ל"איך ממירים": מסלול א׳ לא מזיז אף מטבע החוצה — הכסף נשאר במשמרת והערך נטבע על הרשת; מסלול ב׳ הוא האיחוד הקלאסי דרך בורסה, בעלויות ובסיכונים שלו'
+          icon={<ArrowLeftRight size={15} />}
+        />
+        <PanelBody>
+          <RouteCards routes={d.routes} />
+        </PanelBody>
+      </Panel>
+
+      {/* (5) סנכרון-המראה */}
+      <Panel>
+        <PanelHeader
+          title="סנכרון-המראה לאמת המשמרת"
+          sub="הפער שנצבר (גז שנשרף בחוץ אחרי ההטבעה) מוחזר בשריפה פרו-רטה על מחזיקי הצי — המראה חוזרת להיות שווה למשמרת. זה תנאי הכניסה של כל המרה אמיתית"
+          icon={<ShieldCheck size={15} />}
+          actions={
+            <Btn
+              variant={needsBurn > 0 ? "primary" : "secondary"}
+              size="sm"
+              loading={syncBusy}
+              disabled={needsBurn === 0}
+              onClick={() => void runAction("reserve-sync")}
+              title="שריפת הפער פרו-רטה על מחזיקי הצי"
+            >
+              {needsBurn > 0 ? `סנכרון (${needsBurn} נכסים)` : "המראה מסונכרנת"}
+            </Btn>
+          }
+        />
+        <PanelBody>
+          <div className="overflow-x-auto">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>נכס עטוף</Th>
+                  <Th>המראה (totalMinted)</Th>
+                  <Th>המשמרת</Th>
+                  <Th>הפער</Th>
+                  <Th>שווי הפער</Th>
+                  <Th>מצב</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.sync.rows.map((r) => (
+                  <tr key={r.wrap}>
+                    <Td className="font-semibold text-zinc-200 whitespace-nowrap">
+                      {r.wrap}
+                      {r.meshManaged && (
+                        <span className="block text-[9px] font-bold text-amber-300/90 mt-0.5">אוטונומי — איבר-הגיבוי</span>
+                      )}
+                    </Td>
+                    <Td className="tabular-nums text-zinc-300" dir="ltr">{r.mintedHe}</Td>
+                    <Td className="tabular-nums text-zinc-300" dir="ltr">{r.custodyHe}</Td>
+                    <Td className="tabular-nums text-zinc-300" dir="ltr">{r.driftHe}</Td>
+                    <Td className="tabular-nums text-zinc-400" dir="ltr">{fmtUsd(r.driftUsd)}</Td>
+                    <Td>
+                      <Pill tone={r.meshManaged ? "gold" : r.needsBurn ? "amber" : r.driftHe === "—" ? "zinc" : "green"}>
+                        {r.statusHe}
+                      </Pill>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+
+          {syncResult && (
+            <div className="mt-3 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.05] p-4 space-y-2">
+              <p className="text-xs font-bold text-emerald-300">
+                הסנכרון בוצע — {syncResult.txCount} שריפות על השרשרת · סה"כ {syncResult.burnedTotalHe} נכסים-עטופים חזרו לאמת
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>נכס</Th>
+                      <Th>לפני</Th>
+                      <Th>נשרף</Th>
+                      <Th>מחזיקים</Th>
+                      <Th>שארית</Th>
+                      <Th>הערת-כנות</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {syncResult.rows.map((r) => (
+                      <tr key={r.wrap}>
+                        <Td className="font-semibold text-zinc-200">{r.wrap}</Td>
+                        <Td className="tabular-nums text-zinc-400" dir="ltr">
+                          {r.mintedHe} → {r.custodyHe}
+                        </Td>
+                        <Td className="tabular-nums text-rose-300/90" dir="ltr">{r.burnedHe}</Td>
+                        <Td className="tabular-nums text-zinc-400">{r.holdersTouched}</Td>
+                        <Td className="tabular-nums text-zinc-400" dir="ltr">{r.residualHe}</Td>
+                        <Td className="text-[10px] text-zinc-500 max-w-[220px]">{r.residualNoteHe}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+              <p className="text-[10px] text-zinc-600 leading-relaxed">{syncResult.noteHe}</p>
+            </div>
+          )}
+
+          {actionError && (
+            <p className="mt-3 text-xs text-rose-300">פעולת החדר נענתה בכנות: {actionError}</p>
+          )}
+
+          {mintResult && (
+            <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-4 space-y-2">
+              <p className="text-xs font-bold text-amber-200">
+                פקודת ההטבעה בוצעה — {mintResult.txCount} טפיפות 1:1 מול משמרת חיה (fail-closed: הגירעון בלבד)
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>נכס</Th>
+                      <Th>לפני</Th>
+                      <Th>משמרת</Th>
+                      <Th>גירעון</Th>
+                      <Th>הוטבע</Th>
+                      <Th>tx</Th>
+                      <Th>הערת-כנות</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mintResult.rows.map((r) => (
+                      <tr key={r.wrap}>
+                        <Td className="font-semibold text-zinc-200">{r.wrap}</Td>
+                        <Td className="tabular-nums text-zinc-400" dir="ltr">{r.mintedBeforeHe}</Td>
+                        <Td className="tabular-nums text-zinc-400" dir="ltr">{r.custodyHe}</Td>
+                        <Td className="tabular-nums text-amber-300/90" dir="ltr">{r.deficitHe}</Td>
+                        <Td className="tabular-nums text-emerald-300/90" dir="ltr">{r.mintedHe}</Td>
+                        <Td className="text-zinc-500" dir="ltr">
+                          {r.txid ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="tabular-nums">{short(r.txid, 8)}</span>
+                              <CopyBtn text={r.txid} size={12} />
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </Td>
+                        <Td className="text-[10px] text-zinc-500 max-w-[260px]">{r.noteHe}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+              {mintResult.mintedTotalsHe.length > 0 && (
+                <p className="text-[11px] text-emerald-300">
+                  סה"כ הוטבע: {mintResult.mintedTotalsHe.map((t) => `${t.amountHe} ${t.wrap}`).join(" · ")}
+                </p>
+              )}
+              <div className="rounded-lg border border-white/[0.08] bg-zinc-900/45 px-3 py-2 space-y-1">
+                <p className="text-[10.5px] font-bold text-zinc-300 flex items-center gap-1.5">
+                  <ShieldCheck size={12} className="text-emerald-400/80" />
+                  הוכחת-רזרבות saos-por/v1 (read-back מהחוזה אחרי ההטבעה):
+                </p>
+                <p className="text-[10.5px] text-zinc-400 flex items-center gap-1.5" dir="ltr">
+                  <span className="font-mono break-all">{mintResult.por.digest.slice(0, 32)}…</span>
+                  <CopyBtn text={mintResult.por.digest} size={12} />
+                  {mintResult.por.receipt && <span className="text-zinc-600">· קבלה משורשרת {short(mintResult.por.receipt, 8)}</span>}
+                </p>
+                <p className="text-[10px] text-zinc-600 leading-relaxed">{mintResult.por.noteHe}</p>
+              </div>
+              <p className="text-[10px] text-zinc-600 leading-relaxed">{mintResult.noteHe}</p>
+            </div>
+          )}
+          {d.sync.lastSyncHe && <p className="mt-3 text-[10px] text-zinc-500">{d.sync.lastSyncHe}</p>}
+          <p className="mt-2 text-[10px] text-zinc-600 leading-relaxed">{d.sync.noteHe}</p>
+        </PanelBody>
+      </Panel>
+
+      {/* (6) הוכחת-הפריצה החיה */}
+      <Panel>
+        <PanelHeader
+          title="הוכחת-הפריצה החיה — המרת SOL↔TRX בתוך הרשת שלנו"
+          sub="מעגל אמיתי על SAOS-NET: הכנת עמדה + סבבים של מכירת WSOL → קניית WTRX → מכירת WTRX → קניית WSOL. כל רגל נמדדת — והאטומיות מוכחת מהמצב ההיסטורי: שתי הרגליים באותו בלוק בדיוק"
+          icon={<Flame size={15} />}
+          actions={
+            <Btn variant="primary" size="sm" loading={proofBusy} onClick={() => void runAction("run-proof")} title="הרצת מעגל המרה חי (3 סבבים)">
+              הרץ הוכחה (3 סבבים)
+            </Btn>
+          }
+        />
+        <PanelBody>
+          <ProofPanel proof={d.proof} />
+          <p className="mt-3 text-[10px] text-zinc-600 leading-relaxed">
+            תנאי-המעבדה בכנות: ההחלפות רצות על שרשרת-המעבדה שלנו (anvil, chainId 31337) והגז הוא ערך-פנימי —
+            אבל המנגנון הוא EVM אמיתי: חוזה, בריכות x·y=k, קבלות, אירועים וקריאת-מצב היסטורית. ההשוואה לחוץ היא
+            מודל-כנות מובנה — המספרים שלנו נמדדו, שלהם לא. ההמרה בפנים משתמשת במלאי ה-wSAOS של ה-HQ מול הבריכות החיות.
+          </p>
+        </PanelBody>
+      </Panel>
+
+      {/* (7) יומן המוכנות */}
+      <Panel>
+        <PanelHeader
+          title='יומן המוכנות — "לא באמת מוכן עדיין, יש עוד הרבה מה להכין"'
+          sub="שמונה הכנות בין הכסף שבחוץ להמרה האמיתית — כל אחת עם מצב חי, בעלים ומה שהיא פותחת"
+          icon={<ListChecks size={15} />}
+          actions={<Pill tone={d.kpis.readinessReady >= 5 ? "green" : "gold"}>{d.kpis.readinessReady}/{d.kpis.readinessTotal} מוכנות</Pill>}
+        />
+        <PanelBody>
+          <ReadinessTable rows={d.readiness} />
+        </PanelBody>
+      </Panel>
+
+      {/* מקורות-האמת */}
+      <Panel>
+        <PanelHeader
+          title="מקורות-האמת שהזינו את החדר"
+          sub={`${d.measuredAt} (ISO) · מטמון 60ש' · ?force=1 לחידוש`}
+          icon={<Database size={15} />}
+        />
+        <PanelBody>
+          <div className="flex flex-wrap gap-1.5">
+            {d.sources.map((s) => (
+              <Pill key={s.id} tone={s.ok ? "green" : "rose"}>
+                {s.ok ? "✓" : "✗"} {s.he}
+              </Pill>
+            ))}
+          </div>
+          <p className="mt-3 text-[10px] text-zinc-600 leading-relaxed">
+            אפס מפתחות נגעו בקריאה — המפקד והחוזה נקראים בציבורי בלבד. פעולות הכתיבה (סנכרון · הוכחה) מאחורי שער-הרשות
+            flow-liquidity/hq ומתועדות בשובל-הפעולות האדום (logOp). כישלון מקור = null כנה, לא אפס מומצא.
+            <BookOpenCheck size={11} className="inline-block ms-1 -mt-0.5 text-zinc-600" />
+          </p>
+        </PanelBody>
+      </Panel>
+    </div>
+  );
+}

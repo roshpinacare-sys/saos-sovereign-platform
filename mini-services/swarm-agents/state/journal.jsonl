@@ -1,0 +1,13 @@
+{"t":"2026-09-29T17:07:33.905Z","agent":"system","kind":"boot","detail":"NECHIL HA-RIBONIM (swarm-agents) v39 up on :3007 — two dormant chat agents woke up with real sovereign work: gold-scout (LLM economist, hourly intelligence + real work orders) and night-scout (organ patrol, alerts + security orders). Gate-only doctrine, keeper watches :3007, /start.sh raises me on every cold boot"}
+{"t":"2026-09-29T17:07:33.906Z","agent":"system","kind":"issues-ledger","detail":"פנקס העניינים נטען מהתיקייה שלנו — 3 עניינים · 3 פתוחים · 3 דורשים פעולת בעלים (ה-401 של הצ'אט לא יכול לעוור אותנו — הפנקס נקרא מהקובץ)"}
+{"t":"2026-09-29T17:07:36.911Z","agent":"gold-scout","kind":"arm-failed","detail":"join refused (first-boot): The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch() — honest, retry next poll"}
+{"t":"2026-09-29T17:07:36.929Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Unable to connect. Is the computer able to access the url? — honest, retry next poll"}
+{"t":"2026-09-29T17:08:18.927Z","agent":"gold-scout","kind":"arm-failed","detail":"join refused (first-boot): Unable to connect. Is the computer able to access the url? — honest, retry next poll"}
+{"t":"2026-09-29T17:08:18.927Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Unable to connect. Is the computer able to access the url? — honest, retry next poll"}
+{"t":"2026-09-29T17:09:04.576Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Cannot read properties of undefined (reading 'findUnique') — honest, retry next poll"}
+{"t":"2026-09-29T17:09:04.581Z","agent":"gold-scout","kind":"arm-failed","detail":"join refused (first-boot): Cannot read properties of undefined (reading 'findUnique') — honest, retry next poll"}
+{"t":"2026-09-29T17:09:48.936Z","agent":"gold-scout","kind":"arm-failed","detail":"join refused (first-boot): Cannot read properties of undefined (reading 'findUnique') — honest, retry next poll"}
+{"t":"2026-09-29T17:09:48.941Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Cannot read properties of undefined (reading 'findUnique') — honest, retry next poll"}
+{"t":"2026-09-29T17:10:34.764Z","agent":"gold-scout","kind":"armed","detail":"woke up from dormancy — onboarded through the gate, key issued once, sealed in my survivable home (0600)"}
+{"t":"2026-09-29T17:10:34.891Z","agent":"night-scout","kind":"armed","detail":"woke up from dormancy — onboarded through the gate, key issued once, sealed in my survivable home (0600)"}
+{"t":"2026-09-29T17:17:34.109Z","agent":"night-scout","kind":"patrol","detail":"patrol #1: flags: issue-1, issue-2, issue-3"}

@@ -1,8 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// SAOS Sovereign Foundry v2 — data model
+// The platform state: sovereign chain seals, public anchors, energy plans,
+// economy simulations, evidence receipts and the research verdict ledger.
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +11,437 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+// ─── Sovereign chain: sealing roots (שורשי-האיטום) ────────────────────────────
+
+model SealRecord {
+  id          String       @id @default(cuid())
+  height      Int          @unique // chain height at seal time
+  root        String       @unique // merkle root of the batch (hex)
+  leavesCount Int
+  stateRoot   String // sha256 of canonical kernel state
+  gasUsed     Int
+  note        String?
+  createdAt   DateTime     @default(now())
+  anchors     AnchorTx[]
+  leaves      SealLeaf[]
+  receipts    EvidenceReceipt[]
+
+  @@index([createdAt])
+}
+
+model SealLeaf {
+  id      String     @id @default(cuid())
+  sealId  String
+  seal    SealRecord @relation(fields: [sealId], references: [id], onDelete: Cascade)
+  index   Int
+  kind    String // stamp | seal | harvest | relay | wallet
+  payload String // canonical JSON of the leaf
+  digest  String // sha256 of canonical payload
+
+  @@unique([sealId, index])
+  @@index([digest])
+}
+
+// ─── Public anchoring (העגינה הציבורית) ──────────────────────────────────────
+
+model AnchorTx {
+  id        String      @id @default(cuid())
+  sealId    String?
+  seal      SealRecord? @relation(fields: [sealId], references: [id])
+  network   String // STEEM | BLURT | HIVE | TRON
+  kind      String // weave | checkpoint | identity
+  txid      String? // null while pending/gated — honest, never fabricated
+  status    String // anchored | pending | gated | transit
+  gate      String? // why not anchored yet (rc-floor, cooldown, energy-0 ...)
+  meta      String? // JSON extras (rc %, energy, cooldown minutes...)
+  createdAt DateTime    @default(now())
+
+  @@index([network, status])
+  @@index([sealId])
+}
+
+// ─── Energy sovereignty (ריבונות אנרגיה) ─────────────────────────────────────
+
+model EnergyPlan {
+  id          String   @id @default(cuid())
+  network     String // TRON | HIVE
+  mode        String // energize | powerup | delegate
+  trxStaked   Int? // sun
+  energyOut   Int? // estimated daily energy
+  settlements Int? // USDT settlements per day (~65k energy each)
+  burnCost    Int? // sun/day if no staking
+  rcFloorPct  Float? // hive floors
+  notes       String?
+  payload     String // full canonical plan JSON
+  createdAt   DateTime @default(now())
+}
+
+// ─── Economy (המשק — harvest & grid) ────────────────────────────────────────
+
+model EconomySnapshot {
+  id          String   @id @default(cuid())
+  label       String
+  inputs      String // canonical JSON inputs
+  streams     String // JSON per-stream output
+  totalPerDay Float
+  flywheelPct Float
+  createdAt   DateTime @default(now())
+}
+
+// ─── Evidence (ראיות — hash-chained receipts) ────────────────────────────────
+
+model EvidenceReceipt {
+  id         String      @id @default(cuid())
+  kind       String // seal | selftest | verify-pack | energy-plan | economy-sim
+  digest     String      @unique
+  prevDigest String?
+  payload    String
+  at         String? // the EXACT timestamp inside the digest (Receipt.at) — nullable for legacy rows; recovered via digest brute-force
+  seal       SealRecord? @relation(fields: [sealId], references: [id])
+  sealId     String?
+  createdAt  DateTime    @default(now())
+
+  @@index([kind])
+}
+
+// ─── Research verdict ledger (פסק-הדין של המחקר) ─────────────────────────────
+
+model ResearchFinding {
+  id       String @id @default(cuid())
+  archive  String @unique
+  rank     Int
+  score    Int // 0..100 trailblazer score
+  verdict  String
+  salvage  String // JSON top salvage items
+  evidence String // JSON validation evidence
+}
+
+// ─── Ops audit (יומן תפעול) ─────────────────────────────────────────────────
+
+model OpLog {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
+  op        String
+  detail    String?
   createdAt DateTime @default(now())
+
+  @@index([op])
+}
+
+// ─── v5: Vault registry (רישום כספת — כתובות ציבוריות בלבד) ────────────────
+// Public watch addresses per network/slot. NEVER holds signing keys —
+// keys live in the offline AES vault (stage 2). Honest by construction.
+
+model VaultSlot {
+  id          String   @id @default(cuid())
+  network     String // STEEM | BLURT | HIVE | TRON
+  slot        String // foundry/active | foundry/manual-sign | vault-1..6
+  address     String? // public watch address — not a secret, not a key
+  fingerprint String? // sha256(canonical({network, slot, address})) — registration integrity
+  keyState    String   @default("missing") // missing = key in offline vault
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([network, slot])
+  @@index([network])
+}
+
+// ─── v9: Platform settings (הגדרות-פלטפורמה) ──────────────────────────────
+// Key/value runtime settings (auto-anchor toggle). Never holds secrets —
+// control-plane state only. Additive, honest, togglable from the console.
+
+model PlatformSetting {
+  key       String   @id
+  value     String
   updatedAt DateTime @updatedAt
 }
 
-model Post {
+// ─── v13: SAOS sovereign mint (טביעת המטבע הריבוני) ────────────────────────
+// The small SAOS mint: one batch = one seal on SAOS-NET whose leaves are
+// kernel ops (harvest = mint into treasury, wallet = allocate to soldier),
+// merkle-rooted and anchored on the live rails. The entries are the
+// persistent sovereign ledger — who holds how much SAOS.
+
+model SaosMint {
+  id              String   @id @default(cuid())
+  mintId          String   @unique // canonical: mint-<sealHeight>
+  total           Int // total SAOS minted in this batch
+  soldiers        Int // # soldiers allocated
+  perSoldier      Int
+  treasuryReserve Int // dev reserve kept for development
+  payload         String // canonical allocation JSON
+  digest          String // sha256(canonical payload)
+  sealHeight      Int?
+  sealRoot        String?
+  status          String // allocated | sealed | anchored
+  createdAt       DateTime @default(now())
+  entries         SaosMintEntry[]
+
+  @@index([createdAt])
+}
+
+model SaosMintEntry {
+  id     String   @id @default(cuid())
+  mintId String
+  mint   SaosMint @relation(fields: [mintId], references: [id], onDelete: Cascade)
+  agent  String // soldier username | saos:dev-reserve
+  role   String // soldier | treasury
+  amount Int
+
+  @@unique([mintId, agent])
+  @@index([agent])
+}
+
+// ─── v14: Sovereign relay contract (החוזה הריבוני — saos-relay/v1) ────────
+// The fee-free on-chain link: one row per chain (ETHEREUM · BSC — same
+// bytecode, same sovereign EOA). Holds the deployed address, deployment
+// proof (txid, block, gas, cost, runtime bytecode hash) and status.
+// The contract itself is immutable on-chain — this row is our honest book.
+
+model SovereignContract {
+  id           String   @id @default(cuid())
+  chain        String   @unique // ethereum | bsc
+  kind         String   @default("saos-relay/v1")
+  address      String
+  deployer     String?
+  txid         String?
+  blockNumber  Int?
+  gasUsed      Int?
+  costNative   String? // ETH / BNB
+  bytecodeHash String? // sha256(runtime code) — measured on-chain
+  runtimeBytes Int?
+  status       String // deployed | failed | gated
+  meta         String? // JSON extras (compiler, explorer, event args...)
+  createdAt    DateTime @default(now())
+
+  @@index([status])
+}
+
+// ─── v18: Real work deliverables (מסירות עבודה אמיתיות) ─────────────────────
+// When a work order is delivered with REAL WORK, the platform's solution
+// engine (server-side LLM) generates an actual deliverable for the mission:
+// a concrete plan — summary, steps, risks, value note. The full content
+// lives here; its sha256 digest is anchored on-chain (SAOSBridge "SAOS-WORK"
+// rail → stamped into every subsequent mesh run) and notarized into the
+// hash-chained evidence receipts. Content is real generated text — never
+// fabricated; SAOS-M remains internal-lab value.
+
+model WorkDeliverable {
+  id            String   @id @default(cuid())
+  orderId       Int      @unique
+  runId         Int?
+  soldier       String? // the delivering soldier (public address)
+  mission       String
+  title         String
+  summary       String
+  steps         String // JSON string[] — concrete execution steps
+  risks         String // JSON string[] — honest risks
+  valueNote     String // one-line value statement
+  digest        String   @unique // sha256 of the canonical deliverable JSON
+  anchorTx      String? // on-chain anchorExternal txid (SAOS-WORK rail)
+  anchorBlock   Int?
+  receiptDigest String? // hash-chained evidence receipt digest
+  engine        String   @default("z-ai-llm") // the generation engine id
+  latencyMs     Int      @default(0)
+  chars         Int      @default(0)
+  tokensEst     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ─── v13: Fleet arming ledger (יומן חימוש הצי) ─────────────────────────────
+// Every whitelisted disbursement to a soldier leaves an honest row:
+// rail (STEEM-RC | STEEM-TR | EVM | SOL), agent, amount, txid, status.
+// Failed/gated attempts are recorded with the same discipline.
+
+model FleetArmOp {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  rail      String // STEEM-RC | STEEM-TR | EVM | SOL
+  agent     String
+  amount    String // canonical per-rail units ("1000000.000000 VESTS" | "0.0002 ETH" | "0.006 SOL" | "0.050 STEEM")
+  txid      String? // from the node — never fabricated
+  explorer  String?
+  detail    String // JSON extras (block/slot, confirmed, reserve-after...)
+  status    String // armed | failed | gated
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  @@index([rail, status])
+  @@index([agent])
+}
+
+// ─── v30: תזוזה פיזית (physical move journal) ──────────────────────────────
+// הוראת הבעלים: "הוא חייב לזוז פיזית" — הכסף שנמצא (אבק ETH + BNB על
+// 0x97Ad Coinomi + XRP על r3Tq66) זז באמת: sweep-eth / sweep-bsc / פעימת
+// XRPL. כל תנועה אמיתית משאירה שורה כנה — txid, כמות, דמי-שריפה, מצב.
+
+model PhysicalMove {
+  id        Int      @id @default(autoincrement())
+  kind      String   // sweep-eth | sweep-bsc | xrp-heartbeat
+  network   String   // ETHEREUM | BSC | XRPL
+  txid      String   @unique
+  from      String
+  to        String
+  amount    String   // canonical units moved ("0.000263 ETH")
+  fee       String   // canonical units burned ("0.0000018 ETH" | "12 drops")
+  status    String   // submitted | confirmed | failed
+  meta      String?  // JSON: explorer, ledger, engineResult, note
+  createdAt DateTime @default(now())
+
+  @@index([kind, status])
+  @@index([createdAt])
+}
+
+// ─── v53: Conversion chamber (חדר ההמרה) — הוכחות המרה חיות ────────────────
+// Every live conversion-proof run on SAOS-NET (SOL↔TRX circuits through the
+// sovereign exchange) leaves a full honest row: measured latency per leg,
+// block-delta, gas, fee, atomicity (both legs settled in the SAME block —
+// proven from historical state), and the full per-swap table. The payload
+// is the canonical JSON of the run — the chain + this row are the evidence.
+
+model ConversionProof {
+  id              String   @id @default(cuid())
+  runKey          String   @unique // conv-<epoch-ms>
+  rounds          Int
+  swaps           Int
+  atomicVerified  Int // legs where both balances moved in the same block
+  allAtomic       Boolean
+  p50Ms           Int?
+  p95Ms           Int?
+  maxBlockDelta   Int
+  blocksTraversed Int
+  gasTotal        String // wei sum
+  feeTotalWei     String // gasTotal × effectiveGasPrice sum
+  wallMs          Int
+  payload         String // full canonical JSON (swaps table + comparison)
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ─── v31: SMART LINK (החיבור החכם) — multi-home vault inventory + agents gateway ──
+// SmartKey rows are METADATA ONLY (names, networks, public addresses,
+// verification status). The actual key material lives exclusively inside
+// the encrypted multi-home vault (agent/keys + /home/z/saos-vault +
+// upload hidden home) — never in the DB, never in the repo.
+
+model SmartKey {
+  id             String    @id @default(cuid())
+  keyId          String    @unique // stable slug inside the vault bundle
+  materialRef    String? // vault member path holding the key material (never the material itself)
+  name           String // display name (Hebrew ok)
+  kind           String // steem-wif | hive-wif | evm-priv | tron-priv | sol-priv | xrp-priv | mnemonic | seed-hex | github-token | agent-token | other
+  network        String // STEEM | HIVE | ETHEREUM | BSC | TRON | SOLANA | XRPL | GITHUB | MULTI
+  role           String? // owner | active | posting | memo | sovereign | cornerstone | fleet | treasury | agent
+  address        String? // derived public identity (account / address / handle)
+  status         String    @default("imported") // imported | connected | current | legacy | mismatch | revoked | unverified
+  note           String?
+  lastVerifiedAt DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([network, status])
+}
+
+model AgentIdentity {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  role      String   @default("worker") // worker | observer | commander
+  keyHash   String // sha256(apiKey) — verify fast without opening the vault
+  active    Boolean  @default(true)
+  lastSeenAt DateTime?
+  createdAt DateTime @default(now())
+  messages  AgentMessage[]
+}
+
+model AgentMessage {
+  id        String   @id @default(cuid())
+  author    String // agent name | "owner" | "system"
+  authorRole String  @default("worker")
+  kind      String   @default("say") // say | report | order | system | join
+  content   String
+  meta      String? // JSON extras (order result, verify detail...)
+  createdAt DateTime @default(now())
+  agent     AgentIdentity? @relation(fields: [agentId], references: [id])
+  agentId   String?
+
+  @@index([createdAt])
+  @@index([author])
+}
+
+/// v54 מכוונן הרשת — צילום-מדידה של SAOS-NET (לפני/אחרי הניתוח + מדידות חיות).
+/// העדות החיה של ייעול-הרשת: כל שורה היא מדידה שלמה בזמן אמת.
+model TuneSnapshot {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  label       String // measure | evidence-before | evidence-after
+  stateMb     Float
+  blockBest   Int
+  rpcP50Ms    Float
+  rpcP95Ms    Float
+  stalls      Int // נתקים ≥300ms בגשש הייעודי (אם נמדד בריצה זו)
+  servicesUp  Int
+  verdictHe   String
+  payload     String // canonical JSON מלא (פרופיל + דלתא)
+}
+
+// ─── v80: Agri smart irrigation (ההשקיה החקלאית — מנוע דו-שכבתי) ──────────────
+// The dual-layer agricultural engine: deterministic rule layer + LLM
+// agronomy advisor. Sensor-shaped rows (simulator source, honestly
+// labeled), real 24h weather (Open-Meteo; fallback honestly labeled and
+// NEVER invents rain), and an audit trail for every drop — reasons, full
+// rule trace, the forecast snapshot that was used, and the advisor
+// verdict when asked. Zero secrets · zero chain · zero cost.
+
+model AgriZone {
+  id               String         @id @default(cuid())
+  name             String // חלקה א׳ — עגבניות
+  crop             String // הגידול (קובע ספים)
+  areaM2           Float          @default(800)
+  moistureTarget   Float          @default(38) // יעד לחות קרקע % (VWC) — פר-גידול
+  moistureCritical Float          @default(22) // קו-עקה % (VWC) — פר-גידול
+  valveOpen        Boolean        @default(false)
+  auto             Boolean        @default(true) // אוטונומיה פר-חלקה
+  deferCount       Int            @default(0) // סבלנות-גשם (כמו סבלנות-הסערה v71)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  readings         AgriReading[]
+  decisions        AgriDecision[]
+
+  @@index([createdAt])
+}
+
+model AgriReading {
+  id           String   @id @default(cuid())
+  zoneId       String
+  zone         AgriZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  soilMoisture Float // VWC %
+  soilTemp     Float // °C
+  airTemp      Float // °C
+  airHumidity  Float // %
+  lightLux     Float
+  batteryPct   Float
+  source       String   @default("simulator") // simulator — כנות מקודדת
+  createdAt    DateTime @default(now())
+
+  @@index([zoneId, createdAt])
+}
+
+model AgriDecision {
+  id          String   @id @default(cuid())
+  zoneId      String
+  zone        AgriZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  decision    String // IRRIGATE | SKIP | DEFER | ALERT
+  durationMin Int      @default(0)
+  waterMm     Float    @default(0)
+  reasons     String // JSON string[] — עברית, קריא-אדם
+  ruleLayer   String // JSON — העקבה הדטרמיניסטית המלאה (קלט, ספים, כללים שנורו, חישוב-מינון)
+  weather     String? // JSON — צילום התחזית ששימשה את ההחלטה
+  llmAdvice   String? // JSON — פסק היועץ (השכבה השנייה), null עד שנתבקש
+  source      String   @default("auto") // auto | manual
+  createdAt   DateTime @default(now())
+
+  @@index([zoneId, createdAt])
+  @@index([createdAt])
 }

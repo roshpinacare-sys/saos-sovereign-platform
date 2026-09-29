@@ -1,0 +1,6 @@
+{"t":"2026-09-29T17:07:33.930Z","kind":"boot","detail":"SHLICH HA-SHAAR (gate-herald) v36 up on :3006 — the first external agent at the gate: onboarding through the owner console, presence every 45s, heartbeat every 30 min, keeper watches :3006, HTTP-only — never touches DB/vault/chain directly"}
+{"t":"2026-09-29T17:07:36.912Z","kind":"arm-failed","detail":"join refused (first-boot): The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch() — honest, retry next poll"}
+{"t":"2026-09-29T17:08:18.933Z","kind":"arm-failed","detail":"join refused (first-boot): Unable to connect. Is the computer able to access the url? — honest, retry next poll"}
+{"t":"2026-09-29T17:09:04.571Z","kind":"arm-failed","detail":"join refused (first-boot): Cannot read properties of undefined (reading 'findUnique') — honest, retry next poll"}
+{"t":"2026-09-29T17:09:48.947Z","kind":"arm-failed","detail":"join refused (first-boot): Cannot read properties of undefined (reading 'findUnique') — honest, retry next poll"}
+{"t":"2026-09-29T17:10:34.729Z","kind":"armed","detail":"first onboarding through the gate — key issued once, sealed in my survivable home (0600)"}

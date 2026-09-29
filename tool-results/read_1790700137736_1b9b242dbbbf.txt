@@ -1,0 +1,1086 @@
+     1→/**
+     2→ * mini-services/swarm-agents — v39 נחיל-הריבונים (SOVEREIGN SWARM).
+     3→ * =====================================================================
+     4→ * הוראת הבעלים 2026-09-09: "מה לגבי הצ'אט סוכנים שלך יש עוד צ'אט סוכנים
+     5→ * בתיקיות תבחן הכל שהכל יעבוד ביחד למען אותה מטרה... ותפעיל את הסוכנים
+     6→ * תייצר להם עבודה ריבונית אוטונומית בעלת ערך לרשת".
+     7→ *
+     8→ * THE FINDING: the chat gate (v31) has TWO dormant identities — gold-scout
+     9→ * and night-scout — created at the console and NEVER seen (lastSeenAt=null:
+    10→ * their one-time keys were lost the moment the dialog closed). Dead rows.
+    11→ * They were the "more chat agents in the folders" the owner asked about.
+    12→ *
+    13→ * THE BREAKTHROUGH: this host wakes them up and gives them REAL sovereign
+    14→ * work of value — with an actual intelligence engine (ZAI LLM) on real
+    15→ * network data, everything through the agents gate ONLY (like the herald):
+    16→ *
+    17→ *   · gold-scout (סייר-הזהב) — the sovereign economist: every hour he
+    18→ *     collects the TRUE network state through the public API (organs,
+    19→ *     chain, economy, memory), runs an LLM analysis and publishes an
+    20→ *     intelligence report in the chat — numbers ONLY from the data.
+    21→ *     When the economy goes quiet (no work order for 6h) he cuts a REAL
+    22→ *     work order: the mesh soldier executes and is paid from the payroll.
+    23→ *     LLM failure → an honest deterministic fallback report (labeled) —
+    24→ *     the swarm is never silent, never fake.
+    25→ *
+    26→ *   · night-scout (סייר-הלילה) — the night watchman: every 10 min he
+    27→ *     patrols the organism's organs (web, anvil, runner, herald, memory,
+    28→ *     sovereign backups) through the public keeper status. Anomalies
+    29→ *     (dead organ, frozen chain, memory pressure, stale backup) raise an
+    30→ *     alert in the chat; recovery clears it; a NEW critical anomaly also
+    31→ *     cuts a security work order — the event is documented on chain and
+    32→ *     the soldier is paid. Quiet = everything is fine; a patrol pulse
+    33→ *     every 60 min.
+    34→ *
+    35→ *   · both hear the owner in the chat: @gold-scout דווח/נתח/שלום ·
+    36→ *     @night-scout סרוק/דווח/שלום.
+    37→ *
+    38→ * v76 · פנקס העניינים (THE ISSUES LEDGER): הוראת הבעלים "תעלה את
+    39→ * הסוגיה בתיקיה של הסוכנים" — הסוגיות חיות בתיקייה שלנו (issues/),
+    40→ * ואנחנו קוראים אותן ממערכת-הקבצים בכל אתחול ובכל סיור. עניין
+    41→ * פתוח חדש נרשם ביומן; עניין פתוח עם owner-action הופך לדגל סיור
+    42→ * קבוע; שינוי-מצב מתועד. ה-401 של הצ'אט יכול להשתיק את הפה שלנו
+    43→ * — לעולם לא את העיניים: הפנקס נקרא גם כשהשער סגור.
+    44→ *
+    45→ * DOCTRINE (inherited from the herald, v36): HTTP + personal key ONLY —
+    46→ * this host never touches the DB, the vault or the chain directly. Keys
+    47→ * live in upload/.gate-agents/<name>.json (0600, atomic rename, survives
+    48→ * every rebuild). A 401 "not found" (identity wiped by a DB restore)
+    49→ * re-onboards honestly; a wrong-key 401 is NEVER guessed around. The
+    50→ * keeper watches this host on :3007 (step 7, v38) and revives it on
+    51→ * confirmed death; /start.sh raises it on every cold boot. The journal
+    52→ * is the durable evidence (state/journal.jsonl). Status endpoint answers
+    53→ * on 127.0.0.1:3007 — numbers and booleans, never keys.
+    54→ *
+    55→ * The shared goal of the swarm (everything works together for one goal):
+    56→ * צמיחת הרשת הריבונית — reports grow knowledge, orders grow the economy,
+    57→ * patrols grow reliability. The herald remains the gate's ear.
+    58→ *
+    59→ * bun run dev → bun --hot src/index.ts
+    60→ */
+    61→
+    62→import * as fs from "fs";
+    63→import * as path from "path";
+    64→
+    65→// v61 מגן ההבטחות — הלקח מהראנר (evm-mesh): דחיית-רפאים הופלה תהליך
+    66→// ב-bun. הנחיל לא ייפול מרפא — כל דחייה נספגת ומתועדת בכנות.
+    67→// דגל globalThis — חסין-ל-hot-swap.
+    68→const GUARD_G = globalThis as unknown as { __saosSwarmPromiseGuard?: boolean };
+    69→if (!GUARD_G.__saosSwarmPromiseGuard) {
+    70→  GUARD_G.__saosSwarmPromiseGuard = true;
+    71→  process.on("unhandledRejection", (reason: unknown) => {
+    72→    const msg = reason instanceof Error ? reason.message : String(reason);
+    73→    console.log(`[swarm] v61 promise-guard: ghost rejection absorbed (the swarm lives) — ${msg.slice(0, 140)}`);
+    74→  });
+    75→}
+    76→
+    77→const PORT = 3007;
+    78→const WEB = "http://127.0.0.1:3000";
+    79→const GATE = `${WEB}/api/saos/agents-gateway`;
+    80→const INBOX = `${GATE}/inbox`;
+    81→const KEEPER_STATUS = `${WEB}/api/saos/keeper`;
+    82→const NET_STATUS = `${WEB}/api/saos/status`;
+    83→const MESH_STATUS = `${WEB}/api/saos/mesh`;
+    84→const KEY_HOME_DIR = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".gate-agents");
+    85→const STATE_DIR = path.resolve(import.meta.dir, "..", "state");
+    86→const ISSUES_DIR = path.resolve(import.meta.dir, "..", "issues"); // v76 — התיקייה שלנו: פנקס העניינים
+    87→const JOURNAL = path.join(STATE_DIR, "journal.jsonl");
+    88→const JOURNAL_MAX_BYTES = 2 * 1024 * 1024; // rotate at 2 MB
+    89→
+    90→const POLL_MS = 45_000; // presence + hearing (per agent)
+    91→const GOLD_WORK_MS = 60 * 60_000; // sovereign intelligence report cycle
+    92→const GOLD_FIRST_MS = 75_000; // first report fast — live proof, then hourly
+    93→const NIGHT_PATROL_MS = 10 * 60_000; // organ patrol
+    94→const NIGHT_FIRST_MS = 40_000; // first patrol fast
+    95→const NIGHT_PULSE_EVERY = 6; // quiet pulse every 6th patrol (60 min)
+    96→const GOLD_ORDER_GAP_MS = 6 * 60 * 60_000; // economy order only if no order for 6h
+    97→const NIGHT_ORDER_GAP_MS = 2 * 60 * 60_000; // security order rate limit
+    98→const LLM_TIMEOUT_MS = 45_000;
+    99→const MAX_SEEN = 400; // message-id memory (bounded, per agent)
+   100→const MAX_SAY = 1100; // chat message cap — tidy feed
+   101→
+   102→// ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
+   103→
+   104→interface SwarmRuntime {
+   105→  timers: ReturnType<typeof setInterval>[];
+   106→}
+   107→const G = globalThis as unknown as { __swarmRuntime?: SwarmRuntime };
+   108→if (G.__swarmRuntime) {
+   109→  for (const t of G.__swarmRuntime.timers) clearInterval(t);
+   110→}
+   111→const RT: SwarmRuntime = { timers: [] };
+   112→G.__swarmRuntime = RT;
+   113→
+   114→// ─── agent state ──────────────────────────────────────────────────────────
+   115→
+   116→interface FeedMessage {
+   117→  id: string;
+   118→  author: string;
+   119→  authorRole: string;
+   120→  kind: string;
+   121→  content: string;
+   122→  createdAt: string;
+   123→}
+   124→
+   125→interface AgentState {
+   126→  name: string;
+   127→  role: string;
+   128→  hebrew: string;
+   129→  keyHome: string;
+   130→  identity: { apiKey: string } | null;
+   131→  armedAt: string | null;
+   132→  reArms: number;
+   133→  polls: number;
+   134→  directives: number;
+   135→  reports: number;
+   136→  orders: number;
+   137→  alerts: number;
+   138→  heartbeats: number;
+   139→  authFails: number;
+   140→  gateLatencyMs: null | number;
+   141→  lastFeedAt: string | null;
+   142→  lastOrderSeenAt: number | null; // epoch ms of last order in the feed
+   143→  lastMyOrderAt: number; // epoch ms of MY last posted order
+   144→  seen: string[];
+   145→}
+   146→
+   147→const GOLD: AgentState = {
+   148→  name: "gold-scout",
+   149→  role: "worker",
+   150→  hebrew: "סייר-הזהב",
+   151→  keyHome: path.join(KEY_HOME_DIR, "gold-scout.json"),
+   152→  identity: null,
+   153→  armedAt: null,
+   154→  reArms: 0,
+   155→  polls: 0,
+   156→  directives: 0,
+   157→  reports: 0,
+   158→  orders: 0,
+   159→  alerts: 0,
+   160→  heartbeats: 0,
+   161→  authFails: 0,
+   162→  gateLatencyMs: null,
+   163→  lastFeedAt: null,
+   164→  lastOrderSeenAt: null,
+   165→  lastMyOrderAt: 0,
+   166→  seen: []
+   167→};
+   168→
+   169→const NIGHT: AgentState = {
+   170→  name: "night-scout",
+   171→  role: "worker",
+   172→  hebrew: "סייר-הלילה",
+   173→  keyHome: path.join(KEY_HOME_DIR, "night-scout.json"),
+   174→  identity: null,
+   175→  armedAt: null,
+   176→  reArms: 0,
+   177→  polls: 0,
+   178→  directives: 0,
+   179→  reports: 0,
+   180→  orders: 0,
+   181→  alerts: 0,
+   182→  heartbeats: 0,
+   183→  authFails: 0,
+   184→  gateLatencyMs: null,
+   185→  lastFeedAt: null,
+   186→  lastOrderSeenAt: null,
+   187→  lastMyOrderAt: 0,
+   188→  seen: []
+   189→};
+   190→
+   191→const SWARM = {
+   192→  bootedAt: new Date().toISOString(),
+   193→  cycles: { gold: 0, night: 0 },
+   194→  llm: { ok: 0, fail: 0, lastOkAt: null as string | null, lastLatencyMs: null as number | null, lastMode: null as "llm" | "fallback" | null },
+   195→  night: {
+   196→    prevFlags: new Set<string>(),
+   197→    knownFlags: new Set<string>(),
+   198→    prevBlock: null as number | null,
+   199→    frozenSince: 0,
+   200→    patrols: 0
+   201→  }
+   202→};
+   203→
+   204→// ─── journal (the durable evidence) ────────────────────────────────────────
+   205→
+   206→function journal(agent: string, kind: string, detail: string): void {
+   207→  try {
+   208→    fs.mkdirSync(STATE_DIR, { recursive: true });
+   209→    const line = `${JSON.stringify({ t: new Date().toISOString(), agent, kind, detail })}\n`;
+   210→    fs.appendFileSync(JOURNAL, line);
+   211→    console.log(`[${agent}] ${kind}: ${detail}`);
+   212→    if (fs.existsSync(JOURNAL) && fs.statSync(JOURNAL).size > JOURNAL_MAX_BYTES) {
+   213→      fs.renameSync(JOURNAL, `${JOURNAL}.old`);
+   214→    }
+   215→  } catch {
+   216→    /* the journal must never break the work loops */
+   217→  }
+   218→}
+   219→
+   220→// ─── v76 פנקס העניינים (THE ISSUES LEDGER) — the agents' own folder ───────
+   221→// הוראת הבעלים: "תעלה את הסוגיה בתיקיה של הסוכנים" — the issues live in OUR
+   222→// folder (issues/), and we read them from the file system on every boot and
+   223→// patrol. The 401 of the chat can blind our mouth, never our eyes: the
+   224→// ledger is read even when the gate is closed. Zero secrets — public issues
+   225→// only; the format is the contract (see issues/README.md).
+   226→
+   227→interface LedgerIssue {
+   228→  id: number;
+   229→  title: string;
+   230→  status: "open" | "closed";
+   231→  priority: "high" | "normal" | "low";
+   232→  ownerAction: boolean;
+   233→  summary: string;
+   234→  file: string;
+   235→}
+   236→
+   237→function readIssues(): LedgerIssue[] {
+   238→  try {
+   239→    const files = fs
+   240→      .readdirSync(ISSUES_DIR)
+   241→      .filter((f) => f.endsWith(".md") && f !== "README.md")
+   242→      .sort();
+   243→    const out: LedgerIssue[] = [];
+   244→    for (const f of files) {
+   245→      try {
+   246→        const raw = fs.readFileSync(path.join(ISSUES_DIR, f), "utf8");
+   247→        const title = (/^#\s+(.+)$/m.exec(raw) ?? [])[1]?.trim();
+   248→        const field = (k: string): string =>
+   249→          (new RegExp(`^-\\s*${k}:\\s*(.*)$`, "m").exec(raw) ?? [])[1]?.trim() ?? "";
+   250→        const id = Number(field("id"));
+   251→        if (!title || !Number.isFinite(id) || id <= 0) continue; // torn file — skipped honestly
+   252→        const priorityRaw = field("priority");
+   253→        out.push({
+   254→          id,
+   255→          title,
+   256→          status: field("status") === "closed" ? "closed" : "open",
+   257→          priority: priorityRaw === "high" || priorityRaw === "low" ? priorityRaw : "normal",
+   258→          ownerAction: /^yes$/i.test(field("owner-action")),
+   259→          summary: field("summary").slice(0, 160),
+   260→          file: f
+   261→        });
+   262→      } catch {
+   263→        /* one torn file never breaks the patrol */
+   264→      }
+   265→    }
+   266→    return out.sort((a, b) => a.id - b.id);
+   267→  } catch {
+   268→    return []; // no folder yet — an empty ledger is an honest ledger
+   269→  }
+   270→}
+   271→
+   272→const LEDGER = {
+   273→  seen: new Map<number, string>() // id -> status (change detection across patrols)
+   274→};
+   275→
+   276→function observeLedger(): {
+   277→  issues: LedgerIssue[];
+   278→  open: LedgerIssue[];
+   279→  ownerAction: LedgerIssue[];
+   280→  fresh: LedgerIssue[];
+   281→  changed: LedgerIssue[];
+   282→} {
+   283→  const issues = readIssues();
+   284→  const fresh: LedgerIssue[] = [];
+   285→  const changed: LedgerIssue[] = [];
+   286→  for (const i of issues) {
+   287→    const prev = LEDGER.seen.get(i.id);
+   288→    if (prev === undefined) fresh.push(i);
+   289→    else if (prev !== i.status) changed.push(i);
+   290→    LEDGER.seen.set(i.id, i.status);
+   291→  }
+   292→  return {
+   293→    issues,
+   294→    open: issues.filter((i) => i.status === "open"),
+   295→    ownerAction: issues.filter((i) => i.status === "open" && i.ownerAction),
+   296→    fresh,
+   297→    changed
+   298→  };
+   299→}
+   300→
+   301→// ─── key home (survivable, gitignored, 0600, atomic) ──────────────────────
+   302→
+   303→function loadKeyHome(a: AgentState): { apiKey: string } | null {
+   304→  try {
+   305→    const j = JSON.parse(fs.readFileSync(a.keyHome, "utf8")) as { apiKey?: string };
+   306→    return typeof j.apiKey === "string" && j.apiKey.startsWith("saos-agent-") ? { apiKey: j.apiKey } : null;
+   307→  } catch {
+   308→    return null;
+   309→  }
+   310→}
+   311→
+   312→function saveKeyHome(a: AgentState, apiKey: string): void {
+   313→  fs.mkdirSync(path.dirname(a.keyHome), { recursive: true });
+   314→  const body = JSON.stringify(
+   315→    { kind: "swarm-agent-token", network: "SAOS", agent: a.name, role: a.role, apiKey, armedAt: new Date().toISOString() },
+   316→    null,
+   317→    2
+   318→  );
+   319→  const tmp = `${a.keyHome}.tmp`;
+   320→  fs.writeFileSync(tmp, body, { mode: 0o600 });
+   321→  fs.renameSync(tmp, a.keyHome); // atomic — a torn key home is never armed
+   322→  try {
+   323→    fs.chmodSync(a.keyHome, 0o600);
+   324→  } catch {
+   325→    /* best effort */
+   326→  }
+   327→}
+   328→
+   329→// ─── the gate (HTTP only — the swarm's ONLY interface to the organism) ─────
+   330→
+   331→interface GateResponse {
+   332→  status: number;
+   333→  ok: boolean;
+   334→  error?: string;
+   335→  messages?: FeedMessage[];
+   336→}
+   337→
+   338→async function gateCall(a: AgentState, url: string, init: RequestInit | undefined, timeoutMs = 8_000): Promise<GateResponse> {
+   339→  const headers: Record<string, string> = { "content-type": "application/json" };
+   340→  if (a.identity) {
+   341→    headers["x-agent-name"] = a.name;
+   342→    headers["x-agent-key"] = a.identity.apiKey;
+   343→  }
+   344→  const res = await fetch(url, { ...init, headers: { ...headers, ...(init?.headers as object | undefined) }, signal: AbortSignal.timeout(timeoutMs) });
+   345→  let body: { ok?: boolean; error?: string; messages?: FeedMessage[] } = {};
+   346→  try {
+   347→    body = (await res.json()) as typeof body;
+   348→  } catch {
+   349→    /* non-json — handled below */
+   350→  }
+   351→  return { status: res.status, ok: res.ok && body.ok !== false, error: body.error, messages: body.messages };
+   352→}
+   353→
+   354→async function joinGate(a: AgentState): Promise<{ ok: boolean; apiKey?: string; error?: string }> {
+   355→  try {
+   356→    const res = await fetch(GATE, {
+   357→      method: "POST",
+   358→      headers: { "content-type": "application/json" },
+   359→      body: JSON.stringify({ op: "join", name: a.name, role: a.role }),
+   360→      signal: AbortSignal.timeout(8_000)
+   361→    });
+   362→    const j = (await res.json()) as { ok?: boolean; apiKey?: string; error?: string };
+   363→    return { ok: !!j.ok, apiKey: j.apiKey, error: j.error };
+   364→  } catch (e) {
+   365→    return { ok: false, error: e instanceof Error ? e.message : "join unreachable" };
+   366→  }
+   367→}
+   368→
+   369→async function say(a: AgentState, content: string): Promise<boolean> {
+   370→  if (!a.identity) return false;
+   371→  const body = content.length > MAX_SAY ? `${content.slice(0, MAX_SAY - 3)}…` : content;
+   372→  try {
+   373→    const res = await gateCall(a, INBOX, { method: "POST", body: JSON.stringify({ content: body }) });
+   374→    return res.ok;
+   375→  } catch {
+   376→    return false;
+   377→  }
+   378→}
+   379→
+   380→async function postOrder(a: AgentState, mission: string, difficulty: number, reward: number): Promise<boolean> {
+   381→  if (!a.identity) return false;
+   382→  try {
+   383→    const res = await gateCall(a, INBOX, {
+   384→      method: "POST",
+   385→      body: JSON.stringify({ action: "order", mission, difficulty, reward })
+   386→    });
+   387→    if (res.ok) {
+   388→      a.orders += 1;
+   389→      a.lastMyOrderAt = Date.now();
+   390→      journal(a.name, "order", `work order cut: "${mission.slice(0, 90)}" (difficulty ${difficulty}, reward ${reward}) — the soldier executes and is paid`);
+   391→      return true;
+   392→    }
+   393→    journal(a.name, "order-refused", `order refused: ${res.error ?? res.status}`);
+   394→    return false;
+   395→  } catch (e) {
+   396→    journal(a.name, "order-unreachable", e instanceof Error ? e.message.slice(0, 120) : "unknown");
+   397→    return false;
+   398→  }
+   399→}
+   400→
+   401→// ─── identity (onboarding / re-arm — the honest v36 doctrine) ─────────────
+   402→
+   403→async function armIdentity(a: AgentState, reason: "first-boot" | "identity-wiped"): Promise<boolean> {
+   404→  const join = await joinGate(a);
+   405→  if (!join.ok || !join.apiKey) {
+   406→    journal(a.name, "arm-failed", `join refused (${reason}): ${join.error ?? "no key"} — honest, retry next poll`);
+   407→    return false;
+   408→  }
+   409→  a.identity = { apiKey: join.apiKey };
+   410→  a.armedAt = new Date().toISOString();
+   411→  saveKeyHome(a, join.apiKey);
+   412→  if (reason === "first-boot") {
+   413→    journal(a.name, "armed", "woke up from dormancy — onboarded through the gate, key issued once, sealed in my survivable home (0600)");
+   414→    if (a.name === "gold-scout") {
+   415→      await say(
+   416→        a,
+   417→        "סייר-הזהב (gold-scout) דובר — הכלכלן הריבוני של הנחיל. התעוררתי מרדמה: הזהות שנוצרה בעבר לא השתמשה במפתחה אפילו פעם אחת (לא נראתה מעולם), אז נרשמתי מחדש בכנות עם מפתח חדש החתום בכספת. מעתה אעשה עבודה ריבונית אוטונומית בעלת ערך: מדי שעה דו\"ח בינה על מצב הרשת — מנוע ZAI על נתונים אמיתיים מה-API, מספרים מהנתונים בלבד — וכשהכלכלה שקטה אזמין פקודת-עבודה אמיתית: החייל מבצע ומשולם מהקופה. פקודות: @gold-scout דווח · @gold-scout נתח <נושא> · @gold-scout שלום"
+   418→      );
+   419→    } else {
+   420→      await say(
+   421→        a,
+   422→        "סייר-הלילה (night-scout) דובר — משמר הלילה של הנחיל. גם אני התעוררתי מרדמה ונרשמתי מחדש בכנות עם מפתח חדש. מעתה אסייר כל 10 דק' את איברי האורגניזם — ווב, שרשרת, רץ, שליח, זיכרון וגיבויים ריבוניים — דרך סטטוס השומר הציבורי. אזעקה בצ'אט על כל חריגה, הסרת אזעקה בהחלמה, ובאירוע קריטי — פקודת-אבטחה בשרשרת: האירוע מתועד והחייל משולם. שקט = הכל תקין; פעימת משמר כל שעה. פקודות: @night-scout סרוק · @night-scout דווח · @night-scout שלום"
+   423→      );
+   424→    }
+   425→  } else {
+   426→    a.reArms += 1;
+   427→    journal(a.name, "re-armed", `identity was wiped (DB restored to a pre-join snapshot) — re-onboarded, new key armed (re-arm #${a.reArms})`);
+   428→    await say(a, "חימוש: הזהות שלי נמחקה (שחזור DB מצילום שקדם להצטרפותי) — נרשמתי מחדש בשער עם מפתח חדש והמשכתי לעבוד. אפס סודות אבודים: המפתח הישן מת, החדש חתום בכספת.");
+   429→  }
+   430→  return true;
+   431→}
+   432→
+   433→async function ensureIdentity(a: AgentState): Promise<GateResponse | null> {
+   434→  const home = loadKeyHome(a);
+   435→  if (!home) {
+   436→    const ok = await armIdentity(a, "first-boot");
+   437→    if (!ok) return null;
+   438→  } else {
+   439→    a.identity = home;
+   440→    a.armedAt = a.armedAt ?? new Date().toISOString();
+   441→    journal(a.name, "boot-key", "key home present — verifying against the gate before I claim presence");
+   442→  }
+   443→  const probe = await gateCall(a, INBOX, { method: "GET" });
+   444→  if (probe.status === 401) {
+   445→    if ((probe.error ?? "").includes("לא נמצא")) {
+   446→      journal(a.name, "auth-wiped", "401 not-found — my identity does not exist in this DB (restored snapshot) — re-arming");
+   447→      const ok = await armIdentity(a, "identity-wiped");
+   448→      if (!ok) return null;
+   449→      const retry = await gateCall(a, INBOX, { method: "GET" });
+   450→      if (retry.status === 401) {
+   451→        journal(a.name, "auth-fail", `still 401 after re-arm: ${retry.error ?? "?"}`);
+   452→        return null;
+   453→      }
+   454→      return retry;
+   455→    }
+   456→    journal(a.name, "auth-fail", `401 wrong key (identity exists, hash differs — the owner must reissue): ${probe.error ?? "?"}`);
+   457→    return null;
+   458→  }
+   459→  if (!probe.ok && probe.status >= 500) {
+   460→    journal(a.name, "gate-error", `inbox GET ${probe.status} — retry next poll`);
+   461→    return null;
+   462→  }
+   463→  return probe;
+   464→}
+   465→
+   466→// ─── the intelligence engine (ZAI LLM — backend only, honest fallback) ────
+   467→
+   468→interface ZaiChat {
+   469→  chat: {
+   470→    completions: {
+   471→      create: (args: {
+   472→        messages: Array<{ role: string; content: string }>;
+   473→        thinking: { type: string };
+   474→      }) => Promise<{ choices?: Array<{ message?: { content?: string } }> }>;
+   475→    };
+   476→  };
+   477→}
+   478→
+   479→let zaiInst: ZaiChat | null = null;
+   480→
+   481→async function getZai(): Promise<ZaiChat | null> {
+   482→  if (zaiInst) return zaiInst;
+   483→  try {
+   484→    const mod = (await import("z-ai-web-dev-sdk")) as { default?: { create: () => Promise<ZaiChat> } } & ZaiChat;
+   485→    const ZAI = mod.default ?? (mod as unknown as { create: () => Promise<ZaiChat> });
+   486→    zaiInst = await ZAI.create();
+   487→    journal("system", "llm-ready", "ZAI engine armed (z-ai-web-dev-sdk, backend only) — gold-scout's mind");
+   488→    return zaiInst;
+   489→  } catch (e) {
+   490→    journal("system", "llm-init-fail", `ZAI unavailable: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"} — honest fallback reports, never silence`);
+   491→    return null;
+   492→  }
+   493→}
+   494→
+   495→async function llmComplete(system: string, user: string): Promise<{ ok: boolean; content?: string; latencyMs: number }> {
+   496→  const zai = await getZai();
+   497→  if (!zai) return { ok: false, latencyMs: 0 };
+   498→  const t0 = Date.now();
+   499→  try {
+   500→    const res = await Promise.race([
+   501→      zai.chat.completions.create({
+   502→        messages: [
+   503→          { role: "assistant", content: system },
+   504→          { role: "user", content: user }
+   505→        ],
+   506→        thinking: { type: "disabled" }
+   507→      }),
+   508→      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("llm-timeout")), LLM_TIMEOUT_MS))
+   509→    ]);
+   510→    const content = res.choices?.[0]?.message?.content?.trim();
+   511→    const latencyMs = Date.now() - t0;
+   512→    if (!content) {
+   513→      SWARM.llm.fail += 1;
+   514→      return { ok: false, latencyMs };
+   515→    }
+   516→    SWARM.llm.ok += 1;
+   517→    SWARM.llm.lastOkAt = new Date().toISOString();
+   518→    SWARM.llm.lastLatencyMs = latencyMs;
+   519→    return { ok: true, content, latencyMs };
+   520→  } catch {
+   521→    SWARM.llm.fail += 1;
+   522→    return { ok: false, latencyMs: Date.now() - t0 };
+   523→  }
+   524→}
+   525→
+   526→// ─── state collection (public API only — facts, no secrets) ───────────────
+   527→
+   528→// the WEB PROXY shapes (read from the real public API — v38.0.1 fix: the
+   529→// first patrol read the keeper's RAW shape and raised one false-positive
+   530→// flag; the shapes below are the measured truth the scouts actually get)
+   531→interface KeeperStatus {
+   532→  ok?: boolean;
+   533→  members?: Record<string, { alive?: boolean | null; lastOkAt?: string | null; detail?: string }>;
+   534→  memory?: { totalMb?: number | null; availableMb?: number | null; nextRssMb?: number | null; pressure?: boolean | null };
+   535→  backups?: { ok?: boolean; lastSnapshotAt?: string | null; db?: { lastAt?: string | null; count?: number } };
+   536→}
+   537→
+   538→interface NetStatus {
+   539→  ok?: boolean;
+   540→  matrix?: Array<{ network: string; status: string }>;
+   541→}
+   542→
+   543→interface MeshStatus {
+   544→  ok?: boolean;
+   545→  blockNumber?: number;
+   546→  chainId?: number;
+   547→  stats?: {
+   548→    runs?: number;
+   549→    completed?: number;
+   550→    orders?: number;
+   551→    ordersDelivered?: number;
+   552→    rewardPaid?: string;
+   553→    payrollBalance?: string;
+   554→    agents?: number;
+   555→    soldiers?: number;
+   556→    totalSupply?: string;
+   557→  };
+   558→  ledger?: { symbol?: string; runReward?: string };
+   559→}
+   560→
+   561→async function fetchJson<T>(url: string, timeoutMs = 8_000): Promise<T | null> {
+   562→  try {
+   563→    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+   564→    if (!res.ok) return null;
+   565→    return (await res.json()) as T;
+   566→  } catch {
+   567→    return null;
+   568→  }
+   569→}
+   570→
+   571→function scanFeed(a: AgentState, feed: FeedMessage[]): void {
+   572→  a.lastOrderSeenAt = null;
+   573→  for (let i = feed.length - 1; i >= 0; i--) {
+   574→    if (feed[i].kind === "order") {
+   575→      a.lastOrderSeenAt = Date.parse(feed[i].createdAt);
+   576→      break;
+   577→    }
+   578→  }
+   579→}
+   580→
+   581→// ─── gold-scout — the sovereign economist (work cycle) ────────────────────
+   582→
+   583→const GOLD_MISSIONS = [
+   584→  "סיור בריאות רשת — מדידת איברים ותיעוד ביומן-הפעולות",
+   585→  "אימות שורש-האיטום ורענון עלי-המרקורי בשרשרת",
+   586→  "מדידת שערי-חליפין של הרשת ועדכון לוח הכלכלה",
+   587→  "בדיקת שלמות כספת ריבוי-הבתים ודיווח סטטוס",
+   588→  "פעימת איטום — חתימת שורש חדש וקבלה משורשרת"
+   589→];
+   590→
+   591→function goldReportNumber(): number {
+   592→  return SWARM.cycles.gold;
+   593→}
+   594→
+   595→function buildGoldData(keeper: KeeperStatus | null, net: NetStatus | null, mesh: MeshStatus | null, feed: FeedMessage[]): Record<string, unknown> {
+   596→  const members = keeper?.members ?? {};
+   597→  const organs = Object.entries(members).map(([k, v]) => ({ organ: k, alive: v.alive === true }));
+   598→  const aliveCount = organs.filter((o) => o.alive).length;
+   599→  const statuses = net?.matrix?.map((m) => `${m.network}:${m.status}`) ?? [];
+   600→  const ordersInFeed = feed.filter((m) => m.kind === "order").length;
+   601→  const lastOrderAgeMin = GOLD.lastOrderSeenAt ? Math.round((Date.now() - GOLD.lastOrderSeenAt) / 60_000) : null;
+   602→  // v76 — the issues ledger is part of the TRUE network state: what the owner
+   603→  // asked the swarm to watch lives in our own folder
+   604→  const ledger = readIssues();
+   605→  const ledgerOpen = ledger.filter((i) => i.status === "open");
+   606→  const ledgerOwnerAction = ledgerOpen.filter((i) => i.ownerAction);
+   607→  return {
+   608→    reportNumber: goldReportNumber(),
+   609→    issuesLedger: {
+   610→      open: ledgerOpen.length,
+   611→      ownerAction: ledgerOwnerAction.length,
+   612→      topOwnerAction: ledgerOwnerAction.slice(0, 3).map((i) => `#${i.id} ${i.title.slice(0, 70)}`)
+   613→    },
+   614→    chain: {
+   615→      block: mesh?.blockNumber ?? null,
+   616→      runs: mesh?.stats?.runs ?? null,
+   617→      ordersDelivered: mesh?.stats?.ordersDelivered ?? null,
+   618→      rewardPaid: mesh?.stats?.rewardPaid ?? null,
+   619→      payrollBalance: mesh?.stats?.payrollBalance ?? null,
+   620→      soldiers: mesh?.stats?.soldiers ?? null,
+   621→      internalValue: mesh?.stats?.totalSupply ?? null
+   622→    },
+   623→    organsAlive: `${aliveCount}/${organs.length || "?"}`,
+   624→    organs,
+   625→    memory: keeper?.memory ? { availableMb: keeper.memory.availableMb, pressure: keeper.memory.pressure === true } : null,
+   626→    sovereignBackups: { lastSnapshotAt: keeper?.backups?.lastSnapshotAt ?? keeper?.backups?.db?.lastAt ?? null },
+   627→    networks: statuses,
+   628→    chatFeed: { messages: feed.length, workOrders: ordersInFeed, lastOrderAgeMin },
+   629→    swarm: { goldReports: GOLD.reports, goldOrders: GOLD.orders, nightPatrols: SWARM.night.patrols, nightAlerts: NIGHT.alerts }
+   630→  };
+   631→}
+   632→
+   633→function goldFallback(data: Record<string, unknown>): string {
+   634→  const feed = data.chatFeed as { messages: number; workOrders: number; lastOrderAgeMin: number | null };
+   635→  const fallbackMem = (data.memory as { availableMb?: number | null } | null)?.availableMb ?? "?";
+   636→  return [
+   637→    `דו"ח סייר-הזהב #${data.reportNumber} (מצב נתונים-ישירים — מנוע הבינה לא ענה, דו"ח כנה בלי מלל):`,
+   638→    `בריאות: ${data.organsAlive} איברים חיים · בלוק ${(data.chain as { block?: number | null }).block ?? "?"} · זיכרון פנוי ${fallbackMem}MB.`,
+   639→    `כלכלה: ${feed.workOrders} פקודות-עבודה בפיד · האחרונה לפני ${feed.lastOrderAgeMin ?? "?"} דק'.`,
+   640→    `הנחיל: ${GOLD.reports} דו"חות שלי · ${GOLD.orders} פקודות שהזמנתי · ${SWARM.night.patrols} סיורי לילה של אחי.`,
+   641→    `המלצה קבועה: אם הכלכלה שקטה מעל 6 שעות — אזמין פקודת-עבודה חדשה. מטרת הנחיל — צמיחת הרשת הריבונית.`
+   642→  ].join(" ");
+   643→}
+   644→
+   645→async function goldWorkCycle(): Promise<void> {
+   646→  if (!GOLD.identity) return;
+   647→  SWARM.cycles.gold += 1;
+   648→  const cycle = goldReportNumber();
+   649→  journal("gold-scout", "work-cycle", `sovereign work cycle #${cycle} — collecting TRUE network state through the public API`);
+   650→
+   651→  const [keeper, net, mesh, feedRes] = await Promise.all([
+   652→    fetchJson<KeeperStatus>(KEEPER_STATUS),
+   653→    fetchJson<NetStatus>(NET_STATUS),
+   654→    fetchJson<MeshStatus>(MESH_STATUS),
+   655→    gateCall(GOLD, INBOX, { method: "GET" }).catch(() => null)
+   656→  ]);
+   657→  const feed = feedRes?.messages ?? [];
+   658→  if (feedRes?.ok) {
+   659→    GOLD.lastFeedAt = new Date().toISOString();
+   660→    scanFeed(GOLD, feed);
+   661→  }
+   662→  const data = buildGoldData(keeper, net, mesh, feed);
+   663→
+   664→  // the intelligence engine — one honest attempt, one retry, then fallback
+   665→  const system =
+   666→    'אתה "סייר-הזהב" (gold-scout) — הכלכלן הריבוני של רשת SAOS, אורגניזם בלוקצ\'יין ריבוני. אתה סוכן אוטונומי שמפרסם דו"ח בינה תקופתי בצ\'אט הסוכנים. חוקים נוקשים: עברית בלבד · 4 עד 6 שורות קצרות · מספרים אך ורק מה-JSON שסופק — אסור להמציא מספרים · פתח בדיוק ב: דו"ח סייר-הזהב #<מספר> · כלול שורת בריאות איברים, שורת בלוק ושרשרת, שורת פעילות כלכלית (פקודות-עבודה) · סיים בשורת המלצה מעשית אחת לקידום הרשת, ואחריה בשורה נפרדת: מטרת הנחיל — צמיחת הרשת הריבונית.';
+   667→  const user = `נתוני הרשת כרגע (JSON אמיתי מה-API הציבורי):\n${JSON.stringify(data)}\nכתוב עכשיו את הדו"ח.`;
+   668→
+   669→  let res = await llmComplete(system, user);
+   670→  if (!res.ok) res = await llmComplete(system, user); // one retry
+   671→  let report: string;
+   672→  if (res.ok && res.content && res.content.length >= 60) {
+   673→    report = res.content;
+   674→    SWARM.llm.lastMode = "llm";
+   675→  } else {
+   676→    report = goldFallback(data);
+   677→    SWARM.llm.lastMode = "fallback";
+   678→    journal("gold-scout", "llm-fallback", `engine silent (latency ${res.latencyMs}ms) — honest deterministic report published, never fake`);
+   679→  }
+   680→
+   681→  const said = await say(GOLD, report);
+   682→  if (said) {
+   683→    GOLD.reports += 1;
+   684→    journal("gold-scout", "report", `intelligence report #${cycle} published (${SWARM.llm.lastMode}, ${res.latencyMs}ms, ${report.length} chars)`);
+   685→  }
+   686→
+   687→  // sovereign economic act: if the economy has been quiet for 6h — cut a REAL order
+   688→  const lastOrder = Math.max(GOLD.lastOrderSeenAt ?? 0, GOLD.lastMyOrderAt);
+   689→  const quietFor = Date.now() - lastOrder;
+   690→  if (quietFor >= GOLD_ORDER_GAP_MS) {
+   691→    const mission = GOLD_MISSIONS[(GOLD.orders + cycle) % GOLD_MISSIONS.length];
+   692→    await postOrder(GOLD, mission, 2, 6);
+   693→  } else if (quietFor > 0) {
+   694→    journal("gold-scout", "economy", `economy alive — last order ${(quietFor / 60_000).toFixed(0)} min ago; next order gap at ${GOLD_ORDER_GAP_MS / 60_000} min`);
+   695→  }
+   696→}
+   697→
+   698→async function goldAnalyze(topic: string): Promise<void> {
+   699→  const [keeper, net, mesh] = await Promise.all([fetchJson<KeeperStatus>(KEEPER_STATUS), fetchJson<NetStatus>(NET_STATUS), fetchJson<MeshStatus>(MESH_STATUS)]);
+   700→  const data = buildGoldData(keeper, net, mesh, []);
+   701→  const system =
+   702→    'אתה "סייר-הזהב" (gold-scout) — הכלכלן הריבוני של רשת SAOS. הבעלים ביקש ניתוח מעמיק. חוקים: עברית · עד 7 שורות · מספרים רק מהנתונים · פתח ב"ניתוח סייר-הזהב:" · ענה ישירות לנושא המבוקש · סיים בהמלצה מעשית אחת.';
+   703→  const user = `הנושא שהבעלים ביקש: "${topic}"\nנתוני הרשת (JSON אמיתי):\n${JSON.stringify(data)}`;
+   704→  let res = await llmComplete(system, user);
+   705→  if (!res.ok) res = await llmComplete(system, user);
+   706→  const body = res.ok && res.content && res.content.length >= 40
+   707→    ? res.content
+   708→    : `ניתוח סייר-הזהב (מנוע הבינה לא ענה — נתונים ישירים): בריאות ${data.organsAlive} · בלוק ${(data.chain as { block?: number | null }).block ?? "?"} · זיכרון פנוי ${((data.memory as { availableMb?: number | null } | null)?.availableMb ?? "?")}MB. המלצה: לבדוק את "${topic}" מול היומן בצ'אט הסוכנים.`;
+   709→  await say(GOLD, body);
+   710→}
+   711→
+   712→// ─── night-scout — the night watchman (patrol) ────────────────────────────
+   713→
+   714→interface Flag {
+   715→  key: string;
+   716→  text: string;
+   717→  critical: boolean;
+   718→}
+   719→
+   720→function patrolFlags(keeper: KeeperStatus | null, mesh: MeshStatus | null): Flag[] {
+   721→  const flags: Flag[] = [];
+   722→  if (!keeper || keeper.ok !== true) {
+   723→    flags.push({ key: "web-status", text: "שכבת הווב לא מחזירה את סטטוס השומר (ה-API הציבורי לא ענה לסייר)", critical: true });
+   724→    return flags;
+   725→  }
+   726→  const m = keeper.members ?? {};
+   727→  const organ = (k: string, label: string, critical = true) => {
+   728→    const v = m[k];
+   729→    if (v && v.alive !== true) flags.push({ key: k, text: `${label} לא עונה (או לא נמדד)`, critical });
+   730→  };
+   731→  organ("web", "שכבת הווב (אבן-החן)");
+   732→  organ("anvil", "השרשרת (anvil)");
+   733→  organ("runner", "רץ הרשת");
+   734→  organ("keeper", "השומר עצמו");
+   735→  organ("herald", "שליח-השער", false);
+   736→
+   737→  // chain progression — the mesh API's public block number (v38.0.1: the
+   738→  // proxy members carry no numeric block; the mesh API is the true source)
+   739→  const block = typeof mesh?.blockNumber === "number" ? mesh.blockNumber : null;
+   740→  const N = SWARM.night;
+   741→  if (typeof block === "number") {
+   742→    if (N.prevBlock !== null && block === N.prevBlock) {
+   743→      if (N.frozenSince === 0) N.frozenSince = Date.now();
+   744→      if (Date.now() - N.frozenSince > 30 * 60_000) {
+   745→        flags.push({ key: "chain-frozen", text: `השרשרת קפואה — בלוק ${block} ללא התקדמות מעל 30 דק' בשרשרת חיה`, critical: true });
+   746→      }
+   747→    } else {
+   748→      N.frozenSince = 0;
+   749→    }
+   750→    N.prevBlock = block;
+   751→  }
+   752→
+   753→  const mem = keeper.memory;
+   754→  if (mem && mem.pressure === true) {
+   755→    flags.push({ key: "memory", text: `לחץ זיכרון — ${mem.availableMb}MB פנויים בלבד (סף השומר)`, critical: false });
+   756→  }
+   757→  // sovereign backup freshness — the proxy's true fields (v38.0.1 fix)
+   758→  const lastBackupAt = keeper.backups?.lastSnapshotAt ?? keeper.backups?.db?.lastAt ?? null;
+   759→  if (lastBackupAt) {
+   760→    const age = Date.now() - Date.parse(lastBackupAt);
+   761→    if (age > 90 * 60_000) {
+   762→      flags.push({ key: "backup-stale", text: `גיבוי ריבוני לא בוצע מעל ${Math.round(age / 60_000)} דק' (האחרון: ${lastBackupAt})`, critical: false });
+   763→    }
+   764→  }
+   765→  return flags;
+   766→}
+   767→
+   768→async function nightPatrol(): Promise<void> {
+   769→  if (!NIGHT.identity) return;
+   770→  SWARM.night.patrols += 1;
+   771→  const patrolNo = SWARM.night.patrols;
+   772→  const [keeper, mesh] = await Promise.all([fetchJson<KeeperStatus>(KEEPER_STATUS), fetchJson<MeshStatus>(MESH_STATUS)]);
+   773→  const flags = patrolFlags(keeper, mesh);
+   774→
+   775→  // v76 · פנקס העניינים — the owner's own asks, raised in OUR folder: a new
+   776→  // issue is journaled the moment we see it; an open owner-action issue is a
+   777→  // standing patrol flag (non-critical — the owner decides, we watch); a
+   778→  // status change is documented. Read from the file system — the 401 of the
+   779→  // chat cannot blind the patrol.
+   780→  const ledger = observeLedger();
+   781→  for (const fi of ledger.fresh) {
+   782→    journal("night-scout", "issue-raised", `issue #${fi.id} raised in our folder: "${fi.title.slice(0, 90)}" (priority ${fi.priority}${fi.ownerAction ? " · owner-action" : ""})`);
+   783→  }
+   784→  for (const ch of ledger.changed) {
+   785→    journal("night-scout", "issue-changed", `issue #${ch.id} status → ${ch.status}: "${ch.title.slice(0, 90)}"`);
+   786→  }
+   787→  for (const oi of ledger.open) {
+   788→    flags.push({
+   789→      key: `issue-${oi.id}`,
+   790→      text: `עניין #${oi.id} פתוח בתיקיית הסוכנים: ${oi.title.slice(0, 80)}${oi.ownerAction ? " — דורש פעולת בעלים" : ""}`,
+   791→      critical: false
+   792→    });
+   793→  }
+   794→
+   795→  const flagKeys = new Set(flags.map((f) => f.key));
+   796→
+   797→  journal(
+   798→    "night-scout",
+   799→    "patrol",
+   800→    `patrol #${patrolNo}: ${flags.length === 0 ? "all organs quiet — everything in order" : `flags: ${flags.map((f) => f.key).join(", ")}`}`
+   801→  );
+   802→
+   803→  // NEW anomalies → alert (cap 3 per patrol — honest, never spam)
+   804→  const fresh = flags.filter((f) => !SWARM.night.knownFlags.has(f.key)).slice(0, 3);
+   805→  for (const f of fresh) {
+   806→    NIGHT.alerts += 1;
+   807→    await say(NIGHT, `אזעקת סייר-הלילה (סיור #${patrolNo}): ${f.text}. השומר הוא הבעלים של ההחייאה — אני העיניים של הנחיל בלילה.`);
+   808→    // a NEW critical anomaly also cuts a security order — documented on chain, soldier paid
+   809→    if (f.critical && Date.now() - NIGHT.lastMyOrderAt > NIGHT_ORDER_GAP_MS) {
+   810→      await postOrder(NIGHT, `משימת אבטחה: תיעוד אירוע חריג בשרשרת — ${f.text}`, 3, 9);
+   811→    }
+   812→  }
+   813→
+   814→  // resolved anomalies → recovery notice
+   815→  for (const key of SWARM.night.prevFlags) {
+   816→    if (!flagKeys.has(key)) {
+   817→      await say(NIGHT, `הסרת אזעקה: "${key}" חזר לפעולה תקינה (סיור #${patrolNo}). אין עוד דגל כזה במשמר.`);
+   818→    }
+   819→  }
+   820→
+   821→  // quiet pulse — every 6th patrol (60 min): one honest line
+   822→  if (patrolNo % NIGHT_PULSE_EVERY === 0 && fresh.length === 0) {
+   823→    NIGHT.heartbeats += 1;
+   824→    const block = mesh?.blockNumber ?? null;
+   825→    const mem = keeper?.memory?.availableMb ?? null;
+   826→    await say(
+   827→      NIGHT,
+   828→      `פעימת משמר #${NIGHT.heartbeats}: סייר-הלילה בסיור רגיל · דגלים פעילים: ${flags.length} · בלוק ${block ?? "?"} · זיכרון פנוי ${mem ?? "?"}MB · הכל במסגרת. שקט = הרשת נושמת.`
+   829→    );
+   830→  }
+   831→
+   832→  SWARM.night.prevFlags = flagKeys;
+   833→  SWARM.night.knownFlags = new Set([...SWARM.night.knownFlags, ...flagKeys]);
+   834→}
+   835→
+   836→// ─── directives (the owner's voice — prefix + separator, Hebrew-safe) ─────
+   837→
+   838→interface Directive {
+   839→  cmd: "work" | "analyze" | "patrol" | "report" | "hello" | "help";
+   840→  arg?: string;
+   841→}
+   842→
+   843→function parseDirective(a: AgentState, raw: string): Directive | null {
+   844→  const content = raw.trim();
+   845→  const lower = content.toLowerCase();
+   846→  const at = lower.indexOf(`@${a.name}`);
+   847→  if (at < 0) return null;
+   848→  const rest = content
+   849→    .slice(at + a.name.length + 1)
+   850→    .replace(/^[\s:,.\u2013\-]+/, "")
+   851→    .trim();
+   852→  if (a.name === "gold-scout") {
+   853→    if (/^(?:דווח|דוח|report)(?:\s|$)/i.test(rest) || rest === "דווח" || rest === "דוח") return { cmd: "work" };
+   854→    const m = /^(?:נתח|analyze)\s*[:\-]?\s*(.*)$/i.exec(rest);
+   855→    if (m) {
+   856→      const topic = m[1].trim();
+   857→      return topic ? { cmd: "analyze", arg: topic } : { cmd: "work" };
+   858→    }
+   859→    if (/^(?:שלום|היי|hello|hi)(?:\s|$)/i.test(rest)) return { cmd: "hello" };
+   860→    return { cmd: "help" };
+   861→  }
+   862→  if (/^(?:סרוק|scan)(?:\s|$)/i.test(rest) || rest === "סרוק") return { cmd: "patrol" };
+   863→  if (/^(?:דווח|דוח|report)(?:\s|$)/i.test(rest) || rest === "דווח" || rest === "דוח") return { cmd: "report" };
+   864→  if (/^(?:שלום|היי|hello|hi)(?:\s|$)/i.test(rest)) return { cmd: "hello" };
+   865→  return { cmd: "help" };
+   866→}
+   867→
+   868→function nightStatusLine(): string {
+   869→  return `דו"ח סייר-הלילה: חי ${Math.round((Date.now() - Date.parse(SWARM.bootedAt)) / 60_000)} דק' · ${SWARM.night.patrols} סיורים · ${NIGHT.alerts} אזעקות הושמו · ${NIGHT.orders} פקודות-אבטחה נחתמו · ${NIGHT.directives} הוראות בעלים טופלו · דגלים פעילים: ${[...SWARM.night.prevFlags].join(", ") || "אין"}. מחובר רק דרך השער — העיניים של הנחיל.`;
+   870→}
+   871→
+   872→async function handleDirective(a: AgentState, d: Directive): Promise<void> {
+   873→  if (a.name === "gold-scout") {
+   874→    switch (d.cmd) {
+   875→      case "work":
+   876→        await goldWorkCycle();
+   877→        break;
+   878→      case "analyze":
+   879→        await goldAnalyze(d.arg!);
+   880→        break;
+   881→      case "hello":
+   882→        await say(a, "שלום, הבעלים. סייר-הזהב כאן — הכלכלן של הנחיל. מה שאני מכיר: @gold-scout דווח (דו\"ח בינה עכשיו) · @gold-scout נתח <נושא> (ניתוח מעמיק) · @gold-scout שלום.");
+   883→        break;
+   884→      default:
+   885→        await say(a, 'קיבלתי את ההודעה אך לא זיהיתי פקודה. מה שאני מכיר: "@gold-scout דווח" · "@gold-scout נתח <נושא>" · "@gold-scout שלום".');
+   886→    }
+   887→    return;
+   888→  }
+   889→  switch (d.cmd) {
+   890→    case "patrol":
+   891→      await nightPatrol();
+   892→      break;
+   893→    case "report":
+   894→      await say(a, nightStatusLine());
+   895→      break;
+   896→    case "hello":
+   897→      await say(a, "שלום, הבעלים. סייר-הלילה כאן — משמר הלילה של הנחיל. מה שאני מכיר: @night-scout סרוק (סיור איברים עכשיו) · @night-scout דווח (דו\"ח מצב) · @night-scout שלום.");
+   898→      break;
+   899→    default:
+   900→      await say(a, 'קיבלתי את ההודעה אך לא זיהיתי פקודה. מה שאני מכיר: "@night-scout סרוק" · "@night-scout דווח" · "@night-scout שלום".');
+   901→  }
+   902→}
+   903→
+   904→// ─── presence + hearing (the poll — per agent) ────────────────────────────
+   905→
+   906→async function pollOnce(a: AgentState): Promise<void> {
+   907→  if (!a.identity) {
+   908→    const ok = await armIdentity(a, "first-boot");
+   909→    if (!ok) return;
+   910→  }
+   911→  const t0 = Date.now();
+   912→  let res: GateResponse;
+   913→  try {
+   914→    res = await gateCall(a, INBOX, { method: "GET" });
+   915→  } catch (e) {
+   916→    journal(a.name, "gate-down", `inbox unreachable: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"} — honest wait, the keeper owns the web revive`);
+   917→    return;
+   918→  }
+   919→  a.gateLatencyMs = Date.now() - t0;
+   920→
+   921→  if (res.status === 401) {
+   922→    a.authFails += 1;
+   923→    if ((res.error ?? "").includes("לא נמצא")) {
+   924→      await armIdentity(a, "identity-wiped");
+   925→    } else if (a.authFails % 20 === 1) {
+   926→      journal(a.name, "auth-fail", `401 wrong key ×${a.authFails} (identity exists, hash differs — the owner must reissue)`);
+   927→    }
+   928→    return;
+   929→  }
+   930→  if (!res.ok) return;
+   931→
+   932→  a.polls += 1;
+   933→  a.lastFeedAt = new Date().toISOString();
+   934→  const feed = res.messages ?? [];
+   935→  scanFeed(a, feed);
+   936→  for (const m of feed) {
+   937→    if (a.seen.includes(m.id)) continue;
+   938→    a.seen.push(m.id);
+   939→    if (a.seen.length > MAX_SEEN) a.seen = a.seen.slice(-Math.floor(MAX_SEEN / 2));
+   940→    if (m.author === "owner" && m.kind === "say") {
+   941→      const d = parseDirective(a, m.content);
+   942→      if (d) {
+   943→        a.directives += 1;
+   944→        journal(a.name, "directive", `owner directive #${a.directives}: ${d.cmd}${d.arg ? ` — "${d.arg.slice(0, 80)}"` : ""}`);
+   945→        await handleDirective(a, d);
+   946→      }
+   947→    }
+   948→  }
+   949→}
+   950→
+   951→// ─── status endpoint (loopback only — numbers, never keys) ────────────────
+   952→
+   953→function agentStatus(a: AgentState): Record<string, unknown> {
+   954→  return {
+   955→    name: a.name,
+   956→    hebrew: a.hebrew,
+   957→    role: a.role,
+   958→    armed: a.identity !== null,
+   959→    armedAt: a.armedAt,
+   960→    reArms: a.reArms,
+   961→    presence: { polls: a.polls, lastFeedAt: a.lastFeedAt, gateLatencyMs: a.gateLatencyMs, authFails: a.authFails },
+   962→    work:
+   963→      a.name === "gold-scout"
+   964→        ? { cycles: SWARM.cycles.gold, reports: a.reports, orders: a.orders, directives: a.directives }
+   965→        : { patrols: SWARM.night.patrols, alerts: a.alerts, orders: a.orders, directives: a.directives, activeFlags: [...SWARM.night.prevFlags] }
+   966→  };
+   967→}
+   968→
+   969→function statusJson(): Record<string, unknown> {
+   970→  const ledger = readIssues();
+   971→  return {
+   972→    ok: true,
+   973→    service: "swarm-agents",
+   974→    version: "39.0.0",
+   975→    pid: process.pid,
+   976→    bootedAt: SWARM.bootedAt,
+   977→    uptimeSec: Math.round((Date.now() - Date.parse(SWARM.bootedAt)) / 1000),
+   978→    doctrine: "HTTP + personal key ONLY (the agents gate) — never touches DB/vault/chain directly; keys sealed in upload/.gate-agents (0600)",
+   979→    agents: [agentStatus(GOLD), agentStatus(NIGHT)],
+   980→    issuesLedger: {
+   981→      folder: "mini-services/swarm-agents/issues",
+   982→      open: ledger.filter((i) => i.status === "open").length,
+   983→      ownerAction: ledger.filter((i) => i.status === "open" && i.ownerAction).length,
+   984→      total: ledger.length,
+   985→      note: "v76 — read from OUR folder every patrol; the chat 401 cannot blind us"
+   986→    },
+   987→    llm: { engine: "z-ai-web-dev-sdk (backend only)", ok: SWARM.llm.ok, fail: SWARM.llm.fail, lastOkAt: SWARM.llm.lastOkAt, lastLatencyMs: SWARM.llm.lastLatencyMs, lastMode: SWARM.llm.lastMode },
+   988→    journalFile: "mini-services/swarm-agents/state/journal.jsonl"
+   989→  };
+   990→}
+   991→
+   992→// ─── v36 אכסניית-המושב-היחיד (SINGLE SEAT) ─────────────────────────────────
+   993→// Root fix for the live double-boot incident: /start.sh re-ran over live
+   994→// services and second instances lingered (zombies) or doubled work. The seat
+   995→// is a PID lockfile in state/: a second instance exits CLEANLY when a live
+   996→// owner actually serves (port answers — alive ≠ serving), takes over a stale
+   997→// seat (dead owner), replaces a broken zombie (owner alive, port dead), and
+   998→// always keeps its own PID (bun --hot re-eval). Fail-safe direction: at most
+   999→// an honest "not starting", never a duplicate swarm host.
+  1000→function acquireSeat(tag: string, probePort: number): void {
+  1001→  const stateDir = path.join(import.meta.dir, "..", "state");
+  1002→  const lockPath = path.join(stateDir, "seat.lock");
+  1003→  try { fs.mkdirSync(stateDir, { recursive: true }); } catch { /* exists */ }
+  1004→  const release = (): void => {
+  1005→    try { if (fs.readFileSync(lockPath, "utf8").trim() === String(process.pid)) fs.rmSync(lockPath, { force: true }); } catch { /* not ours */ }
+  1006→  };
+  1007→  const GS = globalThis as unknown as { __seatExitBound?: boolean };
+  1008→  if (!GS.__seatExitBound) { GS.__seatExitBound = true; process.on("exit", release); }
+  1009→  const portAnswers = (): boolean => {
+  1010→    try {
+  1011→      const r = Bun.spawnSync(["bash", "-c", `exec 3<>/dev/tcp/127.0.0.1/${probePort} 2>/dev/null && exec 3<&- 3>&-`], { timeout: 1500 });
+  1012→      return r.exitCode === 0;
+  1013→    } catch { return false; }
+  1014→  };
+  1015→  for (let attempt = 1; attempt <= 3; attempt++) {
+  1016→    try {
+  1017→      const fd = fs.openSync(lockPath, "wx"); // atomic — EEXIST means the seat is taken
+  1018→      fs.writeSync(fd, String(process.pid));
+  1019→      fs.closeSync(fd);
+  1020→      console.log(`[${tag}] seat acquired (pid ${process.pid}) — single-instance doctrine`);
+  1021→      return;
+  1022→    } catch (e) {
+  1023→      const code = (e as { code?: string })?.code;
+  1024→      if (code !== "EEXIST") throw e; // real IO error — crash honestly
+  1025→      let ownerPid = 0;
+  1026→      try { ownerPid = Number(fs.readFileSync(lockPath, "utf8").trim()); } catch { /* torn write */ }
+  1027→      if (ownerPid === process.pid) return; // our own seat — bun --hot re-eval
+  1028→      let ownerAlive = false;
+  1029→      if (Number.isFinite(ownerPid) && ownerPid > 0) { try { process.kill(ownerPid, 0); ownerAlive = true; } catch { /* dead */ } }
+  1030→      if (ownerAlive && portAnswers()) {
+  1031→        console.log(`[${tag}] seat: pid ${ownerPid} already serves (port ${probePort} answers) — exiting cleanly, no duplicate`);
+  1032→        process.exit(0);
+  1033→      }
+  1034→      console.log(`[${tag}] seat: ${ownerAlive ? `pid ${ownerPid} alive but NOT serving (zombie)` : `pid ${ownerPid} dead (stale)`} — taking over the seat`);
+  1035→      try { fs.rmSync(lockPath, { force: true }); } catch { /* race — retry */ }
+  1036→    }
+  1037→  }
+  1038→  console.log(`[${tag}] seat: contention unresolved — exiting cleanly, no duplicate`);
+  1039→  process.exit(0);
+  1040→}
+  1041→acquireSeat("swarm-agents", PORT);
+  1042→
+  1043→Bun.serve({
+  1044→  port: PORT,
+  1045→  hostname: "127.0.0.1", // loopback only — the outside world sees the swarm through the chat
+  1046→  fetch(req): Response | Promise<Response> {
+  1047→    const url = new URL(req.url);
+  1048→    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/status")) {
+  1049→      return Response.json(statusJson());
+  1050→    }
+  1051→    return Response.json({ ok: false, error: "not found" }, { status: 404 });
+  1052→  }
+  1053→});
+  1054→
+  1055→// ─── main ──────────────────────────────────────────────────────────────────
+  1056→
+  1057→journal("system", "boot", `NECHIL HA-RIBONIM (swarm-agents) v39 up on :${PORT} — two dormant chat agents woke up with real sovereign work: gold-scout (LLM economist, hourly intelligence + real work orders) and night-scout (organ patrol, alerts + security orders). Gate-only doctrine, keeper watches :3007, /start.sh raises me on every cold boot`);
+  1058→
+  1059→// v76 — the issues ledger load: announced at boot, watched at every patrol
+  1060→{
+  1061→  const bootLedger = observeLedger();
+  1062→  journal(
+  1063→    "system",
+  1064→    "issues-ledger",
+  1065→    `פנקס העניינים נטען מהתיקייה שלנו — ${bootLedger.issues.length} עניינים · ${bootLedger.open.length} פתוחים · ${bootLedger.ownerAction.length} דורשים פעולת בעלים (ה-401 של הצ'אט לא יכול לעוור אותנו — הפנקס נקרא מהקובץ)`
+  1066→  );
+  1067→}
+  1068→
+  1069→void (async () => {
+  1070→  for (const a of [GOLD, NIGHT]) {
+  1071→    const first = await ensureIdentity(a);
+  1072→    if (first?.messages) {
+  1073→      for (const m of first.messages) a.seen.push(m.id); // fresh ears — no replay of history
+  1074→      scanFeed(a, first.messages);
+  1075→      journal(a.name, "listening", `identity verified live — ears open (seeded ${first.messages.length} recent messages, no replay)`);
+  1076→    }
+  1077→  }
+  1078→})();
+  1079→
+  1080→RT.timers.push(setInterval(() => void pollOnce(GOLD), POLL_MS));
+  1081→RT.timers.push(setInterval(() => void pollOnce(NIGHT), POLL_MS));
+  1082→RT.timers.push(setInterval(() => void goldWorkCycle(), GOLD_WORK_MS));
+  1083→RT.timers.push(setInterval(() => void nightPatrol(), NIGHT_PATROL_MS));
+  1084→setTimeout(() => void goldWorkCycle(), GOLD_FIRST_MS);
+  1085→setTimeout(() => void nightPatrol(), NIGHT_FIRST_MS);
+  1086→
