@@ -1,15 +1,13 @@
 :81 {
-	@transform_port_query {
-		query XTransformPort=*
-	}
+	# FIX(2026-09-29 · CRITICAL): וויטליסט-פורטים — היה-פרוקסי-פתוח-לכל-פורט-מקומי.
+	# הפצה-של-תיקון-Roast-63 (הקנון: saos-control-center/Caddyfile).
+	# בריפו-זה אין-שירות-mini שאמור-להיחשף-דרך-הגייטווי (evm-mesh = anvil מקומי
+	# שעל-8545 — אסור-שייחשף-חוץ; gate-agent/keeper/swarm-agents = סוכנים-פנימיים).
+	# לכן: כל-XTransformPort → 403. הקונסולה-על-3000 נשארת.
+	@port_other query XTransformPort=*
 
-	handle @transform_port_query {
-		reverse_proxy localhost:{query.XTransformPort} {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Real-IP {remote_host}
-		}
+	handle @port_other {
+		respond 403
 	}
 
 	handle {

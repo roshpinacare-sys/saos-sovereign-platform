@@ -23,6 +23,10 @@ contract SAOSExchange {
     uint256 public constant FEE_BPS = 20;        // 0.2% per swap
     uint256 public constant POT_SHARE_BPS = 10;  // half the fee → harvest pot
     uint256 public constant SWAP_CAP_BPS = 500;  // max 5% of output reserve per swap
+    // HARDEN v6 (audit 2026-09-29): locked-forever shares on first deposit —
+    // Uniswap-V2 discipline: the pool can never be fully drained and the
+    // first-minter can never inflate share value by a dust seed.
+    uint256 public constant MINIMUM_LIQUIDITY = 1000;
 
     error NotOwner();
     error NotRelay();
@@ -38,6 +42,7 @@ contract SAOSExchange {
     error NotWrappedSaos();
     error UnaccountedTooLow();
     error WsaosNotLive();
+    error ZeroAddress();
 
     // ── assets (majors only — the sovereign whitelist) ─────────────────────
     struct Asset {
@@ -100,6 +105,9 @@ contract SAOSExchange {
 
     function wire(address relayAddr, address ledgerAddr, address treasuryAddr) external {
         if (msg.sender != owner) revert NotOwner();
+        // HARDEN v6 (audit 2026-09-29): zero-address guards — Bridge/Ledger
+        // already enforced them; the exchange was the one wire() without.
+        if (relayAddr == address(0) || ledgerAddr == address(0) || treasuryAddr == address(0)) revert ZeroAddress();
         relay = relayAddr;
         ledger = ledgerAddr;
         treasury = treasuryAddr;
@@ -236,27 +244,54 @@ contract SAOSExchange {
         return z;
     }
 
+    /// @dev HARDEN v6 (audit 2026-09-29) — two closings:
+    ///      (1) DONATION/IMBALANCE VECTOR closed: v5 kept the full amounts
+    ///      while minting min(sA, sB) — the excess was silently donated to the
+    ///      pool, diluting existing LPs and opening a rounding-seed surface.
+    ///      Now the caller mints min(sA, sB) and pulls ONLY the proportional
+    ///      pair — the excess never leaves the caller (refund-by-not-taking).
+    ///      (2) MINIMUM_LIQUIDITY: first deposit locks 1000 shares to
+    ///      address(0) forever — no dust-seed share inflation, no empty-pool
+    ///      division edge.
     function addLiquidity(uint256 poolId, uint256 amountA, uint256 amountB) external returns (uint256) {
         if (poolId >= pools.length) revert UnknownPool();
         Pool storage p = pools[poolId];
         if (amountA == 0 || amountB == 0) revert BadAmounts();
         if (bal[p.aId][msg.sender] < amountA || bal[p.bId][msg.sender] < amountB) revert InsufficientBalance();
-        uint256 shares;
+        uint256 minted;      // total new shares (incl. the locked ones, first deposit only)
+        uint256 shares;      // shares credited to the caller
+        uint256 usedA;       // actually pulled from the caller (proportional pair)
+        uint256 usedB;
         if (p.lpTotal == 0) {
-            shares = _sqrt(amountA * amountB);
+            minted = _sqrt(amountA * amountB);
+            if (minted <= MINIMUM_LIQUIDITY) revert BadAmounts();
+            shares = minted - MINIMUM_LIQUIDITY;
+            usedA = amountA;
+            usedB = amountB;
+            lpOf[poolId][address(0)] += MINIMUM_LIQUIDITY; // locked forever
         } else {
             uint256 sA = (amountA * p.lpTotal) / p.rA;
             uint256 sB = (amountB * p.lpTotal) / p.rB;
-            shares = sA < sB ? sA : sB;
+            if (sA <= sB) {
+                minted = sA;
+                shares = sA;
+                usedA = amountA;
+                usedB = (amountA * p.rB) / p.rA; // ≤ amountB by sA ≤ sB (floor keeps it)
+            } else {
+                minted = sB;
+                shares = sB;
+                usedB = amountB;
+                usedA = (amountB * p.rA) / p.rB; // ≤ amountA by sB < sA
+            }
+            if (minted == 0 || usedA == 0 || usedB == 0) revert BadAmounts(); // dust rejected
         }
-        if (shares == 0) revert BadAmounts();
-        bal[p.aId][msg.sender] -= amountA;
-        bal[p.bId][msg.sender] -= amountB;
-        p.rA += amountA;
-        p.rB += amountB;
-        p.lpTotal += shares;
+        bal[p.aId][msg.sender] -= usedA;
+        bal[p.bId][msg.sender] -= usedB;
+        p.rA += usedA;
+        p.rB += usedB;
+        p.lpTotal += minted;
         lpOf[poolId][msg.sender] += shares;
-        emit LiquidityAdded(poolId, msg.sender, amountA, amountB, shares);
+        emit LiquidityAdded(poolId, msg.sender, usedA, usedB, shares);
         return shares;
     }
 
