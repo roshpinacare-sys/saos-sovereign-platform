@@ -1,0 +1,26 @@
+# B-2 (R130): the first real contract-test gate of the mesh economy.
+# Locks audit-fix v5 as regression law: mint cap, harvest debit-then-credit
+# (no phantom supply), deposit attribution, monotonic anchors.
+# forge-std vendored at commit 6b72d0fcba36f39e07cf08bbe66a0d1525011e1f (MIT, foundry-rs/forge-std).
+name: foundry-tests
+on:
+  push:
+    branches: [main, fleet/r130]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  forge-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Show toolchain
+        run: forge --version
+
+      - name: Run mesh contract tests
+        run: forge test -vvv
