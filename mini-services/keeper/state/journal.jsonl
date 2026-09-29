@@ -156,3 +156,374 @@
 {"t":"2026-09-29T18:04:46.111Z","kind":"pressure","detail":"RSS 1589MB ≥ 1350MB אך הווב בן 5.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
 {"t":"2026-09-29T18:04:47.234Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
 {"t":"2026-09-29T18:04:48.326Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T18:05:46.101Z","kind":"pressure","detail":"RSS 1652MB ≥ 1350MB אך הווב בן 6.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:06:46.231Z","kind":"pressure","detail":"RSS 1510MB ≥ 1350MB אך הווב בן 7.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:07:46.064Z","kind":"pressure","detail":"RSS 1553MB ≥ 1350MB אך הווב בן 8.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:08:27.855Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:08:48.530Z","kind":"pressure","detail":"RSS 1463MB ≥ 1350MB אך הווב בן 9.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:08:48.538Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T18:09:46.101Z","kind":"pressure","detail":"RSS 1491MB ≥ 1350MB אך הווב בן 10.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:10:46.092Z","kind":"pressure","detail":"RSS 1519MB ≥ 1350MB אך הווב בן 11.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:11:46.096Z","kind":"pressure","detail":"RSS 1508MB ≥ 1350MB אך הווב בן 12.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:12:46.094Z","kind":"pressure","detail":"RSS 1532MB ≥ קו-ההרג 1500MB (ווב בוגר — מסע-זיכרון הדרגתי) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T18:12:46.094Z","kind":"web-recycle","detail":"pre-OOM recycle #1: RSS 1532MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T18:12:51.096Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #1)"}
+{"t":"2026-09-29T18:13:01.998Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:13:07.751Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T18:13:07.751Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:13:16.427Z","kind":"backup-ok","detail":"snapshot #2 — צילום עקבי (VACUUM INTO) · 528KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 8 db / 1 chain בסבב"}
+{"t":"2026-09-29T18:13:27.001Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:13:46.093Z","kind":"pressure","detail":"RSS 1553MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:14:47.239Z","kind":"pressure","detail":"RSS 1619MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:14:48.344Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T18:14:49.324Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T18:15:46.096Z","kind":"pressure","detail":"RSS 1681MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:16:46.108Z","kind":"pressure","detail":"RSS 1620MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:16:46.201Z","kind":"restore-drill-ok","detail":"#1 — PASS(undetailed)"}
+{"t":"2026-09-29T18:17:46.127Z","kind":"pressure","detail":"RSS 1666MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:18:26.029Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:18:46.245Z","kind":"pressure","detail":"RSS 1694MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:19:46.140Z","kind":"pressure","detail":"RSS 1666MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:20:46.111Z","kind":"pressure","detail":"RSS 1716MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:21:46.101Z","kind":"pressure","detail":"RSS 1693MB ≥ 1350MB אך הווב בן 8.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:22:46.100Z","kind":"pressure","detail":"RSS 1691MB ≥ 1350MB אך הווב בן 9.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:23:16.117Z","kind":"backup-ok","detail":"snapshot #3 — הגבלת-קצב: צילום כבר בוצע לפני פחות מ-10 דק' · 8 db / 1 chain בסבב"}
+{"t":"2026-09-29T18:23:27.940Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:23:46.072Z","kind":"pressure","detail":"RSS 1692MB ≥ 1350MB אך הווב בן 10.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:23:46.095Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T18:24:46.217Z","kind":"pressure","detail":"RSS 1664MB ≥ 1350MB אך הווב בן 11.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:24:47.600Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T18:24:48.626Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T18:25:46.078Z","kind":"pressure","detail":"RSS 1713MB ≥ קו-ההרג 1500MB (ווב בוגר — מסע-זיכרון הדרגתי) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T18:25:46.078Z","kind":"web-recycle","detail":"pre-OOM recycle #2: RSS 1713MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T18:25:51.080Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #2)"}
+{"t":"2026-09-29T18:25:58.195Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T18:26:46.121Z","kind":"pressure","detail":"RSS 1427MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:27:46.102Z","kind":"pressure","detail":"RSS 1540MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:28:26.962Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:28:46.107Z","kind":"pressure","detail":"RSS 1531MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:29:46.115Z","kind":"pressure","detail":"RSS 1604MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:30:46.139Z","kind":"pressure","detail":"RSS 1642MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:31:46.144Z","kind":"pressure","detail":"RSS 1600MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:32:46.430Z","kind":"pressure","detail":"RSS 1617MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:33:16.162Z","kind":"backup-ok","detail":"snapshot #4 — צילום עקבי (VACUUM INTO) · 572KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 9 db / 1 chain בסבב"}
+{"t":"2026-09-29T18:33:26.021Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:33:46.101Z","kind":"pressure","detail":"RSS 1640MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:34:46.129Z","kind":"pressure","detail":"RSS 1633MB ≥ 1350MB אך הווב בן 8.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:34:48.496Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T18:34:49.416Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T18:35:47.723Z","kind":"pressure","detail":"RSS 1653MB ≥ 1350MB אך הווב בן 9.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:36:46.120Z","kind":"pressure","detail":"RSS 1654MB ≥ 1350MB אך הווב בן 10.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:37:46.107Z","kind":"pressure","detail":"RSS 1672MB ≥ 1350MB אך הווב בן 11.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:38:26.062Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:38:46.118Z","kind":"pressure","detail":"RSS 1690MB ≥ קו-ההרג 1500MB (ווב בוגר — מסע-זיכרון הדרגתי) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T18:38:46.119Z","kind":"web-recycle","detail":"pre-OOM recycle #3: RSS 1690MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T18:38:46.122Z","kind":"sovereignty-miss","detail":"census unreachable: The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the sec — next window retries"}
+{"t":"2026-09-29T18:38:51.120Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #3)"}
+{"t":"2026-09-29T18:39:02.005Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:39:07.305Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T18:39:07.305Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:39:46.091Z","kind":"pressure","detail":"RSS 1566MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:40:46.099Z","kind":"pressure","detail":"memory pressure: 614MB available / 4160MB · next-server RSS 2398MB — early warning (kernel acts lower)"}
+{"t":"2026-09-29T18:40:46.100Z","kind":"pressure","detail":"RSS 2398MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:40:46.239Z","kind":"restore-drill-ok","detail":"#2 — PASS(undetailed)"}
+{"t":"2026-09-29T18:41:46.085Z","kind":"pressure","detail":"RSS 2415MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T18:41:46.085Z","kind":"web-recycle","detail":"pre-OOM recycle #4: RSS 2415MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T18:41:51.086Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #4)"}
+{"t":"2026-09-29T18:42:02.006Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:42:07.027Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T18:42:07.027Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:42:46.137Z","kind":"pressure-ok","detail":"memory recovered: 1711MB available · next-server RSS 1501MB"}
+{"t":"2026-09-29T18:42:46.137Z","kind":"pressure","detail":"RSS 1501MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:43:16.192Z","kind":"backup-ok","detail":"snapshot #5 — צילום עקבי (VACUUM INTO) · 576KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 10 db / 1 chain בסבב"}
+{"t":"2026-09-29T18:43:27.032Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:43:46.098Z","kind":"pressure","detail":"RSS 1625MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:44:12.005Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:44:16.019Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:44:46.123Z","kind":"pressure","detail":"RSS 1605MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:44:48.335Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T18:44:49.598Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T18:45:46.133Z","kind":"pressure","detail":"RSS 1679MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:46:46.116Z","kind":"pressure","detail":"RSS 1718MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:47:46.137Z","kind":"pressure","detail":"RSS 1700MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:48:26.025Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:48:46.108Z","kind":"pressure","detail":"RSS 1749MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:49:46.102Z","kind":"pressure","detail":"RSS 1736MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:50:46.223Z","kind":"pressure","detail":"RSS 1736MB ≥ 1350MB אך הווב בן 8.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:51:46.097Z","kind":"pressure","detail":"RSS 1718MB ≥ 1350MB אך הווב בן 9.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:52:47.016Z","kind":"pressure","detail":"RSS 1756MB ≥ 1350MB אך הווב בן 10.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:53:16.124Z","kind":"backup-ok","detail":"snapshot #6 — הגבלת-קצב: צילום כבר בוצע לפני פחות מ-10 דק' · 10 db / 1 chain בסבב"}
+{"t":"2026-09-29T18:53:26.029Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:53:46.100Z","kind":"pressure","detail":"RSS 1744MB ≥ 1350MB אך הווב בן 11.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:53:50.295Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T18:54:46.094Z","kind":"pressure","detail":"RSS 1726MB ≥ קו-ההרג 1500MB (ווב בוגר — מסע-זיכרון הדרגתי) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T18:54:46.094Z","kind":"web-recycle","detail":"pre-OOM recycle #5: RSS 1726MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T18:54:51.096Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #5)"}
+{"t":"2026-09-29T18:54:59.837Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T18:55:46.127Z","kind":"pressure","detail":"RSS 1623MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:56:02.006Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:56:09.803Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:56:46.125Z","kind":"pressure","detail":"RSS 1615MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:57:46.111Z","kind":"pressure","detail":"RSS 1706MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:58:27.203Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:58:46.129Z","kind":"pressure","detail":"RSS 1677MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:59:46.200Z","kind":"pressure","detail":"RSS 1831MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T18:59:46.201Z","kind":"web-recycle","detail":"pre-OOM recycle #6: RSS 1831MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T18:59:51.202Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #6)"}
+{"t":"2026-09-29T18:59:58.157Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T19:00:42.007Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T19:00:47.350Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T19:00:48.007Z","kind":"pressure","detail":"RSS 1636MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:01:46.086Z","kind":"pressure","detail":"RSS 1752MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:02:47.729Z","kind":"pressure","detail":"RSS 1688MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:03:16.374Z","kind":"backup-ok","detail":"snapshot #7 — צילום עקבי (VACUUM INTO) · 616KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 11 db / 1 chain בסבב"}
+{"t":"2026-09-29T19:03:26.956Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:03:46.081Z","kind":"pressure","detail":"RSS 1752MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:04:46.096Z","kind":"pressure","detail":"RSS 1703MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:04:46.144Z","kind":"restore-drill-ok","detail":"#3 — PASS(undetailed)"}
+{"t":"2026-09-29T19:04:48.548Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T19:04:49.497Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T19:05:46.098Z","kind":"pressure","detail":"RSS 1787MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:06:46.600Z","kind":"pressure","detail":"RSS 1929MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T19:06:46.600Z","kind":"web-recycle","detail":"pre-OOM recycle #7: RSS 1929MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T19:06:51.601Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #7)"}
+{"t":"2026-09-29T19:06:58.506Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T19:07:46.095Z","kind":"pressure","detail":"RSS 1625MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:08:26.965Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:08:46.095Z","kind":"pressure","detail":"RSS 1774MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:08:49.475Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 15 · synced 15 · gaps 18 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T19:09:46.107Z","kind":"pressure","detail":"RSS 1821MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T19:09:46.107Z","kind":"web-recycle","detail":"pre-OOM recycle #8: RSS 1821MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T19:09:51.116Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #8)"}
+{"t":"2026-09-29T19:09:59.242Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T19:10:46.152Z","kind":"pressure","detail":"RSS 1556MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:11:46.096Z","kind":"pressure","detail":"RSS 1498MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:12:46.094Z","kind":"pressure","detail":"RSS 1714MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:13:16.209Z","kind":"backup-ok","detail":"snapshot #8 — צילום עקבי (VACUUM INTO) · 660KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 12 db / 1 chain בסבב"}
+{"t":"2026-09-29T19:13:27.321Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:13:46.109Z","kind":"pressure","detail":"RSS 1851MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T19:13:46.109Z","kind":"web-recycle","detail":"pre-OOM recycle #9: RSS 1851MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T19:13:51.110Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #9)"}
+{"t":"2026-09-29T19:13:56.130Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T19:14:46.110Z","kind":"pressure","detail":"RSS 1586MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:14:48.787Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T19:14:49.839Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T19:15:46.083Z","kind":"pressure","detail":"RSS 1689MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:16:12.009Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T19:16:16.017Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T19:16:46.100Z","kind":"pressure","detail":"RSS 1645MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:17:46.088Z","kind":"pressure","detail":"RSS 1687MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:18:28.573Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:18:46.296Z","kind":"pressure","detail":"RSS 1581MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:19:46.070Z","kind":"pressure","detail":"RSS 1626MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:20:47.678Z","kind":"pressure","detail":"RSS 1680MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:21:46.080Z","kind":"pressure","detail":"RSS 1676MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:22:46.267Z","kind":"pressure","detail":"RSS 1623MB ≥ 1350MB אך הווב בן 8.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:23:16.159Z","kind":"backup-ok","detail":"snapshot #9 — צילום עקבי (VACUUM INTO) · 680KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 13 db / 1 chain בסבב"}
+{"t":"2026-09-29T19:23:26.026Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:23:46.076Z","kind":"pressure","detail":"RSS 1690MB ≥ 1350MB אך הווב בן 9.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:23:49.567Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T19:24:46.094Z","kind":"pressure","detail":"RSS 1725MB ≥ 1350MB אך הווב בן 10.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:24:46.969Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T19:24:47.909Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T19:25:46.096Z","kind":"pressure","detail":"RSS 1739MB ≥ 1350MB אך הווב בן 11.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:26:46.089Z","kind":"pressure","detail":"RSS 1786MB ≥ קו-ההרג 1500MB (ווב בוגר — מסע-זיכרון הדרגתי) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T19:26:46.089Z","kind":"web-recycle","detail":"pre-OOM recycle #10: RSS 1786MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T19:26:51.092Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #10)"}
+{"t":"2026-09-29T19:26:58.446Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T19:27:46.089Z","kind":"pressure","detail":"RSS 1500MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:28:26.940Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:28:46.095Z","kind":"pressure","detail":"RSS 1788MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:28:46.142Z","kind":"restore-drill-ok","detail":"#4 — PASS(undetailed)"}
+{"t":"2026-09-29T19:29:46.092Z","kind":"pressure","detail":"RSS 1798MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T19:29:46.092Z","kind":"web-recycle","detail":"pre-OOM recycle #11: RSS 1798MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T19:29:51.095Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #11)"}
+{"t":"2026-09-29T19:29:58.288Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T19:30:46.101Z","kind":"pressure","detail":"RSS 1431MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:31:46.077Z","kind":"pressure","detail":"RSS 1586MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:32:46.144Z","kind":"pressure","detail":"RSS 1630MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:33:17.769Z","kind":"backup-ok","detail":"snapshot #10 — צילום עקבי (VACUUM INTO) · 700KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 14 db / 1 chain בסבב"}
+{"t":"2026-09-29T19:33:26.975Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:33:46.106Z","kind":"pressure","detail":"RSS 1681MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:34:46.288Z","kind":"pressure","detail":"RSS 1787MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:34:48.651Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T19:34:49.630Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T19:35:46.087Z","kind":"pressure","detail":"RSS 1747MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:36:46.262Z","kind":"pressure","detail":"RSS 1765MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:37:47.694Z","kind":"pressure","detail":"RSS 1795MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T19:37:47.694Z","kind":"web-recycle","detail":"pre-OOM recycle #12: RSS 1795MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T19:37:52.695Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #12)"}
+{"t":"2026-09-29T19:37:58.158Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T19:38:26.965Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:38:49.042Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T19:39:46.084Z","kind":"pressure","detail":"RSS 1517MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:40:46.100Z","kind":"pressure","detail":"RSS 1472MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:41:46.093Z","kind":"pressure","detail":"RSS 1497MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:42:46.276Z","kind":"pressure","detail":"RSS 1444MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:43:16.207Z","kind":"backup-ok","detail":"snapshot #11 — צילום עקבי (VACUUM INTO) · 728KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 15 db / 1 chain בסבב"}
+{"t":"2026-09-29T19:43:26.030Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:43:46.094Z","kind":"pressure","detail":"RSS 1480MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:44:46.286Z","kind":"pressure","detail":"RSS 1531MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:44:48.578Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T19:44:49.510Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T19:45:47.700Z","kind":"pressure","detail":"RSS 1587MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:46:46.104Z","kind":"pressure","detail":"RSS 1675MB ≥ 1350MB אך הווב בן 8.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:47:46.078Z","kind":"pressure","detail":"RSS 1706MB ≥ 1350MB אך הווב בן 9.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:48:26.030Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:48:46.102Z","kind":"pressure","detail":"RSS 1681MB ≥ 1350MB אך הווב בן 10.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:49:46.100Z","kind":"pressure","detail":"RSS 1688MB ≥ 1350MB אך הווב בן 11.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:50:46.296Z","kind":"pressure","detail":"RSS 1703MB ≥ קו-ההרג 1500MB (ווב בוגר — מסע-זיכרון הדרגתי) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T19:50:46.296Z","kind":"web-recycle","detail":"pre-OOM recycle #13: RSS 1703MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T19:50:51.299Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #13)"}
+{"t":"2026-09-29T19:50:58.291Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T19:51:46.090Z","kind":"pressure","detail":"RSS 1555MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:52:02.013Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T19:52:06.040Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T19:52:46.109Z","kind":"pressure","detail":"RSS 1496MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:52:46.153Z","kind":"restore-drill-ok","detail":"#5 — PASS(undetailed)"}
+{"t":"2026-09-29T19:53:16.153Z","kind":"backup-ok","detail":"snapshot #12 — צילום עקבי (VACUUM INTO) · 752KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 16 db / 1 chain בסבב"}
+{"t":"2026-09-29T19:53:26.954Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:53:46.088Z","kind":"pressure","detail":"RSS 1594MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:53:49.571Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T19:54:46.100Z","kind":"pressure","detail":"RSS 1709MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:54:47.216Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T19:54:48.254Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T19:54:50.239Z","kind":"snapshot-watched","detail":"outer-anchor skipped: broadcast-rejected — honest wait, retried next hour"}
+{"t":"2026-09-29T19:55:46.276Z","kind":"pressure","detail":"RSS 1776MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:56:46.087Z","kind":"pressure","detail":"RSS 1758MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:57:46.115Z","kind":"pressure","detail":"RSS 1782MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:58:26.042Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T19:58:47.397Z","kind":"pressure","detail":"RSS 1786MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T19:59:46.095Z","kind":"pressure","detail":"RSS 1794MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T19:59:46.096Z","kind":"web-recycle","detail":"pre-OOM recycle #14: RSS 1794MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T19:59:51.099Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #14)"}
+{"t":"2026-09-29T19:59:58.291Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:00:46.093Z","kind":"pressure","detail":"RSS 1491MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:01:46.094Z","kind":"pressure","detail":"RSS 1468MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:02:46.110Z","kind":"pressure","detail":"RSS 1539MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:03:17.708Z","kind":"backup-ok","detail":"snapshot #13 — צילום עקבי (VACUUM INTO) · 788KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 17 db / 1 chain בסבב"}
+{"t":"2026-09-29T20:03:27.020Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:03:46.097Z","kind":"pressure","detail":"RSS 1652MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:04:46.301Z","kind":"pressure","detail":"RSS 1691MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:04:48.218Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T20:04:49.232Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T20:05:46.100Z","kind":"pressure","detail":"RSS 1672MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:06:46.261Z","kind":"pressure","detail":"RSS 1693MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:07:47.703Z","kind":"pressure","detail":"RSS 1663MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:08:26.030Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:08:46.104Z","kind":"pressure","detail":"RSS 1707MB ≥ 1350MB אך הווב בן 8.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:08:49.766Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T20:09:46.085Z","kind":"pressure","detail":"RSS 1725MB ≥ 1350MB אך הווב בן 9.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:10:46.079Z","kind":"pressure","detail":"RSS 1746MB ≥ 1350MB אך הווב בן 10.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:11:46.085Z","kind":"pressure","detail":"RSS 1750MB ≥ 1350MB אך הווב בן 11.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:12:46.292Z","kind":"pressure","detail":"RSS 1705MB ≥ קו-ההרג 1500MB (ווב בוגר — מסע-זיכרון הדרגתי) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T20:12:46.293Z","kind":"web-recycle","detail":"pre-OOM recycle #15: RSS 1705MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T20:12:51.294Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #15)"}
+{"t":"2026-09-29T20:12:58.279Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:13:16.210Z","kind":"backup-ok","detail":"snapshot #14 — צילום עקבי (VACUUM INTO) · 820KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 18 db / 1 chain בסבב"}
+{"t":"2026-09-29T20:13:26.953Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:13:46.098Z","kind":"pressure","detail":"RSS 1750MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:14:46.098Z","kind":"pressure","detail":"RSS 1854MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:14:47.029Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T20:14:48.054Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T20:15:46.090Z","kind":"pressure","detail":"RSS 1861MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T20:15:46.090Z","kind":"web-recycle","detail":"pre-OOM recycle #16: RSS 1861MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T20:15:51.091Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #16)"}
+{"t":"2026-09-29T20:16:02.016Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T20:16:06.024Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:16:06.024Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T20:16:46.111Z","kind":"pressure","detail":"RSS 1439MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:16:46.212Z","kind":"restore-drill-ok","detail":"#6 — PASS(undetailed)"}
+{"t":"2026-09-29T20:17:46.098Z","kind":"pressure","detail":"RSS 1530MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:18:26.933Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:18:46.113Z","kind":"pressure","detail":"RSS 1650MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:19:46.108Z","kind":"pressure","detail":"RSS 1686MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:20:46.268Z","kind":"pressure","detail":"RSS 1691MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:21:46.077Z","kind":"pressure","detail":"RSS 1652MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:22:46.093Z","kind":"pressure","detail":"RSS 1663MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:23:16.148Z","kind":"backup-ok","detail":"snapshot #15 — צילום עקבי (VACUUM INTO) · 840KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 19 db / 1 chain בסבב"}
+{"t":"2026-09-29T20:23:27.655Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:23:46.101Z","kind":"pressure","detail":"RSS 1666MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:23:49.463Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T20:24:46.276Z","kind":"pressure","detail":"RSS 1798MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T20:24:46.276Z","kind":"web-recycle","detail":"pre-OOM recycle #17: RSS 1798MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T20:24:51.279Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #17)"}
+{"t":"2026-09-29T20:24:58.261Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:25:46.102Z","kind":"pressure","detail":"RSS 1476MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:26:46.102Z","kind":"pressure","detail":"RSS 1499MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:27:46.083Z","kind":"pressure","detail":"RSS 1548MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:28:28.659Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:28:46.105Z","kind":"pressure","detail":"RSS 1545MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:29:46.145Z","kind":"pressure","detail":"RSS 1575MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:30:47.699Z","kind":"pressure","detail":"RSS 1654MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:31:46.100Z","kind":"pressure","detail":"RSS 1656MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:32:46.247Z","kind":"pressure","detail":"RSS 1640MB ≥ 1350MB אך הווב בן 7.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:33:16.272Z","kind":"backup-ok","detail":"snapshot #16 — צילום עקבי (VACUUM INTO) · 864KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 20 db / 1 chain בסבב"}
+{"t":"2026-09-29T20:33:26.039Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:33:46.101Z","kind":"pressure","detail":"RSS 1676MB ≥ 1350MB אך הווב בן 8.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:34:46.089Z","kind":"pressure","detail":"RSS 1747MB ≥ 1350MB אך הווב בן 9.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:34:47.994Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T20:34:48.965Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T20:35:46.138Z","kind":"pressure","detail":"RSS 1705MB ≥ 1350MB אך הווב בן 10.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:36:46.095Z","kind":"pressure","detail":"RSS 1772MB ≥ 1350MB אך הווב בן 11.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:37:46.100Z","kind":"pressure","detail":"RSS 1745MB ≥ קו-ההרג 1500MB (ווב בוגר — מסע-זיכרון הדרגתי) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T20:37:46.100Z","kind":"web-recycle","detail":"pre-OOM recycle #18: RSS 1745MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T20:37:51.102Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #18)"}
+{"t":"2026-09-29T20:37:58.245Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:38:27.008Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:38:46.114Z","kind":"pressure","detail":"RSS 1359MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:38:49.118Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 17 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T20:39:46.114Z","kind":"pressure","detail":"RSS 1592MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:40:46.109Z","kind":"pressure","detail":"RSS 1742MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:40:46.146Z","kind":"restore-drill-ok","detail":"#7 — PASS(undetailed)"}
+{"t":"2026-09-29T20:41:46.103Z","kind":"pressure","detail":"RSS 1724MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:42:46.298Z","kind":"pressure","detail":"RSS 1743MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:43:16.272Z","kind":"backup-ok","detail":"snapshot #17 — צילום עקבי (VACUUM INTO) · 884KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 21 db / 1 chain בסבב"}
+{"t":"2026-09-29T20:43:26.039Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:43:46.111Z","kind":"pressure","detail":"RSS 1757MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:44:46.272Z","kind":"pressure","detail":"RSS 1791MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T20:44:46.272Z","kind":"web-recycle","detail":"pre-OOM recycle #19: RSS 1791MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T20:44:51.275Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #19)"}
+{"t":"2026-09-29T20:44:58.422Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:45:46.106Z","kind":"pressure","detail":"RSS 1472MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:46:46.109Z","kind":"pressure","detail":"RSS 1875MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:47:46.093Z","kind":"pressure","detail":"RSS 1883MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T20:47:46.094Z","kind":"web-recycle","detail":"pre-OOM recycle #20: RSS 1883MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T20:47:51.098Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #20)"}
+{"t":"2026-09-29T20:47:58.307Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:48:27.034Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:48:46.111Z","kind":"pressure","detail":"RSS 1537MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:49:46.102Z","kind":"pressure","detail":"RSS 1714MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:50:46.110Z","kind":"pressure","detail":"RSS 1753MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:51:46.092Z","kind":"pressure","detail":"RSS 1729MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:52:46.279Z","kind":"pressure","detail":"RSS 1747MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:53:16.158Z","kind":"backup-ok","detail":"snapshot #18 — צילום עקבי (VACUUM INTO) · 912KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 22 db / 1 chain בסבב"}
+{"t":"2026-09-29T20:53:26.038Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:53:46.087Z","kind":"pressure","detail":"RSS 1818MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T20:53:46.087Z","kind":"web-recycle","detail":"pre-OOM recycle #21: RSS 1818MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T20:53:46.092Z","kind":"sovereignty-miss","detail":"census unreachable: The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the sec — next window retries"}
+{"t":"2026-09-29T20:53:51.088Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #21)"}
+{"t":"2026-09-29T20:53:58.274Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:54:46.120Z","kind":"pressure","detail":"RSS 1426MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:54:48.567Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T20:54:49.765Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T20:54:51.750Z","kind":"snapshot-watched","detail":"outer-anchor skipped: broadcast-rejected — honest wait, retried next hour"}
+{"t":"2026-09-29T20:55:46.103Z","kind":"pressure","detail":"RSS 1566MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:56:46.111Z","kind":"pressure","detail":"RSS 1761MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:57:46.105Z","kind":"pressure","detail":"RSS 1820MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-29T20:57:46.105Z","kind":"web-recycle","detail":"pre-OOM recycle #22: RSS 1820MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-29T20:57:51.108Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #22)"}
+{"t":"2026-09-29T20:57:58.294Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T20:58:26.995Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T20:58:46.111Z","kind":"pressure","detail":"RSS 1531MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T20:59:46.109Z","kind":"pressure","detail":"RSS 1622MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T21:00:47.951Z","kind":"pressure","detail":"RSS 1707MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T21:01:46.097Z","kind":"pressure","detail":"RSS 1681MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T21:02:46.295Z","kind":"pressure","detail":"RSS 1705MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T21:03:16.167Z","kind":"backup-ok","detail":"snapshot #19 — צילום עקבי (VACUUM INTO) · 928KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 23 db / 1 chain בסבב"}
+{"t":"2026-09-29T21:03:26.057Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T21:03:46.107Z","kind":"pressure","detail":"RSS 1773MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T21:04:46.271Z","kind":"pressure","detail":"RSS 1757MB ≥ 1350MB אך הווב בן 6.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T21:04:46.310Z","kind":"restore-drill-ok","detail":"#8 — PASS(undetailed)"}
+{"t":"2026-09-29T21:04:48.281Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T21:04:49.230Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
