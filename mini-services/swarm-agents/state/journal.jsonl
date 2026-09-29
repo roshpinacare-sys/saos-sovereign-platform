@@ -18,3 +18,5 @@
 {"t":"2026-09-29T17:40:41.931Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: The operation timed out. — honest wait, the keeper owns the web revive"}
 {"t":"2026-09-29T17:47:34.255Z","agent":"night-scout","kind":"patrol","detail":"patrol #4: flags: issue-1, issue-2, issue-3"}
 {"t":"2026-09-29T17:57:34.220Z","agent":"night-scout","kind":"patrol","detail":"patrol #5: flags: issue-1, issue-2, issue-3"}
+{"t":"2026-09-29T17:59:18.933Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T17:59:18.936Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}

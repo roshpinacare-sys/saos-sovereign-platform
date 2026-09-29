@@ -138,3 +138,15 @@
 {"t":"2026-09-29T17:55:46.113Z","kind":"pressure","detail":"RSS 1725MB ≥ 1350MB אך הווב בן 2.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
 {"t":"2026-09-29T17:56:46.378Z","kind":"pressure","detail":"RSS 1645MB ≥ 1350MB אך הווב בן 3.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
 {"t":"2026-09-29T17:57:47.713Z","kind":"pressure","detail":"RSS 1696MB ≥ 1350MB אך הווב בן 4.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T17:58:26.024Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.3mm expected)"}
+{"t":"2026-09-29T17:58:46.103Z","kind":"pressure","detail":"RSS 1729MB ≥ 1350MB אך הווב בן 5.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T17:59:45.992Z","kind":"web-dead","detail":"web tier connection refused ×3 — confirmed death"}
+{"t":"2026-09-29T17:59:45.994Z","kind":"web-revive","detail":"web tier dead (connection refused ×3) — bun run dev spawned detached, revive #2"}
+{"t":"2026-09-29T18:00:01.993Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:00:06.009Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T18:00:06.009Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:00:46.103Z","kind":"pressure","detail":"RSS 1421MB ≥ 1350MB אך הווב בן 1.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:01:46.099Z","kind":"pressure","detail":"RSS 1508MB ≥ 1350MB אך הווב בן 2.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:02:11.993Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:02:20.136Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:02:46.110Z","kind":"pressure","detail":"RSS 1550MB ≥ 1350MB אך הווב בן 3.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
