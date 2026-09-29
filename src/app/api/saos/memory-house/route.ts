@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth, audit } from "@/lib/saos/auth";
 import { ensureChainMemory, memoryHouseStatus } from "@/lib/saos/memory-house";
 import { SAOS_VERSION } from "@/lib/saos/version";
 
@@ -22,7 +23,15 @@ export async function GET() {
   return NextResponse.json({ ...status, version: SAOS_VERSION });
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+
+  // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  const __auth = await requireAuth(req);
+  if (!__auth.ok) {
+    await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/memory-house", allowed: false, req });
+    return NextResponse.json({ ok: false, error: __auth.error ?? "auth-required" }, { status: __auth.status });
+  }
+
   const status = await ensureChainMemory();
   return NextResponse.json({ ...status, version: SAOS_VERSION });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth, audit } from "@/lib/saos/auth";
 import { db } from "@/lib/db";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { logOp } from "@/lib/saos/oplog";
@@ -175,6 +176,14 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+
+  // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  const __auth = await requireAuth(req);
+  if (!__auth.ok) {
+    await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/contract", allowed: false, req });
+    return NextResponse.json({ ok: false, error: __auth.error ?? "auth-required" }, { status: __auth.status });
+  }
+
   try {
     const body: unknown = await req.json().catch(() => ({}));
     const obj = (typeof body === "object" && body !== null ? body : {}) as {

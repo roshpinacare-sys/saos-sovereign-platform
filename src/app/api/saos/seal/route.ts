@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { requireAuth, audit } from "@/lib/saos/auth";
 import { db } from "@/lib/db";
 import { applyTx, genesisState, stateRootOf, type KernelTx } from "@/lib/saos/kernel";
 import { buildMerkleTree } from "@/lib/saos/merkle";
@@ -26,6 +27,14 @@ export const dynamic = "force-dynamic";
  * with real txids are the live ledger.
  */
 export async function POST(req: Request) {
+
+  // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  const __auth = await requireAuth(req);
+  if (!__auth.ok) {
+    await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/seal", allowed: false, req });
+    return NextResponse.json({ ok: false, error: __auth.error ?? "auth-required" }, { status: __auth.status });
+  }
+
   try {
     let body: { stamps?: number; memo?: string } = {};
     try {

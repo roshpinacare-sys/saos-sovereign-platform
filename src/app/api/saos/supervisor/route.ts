@@ -11,6 +11,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { requireAuth, audit } from "@/lib/saos/auth";
 import { superviseOnce, SERVICE_LIST } from "@/lib/saos/supervisor-node";
 
 export const runtime = "nodejs";
@@ -35,7 +36,15 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+
+  // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  const __auth = await requireAuth(req);
+  if (!__auth.ok) {
+    await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/supervisor", allowed: false, req });
+    return NextResponse.json({ ok: false, error: __auth.error ?? "auth-required" }, { status: __auth.status });
+  }
+
   try {
     const services = await superviseOnce(false);
     const spawned = services
