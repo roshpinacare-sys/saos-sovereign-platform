@@ -150,3 +150,9 @@
 {"t":"2026-09-29T18:02:11.993Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
 {"t":"2026-09-29T18:02:20.136Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
 {"t":"2026-09-29T18:02:46.110Z","kind":"pressure","detail":"RSS 1550MB ≥ 1350MB אך הווב בן 3.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:03:16.196Z","kind":"backup-ok","detail":"snapshot #1 — צילום עקבי (VACUUM INTO) · 508KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 7 db / 1 chain בסבב"}
+{"t":"2026-09-29T18:03:28.745Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.1mm expected)"}
+{"t":"2026-09-29T18:03:46.196Z","kind":"pressure","detail":"RSS 1571MB ≥ 1350MB אך הווב בן 4.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:04:46.111Z","kind":"pressure","detail":"RSS 1589MB ≥ 1350MB אך הווב בן 5.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:04:47.234Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T18:04:48.326Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
