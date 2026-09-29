@@ -4,3 +4,5 @@
 {"t":"2026-09-29T17:09:04.571Z","kind":"arm-failed","detail":"join refused (first-boot): Cannot read properties of undefined (reading 'findUnique') — honest, retry next poll"}
 {"t":"2026-09-29T17:09:48.947Z","kind":"arm-failed","detail":"join refused (first-boot): Cannot read properties of undefined (reading 'findUnique') — honest, retry next poll"}
 {"t":"2026-09-29T17:10:34.729Z","kind":"armed","detail":"first onboarding through the gate — key issued once, sealed in my survivable home (0600)"}
+{"t":"2026-09-29T17:40:41.934Z","kind":"gate-down","detail":"inbox unreachable: The operation timed out. — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T17:41:18.961Z","kind":"gate-up","detail":"the gate answers again — resuming presence"}

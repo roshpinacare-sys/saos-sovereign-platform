@@ -41,6 +41,7 @@ import { ViewMesh } from "@/components/saos/views/mesh";
 import { ViewWorkboard } from "@/components/saos/views/workboard";
 import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
+import { SovereigntyView } from "@/components/saos/views/sovereignty";
 import { SmartLinkView } from "@/components/saos/views/smartlink";
 import { AgentChatView } from "@/components/saos/views/agentchat";
 import { ViewProofs } from "@/components/saos/views/proofs";
@@ -173,6 +174,7 @@ export default function Home() {
         {view === "workboard" && <ViewWorkboard />}
         {view === "fleet" && <ViewFleet />}
         {view === "sovereign-key" && <ViewSovereignKey />}
+        {view === "sovereignty" && <SovereigntyView />}
         {view === "smartlink" && <SmartLinkView />}
         {view === "agentchat" && <AgentChatView />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}

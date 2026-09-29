@@ -168,7 +168,9 @@ const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
 const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "45.1.0";
+const KEEPER_VERSION = "45.2.0";
+const SOVEREIGNTY_EVERY = 90; // v93 — sovereignty census tick every 90th cycle (≈15min)
+const SOVEREIGNTY_FIRST_AT = 6; // first census 60s after boot
 const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const RESTORE_DRILL_EVERY = 144; // v45.1 — restore drill every 144th cycle (≈24min)
@@ -333,7 +335,10 @@ interface KeeperEvent {
     | "agri-tick"
     | "agri-dripped"
     | "agri-alert"
-    | "agri-error";
+    | "agri-error"
+    // v93 — the sovereignty census tick (מרשם-הריבונות — 17 תיקיות-גיט + שכבת-המפתחות)
+    | "sovereignty-ok"
+    | "sovereignty-miss";
   detail: string;
 }
 
@@ -698,6 +703,37 @@ async function runBackup(): Promise<void> {
   } catch (e) {
     S.backups.miss += 1;
     journal("backup-miss", `snapshot unreachable #${S.backups.miss}: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"} — next window retries`);
+  }
+}
+
+/**
+ * v93 — sovereignty tick: every ≈15min the keeper reads the live sovereignty
+ * census over loopback (17 git folders + vault/STEEM/token key layer + v93
+ * claim verdicts) and journals a compact verdict. Numbers and booleans only —
+ * no secrets, no tokens, no fingerprints beyond the 8-char store stamp inside
+ * the census itself. A census that cannot be measured is itself a finding.
+ */
+async function runSovereignty(): Promise<void> {
+  try {
+    const res = await fetch("http://127.0.0.1:3000/api/saos/sovereignty", {
+      signal: AbortSignal.timeout(60_000)
+    });
+    const j = (await res.json()) as {
+      ok?: boolean;
+      stats?: { repos?: number; clean?: number; synced?: number; gapCount?: number; tokenInUrlCount?: number };
+      vault?: { present?: boolean; steemSigningReady?: { active?: boolean; posting?: boolean }; steemLiveMatch?: { allMatch?: boolean } | null };
+      token?: { canonicalPresent?: boolean };
+    };
+    if (res.ok && j.ok && j.stats) {
+      journal(
+        "sovereignty-ok",
+        `census: ${j.stats.repos ?? "?"} repos · clean ${j.stats.clean ?? "?"} · synced ${j.stats.synced ?? "?"} · gaps ${j.stats.gapCount ?? "?"} · token-in-url ${j.stats.tokenInUrlCount ?? "?"} · vault ${j.vault?.present ? "live" : "absent"} · steem ${j.vault?.steemSigningReady?.active && j.vault?.steemSigningReady?.posting ? "armed" : "partial"}${j.vault?.steemLiveMatch?.allMatch ? " · 4/4 live" : ""} · pat-store ${j.token?.canonicalPresent ? "ok" : "missing"}`
+      );
+    } else {
+      journal("sovereignty-miss", `census refused/failed: HTTP ${res.status} — next window retries`);
+    }
+  } catch (e) {
+    journal("sovereignty-miss", `census unreachable: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"} — next window retries`);
   }
 }
 
@@ -1769,6 +1805,11 @@ async function cycle(): Promise<void> {
   // hypothesis; the drill turns it into a measured fact, on a schedule.
   if (RT.cycle % RESTORE_DRILL_EVERY === 0) {
     runRestoreDrill();
+  }
+  // v93 — sovereignty census every ≈15min (first 60s after boot): 17 git
+  // folders + key layer measured over loopback; verdict journaled either way.
+  if (RT.cycle === SOVEREIGNTY_FIRST_AT || (RT.cycle > SOVEREIGNTY_FIRST_AT && (RT.cycle - SOVEREIGNTY_FIRST_AT) % SOVEREIGNTY_EVERY === 0)) {
+    await runSovereignty();
   }
   if (RT.cycle % SLOW_EVERY === 0) {
     rotateDevLog();
