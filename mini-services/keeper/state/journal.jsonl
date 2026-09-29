@@ -125,3 +125,28 @@
 {"t":"2026-09-29T17:53:15.966Z","kind":"backup-miss","detail":"snapshot unreachable #1: Unable to connect. Is the computer able to access the url? — next window retries"}
 {"t":"2026-09-29T17:53:15.966Z","kind":"herald-up","detail":"gate-herald serving on :3006 — feeds advance, the poll timer lives (v36)"}
 {"t":"2026-09-29T17:53:15.967Z","kind":"swarm-up","detail":"swarm-agents serving on :3007 — agent feeds advance, the poll timers live (v36) — gold-scout + night-scout alive"}
+{"t":"2026-09-29T17:53:31.430Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #1"}
+{"t":"2026-09-29T17:53:33.361Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.3mm expected)"}
+{"t":"2026-09-29T17:53:46.054Z","kind":"pressure","detail":"RSS 1893MB ≥ 1350MB אך הווב בן 0.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T17:53:51.080Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 15 · synced 15 · gaps 18 · token-in-url 16 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-29T17:54:17.313Z","kind":"cheap-route-watched","detail":"cheap-route watcher LIVE: 10 external cheap routes scanned keylessly — gate blocked (measured fact, re-checked every scan) — the standing try of v72, watched every 5 min"}
+{"t":"2026-09-29T17:54:17.314Z","kind":"reserve-watched","detail":"reserve-watcher LIVE: custody undefined USD ↔ mirror 10.84 USD · drift 0.0000 USD · 3 mesh-managed rails (organ authority) · readiness 3/8 — advisory organ, HQ owns the hands"}
+{"t":"2026-09-29T17:54:46.139Z","kind":"pressure","detail":"RSS 1636MB ≥ 1350MB אך הווב בן 1.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T17:54:48.783Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-29T17:54:49.837Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-29T17:54:52.052Z","kind":"snapshot-watched","detail":"outer-anchor skipped: broadcast-rejected — honest wait, retried next hour"}
+{"t":"2026-09-29T17:55:46.113Z","kind":"pressure","detail":"RSS 1725MB ≥ 1350MB אך הווב בן 2.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T17:56:46.378Z","kind":"pressure","detail":"RSS 1645MB ≥ 1350MB אך הווב בן 3.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T17:57:47.713Z","kind":"pressure","detail":"RSS 1696MB ≥ 1350MB אך הווב בן 4.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T17:58:26.024Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 18%, 0.3mm expected)"}
+{"t":"2026-09-29T17:58:46.103Z","kind":"pressure","detail":"RSS 1729MB ≥ 1350MB אך הווב בן 5.5 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T17:59:45.992Z","kind":"web-dead","detail":"web tier connection refused ×3 — confirmed death"}
+{"t":"2026-09-29T17:59:45.994Z","kind":"web-revive","detail":"web tier dead (connection refused ×3) — bun run dev spawned detached, revive #2"}
+{"t":"2026-09-29T18:00:01.993Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:00:06.009Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-29T18:00:06.009Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:00:46.103Z","kind":"pressure","detail":"RSS 1421MB ≥ 1350MB אך הווב בן 1.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:01:46.099Z","kind":"pressure","detail":"RSS 1508MB ≥ 1350MB אך הווב בן 2.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-29T18:02:11.993Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-29T18:02:20.136Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-29T18:02:46.110Z","kind":"pressure","detail":"RSS 1550MB ≥ 1350MB אך הווב בן 3.0 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
