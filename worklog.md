@@ -158,3 +158,28 @@ Stage Summary:
 - Platform LIVE on :3000 with full stack: web + anvil(8545) + keeper(3005) + gate(3006) + swarm(3007)
 - Lab economy alive: 11+ runs, 10 solutions, 500K SAOS-M supply, pools seeded, flywheel sweeping to payroll
 - All fixes honest-failure compliant: no fabricated data anywhere
+
+---
+Task ID: 4
+Agent: Z.ai (main orchestrator — master-key custody & sovereignty unification)
+Task: Owner delivered the master key (headcorner.txt) — handle with care; reconcile outdated dashboard claims vs new claims (zero conflicts); bridge the layer-gaps between all git folders; strengthen autonomy & sovereignty over the whole git estate
+
+Work Log:
+- Verified upload safely (never printed): line0=label "headcorner", line1=52-char P5 Graphene master password (NOT a WIF — BTC-alphabet decode failed, XRP-alphabet failed, P5 branch CONFIRMED)
+- Live proof: sha256("headcorner"+role+password) derives ALL FOUR live STEEM authorities of headcorner (owner/active/posting/memo vs condenser_api.get_accounts) — 4/4 match, measured
+- Sealed a FRESH SAOS-FLEET-VAULT-1 envelope (GCM/scrypt, 0600, roundtrip-verified) with members: .env (AGENT_ACCOUNT=headcorner), keys/hed-soldiers-source.txt (verbatim owner delivery), keys/vault.json (head roster), keys/headcorner-master.json (provenance + sha256 + 4/4 verdict) — mirrored to 3 keys homes
+- Ran the OFFICIAL rearm through the platform's own API: GET /api/saos/rearm/steem → allMatch 4/4 → POST → armed:true, lib-roundtrip gate passed, WIFs (active+posting) + pubs (owner+memo) written into sealed .env, roster updated, mirrored to 4 recovery homes; stage-2 connect registered STEEM/BLURT/HIVE slots + chained receipt af85914a…
+- Key hygiene: /upload/, /agent/, /db/backups/ gitignored; plaintext master-key copy REMOVED from disk (verbatim content lives only inside the sealed envelope); upload/pat.env handled via official gh-rotate.sh
+- Git layer: fixed stale paths (platform-latest→scripts) in saos-git-bootstrap.sh + gh-rotate.sh, expanded REPOS 12→16; gh-rotate validated the staged PAT (login roshpinacare-sys, push on ALL 16 repos), installed canonical store /home/z/.secrets/github-token (0600) + legacy copy; bootstrap installed credential.helper+askpass globally, clean-env ls-remote PASSED
+- Claims reconciliation (v93): version.ts → 93.0.0 "תחיית-אבן-הפינה"; smartvault CANONICAL_KEYS unified with the live envelope (steem rows → connected/evidence with 4/4 notes; cornerstone/sovereign/xrp/old-fleet rows → honest "evidence — material absent from live envelope"); one-time reconcileV93() tombstone fixes DB rows; sovereign-key custody text + verdictError rewritten (operational signing live; identity roots still owner-only)
+- Sovereignty census: lib/saos/sovereignty.ts (17 git folders incl. live platform — branch/HEAD/dirty/sync-class vs origin refs, remotes REDACTED, token-in-url flags), /api/saos/sovereignty route, views/sovereignty.tsx wired into shell+page; first census: 17 repos, 16 clean, 16 synced, gaps=17 (16 token-in-url + platform no-remote)
+- Autonomy: keeper v45.2.0 sovereignty tick every ≈15min (loopback census read → sovereignty-ok/miss journal, numbers+booleans only)
+- Lineage bridge DISCOVERED: live platform (UUID history, no remote) vs canonical clone (b36263c v91 never pushed) vs origin/main (v92 + HARDEN v6 — Caddyfile port-whitelist + SAOSExchange MINIMUM_LIQUIDITY/proportional-pull; PRE-v91 code). Union merge executed: HARDEN v6 merged INTO live Exchange (kept v91 one-time wiring — superset), hardened Caddyfile adopted live; clone reset to origin/main + full live tree synced (origin docs preserved); pushed 3b67352→15b602d→100d859→9f4c4d2 (artifact recompiled via compile-mesh.ts)
+- E2E (agent-browser): sovereignty view renders live (17 repos, vault live·GCM, STEEM חמושה, 4/4, PAT fingerprint), sovereign-key v93 verdict text, zero console errors, mobile 375 + desktop 1440 screenshots in public/shots/v93-*
+- Kernel OOM'd the web once during compile storm (RSS 1729MB) — keeper detected death ×3 and revived (#2); measured resilience, no action needed
+
+Stage Summary:
+- The master key is SEALED, VERIFIED (4/4 live chain authorities), and its plaintext no longer exists outside the AES-256-GCM envelope; STEEM signing is ARMED again (active+posting WIFs inside withRoleWif boundary)
+- One truth everywhere: GitHub canon = live platform = v93 (HEAD 9f4c4d2); platform's local lineage kept + committed; census measures 17 folders every keeper cycle
+- Identity roots (12w/24w seeds) remain owner-only — the platform asks for a re-seal of the 12-word identity to complete sovereign-key ok=true (honest gap, shown in UI)
+- Pending (owner/engineer): 16 remotes embed the PAT in URL (rotation-ready via bootstrap helper; cleanup = one git remote set-url per repo), git-history purge of R11-era secrets in the 8 repos, owner-role STEEM rotation decision
