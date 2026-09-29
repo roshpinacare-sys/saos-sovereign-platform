@@ -6,7 +6,8 @@ import {
   isKnownNetwork,
   manifestSlotFor,
   vaultFingerprint,
-  VAULT_MANIFEST
+  VAULT_MANIFEST,
+  VAULT_SOVEREIGN_NETWORKS
 } from "@/lib/saos/broadcast";
 import { readSealInventory, readSealReception, sealExists, stage2Assignments } from "@/lib/vault-seal";
 
@@ -92,7 +93,11 @@ export async function POST() {
     // 2 — validate every assignment against the manifest + address rules
     const valid: Array<{ network: string; slot: string; address: string; source: string; fingerprint: string }> = [];
     for (const a of assignments) {
-      if (!isKnownNetwork(a.network)) continue;
+      // v94 — broadcast networks + sovereign watch networks (control-plane)
+      const known =
+        isKnownNetwork(a.network) ||
+        (VAULT_SOVEREIGN_NETWORKS as readonly string[]).includes(a.network);
+      if (!known) continue;
       if (manifestSlotFor(a.network, a.slot) === null) continue;
       // address validity (reuse the public address validator)
       // v94 — EVM/SOL sovereign slots: the wallets-registry headcorner row now

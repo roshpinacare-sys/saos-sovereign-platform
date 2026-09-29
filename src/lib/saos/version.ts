@@ -117,10 +117,10 @@
  * (ענף/HEAD/remote מצונן/סטיות) + טיק-שומר תקופתי.
  */
 
-export const SAOS_VERSION = "93.0.0";
+export const SAOS_VERSION = "94.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "תחיית-אבן-הפינה (THE CORNERSTONE REVIVAL)";
+export const SAOS_CODENAME = "הכספת המלאה (THE FULL VAULT)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

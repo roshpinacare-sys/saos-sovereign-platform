@@ -178,9 +178,10 @@ async function measure(): Promise<SmartVaultStatus> {
       // oplog read failed — honest null
     }
   }
-  // v93 — תיקון-פער-טענות חד-פעמי לפני כל קריאת-מלאי (tombstone-guarded)
+  // v93 → v94 — תיקון-פער-טענות חד-פעמי לפני כל קריאת-מלאי (tombstone-guarded)
   try {
     await reconcileV93();
+    await reconcileV94();
   } catch {
     // honest: הפער לא שובר את מסילת-הסטטוס
   }
@@ -288,14 +289,15 @@ export const CANONICAL_KEYS: CanonicalKeyRow[] = [
   { keyId: "steem-active-legacy", name: "headcorner STEEM — active", kind: "steem-wif", network: "STEEM", role: "active", address: "headcorner", status: "connected", note: "v93: WIF נגזר מסיסמת-האב, אומת 4/4 ואטום במעטפת — חתימת-active חיה", materialRef: ".env ACTIVE_WIF" },
   { keyId: "steem-posting-legacy", name: "headcorner STEEM — posting", kind: "steem-wif", network: "STEEM", role: "posting", address: "headcorner", status: "connected", note: "v93: WIF נגזר ואטום — שידורי-העוגנים חוזרים לזמינות דרך withRoleWif", materialRef: ".env POSTING_WIF" },
   { keyId: "steem-memo-legacy", name: "headcorner STEEM — memo", kind: "steem-wif", network: "STEEM", role: "memo", address: "headcorner", status: "evidence", note: "v93: הסיסמה גוזרת גם את memo (התאמה חיה); pub עד במעטפת", materialRef: ".env MEMO_WIF_PUB" },
-  { keyId: "cornerstone-seed-24", name: "אבן הפינה — זרע 24 המילים", kind: "mnemonic", network: "MULTI", role: "cornerstone", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "evidence", note: "v93 כנות: הזרע עצמו לא במעטפת החיה (המעטפת מחזיקה תפעול-STEEM) — הזהויות הנגזרות עדיין אמת בשרשרת (EVM 0x01Bd · TRON TMXHfFQd · SOL A2Y1d3 · XRP r3Tq66); איטום-זרע מהבעלים יחזיר את מסילות-EVM/SOL/XRP לחתימה", materialRef: "keys/headcorner-seed.json (חסר במעטפת — מצב-ראיות)" },
-  { keyId: "sovereign-seed-12", name: "שורש-הזהות — זרע 12 המילים", kind: "mnemonic", network: "MULTI", role: "sovereign", address: "0x7b7869d126FA1ecC19a3426D07bE8186225a2c31", status: "evidence", note: "v93 כנות: לא אטום מחדש במעטפת החיה — הזהות 0x7b78 + TAzZZ נשארות ראיות-שרשרת; איטום-זהות מהבעלים ישלים", materialRef: "keys/sovereign-mnemonic.json (חסר במעטפת — מצב-ראיות)" },
+  { keyId: "cornerstone-seed-24", name: "אבן הפינה — זרע 24 המילים", kind: "mnemonic", network: "MULTI", role: "cornerstone", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "evidence", note: "v94 כנות מדודה: כל-הכספות נבדקו (KEYS-BACKUP tar + KEYS-ZIP 09-10 + KEYS-ZIP 09-29, sha256 מאומת) — הזרע לא באף-אחת מהן; המקור היחיד אצל הבעלים (KEYS-EXPORT 09-09 שנמחק). הזהויות הנגזרות עדיין אמת בשרשרת (EVM 0x01Bd · TRON TMXHfFQd · SOL A2Y1d3 · XRP r3Tq66); מסילות-EVM/SOL/XRP לחתימה ייפתחו רק באיטום-זרע מהבעלים", materialRef: "keys/headcorner-seed.json (חסר בכל הכספות — מצב-ראיות)" },
+  { keyId: "sovereign-seed-12", name: "שורש-הזהות — זרע 12 המילים", kind: "mnemonic", network: "MULTI", role: "sovereign", address: "0x7b7869d126FA1ecC19a3426D07bE8186225a2c31", status: "connected", note: "v94: החומר נמצא ואומת קריפטוגרפית (KEYS-ZIP-2026-09-29 agent/keys/tron-legacy-mnemonic.txt — צילום-Security-Wallet): EVM m/44'/60'/0'/0/0 = 0x7b78 ✓ ו-TRON m/44'/195'/0'/0/0 = TAzZZ ✓ (שתי-הזהויות נגזרו ונמדדו), ואוטם במעטפת החיה דרך appendVaultMember", materialRef: "keys/sovereign-mnemonic.json" },
   { keyId: "treasury-home-evm", name: "בית-האוצר 0x01Bd (ETH+BNB)", kind: "evm-priv", network: "ETHEREUM", role: "treasury", address: "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37", status: "evidence", note: "m/44'/60'/0'/0/0 — לכאן הוזז הכסף (v30) · v93: החומר החותם (זרע 24) לא במעטפת — מסילת-EVM במצב-ראיות", materialRef: "keys/headcorner-seed.json (חסר)" },
   { keyId: "xrp-cornerstone", name: "XRPL r3Tq66 — פעימות חיות", kind: "xrp-priv", network: "XRPL", role: "cornerstone", address: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh", status: "evidence", note: "v93: החומר החותם לא במעטפת החיה — הכתובת והפעימות ההיסטוריות ראיות-שרשרת", materialRef: "keys/xrp-cornerstone.json (חסר)" },
-  { keyId: "old-fleet-tron-headcorner", name: "ארנק TRON ישן TG6Srs… (17.6 TRX!)", kind: "tron-priv", network: "TRON", role: "fleet", address: "TG6SrsMJjRqnqAyYM8kGZu1rgkpsgizKEn", status: "evidence", note: "הכסף שחשבנו שאבד — המפתח שלם · v93: החומר לא במעטפת החיה — מצב-ראיות", materialRef: "keys/old-fleet-wallets.json (חסר)" },
+  { keyId: "old-fleet-tron-headcorner", name: "ארנק TRON ישן TG6Srs… (17.6 TRX!)", kind: "tron-priv", network: "TRON", role: "fleet", address: "TG6SrsMJjRqnqAyYM8kGZu1rgkpsgizKEn", status: "evidence", note: "הכסף שחשבנו שאבד — המפתח שלם · v94: הכתובת נרשמה ככיסא-כספת חי (TRON vault-3, stage-2 connect) ומודדת חי (0.19 TRX בכיסאות) · חומר-החתימה שלה עדיין לא במעטפת", materialRef: "keys/old-fleet-wallets.json (חסר)" },
   { keyId: "old-fleet-sol-headcorner", name: "ארנק SOL ישן 9knfn… (נסחט ל-A2Y1d3)", kind: "sol-priv", network: "SOLANA", role: "fleet", address: "9knfnFMLmhUNjKRDbR1BmVnVkq4BRczyYjJ7BqiZSgiL", status: "legacy", note: "v47: 0 SOL (נוקה) — ההון עבר ל-A2Y1d3 שנשלט מאבן-הפינה", materialRef: "keys/old-fleet-wallets.json (חסר)" },
-  { keyId: "old-fleet-evm-headcorner", name: "ארנק EVM ישן 0x2767…", kind: "evm-priv", network: "ETHEREUM", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "evidence", note: "עדות היסטורית · ~0.000082 ETH · v93: החומר לא במעטפת החיה", materialRef: "keys/old-fleet-wallets.json (חסר)" },
-  { keyId: "old-fleet-seed", name: "הזרע הישן (96 hex) — שורש 12 הארנקים", kind: "seed-hex", network: "MULTI", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "evidence", note: "fleet-arm self-verify עבר היסטורית (m/44'/60'/0'/0/2 = 0x2767) · v93: החומר לא במעטפת החיה", materialRef: "keys/wallets-seed.json (חסר)" },
+  { keyId: "old-fleet-evm-headcorner", name: "ארנק EVM ישן 0x2767… — חותם מסילת-האפס", kind: "evm-priv", network: "ETHEREUM", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "connected", note: "v94: הזרע שלו נמצא ב-KEYS-BACKUP tar ואומת בנוסחת-הצי (sha256(seed|evm|44/60) → /0/2 = 0x2767 ✓) ואוטם כ-keys/fleet-evm-head-seed.json · חתימה חיה הוכחה: עיגון-ZERO ראשון tx 0xa5213e26… בגז 0 (חוסם 35911074)", materialRef: "keys/fleet-evm-head-seed.json" },
+  { keyId: "old-fleet-seed", name: "הזרע הישן (96 hex) — שורש 12 הארנקים", kind: "seed-hex", network: "MULTI", role: "fleet", address: "0x2767e8146c11baD1d9B0784f11325375195c1b0f", status: "connected", note: "v94: אותו זרע שאומת ואטום (keys/fleet-evm-head-seed.json — זהה-בייט למקור-09-09, מול הרישום נאמת) · הרישום keys/wallets-registry.json (12 חשבונות EVM+TRON+SOL) אוטם אף-הוא", materialRef: "keys/fleet-evm-head-seed.json" },
+  { keyId: "soldiers-fleet-vault", name: "כספת החיילים — 12 חשבונות (11 חיילים + הראש)", kind: "other", network: "STEEM", role: "fleet", address: "headcorner", status: "connected", note: "v94: WIFs מלאים ל-owner/active/posting/memo של כל-הצי — מ-KEYS-ZIP-2026-09-29 (אומת 14/14 פעולות-חי על-ידי Z-19b/Z-20 בריפו-המקור), אוטם כ-keys/soldiers-vault.json", materialRef: "keys/soldiers-vault.json" },
   { keyId: "github-token", name: "GitHub PAT (roshpinacare-sys)", kind: "github-token", network: "GITHUB", role: "sovereign", address: "roshpinacare-sys", status: "connected", note: "v93: רוטציה אומתה חי — push לכל 16 הריפואים, חנות קנונית 0600 (/home/z/.secrets/github-token), ls-remote בסביבה-נקייה עבר; טוקן-ב-URL של remotes ממתין ניקוי", materialRef: "/home/z/.secrets/github-token" },
   { keyId: "owner-record-legacy", name: "רשומת הבעלים (הדקור.txt) — דור ישן", kind: "other", network: "STEEM", role: "owner", address: "headcorner", status: "unverified", note: "אינה תואמת לשרשרת — לתיעוד בלבד", materialRef: "keys/legacy-owner-record.json (חסר)" }
 ];
@@ -384,6 +386,31 @@ export async function reconcileV93(): Promise<{ keys: number; reason: string } |
   await logOp("smartvault.reconcile.v93", { ok: true, keys, at: new Date().toISOString() });
   cache = null;
   return { keys, reason: "v93: טענות-המלאי אוחדו מול המעטפת החיה (תחיית-אבן-הפינה)" };
+}
+
+/**
+ * v94 — THE FULL VAULT reconciliation (2026-09-29).
+ * The recovered keys (sovereign-12w, fleet-seed, wallets-registry,
+ * soldiers-fleet) were sealed into the live envelope after cryptographic
+ * verification; the cornerstone-24 was honestly confirmed absent from ALL
+ * vaults. This one-time pass re-unifies the DB inventory with the new
+ * canonical truth (tombstone-guarded, never throws).
+ */
+export async function reconcileV94(): Promise<{ keys: number; reason: string } | null> {
+  const tombstone = await db.opLog.findFirst({ where: { op: "smartvault.reconcile.v94" } });
+  if (tombstone) return null;
+  let keys = 0;
+  for (const r of CANONICAL_KEYS) {
+    await db.smartKey.upsert({
+      where: { keyId: r.keyId },
+      update: { status: r.status, note: r.note ?? null, materialRef: r.materialRef, name: r.name },
+      create: { keyId: r.keyId, name: r.name, kind: r.kind, network: r.network, role: r.role ?? null, address: r.address ?? null, status: r.status, note: r.note ?? null, materialRef: r.materialRef }
+    });
+    keys += 1;
+  }
+  await logOp("smartvault.reconcile.v94", { ok: true, keys, at: new Date().toISOString() });
+  cache = null;
+  return { keys, reason: "v94: הכספת המלאה — מפתחות-הרשת שהתגלו בכספות אוטמים ומאומתים; אבן-הפינה נבדקה בכנות (חסרה בכולן)" };
 }
 
 // ─── key type detection ────────────────────────────────────────────────────
