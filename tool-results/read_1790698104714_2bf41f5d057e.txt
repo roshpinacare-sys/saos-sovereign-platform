@@ -1,0 +1,1711 @@
+     1→/**
+     2→ * external-signer (:3033) — Task 26 (STEEM weave) + Task 27 (HIVE conversion rail).
+     3→ * =============================================================================
+     4→ * The golden architecture (docs/external-signer.md): the foundry SYSTEM never
+     5→ * holds keys — the signer is a SEPARATE process, outside the system boundary.
+     6→ * This service:
+     7→ *   - opens the sealed fleet envelope (SAOS-FLEET-VAULT-1, AES-256-GCM/scrypt)
+     8→ *     in memory at boot; keys NEVER leave this process, never logged, never
+     9→ *     served by any endpoint;
+    10→ *   - GET  /health (Bearer) → public inventory only: account NAMES, networks,
+    11→ *     authority-verification counts — what the foundry needs for status;
+    12→ *   - POST /sign    (Bearer) → signs the foundry's prepared payload and
+    13→ *     broadcasts it, returning ONLY the public {txid}. Keys never cross.
+    14→ *
+    15→ * Task 27 additions (owner directive: "use the DEX to convert, obtain HIVE"):
+    16→ *   - network "HIVE" (chain_id beeab0de…, node api.hive.blog);
+    17→ *   - ACTIVE-level ops with a mandatory AUTHORITY-VERIFICATION GATE: every WIF
+    18→ *     is derived to its public key and checked against the LIVE chain authority
+    19→ *     BEFORE any broadcast — mismatch ⇒ 403, nothing is sent (the Task-26
+    20→ *     "Missing Posting Authority" class of failure is now caught pre-flight);
+    21→ *   - allowlisted ops only: transfer_to_vesting (power-up), transfer,
+    22→ *     claim_rewards, HE market-sell / hivepegged-withdraw (custom_json on
+    23→ *     id ssc-mainnet-hive, active authority), posting custom_json (weave);
+    24→ *
+    25→ * Task 29 additions (owner directive 2026-09-09: "אין לי איפה לחבר את המפתח"):
+    26→ *   - POST /keys/ingest (Bearer) — the OWNER pastes their STEEM/HIVE active
+    27→ *     key INTO THE CONTROL SCREEN (never through chat/logs); the signer is the
+    28→ *     single verifier: derives the pubkey, checks it against the LIVE chain
+    29→ *     authority of the fleet accounts, and accepts ONLY a live match (a wrong
+    30→ *     or foreign key can never be written — self-protecting by construction);
+    31→ *   - accepted keys land in the runtime layout (.env suffixed vars +
+    32→ *     keys/vault.json), the envelope is re-sealed (fleet_vault --seal) and
+    33→ *     STATE hot-reloads — no process restart, no secret ever echoed/logged;
+    34→ *   - GET /keys/status (Bearer) — public data only: loaded booleans, derived
+    35→ *     pubkeys (on-chain public), live-match verdicts. Never any WIF;
+    36→ *   - network-aware main keys: STEEM_ACTIVE_WIF / HIVE_ACTIVE_WIF (suffixed)
+    37→ *     are preferred over the legacy generic ACTIVE_WIF — two chains, usually
+    38→ *     two different keys (the Task-27 403 root cause, fixed at the source).
+    39→ *   - hard amount bound (default ≤ 50 HIVE/op, env SIGNER_MAX_OP_HIVE).
+    40→ *
+    41→ * Task 26-c addition (fleet RC cure): delegate_vesting_shares — fleet accounts
+    42→ * delegate owned VESTS to the main account (headcorner) to raise its max_rc and
+    43→ * RC-regeneration rate. Hard bounds: delegatee MUST be the main account; amount
+    44→ * ≤ 80% of the delegator's OWNED vests (vesting_shares − delegated_vesting_shares);
+    45→ * authority + RC gates apply like every active op. Reversible by design.
+    46→ *
+    47→ * Iron rules mirrored from AGENTS.md: zero secret values in logs/responses;
+    48→ * fail-closed when the envelope or token is missing; loud audit lines with
+    49→ * public data only (requestId/network/txid/account-name).
+    50→ *
+    51→ * Owner authority: keys-access directive 2026-09-08 + "convert and obtain HIVE"
+    52→ * (2026-09-08). DEV-phase environment, private repos, owned accounts only.
+    53→ */
+    54→
+    55→import Bun from "bun";
+    56→import { createCipheriv, createDecipheriv, randomBytes, scryptSync, timingSafeEqual, createHash } from "crypto";
+    57→import { existsSync, readFileSync, readdirSync, appendFileSync, writeFileSync, mkdirSync, chmodSync } from "fs";
+    58→import path from "path";
+    59→
+    60→const PORT = Number(process.env.SIGNER_PORT ?? 3033);
+    61→const MAGIC = "SAOS-FLEET-VAULT-1";
+    62→const LOG = path.join(import.meta.dir, "signer.log");
+    63→const HIVE_CHAIN_ID = "beeab0de00000000000000000000000000000000000000000000000000000000";
+    64→const HIVE_RPC = process.env.HIVE_RPC ?? "https://api.hive.blog";
+    65→const STEEM_RPC = process.env.STEEM_RPC ?? "https://api.steemit.com";
+    66→// Task 36: BLURT joins as a first-class network — chain_id captured LIVE
+    67→// 2026-09-09 (database_api.get_version @ rpc.beblurt.com, blockchain_version 0.9.0);
+    68→// custom_json scope only (asset ops stay STEEM/HIVE — the steem@0.7.10 asset
+    69→// serializer garbage-bug class applies to the BLURT symbol too).
+    70→const BLURT_CHAIN_ID = "cd8d90f29ae273abec3eaa7731e25934c63eb654d55080caff2ebb7f5df6381f";
+    71→const BLURT_RPC = process.env.BLURT_RPC ?? "https://rpc.beblurt.com";
+    72→// Task 39: order rotated live-first (2026-09-09 probes: beblurt + saboin alive,
+    73→// rpc.blurt.world / btsd.io / coruscant.io dead — kept as last-resort fallbacks)
+    74→const BLURT_NODES = [BLURT_RPC, "https://blurt-rpc.saboin.com", "https://rpc.blurt.world"].filter((v, i, a) => a.indexOf(v) === i);
+    75→const NET_PREFIX = { STEEM: "STM", HIVE: "STM", BLURT: "BLT" };
+    76→const MAX_OP_HIVE = Number(process.env.SIGNER_MAX_OP_HIVE ?? 50);
+    77→// roast 72: ONE version truth. Before this, four surfaces lied differently
+    78→// (/health 2.5.2-task38 · /keys/steem-plane + /keys/status 2.4.5 ·
+    79→// backup-export 2.4.1 · startup log 2.5.4-roast64) — Task-71's bump was
+    80→// partial. Every surface now serves this single constant.
+    81→const SIGNER_VERSION = "2.5.7";
+    82→const AUTH_CACHE_TTL_MS = 10 * 60_000;
+    83→/** token resolution: env → ~/.secrets/external-signer-token (secrets never in trees) */
+    84→function resolveToken() {
+    85→  const env = (process.env.SIGNER_TOKEN ?? "").trim();
+    86→  if (env) return env;
+    87→  try {
+    88→    return readFileSync(path.join(process.env.HOME ?? "/home/z", ".secrets", "external-signer-token"), "utf8").trim();
+    89→  } catch {
+    90→    return "";
+    91→  }
+    92→}
+    93→const TOKEN = resolveToken();
+    94→
+    95→// ── roast 54: /sign idempotency ledger ───────────────────────────────────────
+    96→// requestId → { at, pending | null, status, response }. pending = a promise
+    97→// the FIRST execution resolves when its response is cached; concurrent
+    98→// duplicates await it instead of broadcasting a second signed tx.
+    99→type SignCacheEntry = {
+   100→  at: number;
+   101→  pending: Promise<void> | null;
+   102→  status: number;
+   103→  response: Record<string, unknown>;
+   104→};
+   105→const signCache = new Map<string, SignCacheEntry>();
+   106→const SIGN_CACHE_TTL_MS = 60 * 60_000; // 1h — long past any transport-retry window
+   107→const SIGN_CACHE_CAP = 500;
+   108→
+   109→function log(level, msg) {
+   110→  const line = `${new Date().toISOString()} [${level}] ${String(msg)}`;
+   111→  try { appendFileSync(LOG, line + "\n"); } catch {}
+   112→  console.log(line);
+   113→}
+   114→
+   115→function tokenOk(req) {
+   116→  if (!TOKEN) return false;
+   117→  const authz = req.headers.get("authorization") ?? "";
+   118→  if (!authz.toLowerCase().startsWith("bearer ")) return false;
+   119→  const a = createHash("sha256").update(authz.slice(7).trim()).digest();
+   120→  const b = createHash("sha256").update(TOKEN).digest();
+   121→  return timingSafeEqual(a, b);
+   122→}
+   123→
+   124→// ── envelope resolution: env dir → steem clone → newest guardian backup ──────
+   125→function resolveEnvelopeDir() {
+   126→  const candidates = [];
+   127→  if (process.env.FLEET_KEYS_DIR) candidates.push(process.env.FLEET_KEYS_DIR);
+   128→  // roast 61: the deliberate local envelope home was never in the search list —
+   129→  // after the /tmp clone is wiped and before any guardian backup exists, the
+   130→  // sealed envelope sitting at ~/.secrets/fleet-envelope was invisible and the
+   131→  // signer booted fail-closed with "seal-unavailable" while the envelope
+   132→  // existed on disk (caught live this round).
+   133→  candidates.push(path.join(process.env.HOME ?? "/home/z", ".secrets", "fleet-envelope"));
+   134→  candidates.push("/tmp/agent-audit/steem/agent");
+   135→  const rec = path.join(process.env.HOME ?? "/home/z", ".secrets", "vault-recovery");
+   136→  try {
+   137→    const dirs = readdirSync(rec)
+   138→      .filter((d) => d.startsWith("guardian-"))
+   139→      .sort()
+   140→      .reverse();
+   141→    for (const d of dirs) candidates.push(path.join(rec, d));
+   142→  } catch {}
+   143→  for (const dir of candidates) {
+   144→    if (existsEnc(dir)) return dir;
+   145→  }
+   146→  return null;
+   147→}
+   148→function existsEnc(dir) {
+   149→  const enc = existsSync(path.join(dir, "fleet_keys.enc"))
+   150→    ? "fleet_keys.enc"
+   151→    : existsSync(path.join(dir, "agent__fleet_keys.enc"))
+   152→      ? "agent__fleet_keys.enc"
+   153→      : null;
+   154→  if (!enc) return false;
+   155→  const meta = enc === "fleet_keys.enc" ? "fleet_keys.meta.json" : "agent__fleet_keys.meta.json";
+   156→  return existsSync(path.join(dir, meta));
+   157→}
+   158→function encNames(dir) {
+   159→  const enc = existsSync(path.join(dir, "fleet_keys.enc")) ? "fleet_keys.enc" : "agent__fleet_keys.enc";
+   160→  const meta = enc === "fleet_keys.enc" ? "fleet_keys.meta.json" : "agent__fleet_keys.meta.json";
+   161→  return { enc, meta };
+   162→}
+   163→
+   164→function openSeal(dir) {
+   165→  const { enc, meta } = encNames(dir);
+   166→  const raw = readFileSync(path.join(dir, enc), "utf8");
+   167→  if (!raw.startsWith(MAGIC)) throw new Error("unknown seal format");
+   168→  const metaJson = JSON.parse(readFileSync(path.join(dir, meta), "utf8"));
+   169→  const payload = Buffer.from(raw.slice(MAGIC.length).replace(/\s+/g, ""), "hex");
+   170→  const salt = payload.subarray(0, 16), iv = payload.subarray(16, 28), tag = payload.subarray(28, 44), ct = payload.subarray(44);
+   171→  const key = scryptSync(metaJson.pass, salt, 32);
+   172→  const d = createDecipheriv("aes-256-gcm", key, iv);
+   173→  d.setAuthTag(tag);
+   174→  return JSON.parse(Buffer.concat([d.update(ct), d.final()]).toString("utf8"));
+   175→}
+   176→
+   177→// ── in-memory key material (NEVER leaves this process) ───────────────────────
+   178→let STATE = null; // { sealedAt, main: {account, postingWif, activeWif, memoWif}, fleet: [{username, postingWif, activeWif}], vaultAccounts: string[] }
+   179→
+   180→function loadState() {
+   181→  const dir = resolveEnvelopeDir();
+   182→  if (!dir) {
+   183→    log("ERROR", "no fleet envelope found (fail-closed: /health stays disconnected)");
+   184→    return;
+   185→  }
+   186→  try {
+   187→    const bundle = openSeal(dir);
+   188→    const envLines = (bundle.files[".env"] ?? "").split(/\r?\n/);
+   189→    const envOf = Object.fromEntries(envLines.filter((l) => l.includes("=") && !l.startsWith("#")).map((l) => [l.slice(0, l.indexOf("=")).trim(), l.slice(l.indexOf("=") + 1).trim()]));
+   190→    const account = envOf.AGENT_ACCOUNT ?? "";
+   191→    if (!account || !envOf.POSTING_WIF) {
+   192→      log("ERROR", `envelope at ${dir} lacks AGENT_ACCOUNT/POSTING_WIF — fail-closed`);
+   193→      return;
+   194→    }
+   195→    let fleet = [];
+   196→    try {
+   197→      const vault = JSON.parse(bundle.files["keys/vault.json"]);
+   198→      // Task 59: net-tagged keys count too — an account holding ONLY wifBLURT
+   199→      // (e.g. a BLURT-plane ingest) is usable for BLURT and must not vanish.
+   200→      // The MAIN account is excluded even if it has a vault.json entry (its
+   201→      // slots live in .env; counting it as fleet would double every drift check).
+   202→      fleet = (vault.accounts ?? [])
+   203→        .filter((a) => a?.username && a.username !== account && (a?.keys?.posting?.wif || a?.keys?.active?.wif ||
+   204→          ["wifSTEEM", "wifHIVE", "wifBLURT"].some((t) => a?.keys?.posting?.[t] || a?.keys?.active?.[t])))
+   205→        .map((a) => ({
+   206→          username: a.username,
+   207→          postingWif: a.keys?.posting?.wif ?? null,
+   208→          activeWif: a.keys?.active?.wif ?? null,
+   209→          ownerWif: a.keys?.owner?.wif ?? null,
+   210→          net: {
+   211→            STEEM: { postingWif: a.keys?.posting?.wifSTEEM ?? null, activeWif: a.keys?.active?.wifSTEEM ?? null, ownerWif: a.keys?.owner?.wifSTEEM ?? null, memoWif: a.keys?.memo?.wifSTEEM ?? null },
+   212→            HIVE: { postingWif: a.keys?.posting?.wifHIVE ?? null, activeWif: a.keys?.active?.wifHIVE ?? null, ownerWif: a.keys?.owner?.wifHIVE ?? null, memoWif: a.keys?.memo?.wifHIVE ?? null },
+   213→            BLURT: { postingWif: a.keys?.posting?.wifBLURT ?? null, activeWif: a.keys?.active?.wifBLURT ?? null, ownerWif: a.keys?.owner?.wifBLURT ?? null, memoWif: a.keys?.memo?.wifBLURT ?? null }
+   214→          }
+   215→        }));
+   216→    } catch {}
+   217→    // v2.4.3: remember EVERY vault account name — including empty skeletons
+   218→    // (the 9 fleet accounts from the Task-36 build). Ingest candidates must
+   219→    // include them: owner key material for a fleet account arrives as a WIF
+   220→    // and the chain decides — but only if the account NAME is a candidate.
+   221→    // Skeleton names are public blockchain accounts; no secret material here.
+   222→    let vaultAccounts: string[] = [];
+   223→    try {
+   224→      const vaultRaw = JSON.parse(bundle.files["keys/vault.json"]);
+   225→      vaultAccounts = (vaultRaw.accounts ?? []).map((a: { username?: string }) => a?.username).filter((u: unknown): u is string => typeof u === "string" && u.length > 0);
+   226→    } catch {}
+   227→    STATE = {
+   228→      sealedAt: bundle.sealedAt ?? null,
+   229→      main: {
+   230→        account,
+   231→        postingWif: envOf.POSTING_WIF,
+   232→        activeWif: envOf.ACTIVE_WIF ?? null,
+   233→        memoWif: envOf.MEMO_WIF ?? null,
+   234→        ownerWif: envOf.OWNER_WIF ?? null,
+   235→        net: {
+   236→          STEEM: { postingWif: envOf.STEEM_POSTING_WIF ?? null, activeWif: envOf.STEEM_ACTIVE_WIF ?? null, ownerWif: envOf.STEEM_OWNER_WIF ?? null, memoWif: envOf.STEEM_MEMO_WIF ?? null },
+   237→          HIVE: { postingWif: envOf.HIVE_POSTING_WIF ?? null, activeWif: envOf.HIVE_ACTIVE_WIF ?? null, ownerWif: envOf.HIVE_OWNER_WIF ?? null, memoWif: envOf.HIVE_MEMO_WIF ?? null },
+   238→          BLURT: { postingWif: envOf.BLURT_POSTING_WIF ?? null, activeWif: envOf.BLURT_ACTIVE_WIF ?? null, ownerWif: envOf.BLURT_OWNER_WIF ?? null, memoWif: envOf.BLURT_MEMO_WIF ?? null }
+   239→        }
+   240→      },
+   241→      fleet,
+   242→      vaultAccounts
+   243→    };
+   244→    log("INFO", `envelope open: sealedAt=${STATE.sealedAt ?? "?"} main=${account} fleet=${fleet.length} accounts, ${vaultAccounts.length} vault account names (values in-memory only, dir=${dir})`);
+   245→  } catch (e) {
+   246→    log("ERROR", `envelope open failed: ${String(e?.message ?? e).slice(0, 120)} — fail-closed`);
+   247→    STATE = null;
+   248→  }
+   249→}
+   250→
+   251→// ── Task 29: owner key ingestion (verify-then-write, self-protecting) ────────
+   252→// Task 37: the vault helper is EMBEDDED — any envelope dir (runtime or a
+   253→// recovery copy restored by resolveEnvelopeDir) always knows how to open/seal
+   254→// itself, even after a sandbox rollback wiped the helper (the exact failure
+   255→// that blocked ingest on 2026-09-09: "fleet_vault.cjs missing").
+   256→// Source of truth for the template: scripts/fleet-vault-template.cjs (repo).
+   257→const FLEET_VAULT_SCRIPT = String.raw`#!/usr/bin/env node
+   258→/* fleet_vault.cjs - SAOS-FLEET-VAULT-1 open/seal helper (embedded template, Task 37).
+   259→ * fleet_keys.enc = MAGIC + hex(salt|iv|tag|ct); key=scrypt(meta.pass,salt,32); AES-256-GCM.
+   260→ * bundle = { files: { ".env", "keys/vault.json" }, sealedAt }. Contains NO secret material. */
+   261→"use strict";
+   262→const fs = require("fs"), path = require("path"), crypto = require("crypto");
+   263→const MAGIC = "SAOS-FLEET-VAULT-1";
+   264→const dir = __dirname;
+   265→const encP = path.join(dir, "fleet_keys.enc"), metaP = path.join(dir, "fleet_keys.meta.json");
+   266→function openBundle() {
+   267→  const raw = fs.readFileSync(encP, "utf8");
+   268→  if (!raw.startsWith(MAGIC)) throw new Error("unknown seal format");
+   269→  const meta = JSON.parse(fs.readFileSync(metaP, "utf8"));
+   270→  const payload = Buffer.from(raw.slice(MAGIC.length).replace(/\s+/g, ""), "hex");
+   271→  const key = crypto.scryptSync(meta.pass, payload.subarray(0, 16), 32);
+   272→  const d = crypto.createDecipheriv("aes-256-gcm", key, payload.subarray(16, 28));
+   273→  d.setAuthTag(payload.subarray(28, 44));
+   274→  return JSON.parse(Buffer.concat([d.update(payload.subarray(44)), d.final()]).toString("utf8"));
+   275→}
+   276→function sealBundle(bundle) {
+   277→  const meta = JSON.parse(fs.readFileSync(metaP, "utf8"));
+   278→  if (!meta || typeof meta.pass !== "string" || !meta.pass.length) throw new Error("meta.pass missing");
+   279→  const salt = crypto.randomBytes(16), iv = crypto.randomBytes(12);
+   280→  const key = crypto.scryptSync(meta.pass, salt, 32);
+   281→  const c = crypto.createCipheriv("aes-256-gcm", key, iv);
+   282→  const ct = Buffer.concat([c.update(JSON.stringify(bundle), "utf8"), c.final()]);
+   283→  const encText = MAGIC + Buffer.concat([salt, iv, c.getAuthTag(), ct]).toString("hex").replace(/(.{64})/g, "$1\n");
+   284→  fs.writeFileSync(encP, encText, { mode: 0o600 });
+   285→  fs.writeFileSync(metaP, JSON.stringify({ ...meta, sealedAt: bundle.sealedAt, generator: "fleet_vault.cjs (embedded template)" }, null, 1), { mode: 0o600 });
+   286→}
+   287→const arg = process.argv[2];
+   288→if (arg === "--open") {
+   289→  const bundle = openBundle();
+   290→  fs.mkdirSync(path.join(dir, "keys"), { recursive: true });
+   291→  fs.writeFileSync(path.join(dir, ".env"), bundle.files[".env"] ?? "", { mode: 0o600 });
+   292→  fs.writeFileSync(path.join(dir, "keys", "vault.json"), bundle.files["keys/vault.json"] ?? "{}", { mode: 0o600 });
+   293→  console.log("OPENED sealedAt=" + (bundle.sealedAt ?? "?"));
+   294→  process.exit(0);
+   295→}
+   296→if (arg === "--seal") {
+   297→  const envText = fs.readFileSync(path.join(dir, ".env"), "utf8");
+   298→  const vaultText = fs.readFileSync(path.join(dir, "keys", "vault.json"), "utf8");
+   299→  JSON.parse(vaultText);
+   300→  const bundle = { files: { ".env": envText, "keys/vault.json": vaultText }, sealedAt: new Date().toISOString() };
+   301→  sealBundle(bundle);
+   302→  console.log("SEALED sealedAt=" + bundle.sealedAt);
+   303→  process.exit(0);
+   304→}
+   305→console.error("usage: fleet_vault.cjs --open|--seal");
+   306→process.exit(2);
+   307→`;
+   308→
+   309→function ensureVaultScript(dir: string): void {
+   310→  try {
+   311→    const p = path.join(dir, "fleet_vault.cjs");
+   312→    if (!existsSync(p)) {
+   313→      writeFileSync(p, FLEET_VAULT_SCRIPT, { mode: 0o600 });
+   314→      log("INFO", `fleet_vault.cjs materialized from embedded template in ${dir} (self-heal)`);
+   315→    }
+   316→  } catch (e) {
+   317→    log("ERROR", `ensureVaultScript failed: ${String(e?.message ?? e).slice(0, 120)}`);
+   318→  }
+   319→}
+   320→
+   321→function runVault(dir, arg) {
+   322→  ensureVaultScript(dir);
+   323→  const script = path.join(dir, "fleet_vault.cjs");
+   324→  if (!existsSync(script)) return { ok: false, out: `fleet_vault.cjs missing in ${dir}` };
+   325→  try {
+   326→    const p = Bun.spawnSync([process.execPath, script, arg], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+   327→    const out = `${p.stdout?.toString() ?? ""}${p.stderr?.toString() ?? ""}`.trim().slice(0, 300);
+   328→    return { ok: p.exitCode === 0, out };
+   329→  } catch (e) {
+   330→    return { ok: false, out: String(e?.message ?? e).slice(0, 200) };
+   331→  }
+   332→}
+   333→
+   334→/**
+   335→ * Write the ingested key into the runtime layout, then re-seal the envelope.
+   336→ * Network-suffixed vars only (STEEM_ACTIVE_WIF / HIVE_ACTIVE_WIF) — the legacy
+   337→ * generic ACTIVE_WIF is left untouched (non-destructive toward the owner's
+   338→ * envelope content); key resolution prefers suffixed vars, so a stale generic
+   339→ * value can never shadow a live-matched key again.
+   340→ */
+   341→function writeIngestedKey(dir, account, network, wif, role) {
+   342→  const open = runVault(dir, "--open");
+   343→  if (!open.ok) throw new Error(`vault open failed: ${open.out}`);
+   344→  const envPath = path.join(dir, ".env");
+   345→  if (!existsSync(envPath)) throw new Error("runtime .env missing after vault open (fail-closed)");
+   346→  const lines = readFileSync(envPath, "utf8").split(/\r?\n/).filter((l) => l.trim().length > 0);
+   347→  const setVar = (name, val) => {
+   348→    const i = lines.findIndex((l) => l.startsWith(name + "="));
+   349→    if (i >= 0) lines[i] = `${name}=${val}`; else lines.push(`${name}=${val}`);
+   350→  };
+   351→  // Task 59 (account-aware persist): the ${NET}_${ROLE}_WIF .env slots belong
+   352→  // to the MAIN account ONLY. Persisting a non-main account (tov/ynet/fleet)
+   353→  // through the old path OVERWROTE headcorner's live-verified slot with a
+   354→  // foreign key — a self-inflicted authority poison that the drift monitor
+   355→  // would then report as an external rotation. Non-main keys land in
+   356→  // keys/vault.json (per-account, net-tagged) and NEVER in main's .env.
+   357→  const envMainAccount = lines.find((l) => l.startsWith("AGENT_ACCOUNT="))?.slice("AGENT_ACCOUNT=".length).trim();
+   358→  const isMain = !envMainAccount || envMainAccount === account;
+   359→  // Task 41-recovery fix: BLURT must write its OWN suffixed slots — the old
+   360→  // ternary collapsed BLURT into "STEEM", so BLURT-derived WIFs corrupted the
+   361→  // STEEM_* slots (live authority gates then refused every STEEM broadcast).
+   362→  const netTag = network === "HIVE" ? "HIVE" : network === "BLURT" ? "BLURT" : "STEEM";
+   363→  if (isMain) {
+   364→    setVar(`${netTag}_${role.toUpperCase()}_WIF`, wif);
+   365→    writeFileSync(envPath, lines.join("\n") + "\n");
+   366→    chmodSync(envPath, 0o600);
+   367→  }
+   368→  const keysDir = path.join(dir, "keys");
+   369→  mkdirSync(keysDir, { recursive: true });
+   370→  const vPath = path.join(keysDir, "vault.json");
+   371→  let vault = { accounts: [] };
+   372→  try {
+   373→    const parsed = JSON.parse(readFileSync(vPath, "utf8"));
+   374→    if (parsed && Array.isArray(parsed.accounts)) vault = parsed;
+   375→  } catch {}
+   376→  let acc = vault.accounts.find((a) => a?.username === account);
+   377→  if (!acc) { acc = { username: account, keys: {} }; vault.accounts.push(acc); }
+   378→  if (!acc.keys || typeof acc.keys !== "object") acc.keys = {};
+   379→  if (!acc.keys[role] || typeof acc.keys[role] !== "object") acc.keys[role] = {};
+   380→  acc.keys[role][network === "HIVE" ? "wifHIVE" : network === "BLURT" ? "wifBLURT" : "wifSTEEM"] = wif;
+   381→  writeFileSync(vPath, JSON.stringify(vault, null, 2));
+   382→  chmodSync(vPath, 0o600);
+   383→  const seal = runVault(dir, "--seal");
+   384→  if (!seal.ok) throw new Error(`vault seal failed: ${seal.out}`);
+   385→  return { sealedAt: new Date().toISOString(), sealOut: seal.out };
+   386→}
+   387→
+   388→/**
+   389→ * Owner-key ingest core (v2.4.0): verify against the LIVE chain authority of
+   390→ * the candidate accounts BEFORE anything is written. Checks ALL roles
+   391→ * (owner/active/posting/memo) × both networks when needed — the first live
+   392→ * match wins and the EXACT role+network are returned so the key lands in its
+   393→ * true slot (the role/network fields are only hints; the chain decides).
+   394→ * A key that matches no live authority is refused with honest verdicts.
+   395→ */
+   396→async function ingestOwnerKey(network: string | null, wif: string, roleHint?: string | null) {
+   397→  let derived: string | null = null;
+   398→  try {
+   399→    derived = steem.auth.wifToPublic(wif);
+   400→  } catch {
+   401→    return { ok: false, verdict: { network: network ?? null, role: roleHint ?? null, derived: null, match: false, error: "wif derivation failed (not a valid private key)" } };
+   402→  }
+   403→  const nets = network ? [network] : ["STEEM", "HIVE", "BLURT"];
+   404→  const candidates = ingestCandidates();
+   405→  const roles = roleHint && ["owner", "active", "posting", "memo"].includes(roleHint) ? [roleHint] : ["owner", "active", "posting", "memo"];
+   406→  const checked: Array<Record<string, unknown>> = [];
+   407→  for (const net of nets) {
+   408→    for (const acct of candidates) {
+   409→      let auth: Record<string, string | null> | null = null;
+   410→      try {
+   411→        auth = await chainAuthorities(net, acct);
+   412→      } catch (e) {
+   413→        checked.push({ account: acct, network: net, error: String(e?.message ?? e).slice(0, 100) });
+   414→        continue;
+   415→      }
+   416→      for (const role of roles) {
+   417→        // Task 36: prefix-aware compare (STM render vs BLT authorities — same payload)
+   418→        if (auth?.[role] && auth[role] === NET_PREFIX[net] + derived.slice(3)) {
+   419→          checked.push({ account: acct, network: net, role, match: true });
+   420→          return { ok: true, account: acct, network: net, role, derived, checked };
+   421→        }
+   422→      }
+   423→      checked.push({ account: acct, network: net, match: false });
+   424→    }
+   425→  }
+   426→  return { ok: false, verdict: { network: network ?? null, role: roleHint ?? null, derived, match: false, checked: checked.slice(0, 16), error: `no live authority match across ${nets.join("/")} × ${candidates.length} accounts × ${roles.join("/")} (nothing written)` } };
+   427→}
+   428→
+   429→/**
+   430→ * v2.4.0 — UNIVERSAL key-payload parser ("חיבור חכם לכל מפתח"):
+   431→ * the owner can paste ANY of these formats and the signer figures it out:
+   432→ *   - a multi-line key file: "OWNER = 5K…", "ACTIVE: 5J…", section headers STEEM/HIVE
+   433→ *   - a single WIF (5…/K…/L…), a master password (P…), or a 64-hex SAOS-ROT1 seed
+   434→ * Returns entries for /keys/ingest (network/role are HINTS — the live-chain
+   435→ * verify step always has the final word, so a wrong hint can never poison a slot).
+   436→ */
+   437→function parseKeyPayload(text: string) {
+   438→  const roleMap: Record<string, string> = {
+   439→    OWNER: "owner", OWNERKEY: "owner",
+   440→    ACTIVE: "active", ACTIVEKEY: "active",
+   441→    POSTING: "posting", POSTINGKEY: "posting",
+   442→    MEMO: "memo", MEMOKEY: "memo"
+   443→  };
+   444→  const entries: Array<{ network: string | null; role: string | null; wif: string }> = [];
+   445→  let sectionNet: string | null = null;
+   446→  for (const rawLine of String(text ?? "").split(/\r?\n/)) {
+   447→    const line = rawLine.trim();
+   448→    if (!line || line.startsWith("#") || line.startsWith("//")) continue;
+   449→    const sec = line.match(/^(STEEM|HIVE|BLURT)\s*:?\s*$/i);
+   450→    if (sec) { sectionNet = sec[1].toUpperCase(); continue; }
+   451→    const kv = line.match(/^([A-Za-z][A-Za-z _-]{0,20}?)\s*[=:]\s*(\S+)\s*$/);
+   452→    if (kv) {
+   453→      let norm = kv[1].toUpperCase().replace(/[\s_-]+/g, "");
+   454→      let net = sectionNet;
+   455→      const netM = norm.match(/^(STEEM|HIVE|BLURT)(.+)$/);
+   456→      if (netM) { net = netM[1]; norm = netM[2]; }
+   457→      const role = roleMap[norm] ?? null;
+   458→      const wif = kv[2].trim();
+   459→      if (wif.length >= 40 && wif.length <= 120) entries.push({ network: net, role, wif });
+   460→      continue;
+   461→    }
+   462→    const spaced = line.match(/^([A-Za-z]{4,8})\s+([5-9KMP][1-9A-HJ-NP-Za-km-z]{48,})$/);
+   463→    if (spaced) {
+   464→      const role = roleMap[spaced[1].toUpperCase()] ?? null;
+   465→      entries.push({ network: sectionNet, role, wif: spaced[2] });
+   466→      continue;
+   467→    }
+   468→    const bare = line.replace(/\s+/g, "");
+   469→    const looksKey = /^[5-9KM][1-9A-HJ-NP-Za-km-z]{48,52}$/.test(bare) || /^[0-9a-fA-F]{64}$/.test(bare) || /^P[5-9KM][1-9A-HJ-NP-Za-km-z]{48,52}$/.test(bare);
+   470→    if (looksKey) entries.push({ network: sectionNet, role: null, wif: bare });
+   471→  }
+   472→  return entries.slice(0, 16);
+   473→}
+   474→
+   475→/**
+   476→ * v2.4.3 — the FULL ingest candidate tree: main + loaded fleet + ynet/tov +
+   477→ * EVERY vault account name (including empty fleet skeletons). Before this, a
+   478→ * fleet WIF from the owner was refused because the skeleton names were dropped
+   479→ * by the keys-only fleet filter — the exact "owner sent everything and we said
+   480→ * no" class roast 59 was built to kill. Fail-closed unchanged: each candidate
+   481→ * is still verified against the LIVE chain authority before anything writes.
+   482→ */
+   483→function ingestCandidates(): string[] {
+   484→  return [STATE.main.account, ...STATE.fleet.map((f) => f.username), ...(STATE.vaultAccounts ?? []), "ynet", "tov"]
+   485→    .filter((v, i, a) => typeof v === "string" && v.length > 0 && a.indexOf(v) === i);
+   486→}
+   487→
+   488→/**
+   489→ * Task 29-b: MASTER-PASSWORD ingest — the owner's P-prefixed login string
+   490→ * ("מקשר להכל"). Task 59 (owner directive 2026-09-10, full-custody 2026-09-09):
+   491→ * derives ALL FOUR roles (owner included — verify-then-write means only keys
+   492→ * that MATCH the live chain authority are ever persisted, and the ROT1 path
+   493→ * already persists owner matches) for EVERY candidate account — including the
+   494→ * "ynet"/"tov" candidates the WIF path already had (the owner's password file
+   495→ * carries a per-account password for tov; refusing to even try it was a gap).
+   496→ * Returns internal matches (with wif for the write path) + public verdicts.
+   497→ */
+   498→async function ingestOwnerPassword(password, networks) {
+   499→  if (typeof networks === "undefined" || networks === null) networks = ["STEEM", "HIVE", "BLURT"];
+   500→  const candidates = ingestCandidates();
+   501→  const matches = [], checked = [];
+   502→  for (const acct of candidates) {
+   503→    let keys;
+   504→    try {
+   505→      keys = steem.auth.getPrivateKeys(acct, password, ["owner", "active", "posting", "memo"]);
+   506→    } catch {
+   507→      checked.push({ account: acct, error: "password derivation failed" });
+   508→      continue;
+   509→    }
+   510→    for (const net of networks) {
+   511→      let auth;
+   512→      try {
+   513→        auth = await chainAuthorities(net, acct);
+   514→      } catch (e) {
+   515→        checked.push({ account: acct, network: net, error: String(e?.message ?? e).slice(0, 120) });
+   516→        continue;
+   517→      }
+   518→      let matchedThisNet = false;
+   519→      for (const role of ["owner", "active", "posting", "memo"]) {
+   520→        let derived;
+   521→        try { derived = steem.auth.wifToPublic(keys[role]); } catch { continue; }
+   522→        const expected = auth[role];
+   523→        // Task 36: prefix-aware compare — the derivation render is STM-prefixed,
+   524→        // BLURT authorities are BLT-prefixed; the payload decides, not the prefix
+   525→        const rendered = derived ? NET_PREFIX[net] + derived.slice(3) : null;
+   526→        if (rendered && expected && rendered === expected) {
+   527→          matches.push({ account: acct, network: net, role, wif: keys[role], derived });
+   528→          checked.push({ account: acct, network: net, role, match: true });
+   529→          matchedThisNet = true;
+   530→        }
+   531→      }
+   532→      // Task 59: refusals must carry their own evidence — a no-match (acct,net)
+   533→      // is now visible in `checked` instead of vanishing (the tov-password
+   534→      // refusal came back with checked:[] — unexplainable to the owner).
+   535→      if (!matchedThisNet) checked.push({ account: acct, network: net, match: false });
+   536→    }
+   537→  }
+   538→  return { ok: matches.length > 0, matches, checked };
+   539→}
+   540→
+   541→// ── Task 30: SAOS-ROT1 seed tree recovery (SETTLE-10 scheme) ─────────────────
+   542→// The 2026-09-08 rotation (saos-dex SETTLE-10) set headcorner/wic/tov authorities
+   543→// to keys derived as: fresh 64-hex seed → HMAC-SHA256 tree "SAOS-ROT1/<acct>/<chain>/<role>".
+   544→// Accepting the seed lets the OWNER reconnect every rotated account in one paste.
+   545→// Verify-then-write still applies: only keys that MATCH the live chain authority
+   546→// are ever persisted; owner role is stored too (owner demanded full custody restore).
+   547→
+   548→const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+   549→function b58encode(buf) {
+   550→  let n = BigInt("0x" + buf.toString("hex"));
+   551→  let out = "";
+   552→  while (n > 0n) { out = B58_ALPHABET[Number(n % 58n)] + out; n /= 58n; }
+   553→  for (const b of buf) { if (b === 0) out = "1" + out; else break; }
+   554→  return out;
+   555→}
+   556→function wifFromPriv32(priv32, compressed) {
+   557→  const tail = compressed ? Buffer.from([0x01]) : Buffer.alloc(0);
+   558→  const payload = Buffer.concat([Buffer.from([0x80]), priv32, tail]);
+   559→  const checksum = createHash("sha256").update(createHash("sha256").update(payload).digest()).digest().slice(0, 4);
+   560→  return b58encode(Buffer.concat([payload, checksum]));
+   561→}
+   562→
+   563→/**
+   564→ * Derive the SAOS-ROT1 tree for one account and match against LIVE authorities.
+   565→ * Tries construction variants (key=seed/msg=label and inverse, chain case,
+   566→ * compressed/uncompressed WIF) — the exact generator was ephemeral; we match its
+   567→ * OUTPUT on-chain, not its source. Returns matches with the exact verifying WIF.
+   568→ */
+   569→async function saosRot1Match(seedHex, account) {
+   570→  const seedBuf = /^[0-9a-fA-F]{64}$/.test(seedHex) ? Buffer.from(seedHex, "hex") : Buffer.from(seedHex, "utf8");
+   571→  const matches = [];
+   572→  const chainTokens = { STEEM: ["STEEM", "steem"], HIVE: ["HIVE", "hive"] };
+   573→  const roles = ["owner", "active", "posting", "memo"];
+   574→  for (const net of ["STEEM", "HIVE"]) {
+   575→    let auth;
+   576→    try { auth = await chainAuthorities(net, account); } catch { continue; }
+   577→    for (const chainTok of chainTokens[net]) {
+   578→      for (const role of roles) {
+   579→        const label = `SAOS-ROT1/${account}/${chainTok}/${role}`;
+   580→        const variants = [
+   581→          createHmacSha256(seedBuf, Buffer.from(label, "utf8")), // key=seed, msg=label
+   582→          createHmacSha256(Buffer.from(label, "utf8"), seedBuf)  // key=label, msg=seed
+   583→        ];
+   584→        for (const priv32 of variants) {
+   585→          for (const compressed of [true, false]) {
+   586→            const wif = wifFromPriv32(priv32, compressed);
+   587→            let pub = null;
+   588→            try { pub = steem.auth.wifToPublic(wif); } catch { continue; }
+   589→            if (pub && auth[role] === pub) matches.push({ account, network: net, role, wif, derived: pub });
+   590→            // Task 36: BLURT payload-parity match (BLT render of the same payload)
+   591→            else if (pub && auth[role] === "BLT" + pub.slice(3)) matches.push({ account, network: net, role, wif, derived: "BLT" + pub.slice(3) });
+   592→          }
+   593→        }
+   594→      }
+   595→    }
+   596→  }
+   597→  return matches;
+   598→}
+   599→
+   600→function createHmacSha256(key, msg) {
+   601→  // eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only legacy lib (steem-js parity)
+   602→  const { createHmac } = require("crypto");
+   603→  return createHmac("sha256", key).update(msg).digest();
+   604→}
+   605→
+   606→/** public-data view of a role slot — never any WIF material.
+   607→ *  Task 74: match = ANY held candidate (cross-net-tag payload identity) — the
+   608→ *  requested net's own slot is tried first and `via` names the winner's tag. */
+   609→async function slotView(net, acct, target, role) {
+   610→  const candidates = target ? heldWifCandidates(target, role, net) : [];
+   611→  if (!candidates.length) return { loaded: false, role };
+   612→  let via = null;
+   613→  let viaDerived = null;
+   614→  let expected = null, match: boolean | null = null;
+   615→  try {
+   616→    const auth = await chainAuthorities(net, acct);
+   617→    // Task 64: memo slots are real slots (16/16 drift coverage) — the view used
+   618→    // to compare a memo WIF against the POSTING authority (silently false).
+   619→    expected = role === "active" ? auth.active : role === "owner" ? auth.owner : role === "memo" ? auth.memo : auth.posting;
+   620→    // Task 36/74: payload decides (STM/HIVE/BLT renders of the same key)
+   621→    for (const wif of candidates) {
+   622→      let d = null;
+   623→      try { d = steem.auth.wifToPublic(wif); } catch {}
+   624→      if (d && expected && d.slice(3) === expected.slice(3)) { via = netTagOf(target, wif, role) ?? "candidate"; viaDerived = d; break; }
+   625→    }
+   626→    match = expected ? via !== null : null;
+   627→  } catch { match = null; }
+   628→  const prefix = NET_PREFIX[net] ?? "STM";
+   629→  return { loaded: true, role, derived: viaDerived ? prefix + viaDerived.slice(3) : null, expected, match, ...(via ? { via } : {}) };
+   630→}
+   631→
+   632→/** which net tag supplied the matching candidate (display only — no secret) */
+   633→function netTagOf(target, wif, role) {
+   634→  for (const n of ["STEEM", "HIVE", "BLURT"]) {
+   635→    const s = target?.net?.[n];
+   636→    if (s && (role === "active" ? s.activeWif : role === "owner" ? s.ownerWif : role === "memo" ? s.memoWif : s.postingWif) === wif) return n;
+   637→  }
+   638→  return "generic";
+   639→}
+   640→
+   641→loadState();
+   642→
+   643→// eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only legacy lib (signing only)
+   644→const steem = require("steem");
+   645→
+   646→// ── RPC (plain fetch, no lib url coupling) ───────────────────────────────────
+   647→// roast 56: failure CLASS is a structural fact the caller needs — a chain that
+   648→// ANSWERED with an error refused the tx (nothing broadcast → a retry may build
+   649→// a fresh tx safely); a TRANSPORT failure during broadcast means the tx MAY be
+   650→// in flight (the caller must replay the requestId, never rebuild). Untagged,
+   651→// both looked identical at the /sign boundary and the caller had to guess.
+   652→async function rpcCall(node, method, params) {
+   653→  const ctl = new AbortController();
+   654→  const t = setTimeout(() => ctl.abort(), 15_000);
+   655→  try {
+   656→    let json;
+   657→    try {
+   658→      const res = await fetch(node, {
+   659→        method: "POST",
+   660→        headers: { "content-type": "application/json" },
+   661→        body: JSON.stringify({ jsonrpc: "2.0", method, params, id: 1 }),
+   662→        signal: ctl.signal
+   663→      });
+   664→      json = await res.json();
+   665→    } catch (e) {
+   666→      const err = new Error(`transport: ${String(e?.message ?? e).slice(0, 120)}`);
+   667→      err.code = "TRANSPORT";
+   668→      throw err;
+   669→    }
+   670→    if (json.error) {
+   671→      const err = new Error(String(json.error.message ?? "rpc error").slice(0, 160));
+   672→      err.code = "CHAIN_REJECTED"; // the chain answered and refused — nothing was broadcast
+   673→      throw err;
+   674→    }
+   675→    return json.result;
+   676→  } finally {
+   677→    clearTimeout(t);
+   678→  }
+   679→}
+   680→
+   681→function chainIdFor(network) {
+   682→  return network === "HIVE" ? HIVE_CHAIN_ID : network === "BLURT" ? BLURT_CHAIN_ID : null; // steem lib default = STEEM chain_id
+   683→}
+   684→function nodesFor(network) {
+   685→  // roast 52: the BLURT resilience doctrine applied to ALL chains — a single
+   686→  // hardcoded STEEM/HIVE endpoint made "authority-unverifiable" an intermittent
+   687→  // lie (hive.blog/steemit.com 403/429 proven on this env). All added candidates
+   688→  // live-verified 2026-09-10 (fresh heads: steem 109449504/505, hive 109784074/75).
+   689→  // Graphene broadcast is stateless — any node relays a signed tx, rotation is safe.
+   690→  if (network === "HIVE") return [HIVE_RPC, "https://api.deathwing.me", "https://api.openhive.network"].filter((v, i, a) => a.indexOf(v) === i);
+   691→  if (network === "BLURT") return BLURT_NODES;
+   692→  return [STEEM_RPC, "https://api.steem.fans", "https://api.justyy.com", "https://steemapi.boylikegirl.club"].filter((v, i, a) => a.indexOf(v) === i);
+   693→}
+   694→/** resilient rpc across a network's node list (BLURT has 3 candidates) */
+   695→async function rpcCallNet(network, method, params) {
+   696→  let lastErr = null;
+   697→  for (const node of nodesFor(network)) {
+   698→    try {
+   699→      return await rpcCall(node, method, params);
+   700→    } catch (e) {
+   701→      lastErr = e;
+   702→    }
+   703→  }
+   704→  throw lastErr ?? new Error("no rpc candidate for " + network);
+   705→}
+   706→
+   707→// ── AUTHORITY VERIFICATION GATE (fail-closed, names/pubkeys only) ────────────
+   708→const authCache = new Map(); // `${network}:${account}` → { at, posting, active }
+   709→// ── v2.4.0: LIVE-DRIFT MONITOR — "ודא שזה לא יקרה שוב" ─────────────────────
+   710→// Every 10 minutes (plus on demand via /keys/verify-live) EVERY loaded key slot
+   711→// is re-derived and compared against the CURRENT on-chain authority. If a key
+   712→// that used to match no longer matches (i.e. someone rotated the authorities
+   713→// on-chain — the SETTLE-10 incident), it is recorded as drift + logged ALERT:
+   714→// detection within minutes instead of weeks.
+   715→type DriftRow = { account: string; network: string; role: string; expected: string; derived: string; at: string };
+   716→const driftState: { lastCheck: string | null; lastSummary: Record<string, unknown> | null; drifts: DriftRow[]; unmatched: DriftRow[]; running: boolean } = { lastCheck: null, lastSummary: null, drifts: [], unmatched: [], running: false };
+   717→// Task 33: per-slot previous-match memory — "drift" (external rotation) is
+   718→// declared ONLY on a true→false transition. Slots that never matched the live
+   719→// chain (e.g. fleet keys vs STEEM authorities — the known historic posture)
+   720→// are reported as "unmatched/pending-ingest", NOT as a rotation alarm.
+   721→const prevMatch = new Map(); // "acct|net|role" → boolean
+   722→
+   723→async function verifyLiveAll() {
+   724→  if (driftState.running || !STATE) return { skipped: true, reason: "check already running or seal unavailable" };
+   725→  driftState.running = true;
+   726→  // roast 54 — the flag was cleared inline near the end; ONE unexpected throw
+   727→  // between set and clear would leave running=true FOREVER: every later check
+   728→  // answers "skipped — already running" and the drift monitor is dead until
+   729→  // restart (the safe-by-luck class again). finally guarantees the reset.
+   730→  try {
+   731→    return await verifyLiveAllInner();
+   732→  } finally {
+   733→    driftState.running = false;
+   734→  }
+   735→}
+   736→
+   737→async function verifyLiveAllInner() {
+   738→  const rows: DriftRow[] = [];
+   739→  const unmatchedRows: DriftRow[] = [];
+   740→  let okCount = 0, errCount = 0;
+   741→  const targets: Array<{ account: string; net: Record<string, Record<string, string | null>> | null; generic: Record<string, string | null> }> = [
+   742→    { account: STATE.main.account, net: STATE.main.net ?? null, generic: { posting: STATE.main.postingWif ?? null, active: STATE.main.activeWif ?? null, owner: STATE.main.ownerWif ?? null, memo: STATE.main.memoWif ?? null } },
+   743→    ...STATE.fleet.map((f) => ({ account: f.username, net: f.net ?? null, generic: { posting: f.postingWif ?? null, active: f.activeWif ?? null, owner: f.ownerWif ?? null, memo: f.memoWif ?? null } }))
+   744→  ];
+   745→  for (const t of targets) {
+   746→    for (const net of ["STEEM", "HIVE", "BLURT"]) {
+   747→      const slots: Record<string, string | null> = {
+   748→        posting: t.net?.[net]?.postingWif ?? t.generic.posting ?? null,
+   749→        active: t.net?.[net]?.activeWif ?? t.generic.active ?? null,
+   750→        owner: t.net?.[net]?.ownerWif ?? t.generic.owner ?? null,
+   751→        memo: t.net?.[net]?.memoWif ?? t.generic.memo ?? null
+   752→      };
+   753→      let auth: Record<string, string | null> | null = null;
+   754→      try { auth = await chainAuthorities(net, t.account); } catch { errCount++; continue; }
+   755→      for (const [role, slotWif] of Object.entries(slots)) {
+   756→        if (!slotWif) continue;
+   757→        // Task 74: a slot is OURS iff ANY held candidate for the role derives to
+   758→        // the authority's payload (cross-net-tag identity — the 23:25Z rotation
+   759→        // re-pointed STEEM at the BLURT-payload keys we already hold). The
+   760→        // requested net's own slot is still the FIRST candidate, so a true
+   761→        // net-local match behaves exactly as before.
+   762→        const candidates = heldWifCandidates(t, role, net);
+   763→        let matched: string | null = null; // the matching candidate's derived payload render
+   764→        let derived: string | null = null;
+   765→        try { derived = steem.auth.wifToPublic(slotWif); } catch {}
+   766→        for (const cand of candidates) {
+   767→          let d: string | null = null;
+   768→          try { d = steem.auth.wifToPublic(cand); } catch {}
+   769→          if (d && auth?.[role] && auth[role].slice(3) === d.slice(3)) { matched = d; break; }
+   770→        }
+   771→        const expected = auth?.[role] ?? null;
+   772→        const slotKey = `${t.account}|${net}|${role}`;
+   773→        const prev = prevMatch.has(slotKey) ? prevMatch.get(slotKey) : null;
+   774→        if (expected && matched) {
+   775→          okCount++;
+   776→          prevMatch.set(slotKey, true);
+   777→        } else if (expected) {
+   778→          const row = { account: t.account, network: net, role, expected, derived: derived ?? "derivation-failed", at: new Date().toISOString() };
+   779→          if (prev === true) rows.push(row); // REAL rotation: matched before, failed now
+   780→          else unmatchedRows.push(row); // never matched — pending ingest / wrong chain
+   781→          prevMatch.set(slotKey, false);
+   782→        }
+   783→      }
+   784→    }
+   785→  }
+   786→  const prevRotations = driftState.drifts.length;
+   787→  driftState.drifts = rows;
+   788→  driftState.unmatched = unmatchedRows;
+   789→  driftState.lastCheck = new Date().toISOString();
+   790→  driftState.lastSummary = { ok: okCount, drift: rows.length, unmatched: unmatchedRows.length, errors: errCount };
+   791→  if (rows.length > 0 && rows.length > prevRotations) log("ALERT", `live-drift ROTATION: ${rows.length} key slot(s) MATCHED before and NO LONGER match the on-chain authority — external rotation detected! Accounts: ${[...new Set(rows.map((r) => r.account))].join(",")}`);
+   792→  else if (rows.length) log("WARN", `live-drift rotation still open: ${rows.length} slot(s) await re-ingest`);
+   793→  else if (unmatchedRows.length) log("INFO", `live-drift clean: ${okCount} slot(s) verified against the live chain; ${unmatchedRows.length} slot(s) never-matched (pending ingest for that chain) — no rotation`);
+   794→  else log("INFO", `live-drift check clean: ${okCount} slot(s) verified against the live chain`);
+   795→  return { ok: okCount, drift: rows.length, unmatched: unmatchedRows.length, errors: errCount, checkedAt: driftState.lastCheck, drifts: rows.slice(0, 12), unmatchedSample: unmatchedRows.slice(0, 12) };
+   796→}
+   797→setInterval(() => { void verifyLiveAll().catch(() => {}); }, 10 * 60 * 1000);
+   798→setTimeout(() => { void verifyLiveAll().catch(() => {}); }, 20 * 1000);
+   799→
+   800→async function chainAuthorities(network, account) {
+   801→  const k = `${network}:${account}`;
+   802→  const hit = authCache.get(k);
+   803→  if (hit && Date.now() - hit.at < AUTH_CACHE_TTL_MS) return hit;
+   804→  const accs = await rpcCallNet(network, "condenser_api.get_accounts", [[account]]);
+   805→  const a = accs?.[0];
+   806→  if (!a) throw new Error(`account ${account} not found on ${network}`);
+   807→  const out = { at: Date.now(), posting: a.posting.key_auths[0][0], active: a.active.key_auths[0][0], owner: a.owner.key_auths[0][0], memo: a.memo_key };
+   808→  authCache.set(k, out);
+   809→  return out;
+   810→}
+   811→
+   812→async function verifyAuthority(network, account, wif, role) {
+   813→  if (!wif) return { ok: false, error: `no ${role} key in envelope for ${account}` };
+   814→  let derived;
+   815→  try {
+   816→    derived = steem.auth.wifToPublic(wif);
+   817→  } catch {
+   818→    return { ok: false, error: `wif derivation failed for ${account} (envelope ${role})` };
+   819→  }
+   820→  const auth = await chainAuthorities(network, account);
+   821→  const expected = role === "active" ? auth.active : auth.posting;
+   822→  // Task 36: prefix-aware — the envelope WIF renders STM…, a BLURT authority is BLT…
+   823→  if (expected && derived.slice(3) !== expected.slice(3)) {
+   824→    return {
+   825→      ok: false,
+   826→      error: `authority-mismatch: ${account} envelope-${role} derives ${derived.slice(0, 11)}… but ${network} ${role} authority is ${expected.slice(0, 11)}… (fail-closed, nothing broadcast)`,
+   827→      derived,
+   828→      expected
+   829→    };
+   830→  }
+   831→  return { ok: true, derived: expected ? NET_PREFIX[network] + derived.slice(3) : derived };
+   832→}
+   833→
+   834→// RC feasibility (Task 27): one op costs ~124M RC (measured live via lsa's
+   835→// rejected withdraw). Refuse doomed broadcasts with an honest ETA instead.
+   836→const RC_OP_COST = 1.5e8;
+   837→async function verifyRcFeasibility(network, account) {
+   838→  try {
+   839→    const rc = await rpcCallNet(network, "rc_api.find_rc_accounts", { accounts: [account] });
+   840→    const a = rc.rc_accounts[0];
+   841→    const mx = Number(a.max_rc) || 0;
+   842→    const stored = Number(a.rc_manabar.current_mana) || 0;
+   843→    const regen = Math.floor(((Math.floor(Date.now() / 1000) - Number(a.rc_manabar.last_update_time)) * mx) / (5 * 86400));
+   844→    const mana = Math.min(mx, stored + regen);
+   845→    if (mana < RC_OP_COST) {
+   846→      const etaMin = Math.ceil(((RC_OP_COST - mana) * 5 * 86400) / (mx || 1) / 60);
+   847→      return { ok: false, error: `rc-infeasible: ${account} has ${mana} RC, one op needs ~${RC_OP_COST} — regen ≈${etaMin} min (nothing broadcast)` };
+   848→    }
+   849→    return { ok: true, mana };
+   850→  } catch {
+   851→    return { ok: true, mana: null }; // rc probe failed — let the chain be the judge (honest fallback)
+   852→  }
+   853→}
+   854→
+   855→/** which envelope key serves this request (account + authLevel + network);
+   856→ *  network-suffixed keys (Task 29) win over the legacy generic slot */
+   857→function keyFor(account, authLevel, network) {
+   858→  const isMain = !account || account === STATE.main.account;
+   859→  // Task 47 FIX (root cause of BLURT anchor refusal): BLURT must resolve its OWN
+   860→  // net-suffixed slots. It used to collapse to "STEEM" here, so after Task 43's
+   861→  // real-key ingest filled the STEEM slots, every BLURT request shadowed the
+   862→  // correct password-derived BLURT key with the STEEM posting WIF and the
+   863→  // authority gate (correctly) refused. Worked in Task 40 only because the
+   864→  // STEEM slots were still empty then — classic slot-shadowing regression.
+   865→  const net = network === "HIVE" ? "HIVE" : network === "BLURT" ? "BLURT" : "STEEM";
+   866→  const target = isMain ? STATE.main : STATE.fleet.find((f) => f.username === account);
+   867→  if (!target) return { target: null, wif: null, targetAccount: account ?? STATE.main.account };
+   868→  const generic = authLevel === "active" ? (target.activeWif ?? null) : authLevel === "owner" ? (target.ownerWif ?? null) : (target.postingWif ?? null);
+   869→  const suffixed = target?.net?.[net] ? (authLevel === "active" ? (target.net[net].activeWif ?? null) : authLevel === "owner" ? (target.net[net].ownerWif ?? null) : (target.net[net].postingWif ?? null)) : null;
+   870→  const wif = suffixed ?? generic;
+   871→  return { target, wif, targetAccount: target.username ?? target.account };
+   872→}
+   873→
+   874→// Task 74 (2026-09-10 23:25Z rotation forensics): the chain can re-point a
+   875→// network's authorities at key material we ALREADY hold under a DIFFERENT net
+   876→// tag (the STEEM rotation unified STEEM onto the BLURT-payload keys — payload
+   877→// identity proven live: STM8m3rB… ≡ BLT8m3rB…). A slot is therefore "ours" iff
+   878→// ANY held candidate for that role derives to the authority's payload — the
+   879→// chain decides, prefixes are renders. This helper lists every held WIF for
+   880→// (target, role), REQUESTED net first (so the old behavior is the first
+   881→// candidate, never lost), then sibling nets, then generic/legacy slots —
+   882→// deduped. Fail-closed unchanged: verifyAuthority still checks every candidate
+   883→// against the LIVE chain before anything is signed.
+   884→function heldWifCandidates(target, role, net) {
+   885→  const out = [];
+   886→  const seen = new Set();
+   887→  const push = (w) => { if (w && !seen.has(w)) { seen.add(w); out.push(w); } };
+   888→  const netTags = [net, ...["STEEM", "HIVE", "BLURT"].filter((n) => n !== net)];
+   889→  for (const n of netTags) {
+   890→    const s = target?.net?.[n];
+   891→    if (s) push(role === "active" ? s.activeWif : role === "owner" ? s.ownerWif : role === "memo" ? s.memoWif : s.postingWif);
+   892→  }
+   893→  push(role === "active" ? target.activeWif : role === "owner" ? target.ownerWif : role === "memo" ? target.memoWif : target.postingWif);
+   894→  return out;
+   895→}
+   896→
+   897→// Task 35: steem@0.7.10 cannot serialize the HIVE asset symbol (legacy STEEM/SBD/VESTS
+   898→// parser only) → any HIVE op carrying an asset (transfer_to_vesting/transfer) produced a
+   899→// digest the node could not match → tx_missing_active_auth. @hiveio/hive-js knows HIVE
+   900→// assets + the HIVE chain id, so HIVE signs through it; STEEM keeps the legacy path.
+   901→let hiveLib = null;
+   902→function hiveJs() {
+   903→  if (!hiveLib) {
+   904→    // eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only legacy lib (signing only)
+   905→    hiveLib = require("@hiveio/hive-js");
+   906→    hiveLib.config.set("chain_id", HIVE_CHAIN_ID);
+   907→  }
+   908→  return hiveLib;
+   909→}
+   910→
+   911→// Task 36 root-cause (proven by on-chain forensics): BLURT renumbered the
+   912→// operation enum — custom_json is op 12 on Blurt (not 18 like Steem), so the
+   913→// steem@0.7.10 serializer produced bytes the node parsed as a DIFFERENT op →
+   914→// "Missing Posting Authority". @blurtfoundation/blurtjs serializes byte-exact
+   915→// (txid-verified against live blocks 2026-09-09) — BLURT signs through it.
+   916→let blurtLib = null;
+   917→function blurtJs() {
+   918→  if (!blurtLib) {
+   919→    // eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only legacy lib (signing only)
+   920→    blurtLib = require("@blurtfoundation/blurtjs");
+   921→    blurtLib.config.set("chain_id", BLURT_CHAIN_ID);
+   922→  }
+   923→  return blurtLib;
+   924→}
+   925→
+   926→// ── build + sign + broadcast (transport 1:1 from he_powerup.cjs — proven) ────
+   927→// Task 35: Graphene trx_id = sha256(serialized-tx-body-without-signatures),
+   928→// truncated to 20 bytes — with NO chain_id prefix on EITHER chain (hived's
+   929→// signed_transaction::id() packs the base transaction only; chain_id feeds the
+   930→// SIGNATURE digest, not the id). Proven on-chain twice: STEEM task-35a canary,
+   931→// HIVE task-35b canary trx ec08f7ab05fed4f29388d4cf6d21e2fb0fe43760 —
+   932→// sha256(body)[0:20] == on-chain trx_id, while the earlier beeab0de…-prefix
+   933→// hypothesis produced e05b26b6… ≠ chain id (disproven by live canary, removed).
+   934→// Both legacy libs return txid:null from signTransaction, which left every
+   935→// /sign response with a null id (and fleet-cure recording txids by polling
+   936→// account history). Compute it here so EVERY response carries the real id.
+   937→function computeTxId(network, signedTx) {
+   938→  try {
+   939→    // eslint-disable-next-line @typescript-eslint/no-require-imports -- node builtin; CJS legacy-lib parity (signing only)
+   940→    const { createHash } = require("crypto");
+   941→    const serializer = network === "HIVE"
+   942→      // eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only legacy lib (signing only)
+   943→      ? require("@hiveio/hive-js/lib/auth/serializer")
+   944→      : network === "BLURT"
+   945→        // eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only legacy lib (signing only)
+   946→        ? require("@blurtfoundation/blurtjs/lib/auth/serializer")
+   947→        // eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only legacy lib (signing only)
+   948→        : require("steem/lib/auth/serializer");
+   949→    const body = { ...signedTx };
+   950→    delete body.signatures;
+   951→    const buf = (serializer.ops?.transaction ?? serializer.transaction).toBuffer(body);
+   952→    // Task 40: FULL sha256 — the chain txid is 64 hex chars; the previous 40-hex
+   953→    // truncation made anchors impossible to verify via condenser get_transaction.
+   954→    // Anchors must be independently verifiable — that is their entire purpose.
+   955→    return createHash("sha256").update(buf).digest().toString("hex");
+   956→  } catch {
+   957→    return signedTx?.id ?? null; // honest fallback — never invent an id
+   958→  }
+   959→}
+   960→
+   961→async function buildSignBroadcast(network, account, wif, operations) {
+   962→  const dgp = await rpcCallNet(network, "condenser_api.get_dynamic_global_properties", []);
+   963→  const tx = {
+   964→    ref_block_num: dgp.head_block_number & 0xffff,
+   965→    ref_block_prefix: Buffer.from(dgp.head_block_id, "hex").readUInt32LE(4),
+   966→    expiration: new Date(new Date(dgp.time + "Z").getTime() + 60_000).toISOString().slice(0, 19),
+   967→    operations,
+   968→    extensions: []
+   969→  };
+   970→  let signed;
+   971→  if (network === "HIVE") {
+   972→    signed = hiveJs().auth.signTransaction(tx, [wif]);
+   973→  } else if (network === "BLURT") {
+   974→    signed = blurtJs().auth.signTransaction(tx, [wif]);
+   975→  } else {
+   976→    const prev = steem.config.get("chain_id");
+   977→    const cid = chainIdFor(network);
+   978→    if (cid) steem.config.set("chain_id", cid);
+   979→    try {
+   980→      signed = steem.auth.signTransaction(tx, [wif]);
+   981→    } finally {
+   982→      if (cid) steem.config.set("chain_id", prev);
+   983→    }
+   984→  }
+   985→  const txid = computeTxId(network, signed); // full 64-hex sha256 — canonical, explorer-verifiable
+   986→  // Task 40: synchronous broadcast — the NODE confirms the block it landed in.
+   987→  // The node's id field is a 20-byte prefix of the full sha256 txid: cross-check
+   988→  // it against the locally computed full id (signing/serialization drift would
+   989→  // mismatch here — fail closed). Plain broadcast accepted doomed transactions
+   990→  // silently; synchronous surfaces every rejection verbatim.
+   991→  try {
+   992→    const sync = await rpcCallNet(network, "condenser_api.broadcast_transaction_synchronous", [signed]);
+   993→    log("DEBUG", `sync-broadcast raw: ${JSON.stringify(sync ?? null).slice(0, 300)}`);
+   994→    const nodeTrxId = sync?.id ?? sync?.trx_id ?? null;
+   995→    if (!nodeTrxId) throw new Error("synchronous-broadcast: node returned no trx id");
+   996→    if (txid && !txid.startsWith(nodeTrxId)) {
+   997→      throw new Error(`txid-mismatch: node=${nodeTrxId} local=${txid.slice(0, 20)}… — signing/serialization drift, refusing to record`);
+   998→    }
+   999→    // Task 80: return the NODE-CONFIRMED canonical id (40-hex — the form
+  1000→    // get_transaction and every explorer accept). Identity vs the locally
+  1001→    // computed full sha256 was PROVED by the prefix cross-check just above;
+  1002→    // condenser get_transaction REJECTS the 64-hex form ("invalid size",
+  1003→    // proven live on the first fleet HIVE weave anchor). The fallback path
+  1004→    // below keeps the full hash (node id unavailable there).
+  1005→    return { txid: nodeTrxId, result: sync, confirmedBlock: sync?.block_num ?? null, nodeTrxId };
+  1006→  } catch (e) {
+  1007→    const msg = String(e?.message ?? e);
+  1008→    if (/Could not find method|not found|Unknown method/i.test(msg)) {
+  1009→      // legacy node without the synchronous variant — plain broadcast + locally computed id
+  1010→      const result = await rpcCallNet(network, "condenser_api.broadcast_transaction", [signed]);
+  1011→      return { txid, result, confirmedBlock: null, nodeTrxId: null };
+  1012→    }
+  1013→    throw e; // the chain's own rejection reason — verbatim, never swallowed
+  1014→  }
+  1015→}
+  1016→
+  1017→// ── Hive-Engine helpers (read-only balances for bounds/withdraw payload) ─────
+  1018→const HE_RPC = "https://api.hive-engine.com/rpc/contracts";
+  1019→async function heBalance(account, symbol) {
+  1020→  const rows = await rpcCall(HE_RPC, "find", { contract: "tokens", table: "balances", query: { account, symbol }, limit: 1 });
+  1021→  return rows?.[0] ? Number(rows[0].balance) : 0;
+  1022→}
+  1023→
+  1024→function heJson(contractName, contractAction, contractPayload) {
+  1025→  return {
+  1026→    required_auths: [], // filled per-op below
+  1027→    required_posting_auths: [],
+  1028→    id: "ssc-mainnet-hive",
+  1029→    json: JSON.stringify({ contractName, contractAction, contractPayload })
+  1030→  };
+  1031→}
+  1032→
+  1033→// ── roast-66: THE STEEM PLANE — measured live, displayed, one-step-closable ──
+  1034→// The owner's finding ("לכולם חסר steemit"): the screen showed HIVE+BLURT for
+  1035→// the fleet while the STEEM plane was INVISIBLE — nobody could see that all 12
+  1036→// accounts EXIST on steemit (created 2018, pre-fork) with real balances, that
+  1037→// the main account's STEEM plane is live-held 4/4, and that the fleet's STEEM
+  1038→// authorities were rotated externally (the 2018 passwords match HIVE/BLURT but
+  1039→// NOT STEEM — measured 0/80). This endpoint measures the whole plane live:
+  1040→// existence, balances (liquid/SBD/HP), STEEM-vs-HIVE divergence, and a
+  1041→// fail-closed probe of whether ANY held WIF (any net tag — WIF bytes are
+  1042→// chain-agnostic, only the render prefix differs) matches the LIVE STEEM
+  1043→// authorities. PUBLIC DATA ONLY: verdicts + balances; no WIF, no pubkey echo.
+  1044→let steemPlaneCache: { at: number; payload: Record<string, unknown> } | null = null;
+  1045→const STEEM_PLANE_TTL = 60_000;
+  1046→
+  1047→interface ChainAuth { key_auths?: Array<[string, number]>; account_auths?: Array<[string, number | string]>; }
+  1048→interface ChainAccount {
+  1049→  name: string;
+  1050→  created?: string;
+  1051→  balance?: string;
+  1052→  sbd_balance?: string;
+  1053→  vesting_shares?: string;
+  1054→  savings_balance?: string;
+  1055→  savings_sbd_balance?: string;
+  1056→  reward_steem_balance?: string;
+  1057→  reward_sbd_balance?: string;
+  1058→  reward_vesting_balance?: string;
+  1059→  memo_key?: string;
+  1060→  owner?: ChainAuth;
+  1061→  active?: ChainAuth;
+  1062→  posting?: ChainAuth;
+  1063→}
+  1064→
+  1065→async function steemPlaneProbe() {
+  1066→  if (!STATE) throw new Error("seal-unavailable");
+  1067→  if (steemPlaneCache && Date.now() - steemPlaneCache.at < STEEM_PLANE_TTL) return steemPlaneCache.payload;
+  1068→  const names = [...new Set([STATE.main.account, ...STATE.fleet.map((f: { username: string }) => f.username), ...(STATE.vaultAccounts ?? [])])].filter(Boolean);
+  1069→  const [dgpo, steemAccs, hiveAccs] = await Promise.all([
+  1070→    rpcCallNet("STEEM", "condenser_api.get_dynamic_global_properties", []),
+  1071→    rpcCallNet("STEEM", "condenser_api.get_accounts", [names]),
+  1072→    rpcCallNet("HIVE", "condenser_api.get_accounts", [names]).catch(() => [] as Array<Record<string, unknown>>)
+  1073→  ]);
+  1074→  const tvs = Number(String(dgpo.total_vesting_shares).split(" ")[0]);
+  1075→  const tvf = Number(String(dgpo.total_vesting_fund_steem).split(" ")[0]);
+  1076→  const steemPerMvest = tvf / (tvs / 1e6);
+  1077→  const sMap = new Map<string, ChainAccount>((steemAccs as ChainAccount[]).map((a) => [a.name, a]));
+  1078→  const hMap = new Map<string, ChainAccount>((hiveAccs as ChainAccount[]).map((a) => [a.name, a]));
+  1079→  // held WIF candidates per account×role across ALL net tags (chain-agnostic bytes)
+  1080→  const heldOf = (account: string, role: string): string[] => {
+  1081→    const out = new Set<string>();
+  1082→    if (STATE.main.account === account) {
+  1083→      for (const net of ["STEEM", "HIVE", "BLURT"]) {
+  1084→        const w = STATE.main.net?.[net]?.[`${role}Wif`];
+  1085→        if (w) out.add(w);
+  1086→      }
+  1087→      const flat = STATE.main[`${role}Wif`];
+  1088→      if (flat) out.add(flat); // legacy flat slot (pre net-tagging) — a candidate like any other
+  1089→    }
+  1090→    const f = STATE.fleet.find((x: { username: string }) => x.username === account);
+  1091→    if (f) {
+  1092→      for (const net of ["STEEM", "HIVE", "BLURT"]) {
+  1093→        const w = f.net?.[net]?.[`${role}Wif`];
+  1094→        if (w) out.add(w);
+  1095→      }
+  1096→      const flat = f[`${role}Wif`];
+  1097→      if (flat) out.add(flat);
+  1098→    }
+  1099→    return [...out];
+  1100→  };
+  1101→  const ROLES = ["owner", "active", "posting", "memo"];
+  1102→  const accounts: Array<Record<string, unknown>> = [];
+  1103→  const summary = { onSteem: 0, accountsTotal: names.length, probed: 0, invalidHeld: 0, matchedRoles: 0, accountsWithMatch: 0, postingAnchoredGaps: 0, totalLiquid: 0, totalSbd: 0, totalHp: 0 };
+  1104→  for (const name of names) {
+  1105→    const a = sMap.get(name);
+  1106→    if (!a) { accounts.push({ name, exists: false, roles: {} }); continue; }
+  1107→    summary.onSteem++;
+  1108→    const h = hMap.get(name) ?? null;
+  1109→    const roles: Record<string, { held: number; match: boolean | null }> = {};
+  1110→    let anyMatch = false;
+  1111→    for (const role of ROLES) {
+  1112→      const wifs = heldOf(name, role);
+  1113→      const acc = a as ChainAccount;
+  1114→      const auths = role === "memo" ? [String(acc.memo_key ?? "")] : ((acc[role]?.key_auths ?? []) as Array<[string, number]>).map((k) => String(k?.[0] ?? ""));
+  1115→      let match: boolean | null = wifs.length ? false : null;
+  1116→      for (const wif of wifs) {
+  1117→        summary.probed++;
+  1118→        let pub: string;
+  1119→        try { pub = steem.auth.wifToPublic(wif); } catch { summary.invalidHeld++; continue; }
+  1120→        const payload = String(pub).slice(3);
+  1121→        if (auths.some((auth) => auth && auth.slice(3) === payload)) { match = true; break; }
+  1122→      }
+  1123→      if (match === true) { anyMatch = true; summary.matchedRoles++; }
+  1124→      roles[role] = { held: wifs.length, match };
+  1125→    }
+  1126→    if (anyMatch) summary.accountsWithMatch++;
+  1127→    const acc = a as ChainAccount;
+  1128→    const hp = (Number(String(acc.vesting_shares ?? "0").split(" ")[0]) / 1e6) * steemPerMvest;
+  1129→    summary.totalLiquid += Number(String(acc.balance ?? "0").split(" ")[0]);
+  1130→    summary.totalSbd += Number(String(acc.sbd_balance ?? "0").split(" ")[0]);
+  1131→    summary.totalHp += hp;
+  1132→    const divergence: Record<string, string | null> = {};
+  1133→    for (const role of ["owner", "active", "posting"]) {
+  1134→      const sKey = String(acc[role]?.key_auths?.[0]?.[0] ?? "");
+  1135→      const hKey = h ? String((h as ChainAccount)[role]?.key_auths?.[0]?.[0] ?? "") : "";
+  1136→      divergence[role] = !sKey || !hKey ? null : sKey.slice(3) === hKey.slice(3) ? "same" : "diverged";
+  1137→    }
+  1138→    // Task 70 — posting-anchor derivation (public chain data only): if OUR main
+  1139→    // account sits in this account's posting account_auths with weight ≥
+  1140→    // threshold, the posting plane is OPERABLE by us even with zero held keys
+  1141→    // (the ynet rescue anchor the operator preserved at the 09-04 rotation;
+  1142→    // proven on-chain by saos-ping txids on both chains). Derived, never stored.
+  1143→    const anchorIn = (accAuth: ChainAccount | null): string | null => {
+  1144→      if (!accAuth?.posting) return null;
+  1145→      const th = Number(accAuth.posting.weight_threshold ?? 1);
+  1146→      const hit = (accAuth.posting.account_auths ?? []).find((e) => String(e?.[0]) === STATE.main.account);
+  1147→      return hit && Number(hit[1]) >= th ? String(STATE.main.account) : null;
+  1148→    };
+  1149→    const postingAnchor = { STEEM: anchorIn(acc), HIVE: anchorIn(h as ChainAccount | null) };
+  1150→    if (!anyMatch && postingAnchor.STEEM) summary.postingAnchoredGaps++;
+  1151→    accounts.push({
+  1152→      name,
+  1153→      exists: true,
+  1154→      created: String(acc.created ?? "").slice(0, 10),
+  1155→      liquid: acc.balance, sbd: acc.sbd_balance,
+  1156→      hp: hp.toFixed(3),
+  1157→      savings: `${acc.savings_balance} / ${acc.savings_sbd_balance}`,
+  1158→      rewards: `${acc.reward_steem_balance} / ${acc.reward_sbd_balance} / ${acc.reward_vesting_balance}`,
+  1159→      divergence,
+  1160→      postingAnchor,
+  1161→      roles
+  1162→    });
+  1163→  }
+  1164→  const payload = {
+  1165→    measuredAt: new Date().toISOString(),
+  1166→    steemPerMvest: Number(steemPerMvest.toFixed(3)),
+  1167→    accounts,
+  1168→    summary: {
+  1169→      ...summary,
+  1170→      totalLiquid: Number(summary.totalLiquid.toFixed(3)),
+  1171→      totalSbd: Number(summary.totalSbd.toFixed(3)),
+  1172→      totalHp: Number(summary.totalHp.toFixed(3))
+  1173→    }
+  1174→  };
+  1175→  steemPlaneCache = { at: Date.now(), payload };
+  1176→  return payload;
+  1177→}
+  1178→
+  1179→// eslint-disable-next-line @typescript-eslint/no-unused-vars -- server handle kept for supervision
+  1180→const server = Bun.serve({
+  1181→  port: PORT,
+  1182→  async fetch(req) {
+  1183→    const url = new URL(req.url);
+  1184→    // liveness probe (no auth): proves the PROCESS is alive but leaks nothing
+  1185→    if (url.pathname === "/ping") return Response.json({ ok: true, service: "external-signer" });
+  1186→
+  1187→    if (!tokenOk(req)) {
+  1188→      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  1189→    }
+  1190→    if (!STATE) return Response.json({ ok: false, error: "seal-unavailable (fail-closed)" }, { status: 503 });
+  1191→
+  1192→    if (url.pathname === "/health") {
+  1193→      return Response.json({
+  1194→        ok: true,
+  1195→        service: "external-signer",
+  1196→        connected: true,
+  1197→        sealedAt: STATE.sealedAt,
+  1198→        mainAccount: STATE.main.account,
+  1199→        fleetAccounts: [STATE.main.account, ...STATE.fleet.map((f) => f.username)].filter((v, i, a) => a.indexOf(v) === i),
+  1200→        networks: ["STEEM", "HIVE", "BLURT"],
+  1201→        capabilities: ["keys-ingest", "keys-backup", "rot1-seed-recovery", "universal-paste", "live-drift-monitor", "idempotent-sign"],
+  1202→        // roast 54 — per-network scopes replace the flat list that claimed
+  1203→        // transfer/delegate/claim for STEEM while only HIVE implements them
+  1204→        scopes: {
+  1205→          STEEM: ["custom_json"],
+  1206→          HIVE: ["custom_json", "transfer_to_vesting", "transfer", "claim_rewards", "he_market_sell", "he_withdraw", "delegate_vesting_shares"],
+  1207→          BLURT: ["custom_json"]
+  1208→        },
+  1209→        authorityGate: "verify-before-broadcast (fail-closed)",
+  1210→        maxOpHive: MAX_OP_HIVE,
+  1211→        version: SIGNER_VERSION
+  1212→      });
+  1213→    }
+  1214→
+  1215→    if (url.pathname === "/keys/verify-live" && (req.method === "GET" || req.method === "POST")) {
+  1216→      const r = await verifyLiveAll();
+  1217→      return Response.json({ ok: true, summary: { slots: r.ok, drift: r.drift, unmatched: r.unmatched, errors: r.errors }, checkedAt: r.checkedAt, drifts: r.drifts, unmatchedSample: r.unmatchedSample ?? [], skipped: r.skipped ?? false, reason: r.reason ?? null });
+  1218→    }
+  1219→
+  1220→    // ── roast-66: the STEEM plane as a first-class measured surface ──
+  1221→    // Before this, the plane was invisible (the owner: "לכולם חסר steemit"):
+  1222→    // the screen showed HIVE+BLURT verdicts only. Now: live existence + balances
+  1223→    // + divergence + held-WIF-vs-live-authority probe, fail-closed, public data
+  1224→    // only (verdicts + balances; no WIF, no pubkey echo).
+  1225→    if (url.pathname === "/keys/steem-plane" && req.method === "GET") {
+  1226→      try {
+  1227→        const payload = await steemPlaneProbe();
+  1228→        return Response.json({ ok: true, ...payload, version: SIGNER_VERSION });
+  1229→      } catch (e) {
+  1230→        return Response.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
+  1231→      }
+  1232→    }
+  1233→
+  1234→    // ── Task 29: owner key entry point (self-protecting: only a live authority match is ever written) ──
+  1235→    if (url.pathname === "/keys/status" && req.method === "GET") {
+  1236→      try {
+  1237→        const mainNet = {};
+  1238→        for (const net of ["STEEM", "HIVE", "BLURT"]) {
+  1239→          mainNet[net] = {
+  1240→            posting: await slotView(net, STATE.main.account, STATE.main, "posting"),
+  1241→            active: await slotView(net, STATE.main.account, STATE.main, "active"),
+  1242→            owner: await slotView(net, STATE.main.account, STATE.main, "owner"),
+  1243→            memo: await slotView(net, STATE.main.account, STATE.main, "memo")
+  1244→          };
+  1245→        }
+  1246→        // Task 64 (חיבור-הכל): the fleet display used to show only generic
+  1247→        // posting/active — a net-tagged account (tov: BLURT-only) rendered as
+  1248→        // loaded:false on every visible slot while its keys were LIVE and
+  1249→        // drift-verified. The display now carries the per-network role map,
+  1250→        // only for networks that actually hold material (empty nets omitted —
+  1251→        // absence means "no key material for that net", never "loaded:false").
+  1252→        const fleet = [];
+  1253→        for (const f of STATE.fleet) {
+  1254→          const networks = {};
+  1255→          for (const net of ["STEEM", "HIVE", "BLURT"]) {
+  1256→            const n = f.net?.[net] ?? {};
+  1257→            const roles = {
+  1258→              posting: Boolean(n.postingWif ?? f.postingWif),
+  1259→              active: Boolean(n.activeWif ?? f.activeWif),
+  1260→              owner: Boolean(n.ownerWif ?? f.ownerWif),
+  1261→              memo: Boolean(n.memoWif)
+  1262→            };
+  1263→            if (roles.posting || roles.active || roles.owner || roles.memo) networks[net] = roles;
+  1264→          }
+  1265→          fleet.push({
+  1266→            username: f.username,
+  1267→            posting: f.postingWif ? { loaded: true } : { loaded: false },
+  1268→            active: f.activeWif ? { loaded: true } : { loaded: false },
+  1269→            networks
+  1270→          });
+  1271→        }
+  1272→        return Response.json({ ok: true, main: { account: STATE.main.account, networks: mainNet }, fleet, vaultAccountNames: STATE.vaultAccounts ?? [], sealedAt: STATE.sealedAt, drift: { lastCheck: driftState.lastCheck, openDrifts: driftState.drifts.length, unmatched: driftState.unmatched.length, summary: driftState.lastSummary }, version: SIGNER_VERSION });
+  1273→      } catch (e) {
+  1274→        return Response.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
+  1275→      }
+  1276→    }
+  1277→
+  1278→    if (url.pathname === "/keys/ingest" && req.method === "POST") {
+  1279→      let body;
+  1280→      try { body = await req.json(); } catch { return Response.json({ ok: false, error: "bad-json" }, { status: 400 }); }
+  1281→      const raw = JSON.stringify(body ?? {});
+  1282→      if (raw.length > 8192) return Response.json({ ok: false, error: "payload too large" }, { status: 413 });
+  1283→      const rawText = typeof body?.text === "string" && body.text.trim().length > 0 && body.text.length <= 8192 ? body.text : null;
+  1284→      const entries = rawText
+  1285→        ? parseKeyPayload(rawText)
+  1286→        : Array.isArray(body?.entries)
+  1287→          ? body.entries.slice(0, 16)
+  1288→          : body?.wif
+  1289→            ? [{ network: body.network, wif: body.wif }]
+  1290→            : [];
+  1291→      if (!entries.length) return Response.json({ ok: false, error: "missing entries [{network, wif, role?}] or text (universal paste)" }, { status: 400 });
+  1292→      const ingested = [], refused = [];
+  1293→      let sealInfo = null;
+  1294→      const persist = (account, network, wif, role) => {
+  1295→        sealInfo = writeIngestedKey(resolveEnvelopeDir(), account, network, wif, role);
+  1296→      };
+  1297→      for (const ent of entries) {
+  1298→        const wif = typeof ent?.wif === "string" ? ent.wif.trim() : "";
+  1299→        const askedNet = ent?.network === "HIVE" ? "HIVE" : ent?.network === "BLURT" ? "BLURT" : ent?.network === "STEEM" ? "STEEM" : null;
+  1300→        if (!wif) { refused.push({ network: ent?.network ?? "?", error: "missing wif" }); continue; }
+  1301→        const isWif = steem.auth.isWif ? steem.auth.isWif(wif) : false;
+  1302→        const isRotSeed = /^[0-9a-fA-F]{64}$/.test(wif) || /^SAOS-ROT1:/i.test(wif);
+  1303→        if (isRotSeed) {
+  1304→          // SAOS-ROT1 master seed — derive the full tree for every candidate account.
+  1305→          const seedHex = wif.replace(/^SAOS-ROT1:/i, "").trim();
+  1306→          const accounts = ingestCandidates();
+  1307→          const found = [];
+  1308→          for (const acct of accounts) {
+  1309→            try { found.push(...await saosRot1Match(seedHex, acct)); } catch {}
+  1310→          }
+  1311→          if (found.length) {
+  1312→            try {
+  1313→              for (const m of found) {
+  1314→                await persist(m.account, m.network, m.wif, m.role);
+  1315→                log("INGEST", `network=${m.network} account=${m.account} role=${m.role} MATCH (SAOS-ROT1 tree) — written, envelope re-sealed`);
+  1316→                ingested.push({ account: m.account, network: m.network, role: m.role, derived: m.derived, via: "saos-rot1", sealedAt: sealInfo?.sealedAt ?? null });
+  1317→              }
+  1318→            } catch (e) {
+  1319→              log("ERROR", `ingest write failed (rot1 path): ${String(e?.message ?? e).slice(0, 160)}`);
+  1320→              refused.push({ error: `verify-ok but write failed (fail-closed): ${String(e?.message ?? e).slice(0, 160)}` });
+  1321→            }
+  1322→          } else {
+  1323→            log("REFUSED", "ingest SAOS-ROT1 seed: no live authority match across the tree (nothing written)");
+  1324→            refused.push({ error: "ה-seed לא גוזר אף מפתח שתואם לרשויות-החיות — שום דבר לא נכתב. ודא שזהו ה-seed מ-SETTLE-10 (64-hex)" });
+  1325→          }
+  1326→          continue;
+  1327→        }
+  1328→        if (isWif) {
+  1329→          // v2.4.0: role-aware — the chain decides the true account/network/role
+  1330→          const res = await ingestOwnerKey(askedNet, wif, typeof ent?.role === "string" ? ent.role.toLowerCase() : null);
+  1331→          if (res.ok) {
+  1332→            try {
+  1333→              await persist(res.account, res.network, wif, res.role);
+  1334→              log("INGEST", `network=${res.network} account=${res.account} role=${res.role} MATCH — written to its true slot, envelope re-sealed`);
+  1335→              ingested.push({ account: res.account, network: res.network, role: res.role, derived: res.derived, sealedAt: sealInfo?.sealedAt ?? null });
+  1336→            } catch (e) {
+  1337→              log("ERROR", `ingest write failed network=${res.network}: ${String(e?.message ?? e).slice(0, 160)}`);
+  1338→              refused.push({ network: res.network, error: `verify-ok but write failed (fail-closed): ${String(e?.message ?? e).slice(0, 160)}` });
+  1339→            }
+  1340→          } else {
+  1341→            log("REFUSED", `ingest network=${ent?.network ?? "?"}: ${res.verdict?.error ?? "no match"}`);
+  1342→            refused.push(res.verdict);
+  1343→          }
+  1344→        } else {
+  1345→          // master-password path: derive active/posting/memo per candidate account × all networks
+  1346→          // Task 40 fix: BLURT was missing here — the universal paste NEVER derived
+  1347→          // BLURT role keys, so the vault's BLURT slots stayed empty (keys/status
+  1348→          // silently fell back to the shared STEEM wif) and every BLURT broadcast
+  1349→          // was refused by the authority gate. The password DOES derive all four
+  1350→          // BLURT authorities live (p-key-connect-test proof).
+  1351→          const networks = askedNet ? [askedNet] : ["STEEM", "HIVE", "BLURT"];
+  1352→          const res = await ingestOwnerPassword(wif, networks);
+  1353→          if (res.ok && res.matches.length) {
+  1354→            try {
+  1355→              for (const m of res.matches) {
+  1356→                await persist(m.account, m.network, m.wif, m.role);
+  1357→                log("INGEST", `network=${m.network} account=${m.account} role=${m.role} MATCH (master-password derived) — written, envelope re-sealed`);
+  1358→                ingested.push({ account: m.account, network: m.network, role: m.role, derived: m.derived, sealedAt: sealInfo.sealedAt });
+  1359→              }
+  1360→            } catch (e) {
+  1361→              log("ERROR", `ingest write failed (password path): ${String(e?.message ?? e).slice(0, 160)}`);
+  1362→              refused.push({ error: `verify-ok but write failed (fail-closed): ${String(e?.message ?? e).slice(0, 160)}` });
+  1363→            }
+  1364→          } else {
+  1365→            log("REFUSED", `ingest master-password: no live authority match across ${networks.join("/")} (nothing written)`);
+  1366→            refused.push({ error: `לא נמצאה התאמה לרשויות-החיות (${networks.join("/")}) — שום דבר לא נכתב`, checked: res.checked.slice(0, 12) });
+  1367→          }
+  1368→        }
+  1369→      }
+  1370→      if (ingested.length) loadState(); // hot-reload in-memory keys from the re-sealed envelope
+  1371→      return Response.json({ ok: ingested.length > 0, ingested, refused, sealedAt: STATE?.sealedAt ?? null });
+  1372→    }
+  1373→
+  1374→    if (url.pathname === "/keys/backup" && req.method === "POST") {
+  1375→      // Task 30: encrypted owner backup — AES-256-GCM under a passphrase the OWNER
+  1376→      // chooses; the blob is safe to keep anywhere (repo included). The passphrase
+  1377→      // and the payload are never logged. Fail-closed on missing STATE.
+  1378→      let body;
+  1379→      try { body = await req.json(); } catch { return Response.json({ ok: false, error: "bad-json" }, { status: 400 }); }
+  1380→      const passphrase = typeof body?.passphrase === "string" ? body.passphrase : "";
+  1381→      if (passphrase.length < 10 || passphrase.length > 200) {
+  1382→        return Response.json({ ok: false, error: "passphrase must be 10-200 chars" }, { status: 400 });
+  1383→      }
+  1384→      try {
+  1385→        // roast 63: the payload used to export net STEEM+HIVE only while STATE
+  1386→        // fully carries BLURT — the backup lied about what it holds, and exactly
+  1387→        // the BLURT plane (the live-anchored chain, HEADCORNER master-key roles)
+  1388→        // would have been missing from a wipe-recovery. All three planes now.
+  1389→        const payload = { exportedAt: new Date().toISOString(), version: SIGNER_VERSION, main: { account: STATE.main.account, keys: { generic: { posting: STATE.main.postingWif ?? null, active: STATE.main.activeWif ?? null, memo: STATE.main.memoWif ?? null, owner: STATE.main.ownerWif ?? null }, net: { STEEM: STATE.main.net?.STEEM ?? null, HIVE: STATE.main.net?.HIVE ?? null, BLURT: STATE.main.net?.BLURT ?? null } } }, fleet: STATE.fleet.map((f) => ({ username: f.username, generic: { posting: f.postingWif ?? null, active: f.activeWif ?? null, owner: f.ownerWif ?? null }, net: { STEEM: f.net?.STEEM ?? null, HIVE: f.net?.HIVE ?? null, BLURT: f.net?.BLURT ?? null } })) };
+  1390→        const salt = randomBytes(16), iv = randomBytes(12);
+  1391→        const key = scryptSync(passphrase, salt, 32);
+  1392→        const cipher = createCipheriv("aes-256-gcm", key, iv);
+  1393→        const data = Buffer.concat([cipher.update(JSON.stringify(payload), "utf8"), cipher.final()]);
+  1394→        const tag = cipher.getAuthTag();
+  1395→        const file = JSON.stringify({ v: 1, cipher: "aes-256-gcm", kdf: "scrypt", salt: salt.toString("base64"), iv: iv.toString("base64"), tag: tag.toString("base64"), data: data.toString("base64") });
+  1396→        const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  1397→        const filename = `key-backup-${STATE.main.account}-${stamp}.enc`;
+  1398→        log("INFO", `backup created: ${filename} (aes-256-gcm/scrypt; passphrase never logged)`);
+  1399→        return Response.json({ ok: true, filename, file, format: "SAOS-KEY-BACKUP-1 (scrypt+AES-256-GCM; decrypt: scripts/decrypt-key-backup.mjs)" });
+  1400→      } catch (e) {
+  1401→        return Response.json({ ok: false, error: String(e?.message ?? e).slice(0, 160) }, { status: 500 });
+  1402→      }
+  1403→    }
+  1404→
+  1405→    // ── Task 38: owner-key operator login (owner directive: "אני עדיין לא מצליח להתחבר") ──
+  1406→    // The foundry's login form accepts the OWNER'S OWN master keys (owner/active,
+  1407→    // STEEM/HIVE/BLURT) in addition to the admin key. Verification happens HERE,
+  1408→    // inside the signer: sha256(presented) is compared timing-safe against the
+  1409→    // sha256 of every in-memory vault key. The plaintext NEVER leaves this
+  1410→    // process, is never logged, never stored — only a boolean + coarse slot
+  1411→    // label (network/role/account) is returned. Fail-closed: no STATE ⇒ no match.
+  1412→    if (url.pathname === "/auth/verify-owner" && req.method === "POST") {
+  1413→      let body;
+  1414→      try { body = await req.json(); } catch { return Response.json({ ok: false, match: false, error: "bad-json" }, { status: 400 }); }
+  1415→      const key = typeof body?.key === "string" ? body.key.trim() : "";
+  1416→      if (!key || key.length > 4096) return Response.json({ ok: false, match: false, error: "missing key" }, { status: 400 });
+  1417→      if (!STATE) return Response.json({ ok: true, match: false, reason: "seal-unavailable" });
+  1418→      const presented = createHash("sha256").update(key, "utf8").digest("hex");
+  1419→      // P-convention normalization (Blurt wallet writes "P"+WIF; STEEM/HIVE are bare):
+  1420→      // the owner may paste either variant of the SAME key — try all three forms.
+  1421→      const alt1 = key.startsWith("P") ? createHash("sha256").update(key.slice(1), "utf8").digest("hex") : null;
+  1422→      const alt2 = key.startsWith("P") ? null : createHash("sha256").update("P" + key, "utf8").digest("hex");
+  1423→      const candidates = [];
+  1424→      const pushSlot = (network, role, wif) => {
+  1425→        if (typeof wif === "string" && wif.trim().length >= 50) {
+  1426→          candidates.push({ network, role, hash: createHash("sha256").update(wif.trim(), "utf8").digest("hex") });
+  1427→        }
+  1428→      };
+  1429→      const main = STATE.main;
+  1430→      for (const net of ["STEEM", "HIVE", "BLURT"]) {
+  1431→        pushSlot(net, "owner", main.net?.[net]?.ownerWif ?? main.ownerWif);
+  1432→        pushSlot(net, "active", main.net?.[net]?.activeWif ?? main.activeWif);
+  1433→      }
+  1434→      for (const c of candidates) {
+  1435→        for (const ph of [presented, alt1, alt2]) {
+  1436→          if (!ph) continue;
+  1437→          try {
+  1438→            const a = Buffer.from(ph, "hex");
+  1439→            const b = Buffer.from(c.hash, "hex");
+  1440→            if (a.length === b.length && timingSafeEqual(a, b)) {
+  1441→              log("AUTH", `owner-key login verified: ${c.network}/${c.role} (${main.account}) — hash-only compare, plaintext never logged`);
+  1442→              return Response.json({ ok: true, match: true, network: c.network, role: c.role, account: main.account });
+  1443→            }
+  1444→          } catch {}
+  1445→        }
+  1446→      }
+  1447→      // Task 41-recovery: master-password login fallback — the owner's P-password
+  1448→      // is the thing he actually HAS (BLURT wallets render passwords in P-form,
+  1449→      // indistinguishable from a P+WIF by shape alone — so we ALWAYS try the
+  1450→      // derivation after the direct hash-compare; a wrong/foreign string can
+  1451→      // only ever produce honest no-match). Hash-only discipline intact:
+  1452→      // plaintext never stored, logged or echoed.
+  1453→      {
+  1454→        // derivation is account-scoped (STEEM-family kdf) — one pass, then the
+  1455→        // derived WIF hashes are compared against EVERY loaded slot regardless
+  1456→        // of which network slot actually holds them.
+  1457→        let derived: Record<string, string> | null = null;
+  1458→        try { derived = steem.auth.getPrivateKeys(main.account, key, ["active", "posting"]); } catch { derived = null; }
+  1459→        for (const role of ["active", "posting"] as const) {
+  1460→          const dw = derived?.[role];
+  1461→          if (typeof dw !== "string" || dw.trim().length < 50) continue;
+  1462→          const dh = createHash("sha256").update(dw.trim(), "utf8").digest("hex");
+  1463→          for (const c of candidates) {
+  1464→            try {
+  1465→              const a = Buffer.from(dh, "hex");
+  1466→              const b = Buffer.from(c.hash, "hex");
+  1467→              if (a.length === b.length && timingSafeEqual(a, b)) {
+  1468→                log("AUTH", `owner-key login verified via master-password derivation: ${c.network}/${c.role} (${main.account}) — hash-only compare`);
+  1469→                return Response.json({ ok: true, match: true, network: c.network, role: c.role, account: main.account, via: "master-password" });
+  1470→              }
+  1471→            } catch {}
+  1472→          }
+  1473→        }
+  1474→      }
+  1475→      return Response.json({ ok: true, match: false });
+  1476→    }
+  1477→
+  1478→    if (url.pathname === "/sign" && req.method === "POST") {
+  1479→      let body;
+  1480→      try { body = await req.json(); } catch { return Response.json({ ok: false, error: "bad-json" }, { status: 400 }); }
+  1481→      const { requestId, network, kind, authLevel, payload, id, account, to, amount, memo, symbol, quantity, price } = body ?? {};
+  1482→      if (!requestId) return Response.json({ ok: false, error: "missing requestId" }, { status: 400 });
+  1483→
+  1484→      // ── roast 54: requestId IDEMPOTENCY + SINGLE-FLIGHT ──────────────────
+  1485→      // The field was required and then IGNORED — pure log decoration. Every
+  1486→      // buildSignBroadcast reads a FRESH dynamic-global-properties (new
+  1487→      // expiration + ref_block per call), so a caller retrying after an
+  1488→      // ambiguous timeout (request sent, answer lost) produced a DIFFERENT
+  1489→      // signed tx with a DIFFERENT txid: a REAL double broadcast — double
+  1490→      // transfer / double delegate / double fee. The requester sent
+  1491→      // requestId for exactly this protection; now it delivers:
+  1492→      //   replay  — a repeated requestId returns the CACHED response
+  1493→      //             (idempotentReplay:true), never re-broadcasts;
+  1494→      //   flight  — two CONCURRENT duplicates share ONE execution promise.
+  1495→      // Slot is reserved BEFORE any work. TTL 1h, cap 500 (insertion-order
+  1496→      // eviction + expired purge). In-memory only: after a signer restart the
+  1497→      // cache is empty — the standard idempotency tradeoff, disclosed here.
+  1498→      const now = Date.now();
+  1499→      for (const [k, v] of signCache) if (now - v.at > SIGN_CACHE_TTL_MS) signCache.delete(k);
+  1500→      while (signCache.size >= SIGN_CACHE_CAP) signCache.delete(signCache.keys().next().value);
+  1501→      const existing = signCache.get(requestId);
+  1502→      if (existing) {
+  1503→        if (existing.pending) await existing.pending; // single-flight: the FIRST execution finishes and caches
+  1504→        log("INFO", `replay requestId=${String(requestId).slice(0, 80)} → cached ${existing.status} response (no re-broadcast)`);
+  1505→        return Response.json({ ...existing.response, idempotentReplay: true }, { status: existing.status });
+  1506→      }
+  1507→      let resolveFlight: () => void = () => {};
+  1508→      const flight = new Promise<void>((res) => { resolveFlight = res; });
+  1509→      const entry: SignCacheEntry = { at: now, pending: flight, status: 502, response: { ok: false, error: "sign-in-flight" } };
+  1510→      signCache.set(requestId, entry); // slot reserved BEFORE any work
+  1511→
+  1512→      const exec = async (): Promise<Response> => {
+  1513→        const net = network === "HIVE" ? "HIVE" : network === "BLURT" ? "BLURT" : network === "STEEM" ? "STEEM" : null;
+  1514→        if (!net) return Response.json({ ok: false, error: "unsupported network (capabilities: STEEM|HIVE|BLURT)" }, { status: 400 });
+  1515→
+  1516→      // Task 35 fix: the REQUIRED authority level is a function of the op kind —
+  1517→      // resolved BEFORE keyFor so the correct network-suffixed slot is selected
+  1518→      // even when the caller omits authLevel. Before this fix transfer_to_vesting
+  1519→      // (and he_withdraw/he_market_sell/delegate, which all demand required_auths
+  1520→      // = active) resolved the POSTING slot and failed the authority gate against
+  1521→      // the active authority — self-inflicted refusal, nothing could ever broadcast.
+  1522→      const roleForKind = kind === "transfer_to_vesting" || kind === "transfer" || kind === "delegate_vesting_shares" || kind === "he_market_sell" || kind === "he_withdraw"
+  1523→        ? "active"
+  1524→        : kind === "claim_rewards"
+  1525→          ? "posting"
+  1526→          : (authLevel === "active" ? "active" : "posting"); // custom_json: explicit authLevel wins, default posting
+  1527→        // Task 74: candidate resolution — the requested net's own slot wins when
+  1528→        // it verifies; otherwise EVERY held net-tagged candidate for this role is
+  1529→        // tried against the LIVE authority (payload identity). Fail-closed: zero
+  1530→        // verifying candidates ⇒ the same honest authority-mismatch refusal.
+  1531→        const target = keyFor(account, roleForKind, net).target;
+  1532→        if (!target) return Response.json({ ok: false, error: `unknown account ${account ?? "(main)"}` }, { status: 400 });
+  1533→        const targetAccount = target.username ?? target.account;
+  1534→        const candidates = heldWifCandidates(target, roleForKind, net);
+  1535→        if (!candidates.length) return Response.json({ ok: false, error: `no ${roleForKind} key in envelope for ${targetAccount}` }, { status: 403 });
+  1536→        let wif = null;
+  1537→        let lastVerdict = null;
+  1538→        for (const cand of candidates) {
+  1539→          const v = await verifyAuthority(net, targetAccount, cand, roleForKind);
+  1540→          if (v.ok) { wif = cand; break; }
+  1541→          lastVerdict = v;
+  1542→        }
+  1543→        if (!wif) {
+  1544→          const err = lastVerdict?.error ?? `authority-mismatch: no held candidate matches the live ${net} ${roleForKind} authority (fail-closed, nothing broadcast)`;
+  1545→          log("REFUSED", `requestId=${requestId} kind=${kind} network=${net} account=${targetAccount}: ${err}`);
+  1546→          return Response.json({ ok: false, error: err, refused: "authority-gate" }, { status: 403 });
+  1547→        }
+  1548→
+  1549→      const started = Date.now();
+  1550→      try {
+  1551→        let operations;
+  1552→        let role = roleForKind; // default resolved by kind (posting-level weave unless the op demands active)
+  1553→
+  1554→        if (kind === "custom_json") {
+  1555→          const customId = typeof id === "string" && id ? id : "saos.weave.v1";
+  1556→          const jsonStr = typeof payload === "string" ? payload : JSON.stringify(payload ?? {});
+  1557→          if (jsonStr.length > 2000) return Response.json({ ok: false, error: `payload too large (${jsonStr.length}B > 2000B custom_json practical limit)` }, { status: 400 });
+  1558→          if (role === "active") {
+  1559→            operations = [["custom_json", { required_auths: [targetAccount], required_posting_auths: [], id: customId, json: jsonStr }]];
+  1560→          } else {
+  1561→            operations = [["custom_json", { required_auths: [], required_posting_auths: [targetAccount], id: customId, json: jsonStr }]];
+  1562→          }
+  1563→        } else if (net === "BLURT" && kind !== "custom_json") {
+  1564→          return Response.json({ ok: false, error: "BLURT capability scope: custom_json only (weave anchors); asset ops stay STEEM/HIVE (Task 36)" }, { status: 400 });
+  1565→        } else if ((net === "HIVE" || net === "STEEM") && (kind === "transfer_to_vesting" || kind === "transfer")) {
+  1566→          // Task 76: STEEM joins asset ops — the legacy steem lib serializes
+  1567→          // STEEM/SBD/VESTS natively (the Task-35 HIVE-asset bug never applied
+  1568→          // to the STEEM symbols themselves), so the HIVE branches generalize.
+  1569→          const amt = Number(amount);
+  1570→          if (!Number.isFinite(amt) || amt < 0.001) return Response.json({ ok: false, error: "amount must be ≥ 0.001" }, { status: 400 });
+  1571→          if (amt > MAX_OP_HIVE) return Response.json({ ok: false, error: `amount ${amt} > MAX_OP_HIVE ${MAX_OP_HIVE} (fail-closed bound)` }, { status: 400 });
+  1572→          const toAcct = typeof to === "string" && to ? to : targetAccount;
+  1573→          if (!/^[a-z0-9\-.]{3,16}$/.test(toAcct)) return Response.json({ ok: false, error: `bad to-account ${toAcct}` }, { status: 400 });
+  1574→          const asset = net === "HIVE" ? "HIVE" : "STEEM";
+  1575→          operations = [[kind, { from: targetAccount, to: toAcct, amount: amt.toFixed(3) + " " + asset, ...(memo && kind === "transfer" ? { memo: String(memo).slice(0, 200) } : {}) }]];
+  1576→        } else if ((net === "HIVE" || net === "STEEM") && kind === "claim_rewards") {
+  1577→          role = "posting";
+  1578→          const accs = await rpcCallNet(net, "condenser_api.get_accounts", [[targetAccount]]);
+  1579→          const a = accs?.[0];
+  1580→          if (!a) throw new Error("account fetch failed");
+  1581→          if (net === "STEEM") {
+  1582→            const rs = a.reward_steem_balance, rsb = a.reward_sbd_balance, rv = a.reward_vesting_balance;
+  1583→            if ((parseFloat(rs) || 0) + (parseFloat(rsb) || 0) + (parseFloat(rv) || 0) === 0) {
+  1584→              return Response.json({ ok: false, error: "no pending rewards" }, { status: 400 });
+  1585→            }
+  1586→            // steem@0.7.10 serializer names the vests field reward_vests (legacy
+  1587→            // pre-HF20 schema); the wire format is positional so the chain reads
+  1588→            // it as reward_vesting — byte-identical, lib-naming-only difference.
+  1589→            operations = [["claim_reward_balance", { account: targetAccount, reward_steem: rs, reward_sbd: rsb, reward_vests: rv }]];
+  1590→          } else {
+  1591→            const rh = a.reward_hive_balance, rhb = a.reward_hbd_balance, rv = a.reward_vesting_balance;
+  1592→            if ((parseFloat(rh) || 0) + (parseFloat(rhb) || 0) + (parseFloat(rv) || 0) === 0) {
+  1593→              return Response.json({ ok: false, error: "no pending rewards" }, { status: 400 });
+  1594→            }
+  1595→            operations = [["claim_reward_balance", { account: targetAccount, reward_hive: rh, reward_hbd: rhb, reward_vesting: rv }]];
+  1596→          }
+  1597→        } else if (net === "HIVE" && kind === "delegate_rc") {
+  1598→          // Task 76: RC delegation — the non-custodial, instantly-reversible HIVE
+  1599→          // unblock: pools the fleet's idle RC capacity onto the main account
+  1600→          // WITHOUT moving any funds and WITHOUT the 13-week HP lock. Fleet-cure
+  1601→          // policy mirrors delegate_vesting_shares: main-only, ≤80% owned vests.
+  1602→          role = "active";
+  1603→          const deleg = String(to ?? "").toLowerCase();
+  1604→          if (deleg !== String(STATE.main.account).toLowerCase()) {
+  1605→            return Response.json({ ok: false, error: `delegatee ${deleg} not allowed — delegate_rc pools only to the main account` }, { status: 400 });
+  1606→          }
+  1607→          const vests = Number(amount);
+  1608→          if (!Number.isFinite(vests) || vests < 0.5) return Response.json({ ok: false, error: "amount (VESTS) must be ≥ 0.5" }, { status: 400 });
+  1609→          const accsR = await rpcCallNet(net, "condenser_api.get_accounts", [[targetAccount]]);
+  1610→          const aR = accsR?.[0];
+  1611→          if (!aR) throw new Error("delegator fetch failed");
+  1612→          const totalR = parseFloat(aR.vesting_shares);
+  1613→          const allowedR = Math.floor(totalR * 0.8 * 1e6) / 1e6;
+  1614→          if (vests > allowedR + 1e-9) {
+  1615→            return Response.json({ ok: false, error: `amount ${vests} VESTS > 80% of owned vests (${allowedR.toFixed(6)} of ${totalR.toFixed(6)}) — fail-closed bound` }, { status: 400 });
+  1616→          }
+  1617→          operations = [["delegate_rc", { from: targetAccount, delegatee: deleg, vesting_shares: vests.toFixed(6) + " VESTS" }]];
+  1618→        } else if ((net === "HIVE" || net === "STEEM") && kind === "delegate_vesting_shares") {
+  1619→          role = "active";
+  1620→          // Task 26-c fleet cure — hard bounds (fail-closed):
+  1621→          const deleg = String(to ?? "").toLowerCase();
+  1622→          if (deleg !== String(STATE.main.account).toLowerCase()) {
+  1623→            return Response.json({ ok: false, error: `delegatee ${deleg} not allowed — fleet cure delegates only to the main account` }, { status: 400 });
+  1624→          }
+  1625→          const vests = Number(amount);
+  1626→          if (!Number.isFinite(vests) || vests < 0.5) return Response.json({ ok: false, error: "amount (VESTS) must be ≥ 0.5" }, { status: 400 });
+  1627→          const accsD = await rpcCallNet(net, "condenser_api.get_accounts", [[targetAccount]]);
+  1628→          const aD = accsD?.[0];
+  1629→          if (!aD) throw new Error("delegator fetch failed");
+  1630→          const totalV = parseFloat(aD.vesting_shares);
+  1631→          const outV = parseFloat(aD.delegated_vesting_shares);
+  1632→          const owned = Math.max(0, totalV - outV);
+  1633→          const allowed = Math.floor(owned * 0.8 * 1e6) / 1e6;
+  1634→          if (vests > allowed + 1e-9) {
+  1635→            return Response.json({ ok: false, error: `amount ${vests} VESTS > 80% of owned vests (${allowed.toFixed(6)} of ${totalV.toFixed(6)}, delegated-out ${outV.toFixed(6)}) — fail-closed bound` }, { status: 400 });
+  1636→          }
+  1637→          operations = [["delegate_vesting_shares", { delegator: targetAccount, delegatee: deleg, vesting_shares: vests.toFixed(6) + " VESTS" }]];
+  1638→        } else if (net === "HIVE" && kind === "he_market_sell") {
+  1639→          role = "active";
+  1640→          if (!/^[A-Z0-9]{2,10}$/.test(String(symbol ?? ""))) return Response.json({ ok: false, error: "bad symbol" }, { status: 400 });
+  1641→          const qty = Number(quantity);
+  1642→          const pr = Number(price);
+  1643→          if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(pr) || pr <= 0) return Response.json({ ok: false, error: "quantity/price must be positive numbers" }, { status: 400 });
+  1644→          const bal = await heBalance(targetAccount, String(symbol));
+  1645→          if (qty > bal + 1e-9) return Response.json({ ok: false, error: `quantity ${qty} exceeds ${targetAccount} balance ${bal} ${symbol} (fail-closed)` }, { status: 400 });
+  1646→          const j = heJson("market", "sell", { symbol: String(symbol), quantity: String(qty), price: String(pr) });
+  1647→          j.required_auths = [targetAccount];
+  1648→          operations = [["custom_json", j]];
+  1649→        } else if (net === "HIVE" && kind === "he_withdraw") {
+  1650→          role = "active";
+  1651→          let qty = Number(quantity);
+  1652→          if (!Number.isFinite(qty) || qty <= 0) qty = await heBalance(targetAccount, "SWAP.HIVE");
+  1653→          if (qty < 0.001) return Response.json({ ok: false, error: `SWAP.HIVE balance ${qty} below withdraw minimum 0.001` }, { status: 400 });
+  1654→          const j = heJson("hivepegged", "withdraw", { quantity: String(qty) });
+  1655→          j.required_auths = [targetAccount];
+  1656→          operations = [["custom_json", j]];
+  1657→        } else {
+  1658→          // roast 54 — honest capability scoping: this refusal USED to list
+  1659→          // transfer/transfer_to_vesting/claim_rewards/delegate for STEEM while
+  1660→          // the branches above only ever implement them for HIVE — the message
+  1661→          // lied about what would work. Scopes below match the ACTUAL branches.
+  1662→          const scopes: Record<string, string> = {
+  1663→            STEEM: "custom_json, transfer_to_vesting, transfer, claim_rewards, delegate_vesting_shares (Task 76 — steem-lib native assets)",
+  1664→            HIVE: "custom_json, transfer_to_vesting, transfer, claim_rewards, he_market_sell, he_withdraw, delegate_vesting_shares, delegate_rc",
+  1665→            BLURT: "custom_json only (weave anchors)"
+  1666→          };
+  1667→          return Response.json({ ok: false, error: `unsupported kind ${kind ?? "?"} for ${net} (scope: ${scopes[net] ?? "custom_json"})` }, { status: 400 });
+  1668→        }
+  1669→
+  1670→        // AUTHORITY VERIFICATION GATE — the winning candidate already verified
+  1671→        // against the LIVE chain above (verifyAuthority per candidate); nothing
+  1672→        // broadcasts without that match.
+  1673→        // RC FEASIBILITY GATE — no doomed broadcasts (posting weave is RC-free-light, skip it)
+  1674→        // Task 76: STEEM runs an RC pool too — the gate generalizes to both chains.
+  1675→        if ((net === "HIVE" || net === "STEEM") && !(kind === "custom_json" && authLevel !== "active")) {
+  1676→          const rcv = await verifyRcFeasibility(net, targetAccount);
+  1677→          if (!rcv.ok) {
+  1678→            log("REFUSED", `requestId=${requestId} kind=${kind} network=${net} account=${targetAccount}: ${rcv.error}`);
+  1679→            return Response.json({ ok: false, error: rcv.error, refused: "rc-gate" }, { status: 429 });
+  1680→          }
+  1681→        }
+  1682→
+  1683→        const { txid, confirmedBlock, nodeTrxId } = await buildSignBroadcast(net, targetAccount, wif, operations);
+  1684→        log("SIGN", `requestId=${requestId} kind=${kind} network=${net} role=${role} account=${targetAccount} txid=${txid ?? "?"} block=${confirmedBlock ?? "?"} (${Date.now() - started}ms)`);
+  1685→        return Response.json({ ok: true, txid, confirmedBlock: confirmedBlock ?? null, nodeTrxId: nodeTrxId ?? null, account: targetAccount, network: net, kind, role });
+  1686→      } catch (e) {
+  1687→        log("ERROR", `sign failed requestId=${requestId}: ${String(e?.message ?? e).slice(0, 160)}`);
+  1688→        return Response.json({ ok: false, error: String(e?.message ?? e).slice(0, 200), failureClass: e?.code === "CHAIN_REJECTED" ? "chain-rejected" : e?.code === "TRANSPORT" ? "transport" : "unknown" }, { status: 502 });
+  1689→      }
+  1690→      };
+  1691→
+  1692→      // cache the outcome — a repeated requestId now replays THIS response
+  1693→      let resp: Response;
+  1694→      try {
+  1695→        resp = await exec();
+  1696→      } catch (e) {
+  1697→        resp = Response.json({ ok: false, error: String(e?.message ?? e).slice(0, 200), failureClass: e?.code === "CHAIN_REJECTED" ? "chain-rejected" : e?.code === "TRANSPORT" ? "transport" : "unknown" }, { status: 502 });
+  1698→      }
+  1699→      entry.pending = null;
+  1700→      entry.status = resp.status;
+  1701→      try { entry.response = await resp.clone().json(); } catch { entry.response = { ok: false, error: "unreadable-response" }; }
+  1702→      resolveFlight();
+  1703→      return resp;
+  1704→    }
+  1705→
+  1706→    return Response.json({ ok: false, error: "not-found" }, { status: 404 });
+  1707→  }
+  1708→});
+  1709→
+  1710→log("INFO", `external-signer v${SIGNER_VERSION} listening on :${PORT} (auth=${TOKEN ? "token" : "MISSING-FAIL-CLOSED"}, networks=STEEM+HIVE+BLURT, steemAssetOps=claim+delegate+transfer(task76), hiveDelegateRc=on(task76), blurtChainId=cd8d90f2…, blurtSigning=blurtjs(op-enum-12), authorityGate=on(prefix-aware), keys-ingest=verify-then-write full-vault-candidate-tree, maxOpHive=${MAX_OP_HIVE}, txid=sha256-full-64hex chain-verifiable, failureClass=structural)`);
+  1711→

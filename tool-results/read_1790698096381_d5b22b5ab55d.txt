@@ -1,0 +1,969 @@
+     1→/**
+     2→ * Saosmartwallet — signing orchestrator (M2, layer 4)
+     3→ * ===================================================
+     4→ * The ONE path from "user wants this operation signed" to "SignedTx /
+     5→ * BroadcastResult". Every sign() call flows through, in order:
+     6→ *
+     7→ *   1. session gate    — SovereignVault.ensureUnlocked() (+ optional step-up
+     8→ *                        password re-verification via vault.verifyStepUp)
+     9→ *   2. policy gate     — PolicyEngine.evaluate with VAULT-DERIVED config
+    10→ *                        injected through op.detail (allowedOperations,
+    11→ *                        dailyLimitSatoshis, spentTodaySatoshis,
+    12→ *                        soldierPermissions). Denials and step-up demands
+    13→ *                        THROW — nothing is ever signed on a maybe.
+    14→ *   3. key resolution  — active EncryptedKey for (vaultId, network, role);
+    15→ *                        soldier/purpose vault ids resolve to their
+    16→ *                        underlying network vault for key lookup. op.role
+    17→ *                        null defaults to "active" for funds ops and
+    18→ *                        "posting" for vote/comment (steem-family).
+    19→ *   4. reveal + sign   — SovereignVault.revealKeyFor → ChainAdapter.sign
+    20→ *                        (the only sanctioned plaintext-key exit; key bytes
+    21→ *                        exist solely inside the adapter call frame)
+    22→ *   5. broadcast (opt) — capability-checked ("broadcast"), timed-lock
+    23→ *                        honored, optional confirmRequired gate
+    24→ *   6. audit           — key_used / signing_attempt / broadcast events on
+    25→ *                        the hash-chained AuditSystem
+    26→ *
+    27→ * Security contracts:
+    28→ *   • Zero mock: signatures come from the registered ChainAdapter over real
+    29→ *     revealed key material or not at all — a missing adapter is an honest
+    30→ *     failure, never a fabricated result.
+    31→ *   • Audit records carry NO secrets: key ids, public keys, amounts, tx ids.
+    32→ *   • The daily-spend context counts each signed operation ONCE: broadcast
+    33→ *     events deliberately omit target.operation (they carry only the tx id +
+    34→ *     a compact summary in target.detail) so buildOperationContext cannot
+    35→ *     double-count a signing_attempt + its broadcast.
+    36→ *   • NOTE on imports: packages/chains is imported TYPE-ONLY — packages/core
+    37→ *     keeps zero runtime coupling to the chains package.
+    38→ */
+    39→
+    40→import type { BroadcastResult, ChainAdapter, SignedTx, UnsignedTx } from "../../../chains/chain-adapter";
+    41→import { PrivateKey } from "../../../crypto/src/index";
+    42→import type { LogAuditInput } from "../audit/audit";
+    43→import { AuditSystem } from "../audit/audit";
+    44→import { parseSats } from "../encoding";
+    45→import { PolicyEngine } from "../policy/engine";
+    46→import type { SovereignVault } from "../vault/vault";
+    47→import {
+    48→  VaultError,
+    49→  type BatchSignResult,
+    50→  type CrossChainSignature,
+    51→  type KeyRole,
+    52→  type MultiSigResult,
+    53→  type NetworkId,
+    54→  type NetworkVaultConfig,
+    55→  type OperationContext,
+    56→  type PolicyDecision,
+    57→  type PolicyOperation,
+    58→  type SignatureRecord,
+    59→  type SigningOptions,
+    60→  type SimulationResult,
+    61→  type SoldierVaultConfig,
+    62→  type VaultStateDoc,
+    63→} from "../types";
+    64→
+    65→// ---------------------------------------------------------------------------
+    66→// Dependency seam
+    67→// ---------------------------------------------------------------------------
+    68→
+    69→/** Injected collaborators of the SigningOrchestrator (all accessor-style). */
+    70→export interface OrchestratorDeps {
+    71→  /** The unlocked-per-operation vault (layer 1). */
+    72→  getVault: () => SovereignVault;
+    73→  /** The policy engine (layer 3) — typically one shared instance. */
+    74→  getPolicy: () => PolicyEngine;
+    75→  /** The hash-chained audit system (layer 6). */
+    76→  getAudit: () => AuditSystem;
+    77→  /** Chain adapters by network — absent entries produce honest failures. */
+    78→  getAdapters: () => Partial<Record<NetworkId, ChainAdapter>>;
+    79→  /** Stable vault instance id — anchors audit genesis + context queries. */
+    80→  getInstanceId: () => string;
+    81→}
+    82→
+    83→/** Result of {@link SigningOrchestrator.sign}. */
+    84→export interface SignOutcome {
+    85→  signed: SignedTx;
+    86→  /** One record per signing key (single-sign: exactly one). */
+    87→  signature: SignatureRecord;
+    88→  /** Null unless options.broadcast was true AND the broadcast happened. */
+    89→  broadcast: BroadcastResult | null;
+    90→  /** The policy decision that authorized this signing. */
+    91→  decision: PolicyDecision;
+    92→}
+    93→
+    94→/** Options for {@link SigningOrchestrator.multiSign}. */
+    95→export interface MultiSignOptions {
+    96→  /**
+    97→   * Signing network. Inferred from the first given network-vault id when
+    98→   * omitted; must be passed explicitly when signing soldier/purpose ids.
+    99→   */
+   100→  network?: NetworkId;
+   101→  /** Fixed role for every vault; defaults to first available active → owner. */
+   102→  role?: KeyRole | null;
+   103→}
+   104→
+   105→/** Step-up-capable option set (the orchestrator's internal extension of SigningOptions). */
+   106→export type OrchestratorSignOptions = SigningOptions & { stepUpPassword?: string };
+   107→
+   108→// ---------------------------------------------------------------------------
+   109→// Internals — pure helpers
+   110→// ---------------------------------------------------------------------------
+   111→
+   112→/** Operation types that move funds or custody → default signing role "active". */
+   113→const FUNDS_SIGNING_OPS: ReadonlySet<string> = new Set([
+   114→  "transfer",
+   115→  "transfer_to_vesting",
+   116→  "withdraw_vesting",
+   117→  "limit_order_create",
+   118→  "limit_order_cancel",
+   119→  "delegate_vesting_shares",
+   120→  "trigger_smart_contract",
+   121→]);
+   122→
+   123→/** Social operations → default signing role "posting" (steem-family). */
+   124→const SOCIAL_SIGNING_OPS: ReadonlySet<string> = new Set(["vote", "comment", "custom_json"]);
+   125→
+   126→/** Maps a token symbol to the TokenBalances field that carries its balance. */
+   127→const BALANCE_FIELD: Record<string, "liquid" | "debt"> = {
+   128→  STEEM: "liquid",
+   129→  SBD: "debt",
+   130→  HIVE: "liquid",
+   131→  HBD: "debt",
+   132→  BLURT: "liquid",
+   133→  SAOS: "liquid",
+   134→  TRX: "liquid",
+   135→};
+   136→
+   137→/** Milliseconds in one day — dead-man/UTC-day math. */
+   138→const DAY_MS = 86_400_000;
+   139→
+   140→/** Start of the UTC day containing `ms` (epoch ms). */
+   141→function utcDayStart(ms: number): number {
+   142→  const d = new Date(ms);
+   143→  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+   144→}
+   145→
+   146→/**
+   147→ * Default key role for an operation with op.role === null: "active" for
+   148→ * steem-family funds operations, "posting" for vote/comment, "active"
+   149→ * otherwise (tron keeps flavor-less null — handled by the caller).
+   150→ */
+   151→function defaultRoleFor(opType: string, network: NetworkId): KeyRole | null {
+   152→  if (network === "tron") return null;
+   153→  if (FUNDS_SIGNING_OPS.has(opType)) return "active";
+   154→  if (SOCIAL_SIGNING_OPS.has(opType)) return "posting";
+   155→  return "active";
+   156→}
+   157→
+   158→/** Structural guard for a recovered PolicyDecision carried in error details. */
+   159→function isPolicyDecision(v: unknown): v is PolicyDecision {
+   160→  if (v === null || typeof v !== "object") return false;
+   161→  const o = v as Record<string, unknown>;
+   162→  return typeof o.allowed === "boolean" && Array.isArray(o.reasons) && Array.isArray(o.checks);
+   163→}
+   164→
+   165→/**
+   166→ * Parses a chain asset string "10.000 STEEM" into exact satoshis (NO floats —
+   167→ * the decimal digits are re-arranged, never multiplied through a float).
+   168→ * Returns null for anything that is not an unsigned decimal + symbol.
+   169→ */
+   170→function parseAssetString(s: string): { satoshis: string; symbol: string } | null {
+   171→  const m = /^(\d+)(?:\.(\d+))?\s+([A-Za-z][A-Za-z0-9]*)$/.exec(s.trim());
+   172→  if (m === null) return null;
+   173→  const digits = `${m[1]}${m[2] ?? ""}`;
+   174→  return { satoshis: BigInt(digits).toString(), symbol: m[3]!.toUpperCase() };
+   175→}
+   176→
+   177→/** Reads a string field from SignedTx.metadata (adapter-reported digests). */
+   178→function metadataString(signed: SignedTx, field: string): string | null {
+   179→  const md = signed.metadata as Record<string, unknown> | undefined;
+   180→  if (md === undefined) return null;
+   181→  const v = md[field];
+   182→  return typeof v === "string" ? v : null;
+   183→}
+   184→
+   185→/** STM-family public key prefix per network (null = no honest representation). */
+   186→function publicKeyPrefix(network: NetworkId): string | null {
+   187→  if (network === "blurt") return "BLT";
+   188→  if (network === "tron") return null;
+   189→  return "STM"; // steem / hive / saos-net share the STM-style identity
+   190→}
+   191→
+   192→// ---------------------------------------------------------------------------
+   193→// SigningOrchestrator
+   194→// ---------------------------------------------------------------------------
+   195→
+   196→/**
+   197→ * Layer 4 — turns policy-approved operations into signatures and (optionally)
+   198→ * broadcasts, with a full audit trail. Stateless beyond its injected deps;
+   199→ * one instance can serve many requests.
+   200→ */
+   201→export class SigningOrchestrator {
+   202→  constructor(private readonly deps: OrchestratorDeps) {}
+   203→
+   204→  // -------------------------------------------------------------------------
+   205→  // Context building + policy gate
+   206→  // -------------------------------------------------------------------------
+   207→
+   208→  /**
+   209→   * Builds the policy-engine OperationContext for one operation from the
+   210→   * audit history (via AuditSystem.buildOperationContext) and INJECTS the
+   211→   * vault-derived policy configuration into the operation's detail — the
+   212→   * reserved keys consumed by the compiled-in static rules:
+   213→   *
+   214→   *   - allowedOperations    ← network vault's allowedOperations
+   215→   *   - dailyLimitSatoshis   ← network vault's maxAmountPerDay[symbol]
+   216→   *   - spentTodaySatoshis   ← sum of today's (UTC) SUCCESSFUL signing
+   217→   *                            history amounts for the same symbol
+   218→   *   - soldierPermissions   ← the soldier's permissions when the operation
+   219→   *                            targets a vault-soldier-* id
+   220→   *
+   221→   * The injection is applied to a COPY of the operation (the caller's object
+   222→   * is never mutated); the effective operation is what gets evaluated and
+   223→   * audited. Malformed historical amounts are skipped (guarded parseSats).
+   224→   *
+   225→   * @throws VaultError("VAULT_NOT_INITIALIZED") when the vault has no state.
+   226→   */
+   227→  async buildContext(
+   228→    op: PolicyOperation,
+   229→    opts?: { trustedDevice?: boolean; stepUpSatisfied?: boolean },
+   230→  ): Promise<OperationContext> {
+   231→    const vault = this.deps.getVault();
+   232→    if (vault.getState() === null) {
+   233→      throw new VaultError("VAULT_NOT_INITIALIZED", "vault state not initialized — initialize() first");
+   234→    }
+   235→    return this.deps.getAudit().buildOperationContext(this.deps.getInstanceId(), {
+   236→      timestamp: Date.now(),
+   237→      network: op.network,
+   238→      trustedDevice: opts?.trustedDevice ?? true,
+   239→      stepUpSatisfied: opts?.stepUpSatisfied ?? false,
+   240→    });
+   241→  }
+   242→
+   243→  /**
+   244→   * The non-secret policy gate: build context → evaluate → THROW on denial
+   245→   * or on an unsatisfied step-up requirement (fail closed — the caller gets
+   246→   * the full PolicyDecision in error.details for the signing dialog).
+   247→   *
+   248→   * - `decision.requirements.stepUpAuth && !ctx.stepUpSatisfied` → audit
+   249→   *   policy_violation (blocked) + VaultError("POLICY_STEP_UP_REQUIRED").
+   250→   * - `!decision.allowed` → audit policy_violation (blocked) +
+   251→   *   VaultError("POLICY_DENIED", reasons.join("; "), { decision }).
+   252→   *
+   253→   * @param options.stepUpSatisfied — set true by sign() AFTER a successful
+   254→   *   step-up password verification; drops the step-up requirement.
+   255→   * @throws VaultError("VAULT_NOT_FOUND") when no network vault exists for
+   256→   *   op.network (the orchestrator refuses to evaluate without the
+   257→   *   vault-level configuration — fail closed per the static-rule contract).
+   258→   */
+   259→  async evaluateAndCheck(
+   260→    op: PolicyOperation,
+   261→    options?: SigningOptions & { stepUpSatisfied?: boolean },
+   262→  ): Promise<PolicyDecision> {
+   263→    const { decision } = await this.evaluateInternal(op, options?.stepUpSatisfied === true);
+   264→    return decision;
+   265→  }
+   266→
+   267→  // -------------------------------------------------------------------------
+   268→  // The main signing path
+   269→  // -------------------------------------------------------------------------
+   270→
+   271→  /**
+   272→   * Sign one transaction under full policy + audit. THE main path — see the
+   273→   * class doc for the six-stage pipeline.
+   274→   *
+   275→   * Step-up: when `options.stepUpPassword` is provided it is re-verified
+   276→   * against the vault verifier BEFORE evaluation (a verified step-up drops
+   277→   * the policy step-up requirement). When `options.requirePassword` is true
+   278→   * but no password is supplied the call fails closed with VALIDATION.
+   279→   *
+   280→   * Broadcast (options.broadcast === true): the adapter must advertise the
+   281→   * "broadcast" capability, the (optional) timed lock must have expired and
+   282→   * the confirmRequired gate (when given) must approve. Any refusal is an
+   283→   * explicit VaultError — the orchestrator never silently skips a requested
+   284→   * broadcast.
+   285→   *
+   286→   * @throws VaultError("POLICY_STEP_UP_REQUIRED") / ("POLICY_DENIED") from
+   287→   *   the policy gate, ("WRONG_PASSWORD") on a bad step-up password,
+   288→   *   ("KEY_NOT_FOUND"), ("KEY_REVOKED"), ("ADAPTER_MISSING"),
+   289→   *   ("ADAPTER_INCAPABLE"), ("TIMED_LOCK"), ("VALIDATION") on a declined
+   290→   *   confirm gate or a flavor-less key, plus adapter-native failures.
+   291→   *   Every post-policy failure is audited as a signing_attempt failure.
+   292→   */
+   293→  async sign(
+   294→    op: PolicyOperation,
+   295→    tx: UnsignedTx,
+   296→    options?: OrchestratorSignOptions,
+   297→  ): Promise<SignOutcome> {
+   298→    const vault = this.deps.getVault();
+   299→    vault.ensureUnlocked();
+   300→
+   301→    // 1. Step-up authentication (optional, fail closed).
+   302→    const stepUpProvided = typeof options?.stepUpPassword === "string" && options.stepUpPassword.length > 0;
+   303→    if (options?.requirePassword === true && !stepUpProvided) {
+   304→      throw new VaultError("VALIDATION", "requirePassword was requested but no stepUpPassword was provided");
+   305→    }
+   306→    if (stepUpProvided) {
+   307→      await vault.verifyStepUp(options.stepUpPassword as string);
+   308→    }
+   309→
+   310→    // 2. Policy gate (audits policy_violation itself on denial/step-up).
+   311→    const { decision, effOp, networkVault, underlyingVaultId } = await this.evaluateInternal(op, stepUpProvided);
+   312→
+   313→    // 3.–6. Resolve → reveal → sign → (broadcast) → touch/audit. Failures
+   314→    // after the policy gate are audited as signing_attempt failures; the
+   315→    // ORIGINAL error always wins over an audit outage on this path.
+   316→    try {
+   317→      const state = this.requireState(vault);
+   318→      const keyId = this.resolveKeyId(state, op.vaultId, op.network, op.role ?? defaultRoleFor(op.type, op.network));
+   319→      if (keyId === null) {
+   320→        throw new VaultError(
+   321→          "KEY_NOT_FOUND",
+   322→          `no active ${op.role ?? "default-role"} key for network "${op.network}" under vault "${op.vaultId}"`,
+   323→        );
+   324→      }
+   325→      const { privateKey, record } = await vault.revealKeyFor(keyId);
+   326→      if (record.role === null) {
+   327→        throw new VaultError(
+   328→          "VALIDATION",
+   329→          "flavor-less key (role null) cannot drive the steem-family signing contract — add it with an explicit role",
+   330→        );
+   331→      }
+   332→      const adapter = this.adapterFor(op.network);
+   333→      const signed = await adapter.sign(tx, { byRole: { [record.role]: privateKey } }, [record.role]);
+   334→      const signatureHex = signed.signatures[0];
+   335→      if (signatureHex === undefined) {
+   336→        throw new VaultError("VALIDATION", "adapter returned a signed transaction without signatures");
+   337→      }
+   338→      const publicKey = this.publicKeyFor(record.publicKey, privateKey, op.network);
+   339→
+   340→      let broadcast: BroadcastResult | null = null;
+   341→      if (options?.broadcast === true) {
+   342→        broadcast = await this.broadcastSigned(adapter, signed, options, decision, effOp);
+   343→      }
+   344→
+   345→      // 6. Activity + audit trail.
+   346→      vault.touch();
+   347→      await vault.markKeyUsed(keyId);
+   348→      await this.logAudit({
+   349→        type: "key_used",
+   350→        actor: { vaultId: underlyingVaultId, keyId },
+   351→        target: { vaultId: op.vaultId, keyId },
+   352→        result: "success",
+   353→      });
+   354→      await this.logAudit({
+   355→        type: "signing_attempt",
+   356→        actor: { vaultId: op.vaultId, keyId },
+   357→        target: { vaultId: op.vaultId, keyId, operation: effOp },
+   358→        result: "success",
+   359→        reason: `signed with ${record.role} key; ${networkVault.status === "offline" ? "network vault is OFFLINE" : "network vault active"}`,
+   360→      });
+   361→      if (broadcast !== null) {
+   362→        // Deliberately NO target.operation here: the broadcast history entry
+   363→        // must not double-count the daily spend of its signing_attempt (see
+   364→        // class doc). txId + compact summary travel in target.detail.
+   365→        await this.logAudit({
+   366→          type: "broadcast",
+   367→          actor: { vaultId: op.vaultId, keyId },
+   368→          target: {
+   369→            vaultId: op.vaultId,
+   370→            detail: {
+   371→              txId: broadcast.txId,
+   372→              ...(broadcast.blockNum !== undefined ? { blockNum: broadcast.blockNum } : {}),
+   373→              type: effOp.type,
+   374→              amountSatoshis: effOp.amountSatoshis,
+   375→              symbol: effOp.symbol,
+   376→            },
+   377→          },
+   378→          result: "success",
+   379→          reason: `${effOp.type} broadcast to ${op.network}`,
+   380→        });
+   381→      }
+   382→
+   383→      return {
+   384→        signed,
+   385→        signature: {
+   386→          vaultId: op.vaultId,
+   387→          keyId,
+   388→          role: record.role,
+   389→          publicKey,
+   390→          signatureHex,
+   391→          signedAt: Date.now(),
+   392→        },
+   393→        broadcast,
+   394→        decision,
+   395→      };
+   396→    } catch (e) {
+   397→      try {
+   398→        await this.logAudit({
+   399→          type: "signing_attempt",
+   400→          actor: { vaultId: op.vaultId },
+   401→          target: { vaultId: op.vaultId, operation: op },
+   402→          result: "failure",
+   403→          reason: e instanceof VaultError ? `${e.code}: ${e.message}` : "unexpected signing failure",
+   404→        });
+   405→      } catch {
+   406→        // The audit store is down — the original signing failure is the one
+   407→        // to surface; masking it here would hide the security-relevant cause.
+   408→      }
+   409→      throw e;
+   410→    }
+   411→  }
+   412→
+   413→  /**
+   414→   * Dry-run one operation WITHOUT signing. Explicitly non-throwing for
+   415→   * policy/adapter issues: every problem is reported as a SimulationRisk.
+   416→   *
+   417→   * Honest-by-construction:
+   418→   *   - no adapter for the network → missing_adapter (high) + success false;
+   419→   *   - network vault offline → offline_network (high) + success false;
+   420→   *   - policy denial / unevaluable policy → policy_violation (high);
+   421→   *   - debit leg above the adapter-reported balance → insufficient_balance;
+   422→   *   - estimatedFeeSatoshis is "0" for steem-family (no gas) — honest;
+   423→   *   - RC manabar percent (when available) → estimatedResourcePercent.
+   424→   *
+   425→   * success = policy-allowed AND no high-severity risk.
+   426→   */
+   427→  async simulate(op: PolicyOperation, account: string): Promise<SimulationResult> {
+   428→    const vault = this.deps.getVault();
+   429→    const state = vault.getState();
+   430→    const risks: SimulationResult["risks"] = [];
+   431→    const stateChanges: string[] = [];
+   432→    const events: string[] = [];
+   433→    const balanceChanges: SimulationResult["expectedOutcome"]["balanceChanges"] = [];
+   434→
+   435→    // 1. Policy — non-throwing path around evaluateAndCheck.
+   436→    let decision: PolicyDecision | null = null;
+   437→    if (state === null) {
+   438→      risks.push({
+   439→        type: "policy_violation",
+   440→        severity: "high",
+   441→        description: "vault state is not initialized — policy could not be evaluated",
+   442→      });
+   443→    } else {
+   444→      if (state.networks[`network-${op.network}`] === undefined) {
+   445→        risks.push({
+   446→          type: "policy_violation",
+   447→          severity: "high",
+   448→          description: `no network vault is configured for network "${op.network}" — signing would be refused`,
+   449→        });
+   450→      }
+   451→      try {
+   452→        decision = await this.evaluateAndCheck(op);
+   453→      } catch (e) {
+   454→        if (!(e instanceof VaultError)) throw e;
+   455→        const fromDetails = e.details?.decision;
+   456→        if (isPolicyDecision(fromDetails)) {
+   457→          decision = fromDetails;
+   458→        } else {
+   459→          // No decision attached (e.g. VAULT_NOT_FOUND / audit failure) —
+   460→          // rebuild one directly (still non-throwing).
+   461→          try {
+   462→            const ctx = await this.buildContext(op);
+   463→            const view = this.buildEffectiveOp(state, op, ctx);
+   464→            decision = this.deps.getPolicy().evaluate(view.effOp, ctx, state.policies);
+   465→          } catch {
+   466→            decision = null;
+   467→          }
+   468→        }
+   469→      }
+   470→    }
+   471→    if (decision !== null && !decision.allowed) {
+   472→      risks.push({
+   473→        type: "policy_violation",
+   474→        severity: "high",
+   475→        description: `policy denies this operation: ${decision.reasons.join("; ")}`,
+   476→      });
+   477→    }
+   478→
+   479→    // 2. Balance legs from the operation (no tx is simulated — op.detail
+   480→    //    carries the limit-order asset strings when applicable).
+   481→    const legs = this.balanceLegsFor(op);
+   482→    for (let i = 0; i < legs.length; i++) {
+   483→      const leg = legs[i]!;
+   484→      balanceChanges.push({ asset: leg.asset, satoshis: leg.satoshis, direction: i === 0 ? "debit" : "credit" });
+   485→    }
+   486→    if (op.type === "limit_order_create") {
+   487→      stateChanges.push("a limit order will rest on the internal market until filled, cancelled or expired");
+   488→    } else if (op.type === "transfer" || op.type === "transfer_to_vesting") {
+   489→      stateChanges.push("liquid balance decreases when the operation confirms on-chain");
+   490→    } else if (legs.length > 0) {
+   491→      stateChanges.push("asset balances change when the operation confirms on-chain");
+   492→    }
+   493→
+   494→    // 3. Adapter-side checks (balance, RC) — absent adapter = honest risk.
+   495→    const adapter = this.deps.getAdapters()[op.network];
+   496→    let estimatedResourcePercent: number | null = null;
+   497→    if (adapter === undefined) {
+   498→      risks.push({
+   499→        type: "missing_adapter",
+   500→        severity: "high",
+   501→        description: `no chain adapter registered for network "${op.network}" — the operation cannot be built or signed`,
+   502→      });
+   503→    } else {
+   504→      const debit = legs[0];
+   505→      if (debit !== undefined) {
+   506→        const field = BALANCE_FIELD[debit.asset];
+   507→        if (field !== undefined) {
+   508→          try {
+   509→            const balances = await adapter.getBalances(account);
+   510→            const raw = balances[field];
+   511→            const onChain = typeof raw === "string" ? parseAssetString(raw) : null;
+   512→            if (onChain !== null && BigInt(debit.satoshis) > BigInt(onChain.satoshis)) {
+   513→              risks.push({
+   514→                type: "insufficient_balance",
+   515→                severity: "high",
+   516→                description: `debit of ${debit.satoshis} ${debit.asset} satoshis exceeds the ${onChain.satoshis} satoshi ${field} balance of "${account}"`,
+   517→              });
+   518→            }
+   519→          } catch (err) {
+   520→            events.push(`balance lookup failed (${err instanceof Error ? err.message : "unknown"}) — balance risk not assessed`);
+   521→          }
+   522→        }
+   523→      }
+   524→      try {
+   525→        const rc = await adapter.getRcManabar(account);
+   526→        estimatedResourcePercent = rc?.percent ?? null;
+   527→      } catch {
+   528→        estimatedResourcePercent = null; // honest absence — RC not assessable
+   529→      }
+   530→    }
+   531→
+   532→    // 4. Offline network — config exists but refuses signing.
+   533→    if (state !== null && state.networks[`network-${op.network}`]?.status === "offline") {
+   534→      risks.push({
+   535→        type: "offline_network",
+   536→        severity: "high",
+   537→        description: `the network vault for "${op.network}" is configured offline — signing is refused`,
+   538→      });
+   539→    }
+   540→
+   541→    if (decision !== null) {
+   542→      events.push(`policy: ${decision.allowed ? "allowed" : "denied"} (risk ${decision.riskLevel}, confidence ${decision.confidence.toFixed(2)})`);
+   543→    }
+   544→    // Steem-family operations consume Resource Credits, not gas — "0" is the
+   545→    // honest fee. Other flavors are not fee-estimated by this layer.
+   546→    const success = (decision?.allowed ?? false) && !risks.some((r) => r.severity === "high");
+   547→
+   548→    return {
+   549→      success,
+   550→      expectedOutcome: { balanceChanges, stateChanges, events },
+   551→      risks,
+   552→      estimatedFeeSatoshis: "0",
+   553→      estimatedResourcePercent,
+   554→      decision,
+   555→    };
+   556→  }
+   557→
+   558→  // -------------------------------------------------------------------------
+   559→  // Multi-signature / batch / cross-chain primitives
+   560→  // -------------------------------------------------------------------------
+   561→
+   562→  /**
+   563→   * Sign the SAME transaction with the resolved key of EACH vault id — the
+   564→   * pre-chain multi-signature primitive. NOTE: Steem-family authorities merge
+   565→   * signatures at the AUTHORITY level (the chain recombines per-account
+   566→   * authority sets); this envelope only produces the independent per-key
+   567→   * signatures and checks them against the master-vault guardian threshold.
+   568→   *
+   569→   * - Missing vault ids → VaultError("VAULT_NOT_FOUND").
+   570→   * - Keys resolve through the same path as sign() (soldier/purpose ids fall
+   571→   *   back to their underlying network vault); the same physical key reached
+   572→   *   through two vault ids is signed ONCE (deduped by keyId — re-signing
+   573→   *   identical bytes adds no security).
+   574→   * - role: opts.role, else first available active → owner.
+   575→   * - threshold = master vault guardian threshold (3); satisfied =
+   576→   *   signatures.length >= threshold (honestly false when fewer keys exist).
+   577→   *
+   578→   * @throws VaultError("VAULT_NOT_FOUND"), ("KEY_NOT_FOUND"),
+   579→   *   ("ADAPTER_MISSING"), ("VALIDATION") when the network cannot be inferred
+   580→   *   or the adapter reports no digest.
+   581→   */
+   582→  async multiSign(vaultIds: string[], tx: UnsignedTx, opts?: MultiSignOptions): Promise<MultiSigResult> {
+   583→    if (vaultIds.length === 0) {
+   584→      throw new VaultError("VALIDATION", "multiSign requires at least one vault id");
+   585→    }
+   586→    const vault = this.deps.getVault();
+   587→    vault.ensureUnlocked();
+   588→    const state = this.requireState(vault);
+   589→    const uniqueIds = [...new Set(vaultIds)];
+   590→    for (const id of uniqueIds) {
+   591→      if (state.networks[id] === undefined && state.soldiers[id] === undefined && state.purposes[id] === undefined && state.master?.id !== id) {
+   592→        throw new VaultError("VAULT_NOT_FOUND", `vault "${id}" does not exist in this vault state`);
+   593→      }
+   594→    }
+   595→    const network = opts?.network ?? uniqueIds.map((id) => state.networks[id]?.network).find((n) => n !== undefined);
+   596→    if (network === undefined) {
+   597→      throw new VaultError("VALIDATION", "cannot infer the signing network — pass opts.network (none of the ids is a network vault)");
+   598→    }
+   599→    const adapter = this.adapterFor(network);
+   600→
+   601→    const signatures: SignatureRecord[] = [];
+   602→    const seenKeyIds = new Set<string>();
+   603→    let digestHex: string | null = null;
+   604→
+   605→    for (const id of uniqueIds) {
+   606→      const role = opts?.role !== undefined ? opts.role : this.firstAvailableRole(state, id, network);
+   607→      const keyId = this.resolveKeyId(state, id, network, role);
+   608→      if (keyId === null) {
+   609→        throw new VaultError("KEY_NOT_FOUND", `no active ${role ?? "default-role"} key for network "${network}" under vault "${id}"`);
+   610→      }
+   611→      if (seenKeyIds.has(keyId)) continue; // same physical key via another vault id
+   612→      seenKeyIds.add(keyId);
+   613→
+   614→      const { privateKey, record } = await vault.revealKeyFor(keyId);
+   615→      if (record.role === null) {
+   616→        throw new VaultError("VALIDATION", `key ${keyId} is flavor-less (role null) and cannot sign this envelope`);
+   617→      }
+   618→      const signed = await adapter.sign(tx, { byRole: { [record.role]: privateKey } }, [record.role]);
+   619→      const signatureHex = signed.signatures[0];
+   620→      if (signatureHex === undefined) {
+   621→        throw new VaultError("VALIDATION", "adapter returned a signed transaction without signatures");
+   622→      }
+   623→      if (digestHex === null) {
+   624→        const reported = metadataString(signed, "digestHex");
+   625→        if (reported === null) {
+   626→          throw new VaultError("VALIDATION", "adapter did not report a digestHex in SignedTx.metadata");
+   627→        }
+   628→        digestHex = reported;
+   629→      }
+   630→      signatures.push({
+   631→        vaultId: id,
+   632→        keyId,
+   633→        role: record.role,
+   634→        publicKey: this.publicKeyFor(record.publicKey, privateKey, network),
+   635→        signatureHex,
+   636→        signedAt: Date.now(),
+   637→      });
+   638→    }
+   639→
+   640→    const threshold = state.master?.threshold ?? 3;
+   641→    const satisfied = signatures.length >= threshold;
+   642→
+   643→    await this.logAudit({
+   644→      type: "signing_attempt",
+   645→      actor: { vaultId: uniqueIds[0]! },
+   646→      target: { vaultId: uniqueIds[0]!, detail: { multiSig: true, vaultIds: uniqueIds, network, signatureCount: signatures.length, satisfied } },
+   647→      result: "success",
+   648→      reason: `multiSign: ${signatures.length} signature(s), threshold ${threshold}`,
+   649→    });
+   650→    for (const sig of signatures) {
+   651→      await this.logAudit({
+   652→        type: "key_used",
+   653→        actor: { vaultId: sig.vaultId, keyId: sig.keyId },
+   654→        target: { vaultId: sig.vaultId, keyId: sig.keyId, detail: { multiSig: true } },
+   655→        result: "success",
+   656→      });
+   657→    }
+   658→
+   659→    return { digestHex: digestHex ?? "", signatures, threshold, satisfied };
+   660→  }
+   661→
+   662→  /**
+   663→   * Sequentially signs a batch through the SAME single-sign path. Every
+   664→   * entry is independently try/caught: a POLICY_DENIED (or any other)
+   665→   * failure is recorded as a failed result entry and NEVER aborts the rest
+   666→   * of the batch. Each entry — success or failure — is audited by sign()
+   667→   * itself (signing_attempt success/failure, policy_violation on blocks,
+   668→   * broadcast events per options.broadcast).
+   669→   *
+   670→   * The entry operation's vaultId wins when non-empty; otherwise the batch
+   671→   * `vaultId` is applied.
+   672→   */
+   673→  async batchSign(
+   674→    vaultId: string,
+   675→    batch: Array<{ op: PolicyOperation; tx: UnsignedTx }>,
+   676→    options?: OrchestratorSignOptions,
+   677→  ): Promise<BatchSignResult> {
+   678→    const results: BatchSignResult["results"] = [];
+   679→    let succeeded = 0;
+   680→    let failed = 0;
+   681→    for (let i = 0; i < batch.length; i++) {
+   682→      const entry = batch[i]!;
+   683→      const op: PolicyOperation = entry.op.vaultId.length > 0 ? entry.op : { ...entry.op, vaultId };
+   684→      const result: BatchSignResult["results"][number] = {
+   685→        index: i,
+   686→        ok: false,
+   687→        txId: null,
+   688→        digestHex: null,
+   689→        error: null,
+   690→        broadcastResult: null,
+   691→      };
+   692→      try {
+   693→        const out = await this.sign(op, entry.tx, options);
+   694→        result.ok = true;
+   695→        result.digestHex = metadataString(out.signed, "digestHex");
+   696→        if (out.broadcast !== null) {
+   697→          result.broadcastResult = {
+   698→            txId: out.broadcast.txId,
+   699→            ...(out.broadcast.blockNum !== undefined ? { blockNum: out.broadcast.blockNum } : {}),
+   700→          };
+   701→          result.txId = out.broadcast.txId;
+   702→        }
+   703→        succeeded++;
+   704→      } catch (e) {
+   705→        result.error = e instanceof VaultError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : "unknown failure";
+   706→        failed++;
+   707→      }
+   708→      results.push(result);
+   709→    }
+   710→    return { results, succeeded, failed };
+   711→  }
+   712→
+   713→  /**
+   714→   * Signs a source-network transaction and, when possible, the paired
+   715→   * target-network transaction of a cross-chain move. ZERO MOCK: the source
+   716→   * must sign for real (failures throw); a missing target adapter yields
+   717→   * errors ["no adapter for network ..."] with target: null — never a
+   718→   * fabricated signature. The target signing best-effort failure is
+   719→   * recorded in errors while the source result is preserved.
+   720→   */
+   721→  async crossChainSign(
+   722→    sourceVaultId: string,
+   723→    targetNetwork: NetworkId,
+   724→    op: PolicyOperation,
+   725→    txs: { source: UnsignedTx; target: UnsignedTx },
+   726→  ): Promise<CrossChainSignature> {
+   727→    const errors: string[] = [];
+   728→    const sourceOp: PolicyOperation = { ...op, vaultId: sourceVaultId };
+   729→    const sourceOut = await this.sign(sourceOp, txs.source, { broadcast: false });
+   730→
+   731→    const adapters = this.deps.getAdapters();
+   732→    let target: SignatureRecord | null = null;
+   733→    if (adapters[targetNetwork] === undefined) {
+   734→      errors.push(`no adapter for network "${targetNetwork}"`);
+   735→    } else {
+   736→      const targetOp: PolicyOperation = { ...sourceOp, network: targetNetwork, vaultId: `network-${targetNetwork}` };
+   737→      try {
+   738→        const targetOut = await this.sign(targetOp, txs.target, { broadcast: false });
+   739→        target = targetOut.signature;
+   740→      } catch (e) {
+   741→        errors.push(
+   742→          `target signature failed: ${e instanceof VaultError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : "unknown failure"}`,
+   743→        );
+   744→      }
+   745→    }
+   746→
+   747→    return {
+   748→      sourceNetwork: op.network,
+   749→      targetNetwork,
+   750→      source: sourceOut.signature,
+   751→      target,
+   752→      errors,
+   753→    };
+   754→  }
+   755→
+   756→  // -------------------------------------------------------------------------
+   757→  // Internals
+   758→  // -------------------------------------------------------------------------
+   759→
+   760→  /** Policy gate shared by evaluateAndCheck/sign — returns the audited form of the operation. */
+   761→  private async evaluateInternal(
+   762→    op: PolicyOperation,
+   763→    stepUpSatisfied: boolean,
+   764→  ): Promise<{ decision: PolicyDecision; effOp: PolicyOperation; networkVault: NetworkVaultConfig; underlyingVaultId: string }> {
+   765→    const vault = this.deps.getVault();
+   766→    const state = this.requireState(vault);
+   767→    const networkVault = state.networks[`network-${op.network}`];
+   768→    if (networkVault === undefined) {
+   769→      throw new VaultError(
+   770→        "VAULT_NOT_FOUND",
+   771→        `no network vault is configured for network "${op.network}" — the orchestrator refuses to evaluate (fail-closed)`,
+   772→      );
+   773→    }
+   774→    const ctx = await this.buildContext(op, { stepUpSatisfied });
+   775→    const { effOp } = this.buildEffectiveOp(state, op, ctx);
+   776→    const decision = this.deps.getPolicy().evaluate(effOp, ctx, state.policies);
+   777→
+   778→    if (decision.requirements?.stepUpAuth === true && ctx.stepUpSatisfied !== true) {
+   779→      await this.auditPolicyViolation(effOp, op.vaultId, "POLICY_STEP_UP_REQUIRED", "step-up authentication required before signing");
+   780→      throw new VaultError("POLICY_STEP_UP_REQUIRED", "step-up authentication (password re-entry) is required before this operation can proceed", {
+   781→        decision,
+   782→      });
+   783→    }
+   784→    if (!decision.allowed) {
+   785→      await this.auditPolicyViolation(effOp, op.vaultId, "POLICY_DENIED", decision.reasons.join("; "));
+   786→      throw new VaultError("POLICY_DENIED", decision.reasons.join("; "), { decision });
+   787→    }
+   788→    return { decision, effOp, networkVault, underlyingVaultId: this.underlyingVaultId(state, op.vaultId, op.network) };
+   789→  }
+   790→
+   791→  /** Injects the vault-derived policy config into a COPY of the operation. */
+   792→  private buildEffectiveOp(
+   793→    state: VaultStateDoc,
+   794→    op: PolicyOperation,
+   795→    ctx: OperationContext,
+   796→  ): { effOp: PolicyOperation } {
+   797→    const soldier: SoldierVaultConfig | null = state.soldiers[op.vaultId] ?? null;
+   798→    const networkVault = state.networks[`network-${op.network}`] ?? null;
+   799→    const detail: Record<string, unknown> = { ...(op.detail ?? {}) };
+   800→
+   801→    if (networkVault !== null) {
+   802→      detail.allowedOperations = [...networkVault.allowedOperations];
+   803→      const limit = networkVault.maxAmountPerDay[op.symbol];
+   804→      if (typeof limit === "string") detail.dailyLimitSatoshis = limit;
+   805→    }
+   806→    detail.spentTodaySatoshis = this.spentTodaySatoshis(op, ctx);
+   807→    if (soldier !== null) {
+   808→      detail.soldierPermissions = { ...soldier.permissions };
+   809→    }
+   810→    return { effOp: { ...op, detail } };
+   811→  }
+   812→
+   813→  /**
+   814→   * Today's (UTC-day) successful spend for the operation's symbol, summed
+   815→   * from the audit-derived history (bigint, malformed entries skipped).
+   816→   * Only signing lifecycle events feed the context; broadcast events carry
+   817→   * no target.operation, so each signed operation is counted exactly once.
+   818→   */
+   819→  private spentTodaySatoshis(op: PolicyOperation, ctx: OperationContext): string {
+   820→    const dayStart = utcDayStart(ctx.timestamp);
+   821→    let spent = 0n;
+   822→    for (const h of ctx.history) {
+   823→      if (h.timestamp < dayStart || h.result !== "success" || h.symbol !== op.symbol) continue;
+   824→      try {
+   825→        spent += parseSats(h.amountSatoshis);
+   826→      } catch {
+   827→        // Malformed historical amount — excluded from the sum, never fatal.
+   828→      }
+   829→    }
+   830→    return spent.toString();
+   831→  }
+   832→
+   833→  /** Soldier/purpose ids resolve to their underlying network vault id. */
+   834→  private underlyingVaultId(state: VaultStateDoc, vaultId: string, network: NetworkId): string {
+   835→    const soldier = state.soldiers[vaultId];
+   836→    if (soldier !== undefined) {
+   837→      const linked = soldier.linkedVaults.find((vid) => state.networks[vid]?.network === network);
+   838→      return linked ?? `network-${network}`;
+   839→    }
+   840→    if (state.purposes[vaultId] !== undefined) return `network-${network}`;
+   841→    return vaultId;
+   842→  }
+   843→
+   844→  /**
+   845→   * Key resolution: direct (vaultId, network, role) hit first; soldier and
+   846→   * purpose vault ids fall back to their underlying network vault. Returns
+   847→   * null when nothing matches (callers turn that into KEY_NOT_FOUND).
+   848→   */
+   849→  private resolveKeyId(state: VaultStateDoc, vaultId: string, network: NetworkId, role: KeyRole | null): string | null {
+   850→    const vault = this.deps.getVault();
+   851→    const direct = vault.selectKeyId({ vaultId, network, role });
+   852→    if (direct !== null) return direct;
+   853→    if (state.soldiers[vaultId] === undefined && state.purposes[vaultId] === undefined) return null;
+   854→    return vault.selectKeyId({ vaultId: this.underlyingVaultId(state, vaultId, network), network, role });
+   855→  }
+   856→
+   857→  /** First available role for multiSign: active → owner (key-presence probe). */
+   858→  private firstAvailableRole(state: VaultStateDoc, vaultId: string, network: NetworkId): KeyRole | null {
+   859→    for (const role of ["active", "owner"] as const) {
+   860→      if (this.resolveKeyId(state, vaultId, network, role) !== null) return role;
+   861→    }
+   862→    return null;
+   863→  }
+   864→
+   865→  /** Registered adapter or an honest ADAPTER_MISSING failure. */
+   866→  private adapterFor(network: NetworkId): ChainAdapter {
+   867→    const adapter = this.deps.getAdapters()[network];
+   868→    if (adapter === undefined) {
+   869→      throw new VaultError("ADAPTER_MISSING", `no chain adapter registered for network "${network}"`);
+   870→    }
+   871→    return adapter;
+   872→  }
+   873→
+   874→  /**
+   875→   * The capability/timed-lock/confirm gate + actual broadcast. Every refusal
+   876→   * is an explicit VaultError — a requested broadcast is never silently
+   877→   * skipped.
+   878→   */
+   879→  private async broadcastSigned(
+   880→    adapter: ChainAdapter,
+   881→    signed: SignedTx,
+   882→    options: OrchestratorSignOptions,
+   883→    decision: PolicyDecision,
+   884→    effOp: PolicyOperation,
+   885→  ): Promise<BroadcastResult> {
+   886→    if (!adapter.capabilities.has("broadcast")) {
+   887→      throw new VaultError("ADAPTER_INCAPABLE", "broadcast not enabled for this adapter — construct with allowBroadcast");
+   888→    }
+   889→    // Timed lock: refuse to broadcast while a lock is demanded. The deadline is
+   890→    // NOT persisted here (stateless call) — a positive lock therefore always
+   891→    // throws: callers split sign and broadcast (or pass 0) deliberately, and
+   892→    // re-issue the broadcast once the lock has expired on their clock.
+   893→    const lockSeconds = Math.max(options.timeLockSeconds ?? 0, decision.requirements?.timeLock ?? 0);
+   894→    if (lockSeconds > 0) {
+   895→      const lockUntil = Date.now() + lockSeconds * 1000;
+   896→      throw new VaultError("TIMED_LOCK", `broadcast is time-locked for another ${lockSeconds}s — re-issue with broadcast once the lock expires`, {
+   897→        lockUntil,
+   898→      });
+   899→    }
+   900→    if (options.confirmRequired !== undefined) {
+   901→      const approved = await options.confirmRequired({
+   902→        summary: `${effOp.type} ${effOp.amountSatoshis} ${effOp.symbol} on ${effOp.network}${effOp.counterparty !== null ? ` → ${effOp.counterparty}` : ""}`,
+   903→        operation: effOp,
+   904→        decision,
+   905→      });
+   906→      if (!approved) {
+   907→        throw new VaultError("VALIDATION", "operation cancelled — the confirmRequired gate declined the broadcast");
+   908→      }
+   909→    }
+   910→    return adapter.broadcast(signed);
+   911→  }
+   912→
+   913→  /** Persisted public key, or honestly derived from the revealed key; never fabricated. */
+   914→  private publicKeyFor(persisted: string | null, privateKey: PrivateKey, network: NetworkId): string {
+   915→    if (persisted !== null) return persisted;
+   916→    const prefix = publicKeyPrefix(network);
+   917→    if (prefix === null) {
+   918→      throw new VaultError("VALIDATION", "key has no persisted public identity and this network has no STM-family representation");
+   919→    }
+   920→    return privateKey.publicKey.toString(prefix);
+   921→  }
+   922→
+   923→  /** Debit/credit legs implied by the operation (for simulate's balance view). */
+   924→  private balanceLegsFor(op: PolicyOperation): Array<{ asset: string; satoshis: string }> {
+   925→    const legs: Array<{ asset: string; satoshis: string }> = [];
+   926→    if (op.type === "limit_order_create") {
+   927→      const sell = typeof op.detail?.amount_to_sell === "string" ? parseAssetString(op.detail.amount_to_sell) : null;
+   928→      const receive = typeof op.detail?.min_to_receive === "string" ? parseAssetString(op.detail.min_to_receive) : null;
+   929→      if (sell !== null) legs.push({ asset: sell.symbol, satoshis: sell.satoshis });
+   930→      if (receive !== null) legs.push({ asset: receive.symbol, satoshis: receive.satoshis });
+   931→    } else if (op.type === "transfer" || op.type === "transfer_to_vesting") {
+   932→      legs.push({ asset: op.symbol, satoshis: canonicalSats(op.amountSatoshis) });
+   933→    }
+   934→    return legs;
+   935→  }
+   936→
+   937→  private async auditPolicyViolation(effOp: PolicyOperation, vaultId: string, code: string, reason: string): Promise<void> {
+   938→    await this.logAudit({
+   939→      type: "policy_violation",
+   940→      actor: { vaultId },
+   941→      target: { vaultId, operation: effOp, detail: { code } },
+   942→      result: "blocked",
+   943→      reason,
+   944→    });
+   945→  }
+   946→
+   947→  private requireState(vault: SovereignVault): VaultStateDoc {
+   948→    const state = vault.getState();
+   949→    if (state === null) {
+   950→      throw new VaultError("VAULT_NOT_INITIALIZED", "vault state not initialized — initialize() first");
+   951→    }
+   952→    return state;
+   953→  }
+   954→
+   955→  /** Audit log with the chain anchor (vaultInstanceId) injected here. */
+   956→  private async logAudit(input: Omit<LogAuditInput, "vaultInstanceId">): Promise<void> {
+   957→    await this.deps.getAudit().log({ ...input, vaultInstanceId: this.deps.getInstanceId() });
+   958→  }
+   959→}
+   960→
+   961→/** Normalizes a satoshi string (strips leading zeros) — output form only. */
+   962→function canonicalSats(s: string): string {
+   963→  try {
+   964→    return parseSats(s).toString();
+   965→  } catch {
+   966→    return s;
+   967→  }
+   968→}
+   969→
