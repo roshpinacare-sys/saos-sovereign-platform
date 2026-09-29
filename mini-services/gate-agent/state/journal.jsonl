@@ -6,3 +6,5 @@
 {"t":"2026-09-29T17:10:34.729Z","kind":"armed","detail":"first onboarding through the gate — key issued once, sealed in my survivable home (0600)"}
 {"t":"2026-09-29T17:40:41.934Z","kind":"gate-down","detail":"inbox unreachable: The operation timed out. — honest wait, the keeper owns the web revive"}
 {"t":"2026-09-29T17:41:18.961Z","kind":"gate-up","detail":"the gate answers again — resuming presence"}
+{"t":"2026-09-29T17:59:18.936Z","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-29T18:00:04.203Z","kind":"gate-up","detail":"the gate answers again — resuming presence"}
