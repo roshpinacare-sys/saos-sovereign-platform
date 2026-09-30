@@ -89,6 +89,7 @@ const GOAL_SKELETON: Array<Omit<BridgeGoal, "measured">> = [
 export type LaneStatus =
   | "live" // הגשר פועל: מעוגן + ממומן (+ relay חי ב-EVM)
   | "ready-open" // ממומן — מחכה לפקודת הירי בלבד
+  | "anchored-thin" // מעוגן חי אך היתרה אפס/דקה — לא "ממומן" (אמת v96)
   | "needs-gas" // הזהות מוכנה, המנגנון מוכח — חסר גז (החלטת הבעלים)
   | "needs-module" // המנגנון מתועד, מודול-החתימה טרם נבנה (כנות)
   | "documented"; // אפילו גזירה אין — מתועד בכנות
@@ -519,6 +520,7 @@ export interface BridgeCensus {
 const STATUS_HE: Record<LaneStatus, string> = {
   live: "גשר חי",
   "ready-open": "ממומן — מוכן לפתיחה",
+  "anchored-thin": "עוגן — יתרה דקה",
   "needs-gas": "מחכה לגז",
   "needs-module": "מנגנון מתועד — מודול בבנייה",
   documented: "מתועד בלבד"
@@ -532,7 +534,7 @@ function laneStatus(family: ChainFamily, anchored: boolean, funded: boolean | nu
     return "needs-gas";
   }
   if (anchored && funded) return "live";        // הווה של SOL/TRON/XRPL — עוגן חי + יתרה לפעימה הבאה
-  if (anchored) return "ready-open";            // מעוגן אבל היתרה דקה
+  if (anchored) return "anchored-thin";         // מעוגן אבל היתרה דקה/אפס — לא "ממומן"
   if (!hasModule) return "needs-module";
   if (funded) return "ready-open";
   return "needs-gas";
@@ -612,6 +614,8 @@ export async function bridgeCensus(opts: { force?: boolean } = {}): Promise<Brid
 
       // ─── KPIs ───
       const count = (s: LaneStatus) => lanes.filter((l) => l.status === s).length;
+      // v96 — המכנה של "הממומנות" נגזר מהמערכת החיה, לא קבוע
+      const fundedLanes = lanes.filter((l) => l.funded === true).length;
       const kpis: BridgeKpis = {
         lanesTotal: lanes.length,
         live: count("live"),
@@ -636,7 +640,7 @@ export async function bridgeCensus(opts: { force?: boolean } = {}): Promise<Brid
             measured = `${multi?.totals.derived ?? 22} זהויות מזרע אחד · ${multi?.totals.families ?? 4} משפחות · הכתובת ${ANCHORED_EVM_ADDRESS.slice(0, 10)}… זהה בכל ${evm.length} ה-EVM`;
             break;
           case "undeletable-book":
-            measured = `${kpis.anchored}/5 הממומנות מעוגנות weave חי · תשתית ל-${lanes.length} ספרים עתידיים`;
+            measured = `${kpis.anchored}/${fundedLanes} הממומנות מעוגנות weave חי · תשתית ל-${lanes.length} ספרים עתידיים`;
             break;
           case "value-inside":
             measured = "תנועה פנימית בלבד (בתי-אוצר מאותו זרע) · אין מסלול יציאה בתשתית — שער-הרשות של הבעלים";

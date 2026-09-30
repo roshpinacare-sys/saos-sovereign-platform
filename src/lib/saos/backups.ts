@@ -77,9 +77,9 @@ const MIRROR_SIDECAR = path.join(MIRROR_DIR, "custom.richness.json");
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0", "utf8");
 const MIN_SANE_DB_BYTES = 4096;
 
-const KEEP_DB = 48; // 48 × 30min ≈ 24h of DB truth
+const KEEP_DB = 48; // 48 × 10min ≈ 8h of DB truth
 const KEEP_CHAIN = 7; // 7 daily chain snapshots
-const MIN_INTERVAL_MS = 10 * 60_000; // hard rate limit (the keeper asks every 30min)
+const MIN_INTERVAL_MS = 10 * 60_000; // hard rate limit (the keeper asks every 10min)
 const STATUS_CACHE_MS = 30_000;
 // v35 רציפות — the fast mirror's own spacing: the keeper probes status
 // every ~30s, so 45s between fast mirrors keeps the survivable-home copy

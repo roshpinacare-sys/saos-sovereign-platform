@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * views/sovereignty.tsx — v93 מרשם-הריבונות (לוח-חי).
- * מפקד 17 תיקיות-הגיט + שכבת-המפתחות (כספת · STEEM · PAT) + פסקי-טענות v93.
+ * views/sovereignty.tsx — v96 מרשם-הריבונות (לוח-חי).
+ * מפקד 17 תיקיות-הגיט + שכבת-המפתחות (כספת · STEEM · PAT) + פסקי-טענות v96.
  * קריאה-בלבד — הלוח מציג את הפערים כפי שנמדדו, בכנות.
  */
 
@@ -107,7 +107,7 @@ export function SovereigntyView() {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm text-zinc-100">
             <KeyRound size={15} className="text-amber-300" />
-            שכבת-המפתחות — אמת אחת, אפס טענות סותרות (v93)
+            שכבת-המפתחות — אמת אחת, אפס טענות סותרות (v96)
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
@@ -119,12 +119,22 @@ export function SovereigntyView() {
                 : <Badge className="bg-red-500/15 text-red-300 border-red-500/30">חסרה</Badge>}
             </div>
             <ul className="space-y-1 text-[11px] text-zinc-500">
-              {data.vault.homes.map((h) => (
-                <li key={h.home} className="flex items-center justify-between" dir="ltr">
-                  <span className="font-mono truncate max-w-[70%]">{h.home}</span>
-                  <span className={h.present ? "text-emerald-400" : "text-zinc-600"}>{h.present ? `0600 · ${h.kind}` : "חסר"}</span>
-                </li>
-              ))}
+              {data.vault.homes.map((h) => {
+                const loose = h.present && h.mode !== "600" && h.mode !== "0600";
+                return (
+                  <li key={h.home} className="flex items-center justify-between" dir="ltr">
+                    <span className="font-mono truncate max-w-[70%]">{h.home}</span>
+                    {h.present ? (
+                      <span className={loose ? "text-amber-300" : "text-emerald-400"}>
+                        {h.mode ?? "?"} · {h.kind}
+                        {loose && <span className="block text-[10px] text-amber-300/90" dir="rtl">הרשאה רופפת — תוקנה ל-0600</span>}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-600">חסר</span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
           <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">

@@ -39,7 +39,7 @@ interface LiquidAsset {
   usd: number | null;
   priceUsd: number | null;
   priceSource: string;
-  status: "live" | "awaiting-keys" | "empty" | "degraded";
+  status: "live" | "armed" | "awaiting-keys" | "empty" | "degraded";
   note: string;
   explorer: string | null;
 }
@@ -69,12 +69,15 @@ interface Limitation {
   what: string;
   impact: string;
   remedy: string;
-  state: "solved-v21" | "solved-v22" | "ready" | "waiting-owner" | "structural";
+  // 8-h: "armed" = v93+ sealed envelope, live keys — signing works
+  state: "solved-v21" | "solved-v22" | "armed" | "ready" | "waiting-owner" | "structural";
   status: string;
 }
 
 interface FlowMapData {
   ok: boolean;
+  /** 8-h — historical TRX cumulative flow (chain-verified 2026-09-08); NOT a balance */
+  historicalTrxFlow?: number;
   radar: {
     assets: LiquidAsset[];
     totals: { assetsTracked: number; usdKnown: number; usdUnknownSymbols: string[] };
@@ -122,6 +125,9 @@ const statusPill = (s: LiquidAsset["status"]) => {
   switch (s) {
     case "live":
       return <Pill tone="green">חי</Pill>;
+    case "armed":
+      // 8-h: keys sealed in the live envelope and verified — signing works
+      return <Pill tone="green">חמוש — מפתחות חיים</Pill>;
     case "awaiting-keys":
       return <Pill tone="amber">ממתין-לחימוש</Pill>;
     case "empty":
@@ -147,7 +153,15 @@ const usdCell = (v: number | null) =>
 
 // ─── the re-arm console ─────────────────────────────────────────────────────
 
-function RearmConsole() {
+function RearmConsole({
+  histTrxFlow,
+  currentTrxBalance
+}: {
+  /** 8-h — historical cumulative TRX flow, read from the flow-map payload (ONE source of truth) */
+  histTrxFlow: number | null;
+  /** 8-h — live measured TRX treasury balance (radar tron-treasury row) */
+  currentTrxBalance: number | null;
+}) {
   const { data, refresh, loading } = useLive<RearmStatus>("/api/saos/rearm", 30000);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RearmResult | null>(null);
@@ -203,8 +217,12 @@ function RearmConsole() {
         {armed ? (
           <Callout tone="green" icon={<ShieldCheck size={16} />}>
             <b>הכספת חמושה.</b> המנמוניקה של הבעלים מאומתת (EVM mainnet גיוס + {flows.tron.length} TRON flow) ואטומה מחדש.
-            זרועות-החתימה הריבוניות (m/44&apos;/60&apos; + m/44&apos;/195&apos;) שוב בשליטת האורגניזם — הן השתמשו בהן כבר להזרמת
-            18.7 TRX ולגיוס ב-mainnet.
+            זרועות-החתימה הריבוניות (m/44&apos;/60&apos; + m/44&apos;/195&apos;) בשליטת האורגניזם — הזרימו היסטורית{" "}
+            {histTrxFlow != null ? histTrxFlow.toFixed(1) : "—"} TRX (זרימה מצטברת, מאומתת-שרשרת 2026-09-08 — לא יתרה נוכחית)
+            וגייסו ב-mainnet; היתרה הנמדדת כיום באוצר ה-TRON: {" "}
+            <span dir="ltr" className="font-mono">
+              {currentTrxBalance != null ? currentTrxBalance.toFixed(6) : "—"} TRX
+            </span>.
           </Callout>
         ) : (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -270,6 +288,8 @@ export function FlowView() {
     );
 
   const { radar, flows, engines, capture, limitations } = data;
+  // 8-h — ONE source of truth: the historical TRX flow + the live measured balance
+  const tronTreasuryRow = radar.assets.find((a) => a.id === "tron-treasury");
   const liveFlows = flows.filter((f) => f.state === "live").length;
   const blockedFlows = flows.filter((f) => f.state === "blocked").length;
   const topAssets = [...radar.assets].sort((a, b) => (b.usd ?? 0) - (a.usd ?? 0)).slice(0, 3);
@@ -287,7 +307,10 @@ export function FlowView() {
       </div>
 
       {/* the re-arm console */}
-      <RearmConsole />
+      <RearmConsole
+        histTrxFlow={data.historicalTrxFlow ?? null}
+        currentTrxBalance={tronTreasuryRow?.balanceNum ?? null}
+      />
 
       {/* asset radar */}
       <Panel>
@@ -420,6 +443,8 @@ export function FlowView() {
                     <Pill tone="green">נפתר ב-v22</Pill>
                   ) : l.state === "solved-v21" ? (
                     <Pill tone="green">נפתר ב-v21</Pill>
+                  ) : l.state === "armed" ? (
+                    <Pill tone="green">חמוש (v93+)</Pill>
                   ) : l.state === "ready" ? (
                     <Pill tone="amber">מוכן לביצוע</Pill>
                   ) : l.state === "waiting-owner" ? (

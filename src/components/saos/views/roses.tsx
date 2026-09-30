@@ -359,7 +359,7 @@ export function RosesView() {
               { k: "זרועות חתימה", v: `${d.seed.agentsDerived} סוכנים × ${d.seed.chainsPerAgent} שרשראות = ${d.seed.signingArms}`, note: "EVM · TRON · SOL — דטרמיניסטי מהזרע" },
               { k: "פועל כעת", v: d.seed.armsLiveNow, note: "SAOS-NET — הוכחות חתומות-שרשרת" },
               { k: "ממתין לדלק", v: d.seed.armsAwaitingGas, note: "mainnet חמוש — אפס דלק (כנה)" },
-              { k: "לא מכוסה", v: d.seed.notCovered, note: "STEEM/HIVE/BLURT — מהבעלים בלבד" }
+              { k: "לא מכוסה", v: d.seed.notCovered, note: "HIVE/BLURT — מהבעלים בלבד · STEEM חמוש (v93+, 4/4)" }
             ].map((c) => (
               <div key={c.k} className="rounded-lg border border-white/[0.06] bg-zinc-900/40 p-3.5">
                 <p className="text-[11px] font-semibold text-amber-300/90">{c.k}</p>

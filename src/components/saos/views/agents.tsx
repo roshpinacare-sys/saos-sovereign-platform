@@ -64,7 +64,7 @@ export function ViewAgents() {
     <div className="space-y-5 animate-view">
       <PageHead
         title="מעקב סוכנים — האורגניזם בזמן אמת"
-        sub={`כל ריפואי הרשת (roshpinacare-sys) במדידה חיה מול GitHub — ${repos.length || 12} ריפואים (v58: האורגניזם גדל 8→12): דחיפה אחרונה, קומיט אחרון וטריות כל סוכן. קריאה בלבד — הטוקן נשאר בצד-השרת. מתעדכן כל 30 שניות.`}
+        sub={`כל ריפואי הרשת (roshpinacare-sys) במדידה חיה מול GitHub — ${repos.length || 16} ריפואים (האורגניזם גדל 8→16): דחיפה אחרונה, קומיט אחרון וטריות כל סוכן. קריאה בלבד — הטוקן נשאר בצד-השרת. מתעדכן עד כל 90 שניות (מדידה-חיה).`}
         actions={
           <Btn variant="ghost" size="xs" onClick={() => net.refresh()}>
             <Activity size={11} /> מדידה טרייה

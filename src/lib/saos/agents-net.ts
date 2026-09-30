@@ -60,7 +60,7 @@ export function tokenSearchPathsHe(): string {
   return TOKEN_PATHS.join(" · ");
 }
 
-// ─── role map — the organism's roles (v58: 12 repos · 8→12 expansion) ──────
+// ─── role map — the organism's roles (v58: 8→12 · v96: 16 repos measured — the map covers all 16) ──────
 
 const ROLE_MAP: Record<string, string> = {
   steem: "אם-הרשת · מקור המפתחות, הצי וההוכחות (SAOS-NET)",
@@ -75,7 +75,12 @@ const ROLE_MAP: Record<string, string> = {
   "saos-control-center": "מרכז-הבקרה — דלת-המטבעות · שוק-חי · פדיון (Task 72)",
   Adsmarket: "קו-הכסף-האמיתי — 10/10 נכסים ניתנים-לניתוב אטומי",
   "saos-jummper": "ההרנס — 30/30 בדיקות מכוילות מול ה-API-ים החיים",
-  Sdk: "ערכת-הפיתוח של הרשת"
+  Sdk: "ערכת-הפיתוח של הרשת",
+  // v96 census (16 repos) — the v58-era map left these without a role:
+  Console: "מסוף-האמת והפצות — truth/receipts/fleet hub",
+  Defi: "גשרי-כסף ומנועי-DeFi",
+  Domain: "דף-הנחיתה וההסברה",
+  Zip: "תורת-הכספות והאיטום — weave-seal"
 };
 
 // ─── types ──────────────────────────────────────────────────────────────────

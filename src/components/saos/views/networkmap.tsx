@@ -21,7 +21,8 @@ const FAMILY_META: Record<string, { label: string; icon: ReactNode; desc: string
   evm: { label: "משפחת EVM — מפתח אחד, 8 רשתות", icon: <Zap size={14} />, desc: "כל רשתות ה-EVM חולקות את אותה כתובת 0x01Bd — אותה זהות, יתרה נפרדת לכל רשת, גז מקומי לכל אחת" },
   "btc-utxo": { label: "משפחת ביטקוין/UTXO — base58check + bech32", icon: <Link2 size={14} />, desc: "פורמט הכתובות של BTC/DOGE/LTC — גזירה סטנדרטית מאותו זרע" },
   secp256k1: { label: "secp256k1 — טרון · XRP · קוסמוס", icon: <Compass size={14} />, desc: "אותה עקומה של EVM, קידודים שונים לגמרי לכל רשת" },
-  ed25519: { label: "משפחת ed25519 — סולאנה וחברותיה", icon: <RadioTower size={14} />, desc: "עקומת SLIP-0010 — סולאנה, סטלאר, פולקאדוט, אפטוס, סווי, טזוס, NEAR" }
+  ed25519: { label: "משפחת ed25519 — סולאנה וחברותיה", icon: <RadioTower size={14} />, desc: "עקומת SLIP-0010 — סולאנה, סטלאר, פולקאדוט, אפטוס, סווי, טזוס, NEAR" },
+  zero: { label: "מסילת-האפס — Z Chain בגז-אפס", icon: <Globe2 size={14} />, desc: "chainId 9369 · gasPrice נמדד 0x0 — עגינה אמיתית בעלות-אפס; החותם הוא מפתח-הצי ההיסטורי, לא אבן-הפינה" }
 };
 
 function fmtBalance(bal: number | null, decimals: number): string {
@@ -89,6 +90,17 @@ function ChainCard({ r }: { r: ChainRow }) {
               title={r.anchored.label}
             >
               <Link2 size={10} /> עוגן {r.anchored.txid}
+            </a>
+          )}
+          {r.anchoredPrior && (
+            <a
+              href={r.anchoredPrior.link}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+              title={r.anchoredPrior.label}
+            >
+              <Link2 size={10} /> עוגן-קודם {r.anchoredPrior.txid}
             </a>
           )}
           {r.address && (
@@ -167,8 +179,13 @@ function MapBody({ d }: { d: NetworkCensus }) {
   const evmRows = d.rows.filter((r) => r.family === "evm");
   const otherRows = d.rows.filter((r) => r.family !== "evm");
   const fundedRows = d.rows.filter((r) => (r.balance ?? 0) > 0);
-  // 5 רשתות ממומנות (6 שורות בהסרת תאום ה-XRP המוצהר; ETH+BNB חולקות כתובת אך הן שתי רשתות)
+  // v96 — כל המניינים והרשימות נגזרים מהמפקד החי (לא קבועים):
+  // ממומנות = שורות-נגזרות עם יתרה חיה (SOL אבק=0 נשאר בחוץ; ה-XRP-המוצהר
+  // הוא תאום של הנגזרת ולכן נספר פעם אחת); עוגנים = שורות עם רפרנט-עוגן.
   const fundedChains = fundedRows.filter((r) => r.kind === "derived").length;
+  const fundedSymbols = fundedRows.filter((r) => r.kind === "derived").map((r) => r.symbol).join(" · ");
+  const anchoredRows = d.rows.filter((r) => r.anchored);
+  const anchoredSymbols = anchoredRows.map((r) => r.symbol).join(" · ");
 
   return (
     <>
@@ -226,8 +243,8 @@ function MapBody({ d }: { d: NetworkCensus }) {
           <Callout tone="gold" icon={<Zap size={14} />}>
             <span>
               <strong>המפתח הרב-שימושי — מוכח:</strong>{" "}
-              אותן 24 מילים כבר שולטות ב-{fundedChains} רשתות ממומנות חיות (ETH · BNB · TRX · XRP · SOL), ירו שלושה עוגני מיינטנט (ETHEREUM · BSC · SOLANA), וטרון מחזיק {fmtBalance(d.rows.find((r) => r.id === "tron")?.balance ?? 0, 6)} TRX.
-              עיגון ברשת נוספת = אותו דפוס שהוכח ×3: דלק במטבע המקומי + מודול עוגן לפי המשפחה (EVM=חתימה אחת ל-8 רשתות · ed25519=SLIP-0010 שתוקן ב-v47).
+              אותן 24 מילים כבר שולטות ב-{fundedChains} רשתות ממומנות חיות ({fundedSymbols}), ירו {anchoredRows.length} עוגני מיינטנט ({anchoredSymbols}), וטרון מחזיק {fmtBalance(d.rows.find((r) => r.id === "tron")?.balance ?? 0, 6)} TRX.
+              עיגון ברשת נוספת = אותו דפוס שהוכח ×3: דלק במטבע המקומי + מודול עוגן לפי המשפחה (EVM=חתימה אחת ל-{evmRows.length} רשתות · ed25519=SLIP-0010 שתוקן ב-v47).
             </span>
           </Callout>
         </PanelBody>
@@ -239,8 +256,8 @@ function MapBody({ d }: { d: NetworkCensus }) {
         <Kpi label="רשתות נבדקות-חי" value={`${t.probesOk}/${t.probed}`} icon={<RadioTower size={15} />} hint="RPC ציבורי · read-only" tone="green" />
         <Kpi label="רשתות ממומנות" value={fundedChains} icon={<Fuel size={15} />} hint={`${t.funded} שורות במדידה (XRP נגזר=מוצהר — תאומים)`} tone="green" />
         <Kpi label="אימותים-משולשים" value={t.tripleVerified} icon={<ShieldCheck size={15} />} hint="מסמך + רישום + גזירה" tone="gold" />
-        <Kpi label="עוגני מיינטנט שנורו" value={t.anchored} icon={<Link2 size={15} />} hint="ETH · BSC · SOL" tone="gold" />
-        <Kpi label="משפחות קריפטו" value={t.families} icon={<Waypoints size={15} />} hint="EVM · UTXO · secp256k1 · ed25519" tone="default" />
+        <Kpi label="עוגני מיינטנט שנורו" value={t.anchored} icon={<Link2 size={15} />} hint={anchoredSymbols || "—"} tone="gold" />
+        <Kpi label="משפחות קריפטו" value={t.families} icon={<Waypoints size={15} />} hint="EVM · UTXO · secp256k1 · ed25519 · אפס" tone="default" />
       </div>
 
       {/* ─── משפחת EVM — הכתובת המשותפת ─── */}
@@ -268,7 +285,7 @@ function MapBody({ d }: { d: NetworkCensus }) {
       </Panel>
 
       {/* ─── שאר המשפחות ─── */}
-      {(["btc-utxo", "secp256k1", "ed25519"] as const).map((fam) => {
+      {(["btc-utxo", "secp256k1", "ed25519", "zero"] as const).map((fam) => {
         const rows = otherRows.filter((r) => r.family === fam);
         if (rows.length === 0) return null;
         const meta = FAMILY_META[fam];

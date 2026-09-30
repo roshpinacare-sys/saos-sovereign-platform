@@ -42,7 +42,11 @@ export const MINT_PROTOCOL = "saos-mint/v1";
 export const MINT_TOTAL = 300_000;
 export const MINT_PER_SOLDIER = 20_000;
 export const MINT_TREASURY_RESERVE = 80_000; // the dev keep — "תשאיר שיהיה לנו לפיתוח"
-export const MINT_SOLDIER_COUNT = 11; // 11 × 20,000 + 80,000 = 300,000
+// 8-h truth-fix: this 11 is the v-era POLICY constant (11 × 20,000 + 80,000 =
+// 300,000) — the SEALED envelope roster counts 12 soldiers, and the actual
+// allocation derives from the live sealed roster at execution time (20,000
+// per sealed soldier). Both numbers are stated in mintPolicy().breakdownHe.
+export const MINT_SOLDIER_COUNT = 11;
 export const MINT_RESERVE_ACCOUNT = "saos:dev-reserve";
 
 export interface MintPolicy {
@@ -61,7 +65,8 @@ export function mintPolicy(): MintPolicy {
     perSoldier: MINT_PER_SOLDIER,
     treasuryReserve: MINT_TREASURY_RESERVE,
     soldierCount: MINT_SOLDIER_COUNT,
-    breakdownHe: "11 חיילים × 20,000 = 220,000 (73.3%) לפעילות · 80,000 (26.7%) לפיתוח"
+    breakdownHe:
+      "מדיניות (קבוע v-era): 11 חיילים × 20,000 = 220,000 (73.3%) לפעילות · 80,000 (26.7%) לפיתוח — הבהרה: ה-11 הוא קבוע-המדיניות מתקופת-ה-v, בעוד הרוסטר האטום במעטפת מונה 12 חיילים; ההקצאה בפועל נגזרת מהרוסטר האטום החי בזמן-ההרצה (20,000 לכל חייל אטום), בלי לשנות את קבוע-המדיניות"
   };
 }
 

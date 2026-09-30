@@ -42,12 +42,13 @@ import {
 import { fmt, fmtInt, timeAgo, useLive, useTick } from "../lib";
 import type { LiveResult } from "../lib";
 import type { DexData, LiveProbesData, StatusData } from "../types";
+import type { NetworkCensus } from "@/lib/saos/multichain";
 import { PageHead } from "../shell";
 
 // ─── מפת האקוסיסטם — מסקנות סריקת 8 הריפואים ב-org (2026-09-07) ──────────────
 
 const ECOSYSTEM: { repo: string; role: string; state: string }[] = [
-  { repo: "steem", role: "SAOS-NET · צי 13 חיילים · grid98 · Cloud-Heart 24/7", state: "live" },
+  { repo: "steem", role: "SAOS-NET · צי 12 חיילים (activeFleet נמדד 11 — ynet פרש 09-30) · grid98 · Cloud-Heart 24/7", state: "live" },
   { repo: "Saosmartwallet", role: "ארנק ריבוני · Key-Vault · GRID 5-שרשראות + EVM/SOL", state: "live" },
   { repo: "saos-dex", role: "בורסת איטום-נאמנות · orderbook + AMM + THE-DOOR", state: "live" },
   { repo: "saos-sovereign-platform", role: "מצפה-הפיקוד — הריפו הזה · Foundry v10", state: "live" },
@@ -116,7 +117,7 @@ function ChainTile({ c }: { c: ChainCard }) {
 
       <div className="mt-2 flex items-center justify-between gap-2 text-[9px] text-zinc-700" dir="ltr">
         <span className="truncate font-mono">{c.endpoint ?? "—"}</span>
-        <span className="shrink-0">{c.measuredAt ? timeAgo(c.measuredAt) : ""}</span>
+        <span className="shrink-0">{c.measuredAt ? timeAgo(c.measuredAt) : "—"}</span>
       </div>
     </div>
   );
@@ -128,6 +129,8 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
   useTick(10000);
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 15000);
   const dex = useLive<DexData>("/api/saos/dex", 45000);
+  // מקור-אמת ל-XRPL: מפקד מפת-הרשתות (מטמון 10 דק') — יתרה חיה + עוגן v96
+  const census = useLive<NetworkCensus>("/api/saos/networks", 120_000);
 
   const p = probes.data;
   const d = status.data;
@@ -137,6 +140,9 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
   // v87 — מצב-STEEM/BLURT נגזר מהמטריצה-החיה (לא עוד "anchored"-קפוא)
   const steemGate = matrix.find((m) => m.network === "STEEM");
   const blurtGate = matrix.find((m) => m.network === "BLURT");
+  // v96 — ZERO מגיע מהמטריצה עצמה (R9: מסילת גז-אפס); XRPL מהמפקד הרב-שרשרתי
+  const zeroGate = matrix.find((m) => m.network === "ZERO");
+  const xrpRow = census.data?.rows.find((r) => r.id === "xrp");
 
   const online =
     (p?.hive?.ok ? 1 : 0) +
@@ -156,7 +162,9 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
       metric: { label: "מצב עגינה", value: steemGate?.status ?? "לא נמדד" },
       secondary: { label: "חתימות", value: "custom_json" },
       endpoint: "condenser_api",
-      measuredAt: d?.live?.hive?.measuredAt ?? null,
+      // v96 — הזמן הנכון לשרשרת זו: לשרשרת-STEEM אין פרוב עצמאי בעמוד זה
+      // (ההיסטוריה נבדקת ב-status), ושעת-HIVE של חוש-אחר הציגה זמן שקרי — כנות: "—"
+      measuredAt: null,
       note: steemGate?.detail ?? "רכב-פעולה: saos.weave.v1 בחתימת active — קריאת-היסטוריה לאימות כל txid.",
       rail: "קיים"
     },
@@ -290,7 +298,49 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
       measuredAt: p?.bsc?.measuredAt ?? null,
       note:
         p?.bsc?.error ??
-        "אותה כתובת EVM כמו באיתריום (m/44'/60'/0'/0/2) — הקצאת BNB קטנה תפתח עגינה+חוזה באותו קוד.",
+        "אותה כתובת EVM כמו באיתריום — אבן-הפינה 0x01Bd… מ-m/44'/60'/0'/0/0 (מפתח-הצי ההיסטורי /0/2 פרש) — הקצאת BNB קטנה תפתח עגינה+חוזה באותו קוד.",
+      rail: "חדש"
+    },
+    {
+      // v96 — XRPL מצטרף למטריצה החיה: המידע נגזר ממפקד מפת-הרשתות (יתרה חיה + עוגן)
+      id: "xrpl",
+      name: "XRPL",
+      family: "XRP Ledger · secp256k1",
+      role: "עוגן אבן-הפינה v96 + פעימות חיות",
+      tone: xrpRow?.anchored ? "green" : "zinc",
+      statusLabel: xrpRow?.anchored ? "anchored" : "לא נמדד",
+      metric: {
+        label: "יתרת XRP",
+        value: xrpRow?.balance != null ? fmt(xrpRow.balance) : "—"
+      },
+      secondary: {
+        label: "עוגן אחרון",
+        value: xrpRow?.anchored?.txid ?? "—"
+      },
+      endpoint: xrpRow?.endpoint ?? "xrplcluster.com",
+      measuredAt: census.data?.measuredAt ?? null,
+      note: xrpRow?.anchored?.label ?? xrpRow?.note ?? "המפקד הרב-שרשרתי טוען (מטמון 10 דק')…",
+      rail: "חדש"
+    },
+    {
+      // v96 — מסילת-האפס (R9): נגזרת מהמטריצה החיה באותו payload
+      id: "zero",
+      name: "ZERO",
+      family: "Z Chain · EVM · גז-אפס",
+      role: "מסילת-האפס — עיגון בעלות אפס (R9)",
+      tone: zeroGate?.status === "anchored" ? "green" : "zinc",
+      statusLabel: zeroGate?.status ?? "לא נמדד",
+      metric: {
+        label: "מצב עגינה",
+        value: zeroGate?.status ?? "לא נמדד"
+      },
+      secondary: {
+        label: "שער",
+        value: zeroGate?.gate ?? "—"
+      },
+      endpoint: "zscan.live",
+      measuredAt: null,
+      note: zeroGate?.detail ?? "עגינת-נתונים אמיתית בעלות-אפס על Z Chain (chainId 9369) — עוגן ראשון נורה בגז 0.000000 (חוסם 35911074).",
       rail: "חדש"
     }
   ];
@@ -299,7 +349,7 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
     <div className="space-y-5 animate-view">
       <PageHead
         title="רשתות חיות"
-        sub="רשת-8 שרשראות במדידה ישירה מול RPC ציבורי — קריאה בלבד, בלי מפתחות, בלי שידור. BSC נפתח ב-v14 (אותו מפתח EVM כמו איתריום) וצמדי-DEX נמדדים חי מ-Uniswap ו-PancakeSwap; כשל הוא נתון, לא קריסה."
+        sub={`מטריצת ${cards.length} שרשראות במדידה ישירה מול RPC ציבורי — קריאה בלבד, בלי מפתחות, בלי שידור. BSC נפתח ב-v14 (אותו מפתח EVM כמו איתריום) וצמדי-DEX נמדדים חי מ-Uniswap ו-PancakeSwap; כשל הוא נתון, לא קריסה.`}
         actions={
           <Btn variant="secondary" size="sm" loading={probes.loading} onClick={probes.refresh}>
             <RefreshCcw size={13} /> מדידה טרייה
@@ -351,7 +401,7 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
       <Panel>
         <PanelHeader
           icon={<Radio size={15} />}
-          title="מטריצת 8 הרשתות — מדידה חיה"
+          title={`מטריצת ${cards.length} הרשתות — מדידה חיה`}
           sub="כל כרטיס נמדד מול השרשרת בפועל; הרצפה הצבועה בזהב = רכבי-רשת חדשים"
           actions={<Pill tone="gold" pulse>{cards.filter((c) => c.tone === "green").length} online</Pill>}
         />
@@ -496,7 +546,7 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
           <PanelHeader
             icon={<Coins size={15} />}
             title="BSC — BNB Chain · אימות רכב-רשת (v14)"
-            sub="המסילה השמינית · אותה כתובת EVM ריבונית כמו באיתריום"
+            sub="אותה כתובת EVM ריבונית כמו באיתריום — אבן-הפינה 0x01Bd (m/44'/60'/0'/0/0)"
           />
           <PanelBody className="space-y-3">
             {p?.bsc ? (

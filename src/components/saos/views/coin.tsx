@@ -136,7 +136,7 @@ const CONTRACT_HE: Record<string, string> = {
   SAOSIdentity: "הזהויות — רישום סוכני-הרשת (כתובות פומביות בלבד)",
   SAOSLedger: "הפנקס — המטבע SAOS-M על ה-EVM · הטבעות · מסילת-אפס-עמלה",
   SAOSSolutions: "הפתרונות — commit של hash-פתרון בכל ריצה",
-  SAOSBridge: "הגשר — 8 מסילות חוץ חתומות על השרשרת",
+  SAOSBridge: "הגשר — 9 מסילות חוץ חתומות על השרשרת (כולל SKALE)",
   SAOSWorkBoard: "פקודות-העבודה — מסירת-עבודה משלמת דרך הפנקס",
   SAOSMicrogrid: "המיקרו-גריד — GRID-98 על השרשרת (סולמות + אורקל)",
   SAOSExchange: "הבורסה — AMM פנימי · wSAOS 1:1 · 5 בריכות · אוצר",
@@ -147,6 +147,9 @@ const CONTRACT_HE: Record<string, string> = {
 
 export default function CoinView() {
   const coin = useLive<CoinData>("/api/saos/coin", 15000);
+  // 8-h truth-fix: the sovereign float is READ LIVE from the ledger
+  // (SAOSLedger.totalSupply via /api/saos/mesh) — never a hardcoded 500,000.
+  const ledgerLive = useLive<{ ok: boolean; stats?: { totalSupply?: string } }>("/api/saos/mesh", 15000);
 
   if (coin.loading && !coin.data) {
     return (
@@ -194,6 +197,11 @@ export default function CoinView() {
   const eco = d.economics;
   const wsaos = ex?.assets.find((a) => a.symbol === "WSAOS");
   const hqTrader = ex?.traders.find((t) => t.label.includes("HQ"));
+  // 8-h truth-fix: live measured EVM float — "—" when the ledger did not answer
+  const evmFloat =
+    ledgerLive.data?.ok && ledgerLive.data.stats?.totalSupply != null
+      ? fmt(Number(ledgerLive.data.stats.totalSupply))
+      : "—";
 
   return (
     <div className="space-y-4">
@@ -298,7 +306,7 @@ export default function CoinView() {
                 value={fmt(ex ? Number(wsaos?.totalMinted ?? 0) : 0)}
                 tone="gold"
                 icon={<GitBranch size={14} />}
-                hint={`float ריבוני 500,000 · HQ מחזיק ${fmt(Number(hqTrader?.wsaos ?? 0))}`}
+                hint={`float ריבוני חי (SAOSLedger.totalSupply): ${evmFloat} · HQ מחזיק ${fmt(Number(hqTrader?.wsaos ?? 0))}`}
               />
             </div>
             {led?.mints && (led.mints as unknown[]).length === 0 && (

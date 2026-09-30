@@ -195,6 +195,20 @@ function measureState(): StateProfile {
   }
 }
 
+/** VmRSS מ-/proc/<pid>/status — שורה אחת-שדה, בלי פיצול-מילים של stat:
+ * ה-comm `next-server (v15…)` מכיל רווחים והזיז את אינדקסי ה-stat
+ * (התוצר הפיקטיבי "90578064MB" — תוקן v96; אותה דיסציפלינה של keeper.ts). */
+function readProcRssMb(pid: string): number | null {
+  try {
+    const status = fs.readFileSync(`/proc/${pid}/status`, "utf8");
+    const m = /VmRSS:\s+(\d+)\s+kB/.exec(status);
+    const kb = m ? Number(m[1]) : 0;
+    return kb > 0 ? Math.round(kb / 1024) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** סריקת-חברים מקומית — /proc לפי cwd (אמת-תהליכים, בלי רשת). */
 function measureServices(): ServicesProfile {
   let web = false, runner = false, keeper = false, herald = false, swarm = false, nextRssMb = 0;
@@ -206,9 +220,8 @@ function measureServices(): ServicesProfile {
         if (!cmdline) continue;
         if (cmdline.includes("next")) {
           web = true;
-          const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8").split(" ");
-          const rss = Math.round((Number(stat[23] ?? 0) * 4096) / 1048576);
-          if (rss > nextRssMb) nextRssMb = rss;
+          const rssMb = readProcRssMb(pid);
+          if (rssMb !== null && rssMb > nextRssMb) nextRssMb = rssMb;
           continue;
         }
         if (cmdline.includes("bun")) {
@@ -285,30 +298,30 @@ function rankBottlenecks(profile: TunerProfile): Bottleneck[] {
     },
     {
       id: "gas-doors",
-      titleHe: "7 דלתות EVM חשוכות",
-      whatLimitsHe: "הכפלת הנוכחות העוגנת 5→12 רשתות: פוליגון · ארביטרום · אופטימיזם · בייס · אבאלנש' · נוסיס · BSC-relay — כולן מוכחות-צינור, כולן ללא גז",
-      whatBlocksHe: "תקציב גז כולל ≈$0.94 במחירים חיים (פחות מדולר!) — האורגניזם לא ממציא גז",
+      titleHe: "מסילות-EVM חשוכות — ממתינות לגז",
+      whatLimitsHe: "הכפלת הנוכחות העוגנת על מסילות-EVM נוספות — כולן מוכחות-צינור במפקד החי, החשוכות בלי גז",
+      whatBlocksHe: "תקציב גז כולל ≈$0.94 במחירים חיים (נמדד v52) — האורגניזם לא ממציא גז",
       unblockHe: "העברת-ההשקיה של הבעלים ל-0x01Bd (רשימת-ההשקיה במנוע פריצת-הדרך) — הפריצה המדורגת ראשונה, יעילות פי-11.9",
       actor: "owner",
       actorHe: "הבעלים",
-      measuredHe: "7 מסילות חשוכות · 5/5 עוגנים חיים · relay חי על ETH-מיינטנט (0xa52D85…78E6)",
-      sourceHe: "מנוע פריצת-הדרך v52 (מחירי-גז חיים) · בית-היוצר v51"
+      measuredHe: "נמדד במפקד-הגשרים (v96 · 09-30): 9 מסילות EVM · 3 relay חיים על השרשרת · החשוכות ממתינות להחלטת-מימון · עוגני-v50 5/5 אומתו על-שרשרת",
+      sourceHe: "בית-היוצר לגשרים (מפקד חי, v96) · מנוע פריצת-הדרך v52"
     },
     {
       id: "signature-modules",
       titleHe: "11 מודולי-חתימה למשפחות לא-EVM",
-      whatLimitsHe: "גישור לעוד רשתות (23 נתיבי-גשר מתועדים — UTXO, סולאנה-נוספות, DOT, ADA ועוד): התשתית וההליכים כתובים, החותמים חסרים",
+      whatLimitsHe: "גישור לעוד רשתות (24 נתיבי-גשר ברישום — UTXO, סולאנה-נוספות, DOT, ADA ועוד): התשתית וההליכים כתובים, החותמים חסרים",
       whatBlocksHe: "עבודת-אורגניזם מדורגת — מודול-חתימה לכל משפחה (המפה קיימת בבית-היוצר)",
       unblockHe: "בנייה מדורגת של מודול אחר-מודול (האורגניזם — סבב אחד = משפחה אחת)",
       actor: "organism",
       actorHe: "האורגניזם",
-      measuredHe: "23 נתיבים מתועדים · 4 גשרים חיים · 11 ממתינים למודול",
-      sourceHe: "בית-היוצר לגשרים v51 (23 נתיבים + הליכי-פתיחה)"
+      measuredHe: "24 נתיבים ברישום (v96 · 09-30) · 3 גשרים חיים נמדדו במפקד · המשפחות ללא-מודול מתועדות בכנות",
+      sourceHe: "בית-היוצר לגשרים (24 נתיבים + הליכי-פתיחה, v96)"
     },
     {
       id: "wrxp-window",
       titleHe: "חלון-מדידת WRXP",
-      whatLimitsHe: "המראה 4/5 מסונכרנת — WRXP ($0.0001) ממתין לחלון-המדידה של מפקד-ה-XRP (קצב-הגשה חיצוני)",
+      whatLimitsHe: "המראה 4/5 מסונכרנת (נמדד v53 — חוזרת ל-5/5 אוטומטית כשמפקד-ה-XRP נפתח) — WRXP ($0.0001) ממתין לחלון-המדידה (קצב-הגשה חיצוני)",
       whatBlocksHe: "rate-limit של ספק-ה-XRP — אילוץ חיצוני, לא שלנו",
       unblockHe: "v54: הראנר מנסה אוטומטית כל 10 מחזורים (~20 דק') — reserve-sync אידמפוטנטי; כשהחלון נפתח המראה חוזרת ל-5/5 בלי יד אדם",
       actor: "external",
@@ -324,19 +337,19 @@ function rankBottlenecks(profile: TunerProfile): Bottleneck[] {
       unblockHe: "פקודת הבעלים; יומן המוכנות (8 הכנות) חי בחדר-ההמרה",
       actor: "owner",
       actorHe: "הבעלים",
-      measuredHe: "משמרת חיה $10.42 · 4/5 מראות מסונכרנות · 65+13 רגליים אטומיות מוכחות",
+      measuredHe: "משמרת $10.42 — נמדדה ב-v53 (09-29) · עדכון v96 (09-30): יתרות חיות במפקד-האוצר — XRP 1.298 · TRX 0.193 · ETH/BNB אבק · 65+13 רגליים אטומיות מוכחות",
       sourceHe: "חדר ההמרה v53 (משמרת/מראה/הוכחה)"
     },
     {
       id: "headcorner-window",
-      titleHe: "חלון headcorner",
-      whatLimitsHe: "מארב-הירושה: הזרע יושב במחזורי-מנוחה עד ~2026-10-08 — עד אז אין פעולה אפשרית",
-      whatBlocksHe: "זמן — ולא רק: התוקף חי (קצב-התקפות מתועד)",
-      unblockHe: "המתנה מודעת + ריגול-קצב חי (מארב-ההתאוששות)",
-      actor: "time",
-      actorHe: "זמן",
-      measuredHe: "ימים לחלון מחושבים חי במנוע-ההתאוששות",
-      sourceHe: "מארב ההתאוששות (חלון + קצב-תוקף)"
+      titleHe: "חלון headcorner — מה חי עכשיו ומה ממתין",
+      whatLimitsHe: "החתימות החיות כבר רצות: STEEM חמוש 4/4 · עוגן-XRPL של אבן-הפינה נורה v96 · עוגני-EVM/ZERO חיים · מה שממתין הוא דלק למסילות החשוכות והחלטות-בעלים פתוחות",
+      whatBlocksHe: "לא הזמן — מימון והחלטות: עיגון ETH/SOL דורש גז (יתרות-אבק נמדדו v96), וסיבוב שורשי-העידן-החשוף הוא החלטת בעלים",
+      unblockHe: "מימון-גז מהבעלים ל-0x01Bd + פקודות-הירי; מארב-ההתאוששות ממשיך לרגל אחר קצב-התוקפים עד סגירת-החלון (~2026-10-08)",
+      actor: "owner",
+      actorHe: "הבעלים · זמן",
+      measuredHe: "ימים לחלון מחושבים חי במנוע-ההתאוששות · STEEM/BLURT/XRPL/TRON/ZERO מעוגנות חי (נמדד v96)",
+      sourceHe: "מארב ההתאוששות (חלון + קצב-תוקף) · חומת-העוגנים v96"
     }
   ];
   return list;
@@ -416,22 +429,28 @@ async function buildTunerData(): Promise<TunerData> {
     runnerTick: measureRunnerTick(),
     lastProof
   };
-  const lean = (profile.state.fileMb ?? 999) < 24;
-  const zeroStalls = true;
-  const verdictHe = lean
-    ? `הרשת מכווננת: ${profile.state.fileMb}MB במקום 125MB (פי-${(125 / Math.max(profile.state.fileMb ?? 8, 0.1)).toFixed(0)}) · 0 נתקים בגשש · RPC p95 ${fmtNum(profile.chain.rpcP95Ms)}ms · ${profile.services.upCount}/6 שירותים — וה-dump נשאר רזה לנצח (keeper=96)`
-    : `קובץ-המצב ${profile.state.fileMb ?? "?"}MB — מעל הסף; הניתוח לא הושלם (honest)`;
-
+  // עדות-הגשש נקראת לפני פסק-הדין — הנתקים הם נמדד או "לא נמדד", לעולם לא 0 מומצא (v96)
   const before = readEvidence(EVIDENCE_FILES.stallBefore);
   const after = readEvidence(EVIDENCE_FILES.stallAfter);
   const base = readEvidence(EVIDENCE_FILES.baseline);
+  const stallsAfter = after ? Number(after.stalls300ms ?? 0) : null;
+  const lean = (profile.state.fileMb ?? 999) < 24;
+  const stallsVerdictHe = stallsAfter === null
+    ? "נתקים: לא נמדדו במחזור זה (קבצי-הגשש אינם בבית)"
+    : `נתקים בגשש: ${stallsAfter}`;
+  const verdictHe = lean
+    ? `הרשת מכווננת: ${profile.state.fileMb}MB במקום 125MB (פי-${(125 / Math.max(profile.state.fileMb ?? 8, 0.1)).toFixed(0)}) · ${stallsVerdictHe} · RPC p95 ${fmtNum(profile.chain.rpcP95Ms)}ms · ${profile.services.upCount}/6 שירותים — וה-dump נשאר רזה לנצח (keeper=96)`
+    : `קובץ-המצב ${profile.state.fileMb ?? "?"}MB — מעל הסף; הניתוח לא הושלם (honest)`;
+
   const stateMbBefore = base ? ((base.state ?? {}) as Record<string, number>).fileMb ?? null : null;
   const rpcMaxBefore = before ? ((before.rpc ?? {}) as Record<string, number>).maxMs ?? null : null;
   const rpcMaxAfter = after ? ((after.rpc ?? {}) as Record<string, number>).maxMs ?? null : null;
 
   const improvementHe = lean && rpcMaxBefore && rpcMaxAfter
     ? `זמן-שיא RPC: ${Math.round(rpcMaxBefore)}ms → ${Math.round(rpcMaxAfter)}ms (פי-${(rpcMaxBefore / Math.max(rpcMaxAfter, 1)).toFixed(1)} טוב יותר) · נתקים: ${before?.stalls300ms ?? "—"} → ${after?.stalls300ms ?? "—"}`
-    : lean ? "הרשת רזה והגשש נקי — העדות המלאה בקבצי-הגשש" : "המדידה חיה; השוואת-העדות ממתינה לגשש";
+    : lean
+      ? "הרשת רזה; נתקי-הגשש לא נמדדו במחזור זה — העדות ההיסטורית (v54) נשמרת ביומן"
+      : "המדידה חיה; השוואת-העדות ממתינה לגשש";
 
   const snapshots = await listSnapshots();
 
@@ -446,7 +465,7 @@ async function buildTunerData(): Promise<TunerData> {
       stateMbBefore: stateMbBefore ?? null,
       stateMbAfter: profile.state.fileMb,
       stallsBefore: before ? Number(before.stalls300ms ?? 0) : null,
-      stallsAfter: after ? Number(after.stalls300ms ?? 0) : (zeroStalls ? 0 : null),
+      stallsAfter,
       rpcMaxBeforeMs: rpcMaxBefore ?? null,
       rpcMaxAfterMs: rpcMaxAfter ?? profile.chain.rpcMaxMs,
       improvementHe

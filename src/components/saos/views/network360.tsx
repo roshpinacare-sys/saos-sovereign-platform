@@ -74,7 +74,7 @@ export function Network360View() {
         <PanelHeader
           icon={<Boxes size={16} />}
           title="רשת-360 — מפת האורגניזם"
-          sub="כל 11 הריפואים של הרשת במדידה חיה מול GitHub · הישגים מאומתים-שרשרת · הצעדים הקריטיים הבאים"
+          sub={`כל ${live?.estate.length ?? 16} הריפואים של הרשת במדידה חיה מול GitHub · הישגים מאומתים-שרשרת · הצעדים הקריטיים הבאים`}
           actions={
             <span className="flex items-center gap-2">
               {live?.githubLive && <LiveDot tone="green" />}
@@ -111,7 +111,7 @@ export function Network360View() {
       <Panel>
         <PanelHeader
           icon={<Github size={16} />}
-          title="מפת האחזקות — 11 ריפואים"
+          title={`מפת האחזקות — ${live?.estate.length ?? 16} ריפואים`}
           sub="מקור: ביקורות-הרשת הצולבות (SETTLE-6 · task-21) · דחיקת-אחרונה חיה מ-GitHub API"
         />
         <PanelBody className="p-0">
@@ -196,9 +196,13 @@ export function Network360View() {
             {a && (
               <>
                 <AchieveRow
-                  ok
+                  ok={a.steemWeaveAnchors.count > 0}
                   title="עוגני saos.weave.v1 על STEEM"
-                  detail={`${a.steemWeaveAnchors.count} עוגנים נספרו ישירות מ-account_history של headcorner (חלון ${a.steemWeaveAnchors.scanned} כניסות)${a.steemWeaveAnchors.latestBlock ? ` · האחרון בבלוק ${a.steemWeaveAnchors.latestBlock}` : ""}`}
+                  detail={
+                    a.steemWeaveAnchors.count > 0
+                      ? `${a.steemWeaveAnchors.count} עוגנים נספרו ישירות מ-account_history של headcorner (חלון ${a.steemWeaveAnchors.scanned} כניסות)${a.steemWeaveAnchors.latestBlock ? ` · האחרון בבלוק ${a.steemWeaveAnchors.latestBlock}` : ""}`
+                      : `0 עוגנים בחלון ${a.steemWeaveAnchors.scanned} הכניסות — חלון-ההיסטוריה קצר מכדי להוכיח; הסטטוס-מטריצה מעידה על עיגון STEEM חי`
+                  }
                 />
                 <AchieveRow
                   ok={Boolean(a.enlist)}
@@ -218,7 +222,7 @@ export function Network360View() {
                 <AchieveRow
                   ok
                   title={`${MESH_CONTRACT_COUNT} חוזים משורשרים`}
-                  detail="Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Microgrid → Exchange → ValueEngine · שכר ללא-עמלה"
+                  detail="Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Microgrid (GRID-98) → Exchange → ValueEngine · שכר ללא-עמלה"
                 />
                 <AchieveRow
                   ok={live?.dex.ok ?? false}
@@ -235,7 +239,7 @@ export function Network360View() {
           <PanelHeader
             icon={<TrendingUp size={16} />}
             title="DEX חי + מיקרו-גריד (GRID-98 על השרשרת)"
-            sub="זרועות-ההכנסה של הרשת — מחירים אמיתיים נמדדים + מנוע הגריד החי (GRID-98)"
+            sub="זרועות-ההכנסה של הרשת — מחירים אמיתיים נמדדים + מנוע הגריד החי (GRID-98 על השרשרת)"
           />
           <PanelBody className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
@@ -262,12 +266,12 @@ export function Network360View() {
             </Callout>
             <Callout tone="gold" icon={<AlertTriangle size={14} />}>
               <strong>מיקרו-גריד האנרגיה (TRON):</strong> יעד-המימון להאצלת-אנרגיה (freeze→delegate) לחיילי TRON הוא
-              ~18.7 TRX באוצר (תקרת-תכנון, לא יתרה נמדדת) — היתרה החיה נמדדת בפסק FLOW. עמלות-אפס קבועות לפעולות הצי.
-              נעול על מפתחות חדשים מהבעלים (צעד קריטי #1).
+              ~18.7 TRX באוצר (תקרת-תכנון, לא יתרה נמדדת) — היתרה החיה נמדדת בפסק FLOW (v96: 0.193 TRX — דקה).
+              המפתחות כבר אצלנו ואטומים (v96) — החסם הנותר הוא מימון-הדלק (החלטת בעלים, צעד קריטי #3).
             </Callout>
             <Callout tone="zinc" icon={<ShieldAlert size={14} />}>
               <strong>גבול-האמת:</strong> מחירי-השוק אמיתיים (read-only); הכסף SAOS-M מעבדה בלבד — אפס מסחר אמיתי עד
-              מפתחות + החלטת סיכון מתועדת. המרווחים המוצגים אינם הבטחת רווח.
+              החלטת-סיכון מתועדת + דלק (המפתחות כבר אטומים אצלנו — v96). המרווחים המוצגים אינם הבטחת רווח.
             </Callout>
           </PanelBody>
         </Panel>

@@ -31,11 +31,13 @@ import { probeDexPairs } from "./dex-live";
 import { trustedFetch } from "./security";
 import { resolveOwnerUploadFile } from "./owner-upload";
 import { microgridStatus } from "./microgrid-live";
-import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "./mesh-facts";
+import { MESH_CONTRACT_COUNT } from "./mesh-facts";
 
 const CACHE_TTL_MS = 90_000;
 
-// ─── the curated estate (audit sources: SETTLE-6 + task-21, 2026-09-08) ─────
+// ─── the curated estate (audit sources: SETTLE-6 + task-21, extended to the
+//     full 16-repo org census at v96 — the same 16 repos the sovereignty
+//     census measures on disk) ─────────────────────────────
 
 export interface EstateRepo {
   name: string;
@@ -62,10 +64,45 @@ const ESTATE: EstateRepo[] = [
   },
   {
     name: "saos-sovereign-platform",
-    role: `הריפו הזה — פלטפורמת העגינה: ${MESH_CONTRACT_COUNT} חוזים משורשרים (שרשור-ליבה ${MESH_LINK_CHAIN_LENGTH}, כולל מיקרו-גריד) · REAL WORK (LLM) · SAOSRelay ב-mainnet · מפת-8-רשתות`,
+    role: `הריפו הזה — פלטפורמת העגינה: ${MESH_CONTRACT_COUNT} חוזי-mesh על-השרשרת · REAL WORK (LLM) · SAOSRelay ב-mainnet · מפת-הרשתות הרב-שרשרתית`,
     status: "חי",
-    note: "v20 · GRID-98 על השרשרת (אז החוזה התשיעי) · DEX עומק (UniV2+V3+Pancake+Sushi) · SAOS-WORK rail חי · היגיינה: הטוקן/ה-env/ה-db הוסרו ממעקב (5bb5ef1)",
+    note: "GRID-98 על השרשרת · DEX עומק (UniV2+V3+Pancake+Sushi) · SAOS-WORK rail חי · היגיינה: הטוקן/ה-env/ה-db הוסרו ממעקב (5bb5ef1)",
     connections: ["STEEM (עוגנים)", "ETHEREUM (SAOSRelay 0xa52D…8E6)", "TRON (אוצר headcorner)", "saos-dex (מחירי DEX חיים)"]
+  },
+  {
+    name: "Console",
+    role: "קונסולת-הרשת — רישום-סוכנים 69+ · דופק-אמת ציבורי (truth/latest.json) · שני-לבבות ללא תלות חוץ",
+    status: "חי",
+    note: "verify-בוטים פעילים (48-49/49 Console) · agents-watch 70 סוכנים/16 ריפואים · truth-gate-v1 ALL-GREEN",
+    connections: ["Domain (verify)", "platform (census)", "כל הריפואים (רישום)"]
+  },
+  {
+    name: "Defi",
+    role: "זרוע-הדהפי — TRI-BRIDGE חי · money-mover עם קבלות · CLAIMS.md",
+    status: "חי",
+    note: "Z-23 TRI-BRIDGE חי · קבלות money-mover מתועדות",
+    connections: ["saos-dex (נזילות)", "steem (עוגנים)"]
+  },
+  {
+    name: "Domain",
+    role: "בודק-הדומיין החי — verify-אורגניזם (51-52/53) · agents-watch · סף-איכות לפרונט",
+    status: "חי",
+    note: "verify רץ מול הפרונט החי · כשלים מדווחים בהודעות-קומיט (A14/A43 תועדו)",
+    connections: ["Console (verify)", "platform (בדיקה חיה)"]
+  },
+  {
+    name: "Zip",
+    role: "בית-ה-weave הריבוני — ledger.json · weave-seal.enc · SOVEREIGNTY (AES-256-GCM, pass מפוצל)",
+    status: "חי",
+    note: "custody מתועד: הסוד לא ב-git · רוטציה דרך weave-seal.ts --rotate-secret · anchor-baseline.leaves.json",
+    connections: ["platform (עוגנים)", "anchor-baseline (עלים)"]
+  },
+  {
+    name: "saos-control-center",
+    role: "מרכז-הבקרה — מנייני-אמת נגזרים · economy sim|measured בכנות · טיהור-ספירות קפואות",
+    status: "חי",
+    note: "origin: ספירות-קפואות → נגזרות (truth: derived counts) · חזית G8",
+    connections: ["Console (truth)", "foundry (kernel)"]
   },
   {
     name: "saos-dex",
@@ -138,41 +175,48 @@ export interface CriticalStep {
 const CRITICAL_STEPS: CriticalStep[] = [
   {
     rank: 1,
-    title: "מפתחות ריבוניים חדשים מהבעלים",
+    title: "סיבוב שורשי-העידן-החשוף",
     owner: "בעלים",
-    blocker: "הכספת נשרפה (פקודת-השמדה 2026-09-08) — המפתחות הישנים לא ישוחזרו",
-    impact: "פותח את כל השערים: הטבעה, עוגנים חיים, energize-TRON, פריסת ה-mesh ל-ETH/BSC, והחזרת realMoneyOk לדמונים"
+    blocker: "הכספת עצמה דווקא אוטמה מחדש (v93-v96: 16 חברים, שני שורשי-הזהות — המפתחות שוחזרו ואוטמו) — אבל מפתחות העידן-החשוף של R11 (ה-PAT, זרע-הצי הישן 0x2767) כבר דלפו להיסטוריה ולא יחזרו לחשאיות; רק סיבוב מנטרל אותם — החלטת בעלים",
+    impact: "סוגר את חולשת-האבטחה מס' 1 של הרשת — עד אז כל מי שיש לו גישת-קריאה להיסטוריה מחזיק בפועל את הישן"
   },
   {
     rank: 2,
-    title: "סיבוב הטוקן (PAT) + שכתוב היסטוריות",
+    title: "טיהור היסטוריות-git (PAT + זרעים)",
     owner: "בעלים",
-    blocker: "טוקן חי בהיסטוריה של platform/steem · fleet_keys בהיסטוריה עמוקה של steem",
-    impact: "סוגר את חולשת-האבטחה מס' 1 של הרשת — עד אז כל מי שיש לו גישת-קריאה מחזיק בפועל את כל הישן"
+    blocker: "טוקן חי בהיסטוריה של platform/steem · fleet_keys בהיסטוריה עמוקה של steem — ממתין לאישור-הבעלים מאז R11",
+    impact: "ההיסטוריה היא הנכס-שלא-ניתן-לשחזור; עד הטיהור היא גם מחסן-מפתחות-העבר"
   },
   {
     rank: 3,
+    title: "דלק למסילות-העיגון שנותרו (ETH/SOL אבק)",
+    owner: "בעלים",
+    blocker: "יתרות-גז נמדדו דקות (v96): ETH 0.00002368 · SOL 0 — שערי-העיגון של המסילות שנותרו ממתינים להקצאת-דלק מהבעלים",
+    impact: "פותח את יתר שערי-העיגון (STEEM · BLURT · XRPL · TRON · ZERO כבר ירו חי) — חומת-עיגון מלאה"
+  },
+  {
+    rank: 4,
     title: "BSC — רכב-העמלה-הנמוכה (~$1)",
     owner: "בעלים",
     blocker: "מימון בעלים בלבד (גבול-אמת מתועד)",
     impact: "פריסת ה-mesh/SAOSRelay על BSC: עסקה ב-$0.03 במקום $3+ ב-ETH — מסלול ההכנסה הציבורי הזול ביותר"
   },
   {
-    rank: 4,
-    title: "מיקרו-גריד — GRID-98 חי על השרשרת (v20)",
-    owner: "סוכן",
-    blocker: "המנוע פועל (GRID-98 — SAOSMicrogrid, מחירי DEX אמיתיים, רווח→קופת-עבודה); מסחר אמיתי דורש מפתחות + החלטת סיכון",
-    impact: "הוכחת-מנוע מלאה: סולם 1.2% · שוליים 40bps · רווח מונוטוני · גלגל-תמרים ל-TRON-energize כשהמפתחות יחזרו (ראה energize-TRON בעקבות עצה #1)"
-  },
-  {
     rank: 5,
-    title: "DEX — מעומק למסחר (v20 עומק חי)",
+    title: "מיקרו-גריד — GRID-98 חי על השרשרת",
     owner: "סוכן",
-    blocker: "עומק חי בפועל: UniV2+V3 (ETH) · Pancake+Sushi (BSC) · ספרדים · החלקה; הביצוע (broadcast) דורש מפתחות + החלטת סיכון",
-    impact: "הזרוע הכספית: ספרד-ונצוּאות נמדד (0.173% WBNB נמדד) מזין את המיקרו-גריד — כשיהיו מפתחות, ה-mesh מבצע ארביטראז' אמיתי"
+    blocker: "המנוע פועל (חוזה על-השרשרת, מחירי DEX אמיתיים, רווח→קופת-עבודה); מסחר אמיתי דורש החלטת סיכון מתועדת",
+    impact: "הוכחת-מנוע מלאה: סולם 1.2% · שוליים 40bps · רווח מונוטוני · גלגל-תמרים ל-TRON-energize כשהדלק יגיע (ראה energize-TRON בעקבות עצה #3)"
   },
   {
     rank: 6,
+    title: "DEX — מעומק למסחר (עומק חי)",
+    owner: "סוכן",
+    blocker: "עומק חי בפועל: UniV2+V3 (ETH) · Pancake+Sushi (BSC) · ספרדים · החלקה; הביצוע (broadcast) דורש החלטת סיכון מתועדת",
+    impact: "הזרוע הכספית: ספרד-ונצוּאות נמדד (0.173% WBNB נמדד) מזין את המיקרו-גריד — כשהדלק יגיע, ה-mesh מבצע ארביטראז' אמיתי"
+  },
+  {
+    rank: 7,
     title: "טיהור טענות-שיווק + אריזת-ביקורת מחדש",
     owner: "סוכן",
     blocker: "Adsmarket §3 סתירה · 300K-mint בלי txid ציבורי · audit-package 7/11 קבצים שונים מהייצור",
@@ -314,7 +358,7 @@ async function measure(): Promise<Network360> {
         supply: ledger ? String(ledger.supply ?? "—") : "—",
         agents: ledger ? (ledger.balances?.length ?? 0) : 0
       },
-      mesh: { contracts: 9, runs: meshRuns },
+      mesh: { contracts: MESH_CONTRACT_COUNT, runs: meshRuns },
       enlist: enlistRow?.txid ? { txid: enlistRow.txid, confirmed: true } : null,
       flowTrx: Number(flowTrx.toFixed(6)),
       flowTxCount

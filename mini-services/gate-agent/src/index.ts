@@ -129,6 +129,9 @@ function loadKeyHome(): { apiKey: string } | null {
 
 function saveKeyHome(apiKey: string): void {
   fs.mkdirSync(path.dirname(KEY_HOME), { recursive: true });
+  // 8-g — the home itself stays private (0700); note: upload/ rides a
+  // fuse.ossfs mount that ignores modes — this bites on any POSIX home.
+  try { fs.chmodSync(path.dirname(KEY_HOME), 0o700); } catch { /* best effort */ }
   const body = JSON.stringify(
     { kind: "gate-agent-token", agent: AGENT_NAME, role: ROLE, apiKey, armedAt: new Date().toISOString() },
     null,

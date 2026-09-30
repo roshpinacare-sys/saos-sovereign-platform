@@ -926,7 +926,7 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
             <EmptyBlock
               icon={<ShieldCheck size={20} />}
               title="איטום הכספת לא נמצא"
-              desc="agent/keys/fleet_keys.enc חסר — השג את מעטפת הצי מהריפו הפרטי והנח אותה ב-agent/keys/ לחיבור אוטומטי."
+              desc="איטום הכספת אינו זמין — השער fail-closed; אין החדרת-מפתחות ידנית (היגיינת v93: אין-לגיט מחוץ לבתי-המפתחות המאושרים)."
             />
           ) : (
             <>
@@ -975,7 +975,7 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
                   {stage2Connected ? "סנכרן איטום מחדש" : "חבר שלב 2 — רשום את הכספת"}
                 </Btn>
                 <p className="text-[11px] text-zinc-500 leading-relaxed flex-1">
-                  החיבור פותח את האיטום בצד-השרת, מאמת את תג-GCM (fail-closed), ממפה את הזהויות הציבוריות ל-9 חריצי המניפסט ומשרשר קבלה. איטום: <span dir="ltr" className="font-mono text-zinc-400">{seal.data.seal?.format}</span> · נאטם {timeAgo(seal.data.seal?.sealedAt ?? "")} · {(seal.data.seal?.files ?? []).length} קבצים במעטפה.
+                  החיבור פותח את האיטום בצד-השרת, מאמת את תג-GCM (fail-closed), ממפה את הזהויות הציבוריות ל-{seal.data.stats.manifestSlots} חריצי המניפסט ומשרשר קבלה. איטום: <span dir="ltr" className="font-mono text-zinc-400">{seal.data.seal?.format}</span> · נאטם {timeAgo(seal.data.seal?.sealedAt ?? "")} · {(seal.data.seal?.files ?? []).length} קבצים במעטפה.
                 </p>
               </div>
 
@@ -1323,7 +1323,7 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
         <PanelHeader
           icon={<Coins size={15} />}
           title="פעימת עגינה חיה — BSC · BNB Chain"
-          sub="המסילה השמינית: אותה כתובת EVM ריבונית (m/44'/60'/0'/0/2) ואותה צורת-weave כמו באיתריום — rail:bsc. עד הקצאת BNB כל לחיצה תיענה בשער-כנות, לא בפעימה מפוברקת"
+          sub="מסילת-BSC: כתובת-האבן (m/44'/60'/0'/0/0 — 0x01Bd2879, selfVerified v96) ואותה צורת-weave כמו באיתריום — rail:bsc. עד הקצאת BNB כל לחיצה תיענה בשער-כנות, לא בפעימה מפוברקת"
           actions={
             bscRail.data?.ok ? (
               bscRail.data.alreadyAnchored ? (

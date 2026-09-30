@@ -36,7 +36,7 @@ import { assertTrustedEndpoints } from "./security";
 
 // ─── רישום הרשתות — ההגדרה הסטטית של המפה ─────────────────────────────────
 
-export type ChainFamily = "evm" | "btc-utxo" | "secp256k1" | "ed25519";
+export type ChainFamily = "evm" | "btc-utxo" | "secp256k1" | "ed25519" | "zero";
 export type ProbeKind =
   | "evm-rpc" | "mempool-btc" | "blockcypher" | "xrp-rpc"
   | "tron-api" | "sol-rpc" | "cosmos-rest" | "stellar-horizon" | null;
@@ -53,8 +53,10 @@ export interface ChainDef {
   decimals: number;
   /** סוג הבדיקה החיה; null = נגזר בלבד (אין מקור ציבורי נגיש) */
   probe: ProbeKind;
-  /** עוגן מיינטנט שכבר נורה מהזהות הזו */
+  /** עוגן מיינטנט שכבר נורה מהזהות הזו (האחרון) */
   anchored?: { txid: string; link: string; label: string };
+  /** עוגן קודם של אותה זהות — היסטוריית-עיגון מלאה, לא רק השיא */
+  anchoredPrior?: { txid: string; link: string; label: string };
   /** הערת-כנות לתצוגה */
   note?: string;
   explorer: string;
@@ -163,7 +165,9 @@ const CHAINS: ChainDef[] = [
     family: "secp256k1", curve: "secp256k1",
     path: "m/44'/144'/0'/0/0", kind: "derived", decimals: 6,
     probe: "xrp-rpc", explorer: "https://livenet.xrpl.org/accounts/",
-    anchored: { txid: "0C846CB5…", link: "https://livenet.xrpl.org/transactions/0C846CB503F336B6F934FBA8F2CF108F2AECECFB88A086D26567F51589FB5855", label: "עוגן XRPL מיינטנט v49 · ledger 106890679 · אומת חי מהחומה v50" },
+    // v96 — עוגן אבן-הפינה (האחרון) + עוגן v49 (קודם) — היסטוריית-העיגון המלאה
+    anchored: { txid: "DF428A52…", link: "https://livenet.xrpl.org/transactions/DF428A523DAD556439914CD15CB423DAB9BF374B0AAEF6AE605D1B6BB65058AF", label: "עוגן XRPL אבן-הפינה v96 · ledger 107340977 · החתימה הראשונה של אבן-הפינה על XRPL · אומת חי (confirmedByHistory)" },
+    anchoredPrior: { txid: "0C846CB5…", link: "https://livenet.xrpl.org/transactions/0C846CB503F336B6F934FBA8F2CF108F2AECECFB88A086D26567F51589FB5855", label: "עוגן XRPL מיינטנט v49 · ledger 106890679 · אומת חי מהחומה v50" },
     note: "🔥 v48 גילוי: הקידוד הנכון (אלפבית XRP) משחזר בדיוק את r3Tq66… — תיקון-כנות ל-v45 שסימן 'מוצהר בלבד'"
   },
   {
@@ -223,6 +227,15 @@ const CHAINS: ChainDef[] = [
     probe: null, explorer: "https://explorer.near.org/accounts/",
     note: "חשבון-מרומז (implicit) — base58 של המפתח הציבורי"
   },
+  // — מסילת-האפס (R9) — עוגן גז-אפס חי על Z Chain · חתום ממפתח-הצי ההיסטורי —
+  {
+    id: "zero", heName: "Z Chain (מסילת-האפס)", symbol: "ZERO",
+    family: "zero", curve: "secp256k1",
+    path: null, kind: "documented", decimals: 18,
+    probe: null, explorer: "https://zscan.live/tx/",
+    anchored: { txid: "0xa5213e26…", link: "https://zscan.live/tx", label: "עוגן-האפס הראשון v94 · חוסם 35911074 · גז 0.000000 · confirmedByHistory — חתום ממפתח-הצי ההיסטורי 0x2767 (שוחזר ואוטם v94)" },
+    note: "chainId 9369 · gasPrice נמדד 0x0 — עגינה אמיתית בעלות-אפס (סקוונסר ממומן by-design); הזהות החותמת היא מפתח-הצי (m/44'/60'/0'/0/2), לא אבן-הפינה — ולכן מתועדת בכנות ואינה נגזרת כאן"
+  },
   // — מתועד בלבד (הכנות גלויה) —
   {
     id: "cardano", heName: "קרדאנו", symbol: "ADA",
@@ -236,7 +249,7 @@ const CHAINS: ChainDef[] = [
     family: "secp256k1", curve: "secp256k1",
     path: null, kind: "documented", decimals: 6,
     probe: null, explorer: "https://livenet.xrpl.org/accounts/",
-    note: "r3Tq66… — הזהות שבמסמך אבן-הפינה; לא שוחזרה מהגזירה הסטנדרטית (מסומן מאז v45)"
+    note: "r3Tq66… — הזהות שבמסמך אבן-הפינה; הגזירה הסטנדרטית (m/44'/144'/0'/0/0, אלפבית XRP) משחזרת אותה בדיוק — תאומים מדויקים (אומת v48 ושוב v96)"
   }
 ];
 
@@ -782,13 +795,13 @@ export async function networkCensus(opts: { force?: boolean } = {}): Promise<Net
       declaredXrp = r.declaredXrp;
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      // v74 תצוגה-מדברת-אמת: כשל-גזירה לא זורק ENOENT גולמי לממשק —
-      // אם הכספת לא נוכחת (נשרפה בפקודת-השמדה 2026-09-08) האבחנה הכנה
-      // והמדויקת עולה במקומו (כישלון הוא נתון, בלי סודות ובלי רעש).
+      // v96 אמת-תצוגה: הכספת אטומה ונוכחת (מעטפת 16 חברים, שני שורשי-הזהות)
+      // — כשל-גזירה הוא תקלה טכנית, לא "כספת שנשרפה" (טקסט-עידן v21 שסתר
+      // את המצב החי). מדידת-הזמינות נשמרת כנתון כנה בתוך האבחנה.
       const avail = await sealAvailability();
       deriveError = avail.present
-        ? raw
-        : `גזירת-הזהויות חסומה: כל 24 הזהויות נגזרות מאבן-הפינה בתוך כספת-הצי, והכספת לא נוכחת באף בית (נשרפה מהדיסק בפקודת-השמדה 2026-09-08) — המפקד ממתין לאיטום-כספת חדש מהבעלים; עד אז מצב-ראיות (סיבה טכנית: ${raw.slice(0, 80)})`;
+        ? `גזירת-הזהויות נכשלה — המעטפת אטומה ונוכחת (v96, 16 חברים) והגזירה נכשלה מסיבה טכנית — ראה יומן (סיבה: ${raw.slice(0, 80)})`
+        : `גזירת-הזהויות נכשלה — בתי-הכספת לא אותרו כרגע במדידת-הזמינות (המעטפת הקנונית אטומה מאז v96); הגזירה נכשלה מסיבה טכנית — ראה יומן (סיבה: ${raw.slice(0, 80)})`;
     }
 
     const rows: ChainRow[] = [];

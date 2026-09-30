@@ -888,7 +888,7 @@ async function runSecurityScan(): Promise<SecurityStatus> {
   const data: SecurityStatus = {
     ok: highCount === 0 && outbound.unknownHosts.length === 0,
     error: verdictError,
-    version: "v25.0.0",
+    version: "v26.0.0",
     measuredAt: new Date().toISOString(),
     gates: {
       phishing: {

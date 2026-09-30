@@ -401,6 +401,13 @@ export function TreasuryView() {
   }
 
   const t = d.totals;
+  // 8-h truth-fix: unknown ≠ 0 — a $0.00 total is only honest when at least one
+  // row was actually measured; all-null prices render "—", never "$0.00".
+  const anyBalanceUsd = d.balances.some((b) => b.balanceUsd !== null);
+  const anyExpenseUsd =
+    d.expenses.historical.some((e) => e.amountUsd !== null) || d.expenses.live.some((e) => e.amountUsd !== null);
+  const anyLiveUsd = d.expenses.live.some((e) => e.amountUsd !== null);
+  const anyDoorGapUsd = d.doors.some((x) => x.gapUsd !== null);
   const waiting = d.doors.filter((x) => x.relayLive !== true && (x.gapNative ?? 0) > 0);
   const fundedDoor = d.doors.find((x) => x.relayLive === true);
 
@@ -442,29 +449,29 @@ export function TreasuryView() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Kpi
           label="האוצר החי (USD)"
-          value={fmtUsd(t.treasuryUsdKnown)}
-          hint={`${d.balances.length} רשתות ממומנות × מחירי שוק חיים`}
+          value={anyBalanceUsd ? fmtUsd(t.treasuryUsdKnown) : "—"}
+          hint={anyBalanceUsd ? `${d.balances.length} רשתות ממומנות × מחירי שוק חיים` : "מחירים לא נענו במחזור זה — לא נמדד, לעולם לא 0"}
           icon={<Wallet size={16} />}
           tone="gold"
         />
         <Kpi
           label="סך ההוצאה אי-פעם"
-          value={fmtUsd(t.spentUsdKnown)}
+          value={anyExpenseUsd ? fmtUsd(t.spentUsdKnown) : "—"}
           hint={`${t.historicalCount} הוצאות ריבוניות — עלות חיה מהקבלות`}
           icon={<Receipt size={16} />}
           tone="green"
         />
         <Kpi
           label="הוצאות מאז ההרשאה"
-          value={t.liveCount > 0 ? fmtUsd(t.liveSpentUsdKnown) : "0"}
-          hint={t.liveCount > 0 ? `${t.liveCount} פעימות חיות מתועדות` : "הפעימות החיות יירשמו כאן — txid + עלות + יתרה"}
+          value={t.liveCount > 0 ? (anyLiveUsd ? fmtUsd(t.liveSpentUsdKnown) : "—") : "0"}
+          hint={t.liveCount > 0 ? (anyLiveUsd ? `${t.liveCount} פעימות חיות מתועדות` : `${t.liveCount} פעימות — סכומים לא נמדדו במחזור זה`) : "הפעימות החיות יירשמו כאן — txid + עלות + יתרה"}
           icon={<Coins size={16} />}
           tone={t.liveCount > 0 ? "gold" : "default"}
         />
         <Kpi
           label={`פער ${d.doors.length} הדלתות (USD)`}
-          value={fmtUsd(t.doorsGapUsdKnown)}
-          hint={`${t.doorsWaiting} דלתות EVM מוכחות-צינור ממתינות לגז`}
+          value={anyDoorGapUsd ? fmtUsd(t.doorsGapUsdKnown) : "—"}
+          hint={anyDoorGapUsd ? `${t.doorsWaiting} דלתות EVM מוכחות-צינור ממתינות לגז` : "פערי-הדלתות לא נמדדו במחזור זה — לא נמדד, לעולם לא 0"}
           icon={<DoorOpen size={16} />}
           tone="rose"
         />
@@ -527,7 +534,7 @@ export function TreasuryView() {
         <PanelHeader
           icon={<ScrollText size={15} />}
           title="ההוצאות ההיסטוריות — כל הוצאה ריבונית אי-פעם"
-          tag={`${t.historicalCount} רשומות · עלות נקראה חי מהקבלה`}
+          tag={`${t.historicalCount} רשומות · עלות מהקבלה · שורה ללא סכום = הקבלה לא נענתה`}
         />
         <PanelBody className="p-0">
           <Table>
@@ -547,8 +554,8 @@ export function TreasuryView() {
             </tbody>
           </Table>
           <p className="px-4 py-2.5 text-[10px] text-zinc-600 border-t border-white/[0.05]">
-            כל עלות בטבלה זו נקראה ברגע התצוגה מהקבלה החיה של השרשרת ששילמה אותה (gasUsed × gasPrice / fee) — לא מהרישום
-            הסטטי. צומת שלא ענה = «לא נמדד», לעולם לא 0.
+            כל שורה עם סכום נקראה חי מהקבלה של השרשרת ששילמה אותה (gasUsed × gasPrice / fee); שורות ללא סכום = הקבלה לא נענתה —
+            «לא נמדד», לעולם לא 0.
           </p>
         </PanelBody>
       </Panel>

@@ -32,13 +32,16 @@ import { db } from "@/lib/db";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { meshFastProvider } from "./mesh-provider";
 import { resolveOwnerUploadFile } from "./owner-upload";
+import { roleWifAvailable } from "@/lib/vault-seal";
 
 const WALLET_REGISTRY_URL =
   "https://raw.githubusercontent.com/roshpinacare-sys/steem/main/sovereign/node/wallets-public.json";
 
 // ─── types ──────────────────────────────────────────────────────────────────
 
-export type AssetStatus = "live" | "awaiting-keys" | "empty" | "degraded";
+// 8-h: "armed" = keys sealed in the live v93+ envelope and verified — the
+// holder can sign today (no longer "awaiting-keys")
+export type AssetStatus = "live" | "armed" | "awaiting-keys" | "empty" | "degraded";
 
 export interface LiquidAsset {
   id: string;
@@ -505,14 +508,18 @@ const CORNERSTONE_HOME = "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37" as const;
 
 async function measure(): Promise<LiquidityRadar> {
   const measuredAt = new Date().toISOString();
-  const [prices, registry, evidence, lab, hive, steem, blurt] = await Promise.all([
+  const [prices, registry, evidence, lab, hive, steem, blurt, steemKeysLive] = await Promise.all([
     priceOracle(),
     walletRegistry(),
     evidenceIdentities(),
     labFunds(),
     socialAccount("HIVE", ["https://api.hive.blog", "https://hive-api.arcange.eu"], "headcorner"),
     socialAccount("STEEM", ["https://api.steemit.com", "https://steem-api.arcange.eu"], "headcorner"),
-    socialAccount("BLURT", ["https://rpc.blurt.world", "https://rpc.blurt.live"], "headcorner")
+    socialAccount("BLURT", ["https://rpc.blurt.world", "https://rpc.blurt.live"], "headcorner"),
+    // 8-h truth-fix — STEEM keys are LIVE: the v93+ sealed envelope holds the
+    // active+posting WIFs (4/4 live-verified). The honest probe reads the seal
+    // (never exposes a secret) — STEEM is no longer hardcoded "awaiting-keys".
+    roleWifAvailable("active").catch(() => false)
   ]);
 
   const headcorner = registry.wallets.find((w) => w.agent === "headcorner");
@@ -540,8 +547,10 @@ async function measure(): Promise<LiquidityRadar> {
       usd: mkUsd("TRX", trxSovereign ?? 0),
       priceUsd: prices.TRX?.usd ?? null,
       priceSource: prices.TRX?.source ?? "—",
+      // 8-h: the keys burned narrative is history — the TRON doors registry is
+      // sealed in the live envelope (v93+); signing goes through the vault gate.
       status: trxSovereign === null ? "degraded" : "awaiting-keys",
-      note: "מפתחות נשרפו — כתובת מזהה מהראיות; יכול לקבל, לא לשלוח",
+      note: "כתובת מזוהה מהראיות · רישום-הדלתות TRON אטום במעטפת החיה (v93+) — חתימה דרך שער-הכספת",
       explorer: `https://tronscan.org/#/address/${evidence.tron}`
     });
   }
@@ -560,7 +569,9 @@ async function measure(): Promise<LiquidityRadar> {
       priceUsd: prices.TRX?.usd ?? null,
       priceSource: prices.TRX?.source ?? "—",
       status: trxTreasury === null ? "degraded" : "awaiting-keys",
-      note: "17.6 TRX שזרמו ב-2026-09-08 ואומתו בשרשרת; מפתח חתימה = headcorner STEEM active",
+      // 8-h: 17.6 is the HISTORICAL cumulative flow (chain-verified 2026-09-08),
+      // not a current balance — the balance is the live measured row beside it.
+      note: `זרימה היסטורית מצטברת 17.6 TRX (2026-09-08, מאומתת-שרשרת — לא יתרה) · רישום-הדלתות TRON אטום במעטפת (v93+)`,
       explorer: `https://tronscan.org/#/address/${treasuryAddr}`
     });
   }
@@ -712,6 +723,10 @@ async function measure(): Promise<LiquidityRadar> {
       : 0;
     const usdLiquid = mkUsd(s.priceKey, liquid);
     const usdPower = mkUsd(s.priceKey, power);
+    // 8-h truth-fix: STEEM derives its status from the live seal probe —
+    // keys armed ("armed") when the envelope holds the active WIF; HIVE/BLURT
+    // remain honest "awaiting-keys" (their key system is truly not in the envelope).
+    const steemArmed = s.domain === "STEEM" && steemKeysLive;
     assets.push({
       id: `social-${s.domain.toLowerCase()}`,
       domain: s.domain,
@@ -724,9 +739,11 @@ async function measure(): Promise<LiquidityRadar> {
       usd: usdLiquid !== null && usdPower !== null ? usdLiquid + usdPower : null,
       priceUsd: prices[s.priceKey]?.usd ?? null,
       priceSource: prices[s.priceKey]?.source ?? "—",
-      status: s.ok ? "awaiting-keys" : "degraded",
+      status: s.ok ? (steemArmed ? "armed" : "awaiting-keys") : "degraded",
       note: s.ok
-        ? `האצלה חוצה: ${delegatedOutHp.toFixed(0)} ${s.symbol}P · קבלה: ${s.receivedIn > 0 ? `${(s.receivedIn.toFixed(0))} VESTS` : "—"}`
+        ? steemArmed
+          ? `חמוש (v93+): WIF active אטום במעטפת וחתימה חיה · האצלה חוצה: ${delegatedOutHp.toFixed(0)} ${s.symbol}P · קבלה: ${s.receivedIn > 0 ? `${(s.receivedIn.toFixed(0))} VESTS` : "—"}`
+          : `האצלה חוצה: ${delegatedOutHp.toFixed(0)} ${s.symbol}P · קבלה: ${s.receivedIn > 0 ? `${(s.receivedIn.toFixed(0))} VESTS` : "—"}`
         : s.error ?? "RPC לא ענה",
       explorer:
         s.domain === "HIVE"

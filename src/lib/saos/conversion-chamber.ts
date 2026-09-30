@@ -1275,8 +1275,15 @@ async function buildChamberStatus(): Promise<ConversionChamberData> {
     custodyUsd !== null && Number.isFinite(custodyUsd)
       ? `${fmtUsd(custodyUsd)} חיים בחוץ`
       : "הסכום הכולל במשמרת לא נמדד במחזור זה";
-  const mirrorClause =
-    mirroredUsd !== null && Number.isFinite(mirroredUsd)
+  // 8-h truth-fix: when the mirror overshoots custody (mirrored > custody),
+  // "Y of them" is an impossible sentence — render a flagged honest verdict
+  // with BOTH numbers instead (WETH over-minted → burn/rebalance required).
+  const mirrorOvershoot =
+    custodyUsd !== null && Number.isFinite(custodyUsd) &&
+    mirroredUsd !== null && Number.isFinite(mirroredUsd) && mirroredUsd > custodyUsd;
+  const mirrorClause = mirrorOvershoot
+    ? `אבל שימו-לב — המראה עודפה על המקור: ${fmtUsd(mirroredUsd)} מיוצגים במראה מול ${fmtUsd(custodyUsd)} בלבד במשמרת (WETH מוטבע-יתר) — נדרש שריפה/איזון`
+    : mirroredUsd !== null && Number.isFinite(mirroredUsd)
       ? `ו־${fmtUsd(mirroredUsd)} מהם כבר מיוצגים במראה על הרשת שלנו`
       : "החלק המיוצג במראה לא נמדד במחזור זה";
   const driftPhrase =

@@ -1685,7 +1685,7 @@ export function ExchangeView() {
                 addr: "r3Tq66LWQJS86oNWvbWftRxRQFiJ7wGKwh",
                 addrShort: "r3Tq66…7wGKwh",
                 blocker: "0.299961 XRP בר-שליחה מעל רזרבת-בסיס 1.0 — פתיחת חשבון XRPL שני דורשת 1.0; תשלום-עצמי נדחה כמיותר (temREDUNDANT — נלמד חי). החשבון עובד: פעימות AccountSet חתומות חקוקות בספר",
-                connect: "WRXP מגובה 1:1 מול המדידה + בריכה #4 — 1,467 wSAOS נזילות חיה מול ה-XRP האמיתי; הרגע שהרזרבה תרד/המאזן יגדל — הכסף יעבור פיזית לחשבון ריבוני שני"
+                connect: "WRXP מגובה 1:1 מול המדידה + בריכה #4 — {WRXP_POOL} wSAOS נזילות חיה מול ה-XRP האמיתי; הרגע שהרזרבה תרד/המאזן יגדל — הכסף יעבור פיזית לחשבון ריבוני שני"
               }
             ].map((c) => {
               const asset = d.assets.find((a) => a.symbol === c.wrap);
@@ -1727,7 +1727,9 @@ export function ExchangeView() {
                   </p>
                   <p className="text-[10.5px] leading-relaxed text-emerald-300/75">
                     <span className="font-semibold">החיבור הריבוני: </span>
-                    {c.connect}
+                    {/* 8-h truth-fix: the wSAOS liquidity figure is read from the
+                        measured pool (rSaos) — "—" when the pool did not answer. */}
+                    {c.connect.replace("{WRXP_POOL}", pool ? fmt(Number(pool.rSaos)) : "—")}
                   </p>
                 </div>
               );

@@ -576,8 +576,11 @@ export function IrrigationView() {
         />
         <PanelBody className="space-y-3">
           {d.journal.length === 0 ? (
-            <div className="text-center py-8 text-zinc-600 text-[12px]">
-              אף טיפה לא נורתה עדיין — היומן נולד עם ה-probe הראשון
+            <div className="text-center py-8 text-zinc-600 text-[12px] leading-relaxed">
+              היומן-חי נבנה מחדש (DB אופס 2026-09-29) — כל טיפה חדשה נרשמת כאן עם הוכחה.
+              <span className="block mt-1 text-zinc-500">
+                4 טיפות היסטוריות מתועדות בגיט (broadcasts 2026-09-11-wise-irrigation — probe+top-up ל-OP ול-Base, txids בדוח) — לא משוחזרות כרשומות-DB כדי לא לייצר חותמות-זמן מלאכותיות.
+              </span>
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto scroll-slim">

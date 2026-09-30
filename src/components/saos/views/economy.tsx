@@ -34,18 +34,24 @@ import {
 import { MeterBar } from "../charts";
 import { fmt, postJson, timeAgo, useLive, useTick } from "../lib";
 import type { EconomyData, EconomyForm, SnapshotInfo } from "../types";
+// 8-h truth-fix: the view's defaults ARE the lib's honest DEFAULT_ECONOMY
+// (zeros + measured flag) — the old wish-sheet (50K/1800/3000/250) is gone.
+import { DEFAULT_ECONOMY } from "@/lib/saos/economy";
 import { PageHead } from "../shell";
 
+/** EconomyData + the lib's honesty mode (sim|measured) served by /api/saos/economy. */
+type EconomyLive = EconomyData & { result: { mode?: "sim" | "measured" } };
+
 const DEFAULTS: EconomyForm = {
-  pool: 50000,
-  fee: 0.3,
-  rounds: 1800,
-  profit: 0.4,
-  rail: 3000,
-  rate: 1000,
-  door: 250,
-  doorFee: 2,
-  fly: 30
+  pool: DEFAULT_ECONOMY.poolVolumePerDay,
+  fee: DEFAULT_ECONOMY.poolFeePct,
+  rounds: DEFAULT_ECONOMY.gridRoundsPerDay,
+  profit: DEFAULT_ECONOMY.gridProfitPerRound,
+  rail: DEFAULT_ECONOMY.inboundRailVolume,
+  rate: DEFAULT_ECONOMY.inboundRate,
+  door: DEFAULT_ECONOMY.doorCallsPerDay,
+  doorFee: DEFAULT_ECONOMY.doorFee,
+  fly: DEFAULT_ECONOMY.flywheelPct
 };
 
 export function ViewEconomy() {
@@ -63,7 +69,7 @@ export function ViewEconomy() {
     const t = setTimeout(() => setDebQ(query), 250);
     return () => clearTimeout(t);
   }, [query]);
-  const live = useLive<EconomyData>(`/api/saos/economy?${debQ}`, 60000);
+  const live = useLive<EconomyLive>(`/api/saos/economy?${debQ}`, 60000);
 
   const set = (k: keyof EconomyForm) => (v: number) => setF((p) => ({ ...p, [k]: v }));
 
@@ -87,7 +93,10 @@ export function ViewEconomy() {
     }
   };
 
+  // 8-h truth-fix: the result carries mode:"sim"|"measured" — the pill reads
+  // the DATA, and a simulation is never dressed as "חי".
   const r = live.data?.result;
+  const econMode = r?.mode ?? null;
   const maxStream = r ? Math.max(...r.streams.map((s) => s.amount), 1) : 1;
 
   return (
@@ -109,7 +118,15 @@ export function ViewEconomy() {
             icon={<Activity size={15} />}
             title="פרמטרי המשק"
             sub="9 מחוונים — הסימולציה מתעדכנת בזמן-אמת"
-            actions={<Pill tone="gold">חי</Pill>}
+            actions={
+              econMode === "measured" ? (
+                <Pill tone="green">נמדד (mode=measured)</Pill>
+              ) : (
+                <Pill tone="amber" pulse>
+                  סימולציה (mode=sim) — לא הכנסה נמדדת
+                </Pill>
+              )
+            }
           />
           <PanelBody className="space-y-3.5">
             <RangeSlider label="מחזור בריכות GRID-98 ליום" value={f.pool} min={0} max={200000} step={1000} suffix="SAOS" onChange={set("pool")} />

@@ -448,11 +448,13 @@ export function ViewFleet() {
               <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.03] p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-bold text-rose-200">HIVE — שער RC</span>
-                  <Pill tone="rose">חסום בכנות</Pill>
+                  <Pill tone={(policy?.gatesHe.hive ?? "").includes("פתוח") ? "amber" : "rose"}>
+                    {(policy?.gatesHe.hive ?? "").includes("פתוח") ? "פתוח לפי מדידה" : "חסום בכנות"}
+                  </Pill>
                 </div>
                 <p className="text-[11px] text-zinc-400 leading-relaxed">{policy?.gatesHe.hive}</p>
                 <div className="mt-2 text-[11px] text-zinc-500">
-                  ריבון: {(sovereign?.hive.balance ?? 0).toFixed(3)} HIVE נוזל · {(sovereign?.hive.vests ?? 0).toFixed(0)} VESTS — השער ייפתח כשה-RC יחלוף 8%.
+                  ריבון: {(sovereign?.hive.balance ?? 0).toFixed(3)} HIVE נוזל · {(sovereign?.hive.vests ?? 0).toFixed(0)} VESTS — רצפת-השער: RC מעל 8% · המצב בפועל נקבע לפי המדידה האחרונה (פסק-הדין למעלה), לא לפי קבוע.
                 </div>
               </div>
 
@@ -460,10 +462,12 @@ export function ViewFleet() {
               <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.03] p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-bold text-rose-200">TRON — שער אנרגיה</span>
-                  <Pill tone="rose">חסום בכנות</Pill>
+                  <Pill tone={(policy?.gatesHe.tron ?? "").includes("פתוח") ? "amber" : "rose"}>
+                    {(policy?.gatesHe.tron ?? "").includes("פתוח") ? "פתוח לפי מדידה" : "חסום בכנות"}
+                  </Pill>
                 </div>
                 <p className="text-[11px] text-zinc-400 leading-relaxed">{policy?.gatesHe.tron}</p>
-                <div className="mt-2 text-[11px] text-zinc-500">6 כתובות-כספת במעקב · מדידת-יתרות TRX ואנרגיה דרוך מכ״ם-הרשתות (מפת-רשתות) — לא הוקצה עדיין.</div>
+                <div className="mt-2 text-[11px] text-zinc-500">12 חיילי-הכספת מחזיקי-כתובות TRON (13 עם אבן-הראש — נגזר מ-seal.stats.tronAddresses) · מדידת-יתרות TRX ואנרגיה דרוך מכ״ם-הרשתות (מפת-רשתות) — לא הוקצה עדיין.</div>
               </div>
 
               {/* BTC — informational */}
@@ -543,7 +547,7 @@ export function ViewFleet() {
         <PanelHeader
           icon={<Users size={16} />}
           title="צי-החיילים — יתרות חיות"
-          sub="מדידה חיה מול הרשתות: STEEM (מאזן+RC) · HIVE · ETHEREUM · SOLANA · TRON · SAOS"
+          sub="מדידה חיה מול הרשתות: STEEM (מאזן+RC) · HIVE · ETHEREUM · SOLANA · TRON · SAOS · רוסטר-המעטפת: 12 אטומים · פעילות-מיטבית נמדדת בשער-החיים (steem live-gate): activeFleet 11 — ynet הוצא מהצי הפעיל 2026-09-30 (מקור: מדידת live-gate, ריפו steem)"
           actions={<Pill tone="green">{timeAgo(fleet.data?.measuredAt ?? null)}</Pill>}
         />
         <PanelBody>

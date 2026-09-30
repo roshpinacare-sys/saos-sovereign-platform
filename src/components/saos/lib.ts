@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS v4 — ליבת נתונים-חיים ופורמט (zero-dependency).
+ * SAOS v97 — ליבת נתונים-חיים ופורמט (zero-dependency).
  * useLive: fetch מחזורי עם pause-on-hidden, שגיאות-כנתונים, רענון שקט.
  * useClock: שעון מוסדי (Asia/Jerusalem). useTick: פעימת-זמן ל-timeAgo.
  */
