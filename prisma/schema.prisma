@@ -445,3 +445,31 @@ model AgriDecision {
   @@index([zoneId, createdAt])
   @@index([createdAt])
 }
+
+// ─── Auth plane (2026-09-29 — ported from foundry, fail-closed) ──────────────
+// P0: every sensitive POST on this repo now passes requireAuth. These two
+// tables back the same session-revocation + audit discipline as foundry.
+// currentSessionEpoch()/audit() degrade honestly if the tables are not yet
+// migrated (epoch falls back to "bootstrap", dropped audit rows are counted).
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  kind      String // auth-login | auth-login-failed | auth-logout | sensitive-denied | sensitive-allowed
+  actor     String // "anonymous" | "bearer:<8hex>" | "cookie:<8hex>" — never key material
+  action    String // endpoint / operation attempted
+  allowed   Boolean
+  ipHash    String? // sha256(ip) truncated — coarse, correlation-only
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([kind, createdAt])
+  @@index([createdAt])
+}
+
+model SessionControl {
+  id           String   @id @default("singleton")
+  sessionEpoch String // random hex; absent row = "bootstrap"
+  rotatedAt    DateTime @default(now())
+  rotatedBy    String? // non-reversible actor label
+  note         String?
+}

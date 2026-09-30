@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth, audit } from "@/lib/saos/auth";
 import { simulateEconomy, DEFAULT_ECONOMY, type EconomyInput } from "@/lib/saos/economy";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { db } from "@/lib/db";
@@ -22,7 +23,7 @@ const LIMITS = {
   doorCallsPerDay: [0, 10_000],
   doorFee: [0, 1_000],
   flywheelPct: [0, 95]
-} as const satisfies Record<keyof EconomyInput, readonly [number, number]>;
+} as const satisfies Record<Exclude<keyof EconomyInput, "measured">, readonly [number, number]>;
 
 function sanitizeInput(raw: Record<string, unknown>): EconomyInput {
   const num = (v: unknown, fallback: number): number => {
@@ -38,9 +39,13 @@ function sanitizeInput(raw: Record<string, unknown>): EconomyInput {
     inboundRate: num(raw.inboundRate, DEFAULT_ECONOMY.inboundRate),
     doorCallsPerDay: num(raw.doorCallsPerDay, DEFAULT_ECONOMY.doorCallsPerDay),
     doorFee: num(raw.doorFee, DEFAULT_ECONOMY.doorFee),
-    flywheelPct: num(raw.flywheelPct, DEFAULT_ECONOMY.flywheelPct)
+    flywheelPct: num(raw.flywheelPct, DEFAULT_ECONOMY.flywheelPct),
+    // honesty fix (2026-09-29): measured=true is a deliberate caller claim —
+    // only accepted when the caller explicitly passes it (never defaulted on)
+    measured: raw.measured === true
   };
-  for (const key of Object.keys(LIMITS) as (keyof EconomyInput)[]) {
+  const numericKeys = Object.keys(LIMITS) as Exclude<keyof EconomyInput, "measured">[];
+  for (const key of numericKeys) {
     const [lo, hi] = LIMITS[key];
     out[key] = Math.min(hi, Math.max(lo, out[key]));
   }
@@ -94,6 +99,14 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+
+  // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  const __auth = await requireAuth(req);
+  if (!__auth.ok) {
+    await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/economy", allowed: false, req });
+    return NextResponse.json({ ok: false, error: __auth.error ?? "auth-required" }, { status: __auth.status });
+  }
+
   try {
     const body: unknown = await req.json().catch(() => ({}));
     const obj = (typeof body === "object" && body !== null ? body : {}) as {

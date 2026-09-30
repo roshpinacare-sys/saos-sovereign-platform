@@ -1,27 +1,27 @@
 /**
- * lib/saos/rearm.ts — v21 FLOW: החימוש-מחדש הריבוני (RE-ARM).
+ * lib/saos/rearm.ts — v21.1 FLOW: החימוש-מחדש הריבוני (RE-ARM).
  * =====================================================================
- * The kill-order (2026-09-08) burned the fleet vault — every signing
- * arm went silent while the owner's photo stayed on disk. The owner
- * now asks for a SOVEREIGN remedy to what limits us. This module is
- * that remedy:
+ * P0 REWRITE (2026-09-29, audit מ-3): the v21 photo path is REMOVED.
+ * It sent the owner's mnemonic PHOTO (base64) to an external AI vision
+ * provider — the words left the process BEFORE any verification, while
+ * this header claimed "zero-leak". Structurally dishonest; structurally
+ * fixed now:
  *
- *   1. The owner's photo (upload/IMG-20260905-WA0024.jpg — the same
- *      12-word sovereign mnemonic they delivered with "זה המפתח תעגן
- *      אותו") is read INSIDE the server process by the vision model
- *      (z-ai-web-dev-sdk, backend-only — the exact zero-leak protocol
- *      documented in steem/legacy-tron-recover.cjs).
+ *   1. The owner supplies the 12 words AS TEXT inside an AUTHENTICATED
+ *      request (POST /api/saos/rearm {phrase} — requireAuth, rate-limited,
+ *      never logged). The words never leave the server process again.
  *   2. BIP39 checksum is verified cryptographically (ethers).
  *   3. Derivation is matched against PUBLIC chain-evidence addresses
  *      (the enlist identity on mainnet + the TRON flow rows) — the
  *      match IS the proof. No partial match ever arms anything.
  *   4. Only on a full match a NEW sealed vault is written
- *      (SAOS-FLEET-VAULT-1 format, fresh random password, 0600,
- *      agent/keys/ is gitignored — the old leak can never repeat).
+ *      (SAOS-FLEET-VAULT-1 format, fresh random password — stored ONLY
+ *      in ~/.secrets/fleet-vault-pass, never beside the ciphertext;
+ *      agent/keys/ is gitignored).
  *
- * גבול האמת: the words NEVER appear in any log, response, DB row or
- * file outside the AES-256-GCM envelope. The API returns booleans and
- * public addresses only. Failures are honest.
+ * גבול האמת: the words NEVER appear in any log, response, DB row or file
+ * outside the AES-256-GCM envelope. No AI provider, no photo pipeline,
+ * no third party sees the seed — ever.
  */
 
 import * as fs from "fs";
@@ -29,9 +29,7 @@ import * as path from "path";
 import { createCipheriv, createHash, randomBytes, scryptSync } from "crypto";
 import { ethers } from "ethers";
 import bs58 from "bs58";
-import ZAI from "z-ai-web-dev-sdk";
 import { sealAvailability } from "@/lib/vault-seal";
-import { resolveOwnerUploadFile } from "./owner-upload";
 
 const KEYS_DIR = path.join(process.cwd(), "agent", "keys");
 const VAULT_MAGIC = "SAOS-FLEET-VAULT-1";
@@ -61,25 +59,15 @@ export interface RearmStatus {
 
 export async function rearmStatus(): Promise<RearmStatus> {
   const vault = await sealAvailability();
-  let bytes = 0;
-  try {
-    const p = resolveOwnerUploadFile("IMG-20260905-WA0024.jpg");
-    bytes = p ? fs.statSync(p).size : 0;
-  } catch {
-    bytes = 0;
-  }
-  const present = bytes > 0;
   return {
     ok: true,
-    photo: { present, name: "IMG-20260905-WA0024.jpg", bytes },
+    photo: { present: false, name: "removed (P0 2026-09-29)", bytes: 0 },
     vault,
     evidence: { evm: EVIDENCE.evm, tron: [...EVIDENCE.tronKnown] },
-    canRearm: present,
-    note: present
-      ? vault.present
-        ? "הכספת כבר חמושה — אין צורך בפעולה"
-        : "התמונה של הבעלים בדיסק · הכספת נשרפה · החימוש-מחדש מוכן (קריאת-תמונה אחורית, אימות-כתובות, איטום-מחדש)"
-      : "אין תמונת-מקור בדיסק — נדרשת תמונה חדשה מהבעלים"
+    canRearm: !vault.present,
+    note: vault.present
+      ? "הכספת כבר חמושה — אין צורך בפעולה"
+      : "הכספת נשרפה · החימוש-מחדש מוכן: קריאה מאומתת עם הביטוי כטקסט ({phrase}) — מסילת-התמונה/VLM הוסרה לגמרי (audit מ-3)"
   };
 }
 
@@ -93,63 +81,13 @@ function tronAddressFrom(wallet: ethers.HDNodeWallet): string {
   return bs58.encode(Buffer.concat([payload, checksum]));
 }
 
-/** strict JSON extraction from a vision response */
-function parseWordsJson(content: string): string[] | null {
-  try {
-    const cleaned = content
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start < 0 || end <= start) return null;
-    const j = JSON.parse(cleaned.slice(start, end + 1)) as { words?: unknown };
-    if (!Array.isArray(j.words)) return null;
-    const words = j.words.map((w) => String(w).trim().toLowerCase()).filter(Boolean);
-    return words.length === 12 ? words : null;
-  } catch {
-    return null;
-  }
-}
-
-/** reads the 12 words inside the server process — never logged, never returned */
-async function extractWordsFromPhoto(): Promise<string[]> {
-  const zai = await ZAI.create();
-  const photoPath = resolveOwnerUploadFile("IMG-20260905-WA0024.jpg");
-  if (!photoPath) throw new Error("התמונה לא נמצאה באף בית-upload (fail-loud)");
-  const photo = fs.readFileSync(photoPath);
-  const dataUrl = `data:image/jpeg;base64,${photo.toString("base64")}`;
-  const prompt =
-    "This photo contains a 12-word BIP39 seed phrase written by the owner. " +
-    "Read the words EXACTLY as written, in order. " +
-    'Return ONLY a JSON object of the shape {"words":["word1","word2",...,"word12"]} with no other text.';
-
-  const attempts = 3;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      // type-cast only: the SDK's .d.ts marks `model` required, but the live
-      // vision endpoint (proven v31) infers it — the request bytes stay exactly
-      // as the proven behavior, so we satisfy types without changing runtime.
-      const res = await zai.chat.completions.createVision({
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: i === 0 ? prompt : `${prompt} (attempt ${i + 1} — be precise with spelling)` },
-              { type: "image_url", image_url: { url: dataUrl } }
-            ]
-          }
-        ],
-        thinking: { type: "disabled" }
-      } as Parameters<typeof zai.chat.completions.createVision>[0]);
-      const content = res.choices[0]?.message?.content ?? "";
-      const words = parseWordsJson(content);
-      if (words) return words;
-    } catch {
-      // vision hiccup — retry
-    }
-  }
-  throw new Error("VLM לא הצליח לקרוא 12 מילים תקינות מהתמונה (3 ניסיונות)");
+/** normalize owner text input — lowercase, whitespace/punctuation split, no echo */
+function parseWordsText(raw: string): string[] {
+  return raw
+    .toLowerCase()
+    .split(/[\s,.]+/)
+    .map((w) => w.trim())
+    .filter(Boolean);
 }
 
 interface DerivationProof {
@@ -183,15 +121,16 @@ function deriveAndVerify(words: string[]): DerivationProof {
   };
 }
 
-/** writes a fresh SAOS-FLEET-VAULT-1 envelope (gitignored dir, 0600, random pass). */
+/** writes a fresh SAOS-FLEET-VAULT-1 envelope (gitignored dir, 0600, pass
+ *  stored ONLY in ~/.secrets/fleet-vault-pass — never beside the ciphertext). */
 function writeSealedVault(phrase: string, derivation: { evm: string; tron: string }): void {
   const mnemonicMember = {
     label: "sovereign-12words",
     words: 12,
-    source: "upload/IMG-20260905-WA0024.jpg (הבעלים — חימוש-מחדש v21)",
+    source: "owner authenticated text input (rearm v21.1 — P0 photo path removed)",
     derivation,
     anchoredAt: new Date().toISOString(),
-    rearm: "v21-flow",
+    rearm: "v21.1-flow",
     phrase
   };
   const bundle = JSON.stringify({
@@ -212,7 +151,14 @@ function writeSealedVault(phrase: string, derivation: { evm: string; tron: strin
   const encPath = path.join(KEYS_DIR, "fleet_keys.enc");
   const metaPath = path.join(KEYS_DIR, "fleet_keys.meta.json");
   fs.writeFileSync(encPath, enc, { mode: 0o600 });
-  fs.writeFileSync(metaPath, JSON.stringify({ pass }, null, 2), { mode: 0o600 });
+  // P0 (audit מ-2): the password NEVER lives beside the ciphertext —
+  // external secret home only; meta stays secret-free.
+  const secretsDir = path.join(process.env.HOME ?? "/home/z", ".secrets");
+  fs.mkdirSync(secretsDir, { recursive: true });
+  const passPath = path.join(secretsDir, "fleet-vault-pass");
+  fs.writeFileSync(passPath, `${pass}\n`, { mode: 0o600 });
+  fs.chmodSync(passPath, 0o600);
+  fs.writeFileSync(metaPath, JSON.stringify({ externalPass: true, sealedAt: new Date().toISOString() }, null, 2), { mode: 0o600 });
   fs.chmodSync(encPath, 0o600);
   fs.chmodSync(metaPath, 0o600);
 }
@@ -221,8 +167,7 @@ function writeSealedVault(phrase: string, derivation: { evm: string; tron: strin
 
 export interface RearmResult {
   ok: boolean;
-  phase: "read-photo" | "vision" | "verify" | "seal" | "done";
-  photoBytes: number;
+  phase: "input" | "verify" | "seal" | "done";
   phraseValid: boolean | null;
   matched: {
     evm: boolean | null;
@@ -236,39 +181,32 @@ export interface RearmResult {
   error?: string;
 }
 
-export async function rearmExecute(): Promise<RearmResult> {
+/**
+ * v21.1 — the words arrive AS TEXT from an authenticated owner request
+ * (the route is requireAuth-gated). No photo, no VLM, no third party.
+ */
+export async function rearmExecute(input?: { phrase?: string }): Promise<RearmResult> {
   const base: RearmResult = {
     ok: false,
-    phase: "read-photo",
-    photoBytes: 0,
+    phase: "input",
     phraseValid: null,
     matched: { evm: null, tronHits: null },
     derived: { evm: null, tron: null },
     armed: false
   };
 
-  // 1. photo on disk?
-  let photo: Buffer;
-  try {
-    const photoPath = resolveOwnerUploadFile("IMG-20260905-WA0024.jpg");
-    if (!photoPath) throw new Error("photo not found in any upload home");
-    photo = fs.readFileSync(photoPath);
-    base.photoBytes = photo.length;
-  } catch {
-    return { ...base, error: "התמונה לא בדיסק — נדרשת תמונה מהבעלים" };
-  }
-  base.phase = "vision";
-
-  // 2. read the words inside the server (zero-leak)
-  let words: string[];
-  try {
-    words = await extractWordsFromPhoto();
-  } catch (e) {
-    return { ...base, error: e instanceof Error ? e.message : "קריאת-התמונה נכשלה" };
+  // 1. owner text input (authenticated route) — never logged, never echoed
+  const raw = typeof input?.phrase === "string" ? input.phrase : "";
+  const words = parseWordsText(raw);
+  if (words.length !== 12) {
+    return {
+      ...base,
+      error: `נדרשות בדיוק 12 מילים בגוף-הבקשה {phrase} (התקבלו ${words.length}). מסילת-התמונה/VLM הוסרה — הביטוי כטקסט בלבד, בקריאה מאומתת.`
+    };
   }
   base.phase = "verify";
 
-  // 3. BIP39 + derivation proof against public evidence
+  // 2. BIP39 + derivation proof against public evidence
   let proof: DerivationProof;
   try {
     proof = deriveAndVerify(words);
@@ -296,7 +234,7 @@ export async function rearmExecute(): Promise<RearmResult> {
   }
   base.phase = "seal";
 
-  // 4. seal the new vault (gitignored, 0600, random password)
+  // 3. seal the new vault (gitignored, 0600, pass stored externally only)
   const matchedTronPath = proof.tron.find((t) => t.matchedEvidence)?.path ?? "m/44'/195'/0'/0/0";
   try {
     writeSealedVault(words.join(" "), { evm: "m/44'/60'/0'/0/0", tron: matchedTronPath });
@@ -304,7 +242,7 @@ export async function rearmExecute(): Promise<RearmResult> {
     return { ...base, error: e instanceof Error ? e.message : "כתיבת-האיטום נכשלה" };
   }
 
-  // 5. confirm the seal opens and answers
+  // 4. confirm the seal opens and answers
   const after = await sealAvailability();
   if (!after.present) {
     return { ...base, error: "האיטום לא נפתח לאימות — נבדק שוב" };

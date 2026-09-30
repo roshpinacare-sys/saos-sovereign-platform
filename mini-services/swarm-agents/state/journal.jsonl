@@ -77,3 +77,4 @@
 {"t":"2026-09-30T15:21:07.298Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
 {"t":"2026-09-30T15:21:51.518Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
 {"t":"2026-09-30T15:22:36.505Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
+{"t":"2026-09-30T15:24:10.448Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Failed to parse JSON — honest, retry next poll"}

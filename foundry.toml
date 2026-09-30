@@ -1,0 +1,26 @@
+[profile.default]
+src = "contracts"
+test = "test"
+out = "out"
+libs = ["lib"]
+solc = "0.8.36"
+optimizer = true
+optimizer_runs = 200
+verbosity = 3
+
+[profile.ci]
+verbosity = 4
+
+[fuzz]
+runs = 256
+
+# ── B-2 (R130) → merged to main (task 8-c): the first real test gate of the mesh contracts ──
+# These tests LOCK the audit fixes as regression law (v5 law, v6 semantics):
+#   SAOSLedger   - MINT_CAP, attributed transfers, two-step ownership
+#   SAOSExchange - harvest debit-then-credit (no phantom supply), deposit attribution
+#                  + HARDEN v6: MINIMUM_LIQUIDITY=1000 locked shares (pool undrainable),
+#                    proportional-pull adds (donation vector closed)
+#   SAOSBridge   - monotonic honest anchors
+#   SAOSSealGate / SAOSRelayBatch - R132 notary + batcher laws
+# The solc-js pipeline (scripts/compile-mesh.ts → src/lib/saos/generated/) is
+# untouched and remains the app's runtime artifact source; foundry is test-only.

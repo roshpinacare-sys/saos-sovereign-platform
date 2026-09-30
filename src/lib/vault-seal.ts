@@ -23,6 +23,42 @@ import path from "path";
 const MAGIC = "SAOS-FLEET-VAULT-1";
 
 /**
+ * P0 (2026-09-29 audit מ-2): the vault password must NOT live next to the
+ * ciphertext. Old design wrote the pass INSIDE fleet_keys.meta.json in every
+ * vault home — same disk as the envelope, seven+ copies. New precedence:
+ *   1. ~/.secrets/fleet-vault-pass  (outside every repo and vault home, 0600)
+ *   2. legacy fleet_keys.meta.json  (deprecated — migrate once via
+ *      scripts/reseal-no-meta.ts; opening keeps working either way)
+ * Writers (appendVaultMember / rearm) now store the pass ONLY externally.
+ */
+const EXTERNAL_PASS_PATH = path.join(process.env.HOME ?? "/home/z", ".secrets", "fleet-vault-pass");
+
+async function readVaultPass(metaPath: string): Promise<string> {
+  const fs = await import("fs");
+  try {
+    const ext = fs.readFileSync(EXTERNAL_PASS_PATH, "utf8").trim();
+    if (ext) return ext;
+  } catch {
+    // no external pass yet — legacy meta keeps the vault openable
+  }
+  const metaRaw = JSON.parse(await readFile(metaPath, "utf8")) as { pass?: string };
+  if (!metaRaw.pass) throw new Error("no vault pass: neither external secret nor seal meta");
+  return metaRaw.pass;
+}
+
+async function writeVaultPass(pass: string): Promise<void> {
+  const fs = await import("fs");
+  fs.mkdirSync(path.dirname(EXTERNAL_PASS_PATH), { recursive: true });
+  fs.writeFileSync(EXTERNAL_PASS_PATH, `${pass}\n`, { mode: 0o600 });
+  fs.chmodSync(EXTERNAL_PASS_PATH, 0o600);
+}
+
+/** meta WITHOUT secret material — the pass lives in ~/.secrets from now on */
+function metaNoSecret(): string {
+  return JSON.stringify({ externalPass: true, migratedAt: new Date().toISOString() }, null, 2);
+}
+
+/**
  * v31 SMART LINK — MULTI-HOME keys dirs.
  * The 2026-09-09 lesson: a single gitignored home inside the repo folder
  * dies with every sandbox rebuild. The vault now lives in THREE homes —
@@ -120,21 +156,13 @@ async function openSeal(): Promise<SealedBundle> {
   const raw = await readFile(enc, "utf8");
   if (!raw.startsWith(MAGIC)) throw new Error("unknown seal format");
 
-  // v91 — PASSPHRASE SPLIT (the stop-order direction: "encrypted next to the
-  // password = exposed in essence"). When SAOS_VAULT_PASS is present in the
-  // environment the seal opens with IT and the sidecar meta is never read —
-  // the password no longer sits on disk beside the envelope. Without the env
-  // var the legacy sidecar path still works (backward compatibility, honestly
-  // flagged by sealAvailability's note).
+  // UNION (2026-09-29 merge of v93 v91-split + P0 external-file pass):
+  // precedence — SAOS_VAULT_PASS env → ~/.secrets/fleet-vault-pass (external
+  // file, outside every repo/vault home) → legacy meta.pass (deprecated).
+  // "encrypted next to the password = exposed in essence" holds for all
+  // non-env tiers too; reseal-no-meta.ts migrates disk homes off the meta.
   const envPass = process.env.SAOS_VAULT_PASS;
-  let pass: string;
-  if (envPass && envPass.length > 0) {
-    pass = envPass;
-  } else {
-    const metaRaw = JSON.parse(await readFile(meta, "utf8")) as { pass?: string };
-    if (!metaRaw.pass) throw new Error("no pass in seal meta");
-    pass = metaRaw.pass;
-  }
+  const pass = envPass && envPass.length > 0 ? envPass : await readVaultPass(meta);
 
   const payload = Buffer.from(raw.slice(MAGIC.length).replace(/\s+/g, ""), "hex");
   const salt = payload.subarray(0, 16);
@@ -335,9 +363,11 @@ export async function appendVaultMember(memberPath: string, content: string): Pr
   const tag = cipher.getAuthTag();
   const sealed = MAGIC + Buffer.concat([salt, iv, tag, ct]).toString("hex");
 
+  await writeVaultPass(pass); // P0: pass lives in ~/.secrets — never beside the ciphertext
+
   const fs = await import("fs");
   fs.writeFileSync(enc, sealed, { mode: 0o600 });
-  fs.writeFileSync(meta, JSON.stringify({ pass }, null, 2), { mode: 0o600 });
+  fs.writeFileSync(meta, metaNoSecret(), { mode: 0o600 });
   fs.chmodSync(enc, 0o600);
   fs.chmodSync(meta, 0o600);
   cachedDir = null; // re-resolve on next open (path unchanged, but honest)
@@ -349,7 +379,7 @@ export async function appendVaultMember(memberPath: string, content: string): Pr
     try {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, "fleet_keys.enc"), sealed, { mode: 0o600 });
-      fs.writeFileSync(path.join(dir, "fleet_keys.meta.json"), JSON.stringify({ pass }, null, 2), { mode: 0o600 });
+      fs.writeFileSync(path.join(dir, "fleet_keys.meta.json"), metaNoSecret(), { mode: 0o600 });
       fs.chmodSync(path.join(dir, "fleet_keys.enc"), 0o600);
       fs.chmodSync(path.join(dir, "fleet_keys.meta.json"), 0o600);
     } catch {

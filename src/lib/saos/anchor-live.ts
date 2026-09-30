@@ -20,12 +20,38 @@
  *     never fabricated
  *
  * Additive module — the canonical kernel modules are untouched.
+ *
+ * ── חוזה-החתימה שש-השלבים (v8 · Task 8-a) ──
+ * The broadcast path is now wired through the SIX-STAGE SIGNING CONTRACT —
+ * ported from saos-jummper docs/SIGNING-CONTRACT.md (canonical implementation:
+ * Saosmartwallet packages/core/src/signing/orchestrator.ts, measured 6/6).
+ * Cross-repo import is impossible (separate packages), so the pipeline is
+ * ported faithfully onto the platform's own primitives (sealed vault = the
+ * orchestrator's vault; oplog.logOp = the redacted audit write path).
+ * FAIL-CLOSED: any stage failure aborts BEFORE broadcast — nothing is ever
+ * signed on a maybe:
+ *   1. session-gate   — ensureUnlocked (seal present) + step-up demand honored
+ *                       BEFORE any key is resolved
+ *   2. policy-gate    — evaluatePolicy BEFORE a key is touched (allowed-
+ *                       operations · authority · repeat-guard (budget.py port)
+ *                       · monotonic-height · daily volume budget); denial is
+ *                       audited policy_violation and THROWS
+ *   3. least-privilege-role — role follows what the op DOES (custom_json is a
+ *                       data op); a role-less key refuses, never defaults
+ *   4. reveal-once    — revealKeyFor is the module's single sanctioned
+ *                       plaintext-key exit (the sealed-vault frame)
+ *   5. capability-checked-broadcast — broadcasting is a separate capability,
+ *                       granted only after self-verify + whitelisted shape
+ *   6. audit-trail    — key_used / signing_attempt / broadcast / policy_violation
+ *                       recorded (incl. failures) via oplog — zero secrets
  */
 
 import https from "https";
-import { withRoleWif, type SigningAuthority } from "@/lib/vault-seal";
+import { createHash } from "crypto";
+import { withRoleWif, sealExists, roleWifAvailable, type SigningAuthority, type SigningRole } from "@/lib/vault-seal";
 import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
+import { logOp } from "./oplog";
 
 const WEAVE_ANCHOR_ID = "saos.weave.v1";
 const STEEM_RPC = process.env.STEEM_RPC || "https://api.steemit.com";
@@ -53,7 +79,8 @@ export interface LiveAnchorOutcome {
   ok: boolean;
   network: "STEEM";
   account: string;
-  authority: "active";
+  /** the resolved signing role (stage 3/6) — the authority actually used */
+  authority: SigningRole;
   height: number;
   root: string;
   payload: string;
@@ -64,6 +91,238 @@ export interface LiveAnchorOutcome {
   explorer: string | null;
   at: string;
   error?: string;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+ * שישה-שלבי חוזה-החתימה — ported from saos-jummper SIGNING-CONTRACT
+ * (docs/SIGNING-CONTRACT.md; canonical: Saosmartwallet signing/orchestrator.ts,
+ * measured 6/6). fail-closed: כל שלב שנכשל עוצר לפני-שידור.
+ * ══════════════════════════════════════════════════════════════════════ */
+
+export type SigningGateCode =
+  | "SESSION_LOCKED"
+  | "POLICY_STEP_UP_REQUIRED"
+  | "POLICY_DENIED"
+  | "KEY_NOT_FOUND"
+  | "KEY_ROLELESS"
+  | "BROADCAST_CAPABILITY_MISSING"
+  | "VALIDATION";
+
+/** port של VaultError — קוד + פרטים, תמיד זריקה, לעולם לא הסגרה. */
+export class SigningGateError extends Error {
+  readonly code: SigningGateCode;
+  readonly details: Record<string, unknown>;
+  constructor(code: SigningGateCode, message: string, details?: Record<string, unknown>) {
+    super(message);
+    this.name = "SigningGateError";
+    this.code = code;
+    this.details = details ?? {};
+  }
+}
+
+export interface PolicyCheck { guard: string; allowed: boolean; reason: string; }
+
+/** port של PolicyDecision — שלילה זורקת; אזהרה אינה מדיניות. */
+export interface PolicyDecision {
+  allowed: boolean;
+  reasons: string[];
+  checks: PolicyCheck[];
+  requirements: { stepUpAuth: boolean; timeLock: number };
+}
+
+export type SigningAuditEventType = "key_used" | "signing_attempt" | "broadcast" | "policy_violation";
+
+/** אירוע-ביקורת — אפס חומר-סוד (logOp מריץ redactSecrets כרשת-שנייה). */
+export interface SigningAuditEvent {
+  type: SigningAuditEventType;
+  actor: Record<string, unknown>;
+  target: Record<string, unknown>;
+  result: "success" | "failure" | "blocked";
+  reason?: string;
+}
+
+/* ── stage 1/6 — session-gate ── */
+
+/**
+ * הכספת חייבת להיות קיימת ופתיחה לפני שכל מפתח נפתר; חותם-חסר/פגום = סשן
+ * נעול (fail-closed — בדיוק כמו ensureUnlocked של ה-orchestrator).
+ */
+async function ensureUnlocked(): Promise<void> {
+  if (!(await sealExists())) {
+    throw new SigningGateError("SESSION_LOCKED", "vault seal absent — signing session locked, no key will be resolved (stage 1/6)");
+  }
+}
+
+/**
+ * step-up re-auth: קורא שדורש סיסמה-מחדש (requirePassword) ולא קיבל אימות
+ * step-up מכשיל את הקריאה — כלום לא נחתם על אולי (port נאמן).
+ */
+export function verifyStepUp(opts?: { requirePassword?: boolean; stepUpSatisfied?: boolean }): void {
+  if (opts?.requirePassword === true && opts.stepUpSatisfied !== true) {
+    throw new SigningGateError("POLICY_STEP_UP_REQUIRED", "requirePassword was requested but no step-up verification was satisfied (stage 1/6)");
+  }
+}
+
+/* ── stage 3/6 — least-privilege-role ── */
+
+/**
+ * התפקיד נגזר ממה שהפעולה עושה (port של defaultRoleFor): custom_json היא
+ * פעולת-דאטה — posting היא הרשות המינימלית. המסלול-החי-המוכח השתמש ב-ACTIVE
+ * (ממצא 57/62) ולכן ברירת-המחדל נשארת active עד החלטת-הבעלים; המפעיל קובע
+ * מפורשות:
+ *   SAOS_WEAVE_AUTHORITY=active         (ברירת-מחדל — סמכות-הייצור המוכחת)
+ *   SAOS_WEAVE_AUTHORITY=posting        (מינימליות-הרשאה: posting בלבד)
+ *   SAOS_WEAVE_AUTHORITY=prefer-posting (posting אם הכספת מחזיקה אותו, active
+ *                                       כגיבוי — בדיוק עיצוב relay.ts שהחוזה
+ *                                       משבח)
+ *   SAOS_WEAVE_AUTHORITY=none           (מפתח חסר-תפקיד — מסרב, לא ממיר)
+ */
+async function resolveRoleFor(opType: "custom_json"): Promise<SigningRole | null> {
+  if (opType !== "custom_json") return null; // אין-תפקיד לפעולה-לא-מוכרת — מסרב
+  const mode = (process.env.SAOS_WEAVE_AUTHORITY ?? "active").trim().toLowerCase();
+  if (mode === "posting") return "posting";
+  if (mode === "prefer-posting") return (await roleWifAvailable("posting")) ? "posting" : "active";
+  if (mode === "none" || mode === "null" || mode === "") return null; // role-less — refuses
+  return "active";
+}
+
+/* ── stage 2/6 — policy-gate (כללים סטטיים fail-closed) ── */
+
+/** חלון-החזרה של שער-החזרה (budget.py port) — 24 שעות, per-process. */
+const REPEAT_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** תקציב-נפח יומי (עיגון custom_json הוא RC בלבד — תקרת-פעולות, לא כסף). */
+const DAILY_ANCHOR_LIMIT = 48;
+
+interface PolicyState {
+  repeats: Map<string, number[]>;
+  lastHeight: number | null;
+  day: string;
+  dayCount: number;
+}
+
+const gPolicy = globalThis as unknown as { __saosAnchorLivePolicy?: PolicyState };
+function policyState(): PolicyState {
+  if (!gPolicy.__saosAnchorLivePolicy) {
+    gPolicy.__saosAnchorLivePolicy = { repeats: new Map(), lastHeight: null, day: new Date().toISOString().slice(0, 10), dayCount: 0 };
+  }
+  return gPolicy.__saosAnchorLivePolicy;
+}
+
+function sealFingerprint(seal: LiveSeal): string {
+  return createHash("sha256").update(canonicalize({ h: seal.height, root: seal.root, stateRoot: seal.stateRoot })).digest("hex");
+}
+
+/** commit-after-success בדיוק כמו budget.py: ניסיון-כושל לעולם לא נרשם כהוצאה. */
+function commitPolicySuccess(seal: LiveSeal): void {
+  const st = policyState();
+  const fp = sealFingerprint(seal);
+  const now = Date.now();
+  st.repeats.set(fp, [...(st.repeats.get(fp) ?? []).filter((t) => t >= now - REPEAT_WINDOW_MS), now]);
+  st.lastHeight = seal.height;
+  const day = new Date().toISOString().slice(0, 10);
+  st.day = st.day === day ? st.day : day;
+  st.dayCount = st.day === day ? st.dayCount + 1 : 1;
+}
+
+export interface WeavePolicyOp {
+  type: "custom_json";
+  id: string;
+  role: SigningRole | null;
+  seal: LiveSeal;
+}
+
+/**
+ * stage 2/6 — evaluatePolicy: נרץ לפני שמפתח נוגע. כללים סטטיים; כל-שלילה
+ * מנומקת עם המספר/הסיבה — שלילה בלי-מספר אינה ניתנת-לפעולה (budget.py).
+ */
+export function evaluatePolicy(op: WeavePolicyOp): PolicyDecision {
+  const checks: PolicyCheck[] = [];
+  const reasons: string[] = [];
+  const denyGuard = (guard: string, reason: string): void => {
+    checks.push({ guard, allowed: false, reason });
+    reasons.push(`${guard}: ${reason}`);
+  };
+  const st = policyState();
+  const day = new Date().toISOString().slice(0, 10);
+  if (st.day !== day) {
+    st.day = day;
+    st.dayCount = 0; // חלון-UTC התגלגל — תקציב מלא
+  }
+
+  // 1) allowed-operations — הצורה-היחידה שהמודול יחתום אי-פעם (הלבנה מובנית)
+  if (op.type !== "custom_json" || op.id !== WEAVE_ANCHOR_ID) {
+    denyGuard("allowed-operations", `operation ${op.type}/${op.id} is not in the whitelist (custom_json/${WEAVE_ANCHOR_ID} only)`);
+  } else {
+    checks.push({ guard: "allowed-operations", allowed: true, reason: `custom_json ${WEAVE_ANCHOR_ID}` });
+  }
+
+  // 2) authority — תפקיד מוגדר בלבד; חסר-תפקיד מסרב (לא ממיר ל-active)
+  if (op.role === "active" || op.role === "posting") {
+    checks.push({ guard: "authority", allowed: true, reason: `${op.role} authority (required_auths/required_posting_auths derive from it)` });
+  } else {
+    denyGuard("authority", "role-less key configuration (SAOS_WEAVE_AUTHORITY=none) — a role-less key refuses rather than defaulting");
+  }
+
+  // 3) repeat-guard (budget.py port) — הפעולה-הזהה כבר שודרה-בהצלחה בחלון = לולאה, לא החלטה
+  const fp = sealFingerprint(op.seal);
+  const prior = (st.repeats.get(fp) ?? []).filter((t) => t >= Date.now() - REPEAT_WINDOW_MS).length;
+  if (prior >= 1) {
+    denyGuard("repeat", `identical seal already broadcast ${prior} time(s) within ${REPEAT_WINDOW_MS / 3600000}h — a repeating identical operation is a loop, not a decision`);
+  } else {
+    checks.push({ guard: "repeat", allowed: true, reason: "not a repeat" });
+  }
+
+  // 4) monotonic-height — חותם-ישן שנחתם מעל חדש יותר = שידור-חוזר/הנמכה
+  if (st.lastHeight !== null && op.seal.height <= st.lastHeight) {
+    denyGuard("monotonic-height", `seal height ${op.seal.height} ≤ last broadcast ${st.lastHeight} — replay/downgrade refused`);
+  } else {
+    checks.push({ guard: "monotonic-height", allowed: true, reason: st.lastHeight === null ? "first broadcast in this process" : `advances ${st.lastHeight} → ${op.seal.height}` });
+  }
+
+  // 5) תקציב-נפח יומי — כשל-לולאה צובר; תקרה מפורשת עם ה-overage
+  if (st.dayCount >= DAILY_ANCHOR_LIMIT) {
+    denyGuard("daily-budget", `daily anchor budget exhausted (${st.dayCount}/${DAILY_ANCHOR_LIMIT} today) — honest hold until the UTC window rolls`);
+  } else {
+    checks.push({ guard: "daily-budget", allowed: true, reason: `${st.dayCount}/${DAILY_ANCHOR_LIMIT} today` });
+  }
+
+  return { allowed: reasons.length === 0, reasons, checks, requirements: { stepUpAuth: false, timeLock: 0 } };
+}
+
+/* ── stage 4/6 — reveal-once ── */
+
+/**
+ * revealKeyFor — port של נקודת-התפר של ה-orchestrator (vault.revealKeyFor →
+ * adapter.sign) על-גבי הכספת-האטומה של הפלטפורמה: נקודת-יציאת-המפתח-הגלוי
+ * היחידה במודול. ה-WIF קיים רק בתוך מסגרת-הקריאה של fn — לעולם לא נשמר,
+ * מוחזר, נרשם או מנוצל מחדש.
+ */
+async function revealKeyFor<T>(
+  role: SigningRole,
+  fn: (wif: string, authority: SigningAuthority) => Promise<T>
+): Promise<{ authority: SigningAuthority; result: T }> {
+  return withRoleWif(role, fn);
+}
+
+/* ── stage 5/6 — capability-checked broadcast ── */
+
+/**
+ * שידור הוא יכולת נפרדת מחתימה: היכולת מוענקת רק אחרי self-verify מוצלח של
+ * המפתח שנחשף + צורת-op מולבנת; בלי-מענק = זריקה מפורשת (ADAPTER_INCAPABLE).
+ */
+function requireCapability(cap: "broadcast", granted: boolean): void {
+  if (!granted) {
+    throw new SigningGateError("BROADCAST_CAPABILITY_MISSING", `broadcast capability not granted (self-verify failed or op shape not whitelisted) — refusing to send (stage 5/6)`);
+  }
+}
+
+/* ── stage 6/6 — audit-trail (על oplog.logOp — נתיב-הכתיבה-המצונן היחיד) ── */
+
+async function appendAudit(event: SigningAuditEvent): Promise<boolean> {
+  // audit must never break the audited operation — logOp never throws; a failed
+  // write is reported honestly (written:false) but the original outcome stands.
+  const r = await logOp(`signing-contract:${event.type}`, event as unknown as Record<string, unknown>);
+  return r.written;
 }
 
 /** Ledger view of a persisted live anchor. */
@@ -145,13 +404,14 @@ export function buildLiveWeaveJson(seal: LiveSeal, at: string): string {
   });
 }
 
-/** The ONLY operation shape this module will ever sign. */
-function buildWeaveOp(seal: LiveSeal, account: string, at: string): ["custom_json", Record<string, unknown>] {
+/** The ONLY operation shape this module will ever sign. Authority fields derive
+ * from the resolved signing role (stage 3/6) — never hard-coded. */
+function buildWeaveOp(seal: LiveSeal, account: string, at: string, role: SigningRole): ["custom_json", Record<string, unknown>] {
   return [
     "custom_json",
     {
-      required_auths: [account], // active authority — the proven production path
-      required_posting_auths: [],
+      required_auths: role === "active" ? [account] : [], // active authority — the proven production path
+      required_posting_auths: role === "posting" ? [account] : [], // least-privilege path (SAOS_WEAVE_AUTHORITY=posting)
       id: WEAVE_ANCHOR_ID,
       json: buildLiveWeaveJson(seal, at)
     }
@@ -308,49 +568,93 @@ async function loadSteem(): Promise<SteemLib> {
 }
 
 /**
- * Signs and broadcasts the seal root to STEEM — live, real, once.
- * Everything that can fail is reported honestly; nothing is fabricated.
+ * Signs and broadcasts the seal root to STEEM — live, real, once — through the
+ * six-stage signing contract (see the file header). Everything that can fail
+ * is reported honestly; nothing is fabricated; every stage failure aborts
+ * BEFORE broadcast.
  */
-export async function anchorSealLiveOnSteem(seal: LiveSeal): Promise<LiveAnchorOutcome> {
+export async function anchorSealLiveOnSteem(
+  seal: LiveSeal,
+  opts?: { requirePassword?: boolean; stepUpSatisfied?: boolean }
+): Promise<LiveAnchorOutcome> {
   const at = new Date().toISOString();
   let payload = "";
   let account = "";
   let txid: string | null = null;
 
-  await withRoleWif("active", async (wif, auth: SigningAuthority) => {
-    account = auth.account;
-    const steem = await loadSteem();
+  /* ── stage 1/6 — session-gate: לפני כל פתרון-מפתח (סשן + step-up לפי-דרישה,
+   * באותו סדר של ה-orchestrator: ensureUnlocked ואז אימות-ה-step-up) ── */
+  await ensureUnlocked();
+  verifyStepUp(opts);
 
-    // 1) fail-closed self-verification BEFORE any signing
-    if (!steem.auth.isWif(wif)) {
-      throw new Error("self-verify FAILED: vault key is not a valid WIF — refusing to sign");
-    }
-    const derivedPub = steem.auth.wifToPublic(wif);
-    if (auth.rolePub && auth.rolePub !== derivedPub) {
-      throw new Error("self-verify FAILED: vault key does not derive to the registered public key");
-    }
+  /* ── stage 3/6 — התפקיד נגזר מהפעולה (החלטת-תפקיד בלבד — עדיין אף מפתח לא נוגע);
+   * המדיניות בשלב-הבא בודקת גם אותו ── */
+  const role = await resolveRoleFor("custom_json");
 
-    // 2) the whitelisted operation — the only thing this session can sign
-    const op = buildWeaveOp(seal, auth.account, at);
-    payload = String(op[1].json);
+  /* ── stage 2/6 — policy-gate: לפני כל נגיעה במפתח; שלילה נרשמת policy_violation וזורקת ── */
+  const decision = evaluatePolicy({ type: "custom_json", id: WEAVE_ANCHOR_ID, role, seal });
+  if (!decision.allowed) {
+    await appendAudit({ type: "policy_violation", actor: { module: "anchor-live" }, target: { height: seal.height, root: seal.root }, result: "blocked", reason: decision.reasons.join("; ") });
+    throw new SigningGateError("POLICY_DENIED", `policy denies this anchor: ${decision.reasons.join("; ")}`, { decision });
+  }
 
-    // 3) live broadcast through the proven library path
-    steem.api.setOptions({ url: STEEM_RPC });
-    const conf = await steem.broadcast.sendAsync({ operations: [op], extensions: [] }, [wif]);
-    txid = (conf && conf.id) || null;
-    if (!txid) throw new Error("node accepted the op but answered without a transaction id (honest)");
-  });
+  /* ── stage 3/6 — מפתח חסר-תפקיד מסרב (אחרי-המדיניות, בדיוק כמו ה-orchestrator) ── */
+  if (role === null) {
+    throw new SigningGateError("KEY_ROLELESS", "flavor-less key (role null) cannot drive the steem-family signing contract — add it with an explicit role (stage 3/6)");
+  }
+
+  try {
+    /* ── stage 4/6 — reveal-once: נקודת-יציאת-המפתח-הגלוי היחידה במודול ── */
+    await revealKeyFor(role, async (wif, auth: SigningAuthority) => {
+      account = auth.account;
+      const steem = await loadSteem();
+
+      // 1) fail-closed self-verification BEFORE any signing
+      if (!steem.auth.isWif(wif)) {
+        throw new Error("self-verify FAILED: vault key is not a valid WIF — refusing to sign");
+      }
+      const derivedPub = steem.auth.wifToPublic(wif);
+      if (auth.rolePub && auth.rolePub !== derivedPub) {
+        throw new Error("self-verify FAILED: vault key does not derive to the registered public key");
+      }
+
+      // 2) the whitelisted operation — authority fields derive from the resolved role
+      const op = buildWeaveOp(seal, auth.account, at, role);
+      payload = String(op[1].json);
+
+      /* ── stage 5/6 — capability-checked broadcast: היכולת מוענקת רק אחרי
+       * self-verify מוצלח + צורת-op מולבנת; שחתום-אינו-שולח ── */
+      requireCapability("broadcast", op[0] === "custom_json" && op[1].id === WEAVE_ANCHOR_ID);
+
+      // 3) live broadcast through the proven library path
+      steem.api.setOptions({ url: STEEM_RPC });
+      const conf = await steem.broadcast.sendAsync({ operations: [op], extensions: [] }, [wif]);
+      txid = (conf && conf.id) || null;
+      if (!txid) throw new Error("node accepted the op but answered without a transaction id (honest)");
+    });
+
+    /* ── stage 6/6 — audit-trail: key_used + broadcast (הצלחה) + commit שערי-המדיניות ── */
+    await appendAudit({ type: "key_used", actor: { account }, target: { role, height: seal.height }, result: "success" });
+    await appendAudit({ type: "broadcast", actor: { account }, target: { role, height: seal.height, root: seal.root, txid }, result: "success", reason: `custom_json ${WEAVE_ANCHOR_ID} broadcast to STEEM with ${role} authority` });
+    commitPolicySuccess(seal);
+  } catch (e) {
+    /* stage 6/6 — ניסיון-כושל נרשם בכנות; השגיאה-המקורית מנצחת תמיד */
+    await appendAudit({ type: "signing_attempt", actor: { account: account || "unknown" }, target: { height: seal.height, root: seal.root }, result: "failure", reason: e instanceof Error ? e.message.slice(0, 200) : "unexpected signing failure" }).catch(() => undefined);
+    throw e;
+  }
 
   // 4) inclusion proof against the live chain — tx lookup primary + history fallback
   const inclusion = await verifyInclusion(account, seal.height, seal.root, { txid });
   const confirmedByHistory = inclusion.confirmed;
   const block = inclusion.block;
 
+  await appendAudit({ type: "signing_attempt", actor: { account }, target: { role, height: seal.height, txid, block }, result: "success", reason: `signed with ${role} key; inclusion confirmed=${confirmedByHistory}` });
+
   return {
     ok: true,
     network: "STEEM",
     account,
-    authority: "active",
+    authority: role,
     height: seal.height,
     root: seal.root,
     payload,

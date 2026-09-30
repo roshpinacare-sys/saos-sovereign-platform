@@ -3,6 +3,14 @@
  * Ported from: steem-main `sovereign/node/harvest.cjs` (4 monetization streams),
  * `sovereign/node/grid98.cjs` (GRID-98 DEX pools, ≤0.5%/step treasury ladder),
  * plus the flywheel: profit → RC/energy funding → more anchoring work.
+ *
+ * HONESTY FIX (2026-09-29, autonomy audit מ-2): DEFAULT_ECONOMY was a wish
+ * sheet (50K pool volume, 1,800 grid rounds × 0.4, 3K STEEM rail, 250 door
+ * calls) — NONE of it measured anywhere. The measured truth (Defi/
+ * MISSION-1000.md) is $0.0103/day on $29.37 capital. Defaults are now ZEROS
+ * and every result carries mode:"sim"|"measured" + a verdict that refuses to
+ * dress simulation as income. Feed real numbers from the income ledger
+ * (sovereign/income/daily-*.json) — the UI must show MEASURED as MEASURED.
  */
 
 export interface EconomyInput {
@@ -15,6 +23,8 @@ export interface EconomyInput {
   doorCallsPerDay: number; // sponsored relay (THE-DOOR) calls
   doorFee: number; // flat SAOS fee per sponsored call
   flywheelPct: number; // % of profit recycled into RC/energy funding
+  /** honesty fix: true ONLY when inputs come from the measured income ledger */
+  measured?: boolean;
 }
 
 export interface EconomyStream {
@@ -25,6 +35,8 @@ export interface EconomyStream {
 }
 
 export interface EconomyResult {
+  /** "sim" = assumptions, "measured" = fed from the real income ledger */
+  mode: "sim" | "measured";
   streams: EconomyStream[];
   totalPerDay: number;
   reinvestedPerDay: number;
@@ -33,14 +45,20 @@ export interface EconomyResult {
   verdict: string;
 }
 
+/**
+ * ZEROS by default (honesty fix). The old defaults simulated $720+/day
+ * from streams that have never been measured; the measured baseline is
+ * ~$0.01/day. Real inputs must come from the income ledger — never from
+ * hope.
+ */
 export const DEFAULT_ECONOMY: EconomyInput = {
-  poolVolumePerDay: 50_000,
+  poolVolumePerDay: 0,
   poolFeePct: 0.3,
-  gridRoundsPerDay: 1_800, // 8s ticks × 16 rounds hourly ≈ 1,800
-  gridProfitPerRound: 0.4,
-  inboundRailVolume: 3_000,
-  inboundRate: 1000, // 0.001 STEEM = 1 SAOS
-  doorCallsPerDay: 250,
+  gridRoundsPerDay: 0,
+  gridProfitPerRound: 0,
+  inboundRailVolume: 0,
+  inboundRate: 1000, // 0.001 STEEM = 1 SAOS (definition, not a measurement)
+  doorCallsPerDay: 0,
   doorFee: 2,
   flywheelPct: 30
 };
@@ -86,12 +104,17 @@ export function simulateEconomy(input: EconomyInput): EconomyResult {
   const energyTrxBudget = Math.floor(reinvestedPerDay * 0.6); // 60% to TRON energy
   const settlements = Math.floor((energyTrxBudget * 10) / 64_895);
 
-  const verdict =
-    totalPerDay > 0
-      ? `גלגל-החור: ${input.flywheelPct}% מהרווח חוזר לריבונות — מממן ~${energyTrxBudget.toLocaleString()} TRX הימור ו-${settlements} יישובי USDT/יום`
-      : "אין תנועה — הזז את המחוונים";
+  // honesty fix: a simulation with zero measured inputs must say so, loudly
+  const measured = input.measured === true;
+  const mode: "sim" | "measured" = measured ? "measured" : "sim";
+  const verdict = !measured
+    ? `סימולציה בלבד (mode=sim) — אף זרימה כאן לא נמדדה. המדידה האמתית (MISSION-1000): $0.0103/יום. הזן מספרים מפנקס-ההכנסה והעבר measured=true כדי שזה יקרא "כלכלה".`
+    : totalPerDay > 0
+      ? `נמדד (mode=measured): גלגל-החור ${input.flywheelPct}% מהרווח חוזר לריבונות — מממן ~${energyTrxBudget.toLocaleString()} TRX הימור ו-${settlements} יישובי USDT/יום`
+      : "נמדד (mode=measured): אין תנועה — הזז את המחוונים";
 
   return {
+    mode,
     streams,
     totalPerDay,
     reinvestedPerDay,

@@ -549,3 +549,4 @@
 {"t":"2026-09-30T15:21:01.549Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #1)"}
 {"t":"2026-09-30T15:21:08.897Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
 {"t":"2026-09-30T15:22:56.537Z","kind":"pressure","detail":"RSS 1726MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:24:10.446Z","kind":"web-recovered","detail":"web tier answering again (HTTP 500) after revive #0"}
