@@ -60,6 +60,7 @@ import type {
   StatusData
 } from "../types";
 import { PageHead, type ViewId } from "../shell";
+import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 
 export function ViewOverview({
   status,
@@ -92,6 +93,167 @@ export function ViewOverview({
   const gasSeries = [...seals].reverse().map((s) => s.gasUsed);
   const leavesSeries = [...seals].reverse().map((s) => s.leaves);
 
+  // Task 10-d-5 (2026-09-30): the anchor tag is matrix-driven — never a constant
+  // green. ChainGate.status ∈ anchored|pending|gated|transit (מ-/api/saos/status);
+  // אין שורת-מטריצה = "טרם נמדדה", לא "פעיל".
+  const matrixRow = (network: string) => (d?.matrix ?? []).find((m) => m.network === network);
+  const steemAnchorTag = anchorTagTone(matrixRow("STEEM")?.status);
+  const blurtAnchorTag = anchorTagTone(matrixRow("BLURT")?.status);
+
+  // Task 10-d-5 (2026-09-30): the flagship grid IS this array — the skeleton
+  // and the "רשת-N חיה" button both read its length, so a rail added or
+  // removed here updates every count. No hand-typed rail numbers anywhere.
+  const gridRails: React.ReactNode[] = [
+    <GridTile
+      key="SAOS-NET"
+      name="SAOS-NET"
+      tag="שרשרת ריבונית"
+      tone="gold"
+      icon={<Hexagon size={14} />}
+      metric={stats?.lastHeight != null ? `#${stats.lastHeight}` : "—"}
+      metricLabel="גובה שרשרת"
+      sub={stats ? `${fmt(stats.seals)} חותמים · ${fmt(stats.leaves)} עלים` : "גרעין דטרמיניסטי"}
+    />,
+    <GridTile
+      key="STEEM"
+      name="STEEM"
+      tag={steemAnchorTag.tag}
+      tone={steemAnchorTag.tone}
+      icon={<Anchor size={14} />}
+      metric="saos.weave.v1"
+      metricLabel="מסילת-עגינה ראשית"
+      sub={(d?.matrix ?? []).find((m) => m.network === "STEEM")?.status === "anchored" ? "חתימות active חיות" : "היסטוריה לאימות"}
+    />,
+    <GridTile
+      key="BLURT"
+      name="BLURT"
+      tag={blurtAnchorTag.tag}
+      tone={blurtAnchorTag.tone}
+      icon={<Anchor size={14} />}
+      metric="low-s · canonical"
+      metricLabel="חתימה קנונית"
+      sub="0.05 + 0.2 × KB · cooldown 30 דק׳"
+    />,
+    <GridTile
+      key="HIVE"
+      name="HIVE"
+      tag={probes.data?.hive ? "חסום-RC" : "RC-gated"}
+      tone="rose"
+      icon={<Clock size={14} />}
+      metric={
+        probes.data?.hive?.rcPct != null ? `RC ${probes.data.hive.rcPct.toFixed(2)}%` : "—"
+      }
+      metricLabel={
+        probes.data?.hive?.hoursToLightFloor != null
+          ? `התאוששות ~${probes.data.hive.hoursToLightFloor} ש׳`
+          : "רצפה 8%"
+      }
+      sub={`headcorner · mana ${fmt(probes.data?.hive?.currentMana ?? 0)}`}
+    />,
+    <GridTile
+      key="TRON"
+      name="TRON"
+      tag="רכב-מעבר"
+      tone="zinc"
+      icon={<Zap size={14} />}
+      metric={
+        probes.data?.tron
+          ? `${probes.data.tron.funded}/${probes.data.tron.checked} ממומנות`
+          : "—"
+      }
+      metricLabel="כתובות כספת"
+      sub={probes.data?.tron?.energizeReady ? "energize מוכן" : "המודול מוכן בפלטפורמה"}
+    />,
+    <GridTile
+      key="ETHEREUM"
+      name="ETHEREUM"
+      tag={
+        status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
+          ? "עוגן-חי mainnet"
+          : probes.data?.eth?.ok
+            ? "רכב-חי"
+            : "מנותק"
+      }
+      tone={
+        status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
+          ? "gold"
+          : probes.data?.eth?.ok
+            ? "green"
+            : "zinc"
+      }
+      icon={<Coins size={14} />}
+      metric={
+        probes.data?.eth?.blockNumber != null
+          ? fmtInt(probes.data.eth.blockNumber)
+          : "—"
+      }
+      metricLabel={
+        probes.data?.eth?.gasPriceGwei != null
+          ? `mainnet · גז ${probes.data.eth.gasPriceGwei} Gwei`
+          : "mainnet"
+      }
+      sub={
+        status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
+          ? "עוגן data-memo חתום מזרע-הכספת ✓"
+          : (probes.data?.eth?.endpoint ?? "RPC ציבורי")
+      }
+    />,
+    <GridTile
+      key="BSC"
+      name="BSC"
+      tag="מסילה נפתחה"
+      tone={probes.data?.bsc?.ok ? "green" : "zinc"}
+      icon={<Coins size={14} />}
+      metric={
+        probes.data?.bsc?.blockNumber != null
+          ? fmtInt(probes.data.bsc.blockNumber)
+          : "—"
+      }
+      metricLabel={
+        probes.data?.bsc?.gasPriceGwei != null
+          ? `BNB Chain · גז ${probes.data.bsc.gasPriceGwei} Gwei`
+          : "BNB Chain"
+      }
+      sub={
+        probes.data?.bsc?.sovereign
+          ? `ריבון: ${Number(probes.data.bsc.sovereign.bnb).toFixed(4)} BNB — ממתין להקצאה קטנה`
+          : (probes.data?.bsc?.endpoint ?? "אותו מפתח EVM כמו איתריום")
+      }
+    />,
+    <GridTile
+      key="SOLANA"
+      name="SOLANA"
+      tag={
+        status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
+          ? "עוגן-חי mainnet"
+          : probes.data?.sol?.ok
+            ? "רכב-חי"
+            : "מנותק"
+      }
+      tone={
+        status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
+          ? "gold"
+          : probes.data?.sol?.ok
+            ? "green"
+            : "zinc"
+      }
+      icon={<Fingerprint size={14} />}
+      metric={probes.data?.sol?.slot != null ? fmtInt(probes.data.sol.slot) : "—"}
+      metricLabel={
+        probes.data?.sol?.epoch != null
+          ? `epoch ${probes.data.sol.epoch} · ${probes.data.sol.epochProgressPct ?? "—"}%`
+          : "mainnet-beta"
+      }
+      sub={
+        status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
+          ? "הוראת Memo חתומה מזרע-הכספת ✓"
+          : probes.data?.sol?.solanaCore
+            ? `solana-core ${probes.data.sol.solanaCore}`
+            : "RPC רשמי"
+      }
+    />
+  ];
+
   return (
     <div className="space-y-5 animate-view">
       <PageHead
@@ -114,152 +276,13 @@ export function ViewOverview({
         <PanelBody className="p-3 sm:p-4">
           {probes.loading && !probes.data && status.loading && !d ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              {Array.from({ length: 8 }).map((_, i) => (
+              {Array.from({ length: gridRails.length }).map((_, i) => (
                 <Skeleton key={i} className="h-[108px] rounded-xl" />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              <GridTile
-                name="SAOS-NET"
-                tag="שרשרת ריבונית"
-                tone="gold"
-                icon={<Hexagon size={14} />}
-                metric={stats?.lastHeight != null ? `#${stats.lastHeight}` : "—"}
-                metricLabel="גובה שרשרת"
-                sub={stats ? `${fmt(stats.seals)} חותמים · ${fmt(stats.leaves)} עלים` : "גרעין דטרמיניסטי"}
-              />
-              <GridTile
-                name="STEEM"
-                tag="עוגן פעיל"
-                tone="green"
-                icon={<Anchor size={14} />}
-                metric="saos.weave.v1"
-                metricLabel="מסילת-עגינה ראשית"
-                sub={(d?.matrix ?? []).find((m) => m.network === "STEEM")?.status === "anchored" ? "חתימות active חיות" : "היסטוריה לאימות"}
-              />
-              <GridTile
-                name="BLURT"
-                tag="עוגן פעיל"
-                tone="green"
-                icon={<Anchor size={14} />}
-                metric="low-s · canonical"
-                metricLabel="חתימה קנונית"
-                sub="0.05 + 0.2 × KB · cooldown 30 דק׳"
-              />
-              <GridTile
-                name="HIVE"
-                tag={probes.data?.hive ? "חסום-RC" : "RC-gated"}
-                tone="rose"
-                icon={<Clock size={14} />}
-                metric={
-                  probes.data?.hive?.rcPct != null ? `RC ${probes.data.hive.rcPct.toFixed(2)}%` : "—"
-                }
-                metricLabel={
-                  probes.data?.hive?.hoursToLightFloor != null
-                    ? `התאוששות ~${probes.data.hive.hoursToLightFloor} ש׳`
-                    : "רצפה 8%"
-                }
-                sub={`headcorner · mana ${fmt(probes.data?.hive?.currentMana ?? 0)}`}
-              />
-              <GridTile
-                name="TRON"
-                tag="רכב-מעבר"
-                tone="zinc"
-                icon={<Zap size={14} />}
-                metric={
-                  probes.data?.tron
-                    ? `${probes.data.tron.funded}/${probes.data.tron.checked} ממומנות`
-                    : "—"
-                }
-                metricLabel="כתובות כספת"
-                sub={probes.data?.tron?.energizeReady ? "energize מוכן" : "המודול מוכן בפלטפורמה"}
-              />
-              <GridTile
-                name="ETHEREUM"
-                tag={
-                  status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
-                    ? "עוגן-חי mainnet"
-                    : probes.data?.eth?.ok
-                      ? "רכב-חי"
-                      : "מנותק"
-                }
-                tone={
-                  status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
-                    ? "gold"
-                    : probes.data?.eth?.ok
-                      ? "green"
-                      : "zinc"
-                }
-                icon={<Coins size={14} />}
-                metric={
-                  probes.data?.eth?.blockNumber != null
-                    ? fmtInt(probes.data.eth.blockNumber)
-                    : "—"
-                }
-                metricLabel={
-                  probes.data?.eth?.gasPriceGwei != null
-                    ? `mainnet · גז ${probes.data.eth.gasPriceGwei} Gwei`
-                    : "mainnet"
-                }
-                sub={
-                  status.data?.matrix?.some((m) => m.network === "ETHEREUM" && m.status === "anchored")
-                    ? "עוגן data-memo חתום מזרע-הכספת ✓"
-                    : (probes.data?.eth?.endpoint ?? "RPC ציבורי")
-                }
-              />
-              <GridTile
-                name="BSC"
-                tag="מסילה נפתחה"
-                tone={probes.data?.bsc?.ok ? "green" : "zinc"}
-                icon={<Coins size={14} />}
-                metric={
-                  probes.data?.bsc?.blockNumber != null
-                    ? fmtInt(probes.data.bsc.blockNumber)
-                    : "—"
-                }
-                metricLabel={
-                  probes.data?.bsc?.gasPriceGwei != null
-                    ? `BNB Chain · גז ${probes.data.bsc.gasPriceGwei} Gwei`
-                    : "BNB Chain"
-                }
-                sub={
-                  probes.data?.bsc?.sovereign
-                    ? `ריבון: ${Number(probes.data.bsc.sovereign.bnb).toFixed(4)} BNB — ממתין להקצאה קטנה`
-                    : (probes.data?.bsc?.endpoint ?? "אותו מפתח EVM כמו איתריום")
-                }
-              />
-              <GridTile
-                name="SOLANA"
-                tag={
-                  status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
-                    ? "עוגן-חי mainnet"
-                    : probes.data?.sol?.ok
-                      ? "רכב-חי"
-                      : "מנותק"
-                }
-                tone={
-                  status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
-                    ? "gold"
-                    : probes.data?.sol?.ok
-                      ? "green"
-                      : "zinc"
-                }
-                icon={<Fingerprint size={14} />}
-                metric={probes.data?.sol?.slot != null ? fmtInt(probes.data.sol.slot) : "—"}
-                metricLabel={
-                  probes.data?.sol?.epoch != null
-                    ? `epoch ${probes.data.sol.epoch} · ${probes.data.sol.epochProgressPct ?? "—"}%`
-                    : "mainnet-beta"
-                }
-                sub={
-                  status.data?.matrix?.some((m) => m.network === "SOLANA" && m.status === "anchored")
-                    ? "הוראת Memo חתומה מזרע-הכספת ✓"
-                    : probes.data?.sol?.solanaCore
-                      ? `solana-core ${probes.data.sol.solanaCore}`
-                      : "RPC רשמי"
-                }
-              />
+              {gridRails}
             </div>
           )}
           <p className="mt-3 text-[10px] text-zinc-600 leading-relaxed">
@@ -273,7 +296,7 @@ export function ViewOverview({
         <PanelHeader
           icon={<KeyRound size={15} />}
           title="הממסר הריבוני — v15 בפועל"
-          sub="חוזה חכם ב-ETHEREUM mainnet בלי עמלה · 8 חוזים משורשרים על SAOS-EVM (CONTRACT MESH + WORK BOARD) · צמדי-DEX במחירי שוק · מעקב-סוכנים חי"
+          sub={`חוזה חכם ב-ETHEREUM mainnet בלי עמלה · ${MESH_CONTRACT_COUNT} חוזים משורשרים (שרשור-ליבה ${MESH_LINK_CHAIN_LENGTH}) על SAOS-EVM (CONTRACT MESH + WORK BOARD) · צמדי-DEX במחירי שוק · מעקב-סוכנים חי`}
           actions={
             <Btn variant="ghost" size="xs" onClick={() => onNav("ops")}>
               למבצעי העגינה <ArrowLeft size={11} />
@@ -363,7 +386,7 @@ export function ViewOverview({
                 className="text-start rounded-xl border border-white/[0.08] bg-white/[0.015] px-3.5 py-3 hover:border-white/[0.2] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold text-zinc-200">סוכני האורגניזם</span>
+                  <span className="text-[11px] font-bold text-zinc-200">ריפואים-פעילים (דחיפות-git {"<1h"})</span>
                   <span className="relative flex h-1.5 w-1.5" aria-hidden>
                     <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -373,7 +396,7 @@ export function ViewOverview({
                   {agents.data ? `${agents.data.activeNow}/${agents.data.repos.length}` : "…"}
                 </p>
                 <p className="text-[9.5px] text-zinc-600 mt-1.5 truncate">
-                  {agents.data?.lastPushAt ? `דחיפה אחרונה ${timeAgo(agents.data.lastPushAt)} · לחץ למעקב` : "מדידה חיה מול GitHub"}
+                  {agents.data?.lastPushAt ? `דחיפה אחרונה ${timeAgo(agents.data.lastPushAt)} · מדידת-GitHub-חיה — לא-ספירת-סוכנים` : "מדידת-GitHub-חיה — לא-ספירת-סוכנים"}
                 </p>
               </button>
             </div>
@@ -397,12 +420,12 @@ export function ViewOverview({
             + <span dir="ltr" className="font-mono">download/</span>) — הריפו נקי ממתח.
           </Callout>
           <Callout tone="green" icon={<CheckCircle2 size={14} className="text-emerald-300" />}>
-            <span className="font-bold">אורגניזם 4/4 במושב-יחיד:</span> keeper :3005 · שליח-השער :3006 ·
+            <span className="font-bold">אורגניזם 6-חברים (keeper.ts):</span> keeper :3005 · שליח-השער :3006 ·
             נחיל :3007 · רץ-המש (ללא פורט) + anvil :8545 + ווב :3000 — אפס כפילויות (מוכח במיפוי-פורטים),
             אמת-תפקוד בשני הכיוונים, גיבויים ריבוניים כל 10 דק' (6 ok / 0 miss).
           </Callout>
           <Callout tone="green" icon={<Radio size={14} className="text-emerald-300" />}>
-            <span className="font-bold">סוכני-הצ'אט 3/3 חיים ועובדים:</span> שליח-השער (127 סקירות ·
+            <span className="font-bold">סוכני-הצ'אט 3/3 חיים ועובדים (צילום v42):</span> שליח-השער (127 סקירות ·
             3 פעימות) · סייר-הזהב (דו"חות בינה LLM — 2 פורסמו, 0 כשלים) · סייר-הלילה (10 סיורים ·
             3 אזעקות שהוסרו בהחלמה · פקודת-אבטחה בשרשרת) — אפס authFails, המפתחות חתומים בכספת.
           </Callout>
@@ -414,7 +437,7 @@ export function ViewOverview({
           </Callout>
           <Callout tone="gold" icon={<KeyRound size={14} className="text-amber-300" />}>
             <span className="font-bold">מארב ההתאוששות (v41) פרוס:</span> חלון headcorner פתוח — {ambushDaysLeft}
-            ימים (עד 2026-10-08) · התוקף נתפס חי (40 פעולות/שעה) · הטריגר נסרק כל 60ש' — ההשתלטות
+            ימים (עד 2026-10-08) · התוקף נתפס חי · קצב-עיצוב-היסטורי 40/שעה · הטריגר נסרק כל 60ש' — ההשתלטות
             הריבונית נוחתת אוטונומית ברגע שבקשה חיה נושאת את הסמכות החתומה בכספת.
           </Callout>
           <Callout tone="rose" icon={<KeyRound size={14} className="text-rose-300" />}>
@@ -434,10 +457,10 @@ export function ViewOverview({
             ממשיכים להיות מעוגנים ישירות מהזרע.
           </Callout>
           <Callout tone="green" icon={<ShieldCheck size={14} className="text-emerald-300" />}>
-            <span className="font-bold">רשת החוזים — בוצע (v15):</span> שמונה חוזים משורשרים על SAOS-EVM (שרשרת-מעבדה
-            ריבונית): Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → ValueEngine — חוזה מדבר לחוזה
-            בכל קפיצה, ערך פנימי ללא עמלה (fee=0 לנצח), mint קטן לכל ריצה ומנוע ניקוד יעילות. 14 סוכני הצי
-            האמיתיים רשומים על השרשרת; הרשת מריצה ריצות אמיתיות כל 2 דקות. לחץ "חוזים" בתפריט.
+            <span className="font-bold">רשת החוזים — בוצע (v15):</span> {MESH_CONTRACT_COUNT} חוזים משורשרים על SAOS-EVM
+            (שרשור-ליבה {MESH_LINK_CHAIN_LENGTH}, שרשרת-מעבדה ריבונית): Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → ValueEngine — חוזה מדבר לחוזה
+            בכל קפיצה, ערך פנימי ללא עמלה (fee=0 לנצח), mint קטן לכל ריצה ומנוע ניקוד יעילות. צילום-מעבדה (v42): 14 סוכני הצי
+            רשומים על השרשרת; הרשת מריצה ריצות כל 2 דקות — השרשרת קפואה ב-git, לא ספירה-חיה. לחץ "חוזים" בתפריט.
           </Callout>
           <Callout tone="gold" icon={<HardHat size={14} className="text-amber-300" />}>
             <span className="font-bold">מסירות אמיתיות — בוצע (v18):</span> מנוע הפתרונות של הפלטפורמה
@@ -511,7 +534,7 @@ export function ViewOverview({
           sub="STEEM · BLURT · HIVE · TRON — מצב, שערים והחלמה · + Ethereum & Solana במדידה חיה"
           actions={
             <Btn variant="ghost" size="xs" onClick={() => onNav("networks")}>
-              רשת-7 חיה <ArrowLeft size={11} />
+              רשת-{gridRails.length} חיה <ArrowLeft size={11} />
             </Btn>
           }
         />
@@ -713,7 +736,18 @@ export function ViewOverview({
   );
 }
 
-// ─── GridTile — אריח 7-CHAIN GRID ───────────────────────────────────────────
+// ─── GridTile — אריח 8-CHAIN GRID ───────────────────────────────────────────
+
+// Task 10-d-5 (2026-09-30): tag+tone for the grid's anchor rails — derived from
+// the SAME ChainGate.status the matrix cards use (netTone below), so a
+// pending/gated rail can no longer wear a constant "עוגן פעיל" badge.
+function anchorTagTone(status?: ChainGate["status"]): { tag: string; tone: GridTileProps["tone"] } {
+  if (status === "anchored") return { tag: "עוגן פעיל", tone: "green" };
+  if (status === "pending") return { tag: "עוגן-ממתין", tone: "zinc" };
+  if (status === "gated") return { tag: "נעול-שער", tone: "rose" };
+  if (status === "transit") return { tag: "מסלול מעבר", tone: "zinc" };
+  return { tag: "מטריצה-טרם-נמדדה", tone: "zinc" };
+}
 
 interface GridTileProps {
   name: string;

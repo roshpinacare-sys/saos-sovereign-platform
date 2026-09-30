@@ -57,6 +57,15 @@ server.log
 /.secrets/
 /db/backups/
 
+# Task 10 (2026-09-30): runtime state must never be git-frozen (the dex.db disease)
+/db/custom.db
+/db/custom.db-wal
+/db/custom.db-shm
+/mini-services/evm-mesh/state/
+/mini-services/keeper/state/
+/mini-services/gate-agent/state/
+/mini-services/swarm-agents/state/
+
 # ── foundry build artifacts (8-c: forge test gate merged from fleet/r130) ──
 # foundry.toml out=/out — collides with next.js's own /out/ above; both ignored.
 /cache/

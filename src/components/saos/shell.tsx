@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS v18 — מעטפת REAL WORK (COMMAND DECK + 8-CHAIN GRID + 8 חוזים משורשרים + פקודות עבודה + מסירות אמיתיות).
+ * SAOS v18 — מעטפת REAL WORK (COMMAND DECK + 8-CHAIN GRID + חוזי-המרש — ספירת-החוזים נגזרת מ-SAOSMesh.json + פקודות עבודה + מסירות אמיתיות).
  * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 8-רשתות חי**
  * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · BSC · SOLANA) + ניווט-גלילה (מובייל)
  * + כותרת-תחתונה דביקה.
@@ -13,6 +13,7 @@ import { cn, LiveDot, Pill } from "./ui";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/version";
+import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
 export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
@@ -215,7 +216,7 @@ export const VIEWS: ViewDef[] = [
     id: "mesh",
     label: "רשת החוזים",
     short: "חוזים",
-    desc: "8 חוזים משורשרים על SAOS-EVM — חוזה מדבר לחוזה, ערך ופתרונות ללא עמלה",
+    desc: `${MESH_CONTRACT_COUNT} חוזים משורשרים (שרשור-ליבה ${MESH_LINK_CHAIN_LENGTH}) על SAOS-EVM — חוזה מדבר לחוזה, ערך ופתרונות ללא עמלה`,
     icon: <Waypoints size={16} />,
     group: "תפעול"
   },

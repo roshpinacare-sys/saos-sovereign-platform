@@ -24,8 +24,10 @@ import { trustedFetch } from "./security";
 const TOKEN_PATHS = [
   path.join(process.cwd(), "upload", "Roshcaregt.txt"),
   path.join(process.cwd(), "..", "upload", "Roshcaregt.txt"),
-  // מסלול-מוחלט קנוני (משמרת-המעלה) — תמיד אחרון, כגיבוי-אמת:
-  "/home/z/my-project/upload/Roshcaregt.txt"
+  // Task 10-d-5 (2026-09-30): המפעיל יכול להפנות את קובץ-הטוקן מבחוץ
+  // (SAOS_GH_TOKEN_FILE — המוסכמה הקיימת ב-scripts/*) — ברירת-המחדל הקנונית
+  // נשארת גיבוי-האמת המתועד. מסלול בלבד — תוכן הטוקן לעולם לא נכנס ללוג.
+  process.env.SAOS_GH_TOKEN_FILE || "/home/z/my-project/upload/Roshcaregt.txt"
 ];
 
 let cachedToken: string | null = null;

@@ -826,10 +826,12 @@ export async function securityScan(force = false): Promise<SecurityStatus> {
   // snapshot immediately and refresh in the background (one flight).
   if (!force && cache && now - cache.at < STALE_SERVE_MS) {
     if (!backgroundScan) {
+      // tsc fix (v94): swallow the payload — the background flight must be Promise<void>;
+      // the chain always resolves here (catch normalizes), so then == finally.
       backgroundScan = runSecurityScan()
         .then(() => undefined)
         .catch(() => undefined)
-        .finally(() => {
+        .then((): void => {
           backgroundScan = null;
         });
     }

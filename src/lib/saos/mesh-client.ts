@@ -1,7 +1,8 @@
 /**
  * lib/saos/mesh-client.ts — the server-side client of the CONTRACT MESH
- * (v15): 7 chained contracts live on SAOS-EVM, the sovereign laboratory
- * chain (anvil :8545, chainId 31337, mini-service evm-mesh).
+ * (v15): 10 contracts live on SAOS-EVM (MESH_CONTRACT_COUNT, derived from
+ * the generated registry), chained by a 7-contract linkOrder core — the
+ * sovereign laboratory chain (anvil :8545, chainId 31337, mini-service evm-mesh).
  * =====================================================================
  * "פרוס את כל החוזים… חוזה שמדבר לחוזה שמדבר לחוזה.. פתרונות. ערך יעילות"
  *
@@ -75,6 +76,14 @@ export const MESH_ROLES: Record<string, string> = {
 };
 
 const LINK_ORDER = ARTIFACT.linkOrder;
+
+// Task 10-d-5 (2026-09-30): one source of truth for the mesh's own numbers —
+// derived from generated/SAOSMesh.json (the real registry), never hand-counted.
+// contracts.length = 10 (incl. Hub/Relay/WorkBoard/Microgrid/ValueEngine),
+// linkOrder.length = 7 (the chained core: Identity→Ledger→Solutions→Bridge→…).
+// Defined in ./mesh-facts (client-safe: JSON import only) so the UI strings
+// derive from the exact same constants; re-exported here for server-side users.
+export { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "./mesh-facts";
 
 // ─── infra ────────────────────────────────────────────────────────────────
 
