@@ -206,3 +206,27 @@ Stage Summary:
 - ONE truth: GitHub canon = live platform = v94 (3cb6780); steem Z-21 clean; census 17 repos synced
 - Honest gaps unchanged: cornerstone-24 blocks EVM/SOL/XRP signing + the armed optimism/base expansion (fires honestly-failing until owner seals the seed); git-history purges (R11 ×8 repos, nvx@110feae, pat.env) pending owner-approved rewrite; token-in-URL remotes ×16 rotation-ready; P5 master rotation decision with owner
 - Scores update: Keys 3→7/10 (full verified envelope, zero plaintext in either live tree), Backend 4→5/10 (SWR, atomic upsert, sovereign slots gate)
+---
+Task ID: 6
+Agent: Z.ai (main orchestrator — lineage union + truth census)
+Task: "בוא נבחן שאנחנו בקומיט האחרון ומעודכנים אל מול התיקיות בגיט ונעשה להכל roast הנדסי חכם מקיף ותיקונים מקיפים" — sync check, engineering roast, unify+activate agents, fix lies/bugs/gaps, kill slowness
+
+Work Log:
+- Sync census: 15 org repos re-cloned to /home/z/repos (sandbox wiped them — sovereignty census had silently dropped to 1); bootstrap re-ran (canonical token store restored, clean-env ls-remote PASS); origin remote ADDED to the live platform repo (v93-era gap "platform no-remote" closed)
+- LINEAGE DISCOVERY: live platform and origin/main had NO common ancestor (merge-base empty) — the v94 "bridge" claim was partial: origin/main held python/irrigation_engine.py, 78 foundry tests, the P0 security round (requireAuth+audit on ~40 routes), the six-stage signing contract, canonical kernel, economy honesty — the live tree never received them
+- LINEAGE UNION executed (git merge --allow-unrelated-histories): routes→origin (auth superset), libs→origin (six-stage anchor-live, canonical kernel, honest economy, vault-pass precedence union, canonical-json hardening), runtime state→live, v94 completions survived (ETHEREUM/SOLANA watch seats, SWR, registry-tron); conflicted files resolved one-by-one (10); scripts/push-report.ts repaired (broken require+concat landed in canon); TSC 0 · lint 0 · SAOSMesh.json recompiled from unified tree
+- ROAST fixes: buildInventory ignored keys/soldiers-vault.json (v94) — 12 sealed soldiers invisible in the roster (showed 1); wired the fleet union (defensive multi-shape parser, dedupe, head-roster precedence) → roster 1→12 (headcorner, cashmachine, haran, israelnews, lsa, macrame, siq, tov, wic, wog, woq, ynet)
+- Fleet gates de-lied: hardcoded "RC ≈ 0%" (vs measured 100%) replaced by measuredGatesHe (RC from the same STEEM sweep, TRON from cached probe — live verdicts "פתוח לפי מדידה: RC נמדד 100.0%", "0.193 TRX בצי")
+- UNIFIED AGENT CENSUS: lib/saos/agent-census.ts + /api/saos/agent-census + panel in agents view — 5 layers measured (services /status 200 · gate identities lastSeen · sealed vault fleet · 16 ecosystem repos freshness · organism verify reports found by commit-scan via latestOrganismVerify) — measured truth: 37/37 alive here + Console 47/49 + Domain 52/53 (99/102 organism, 0 suspended, the 3 failures identified)
+- Activation: keeper v45.3.0 census tick every ≈5min (census-ok/census-miss journaled — agent vitality logged, not just rendered)
+- Slowness: /api/saos/status response-level SWR (30s TTL + stale-serve 120s + one-flight background rebuild, ok:false never cached) — measured 2.5s → 4-6ms; live-probes/recovery already carried internal v60/v61 SWR patterns
+- Hygiene: tool-results/ untracked + gitignored (session junk), core.fileMode=false killed the 353-file mode-bit noise, version 95.0.0 "מצבת-האמת (THE TRUTH CENSUS)", roast view "22 הסוכנים" → precise "12 כתובות-הרישום + 10 חוזי-המש" + pointer to the live census
+- Claims reconciliation: SAOS-PULSE-2026-09-30-V95-TRUTH-CENSUS.md — 10 old claims vs measured verdicts (lineage union truth, soldier visibility, census counts, measured gates, SWR numbers, remote gap, hygiene)
+- Push: d3119da..c4fe334 → origin/main (canonical history now contains BOTH lineages united)
+- E2E (agent-browser): home renders v95.0.0 "מצבת-האמת"; agents view census panel live (37/37, layer pills 6/6 · 3/3 · 12/12 · 16/16, organism 99/102, soldier rows with roles); fleet view "12 חיילי-הכספת (רוסטר חי מהמעטפת)" + measured gates; 0 console/page errors; screenshots v95-census-desktop/mobile-390 in public/shots
+
+Stage Summary:
+- ONE truth: live platform = origin/main = v95 (c4fe334), unrelated histories united, P0 auth plane + six-stage signing + foundry tests + python engine now live in the running tree
+- The agent organism is MEASURED, not claimed: 37 platform agents alive (keeper 45.3.0 + herald + swarm ×3 + mesh runner + 3 identities + 12 sealed soldiers + 16 repos) + 99/102 organism verify — the "60-something, most dead" fog replaced by one census with named, layered, classified rows
+- Honest gaps unchanged: cornerstone-24 owner-only, 3 organism verify failures live in their own repos, git-history purges pending owner approval, token-in-URL ×16 rotation-ready, chronic RSS pressure (root cause: heavy chain libs in one process — needs process split, disclosed in pulse doc)
+- Scores: Sync/Consistency 3→9/10 (one history, one census), Backend 5→7/10 (SWR everywhere, census API, auth plane restored live), Keys 7/10 (unchanged — envelope full minus cornerstone-24)

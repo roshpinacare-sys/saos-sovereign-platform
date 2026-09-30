@@ -639,3 +639,9 @@
 {"t":"2026-09-30T15:54:14.583Z","kind":"web-recycle","detail":"pre-OOM recycle #2: RSS 1809MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
 {"t":"2026-09-30T15:54:19.585Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #2)"}
 {"t":"2026-09-30T15:54:26.486Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
+{"t":"2026-09-30T15:55:14.567Z","kind":"pressure","detail":"RSS 1386MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:55:50.483Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-30T15:55:55.438Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-30T15:56:14.610Z","kind":"pressure","detail":"RSS 1703MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:57:14.589Z","kind":"pressure","detail":"RSS 1600MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:58:14.618Z","kind":"pressure","detail":"RSS 1592MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
