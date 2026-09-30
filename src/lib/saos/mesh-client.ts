@@ -6,7 +6,7 @@
  * =====================================================================
  * "פרוס את כל החוזים… חוזה שמדבר לחוזה שמדבר לחוזה.. פתרונות. ערך יעילות"
  *
- * The chain (one transaction, seven contracts, every arrow real):
+ * The chain (one transaction, contract-to-contract, every arrow real):
  *   SAOSMeshHub.dispatch → SAOSMeshRelay.start → SAOSIdentity →
  *   SAOSLedger (mint, fee=0) → SAOSSolutions → SAOSBridge (8 live rails)
  *   → SAOSMeshRelay → SAOSMeshHub.complete → SAOSValueEngine (score)
@@ -879,7 +879,8 @@ export async function postWorkOrder(
     const orderId = Number(posted?.values["orderId"] ?? 0);
 
     // 2. REAL soldier runs deliver open orders FIFO until this one lands
-    //    (each run = the full 8-contract chain; payroll pays every delivery)
+    //    (each run = the full contract chain — MESH_CONTRACT_COUNT, derived;
+    //    payroll pays every delivery)
     const runs: MeshRunView[] = [];
     let row = (await board.orderAt(orderId)) as unknown as [string, bigint, bigint, number, string, bigint, bigint, bigint, boolean];
     for (let attempt = 0; attempt < 4 && Number(row[3]) !== 1; attempt++) {

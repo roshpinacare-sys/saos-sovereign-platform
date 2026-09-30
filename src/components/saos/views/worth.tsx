@@ -40,6 +40,7 @@ import {
 import { postJson, useLive, useTick } from "../lib";
 import type { WorthData, WorthPulseResult, WorthRow } from "../types";
 import { PageHead } from "../shell";
+import { MESH_CONTRACT_COUNT } from "@/lib/saos/mesh-facts";
 
 const TONE_DOT: Record<string, string> = {
   gold: "bg-amber-400",
@@ -146,7 +147,7 @@ export function ViewWorth() {
           value={b.realized.find((r) => r.label.includes("ריצות"))?.value ?? "—"}
           icon={<BadgeCheck size={14} />}
           tone="green"
-          hint="כל ריצה עברה את כל 10 החוזים ונחתמה"
+          hint={`כל ריצה עברה את כל ${MESH_CONTRACT_COUNT} החוזים ונחתמה`}
         />
         <Kpi
           label="ערך שזז (עמלה 0)"
@@ -248,7 +249,7 @@ export function ViewWorth() {
           <PanelBody className="space-y-3">
             {pulse.run && (
               <Callout tone="green" icon={<FlaskConical size={13} className="text-emerald-300" />}>
-                <span className="font-semibold">ריצה ריבונית #{pulse.run.runId}</span> דרך כל 10 החוזים —{" "}
+                <span className="font-semibold">ריצה ריבונית #{pulse.run.runId}</span> דרך כל {MESH_CONTRACT_COUNT} החוזים —{" "}
                 <span className="font-mono text-[11px]" dir="ltr">{pulse.run.txid.slice(0, 34)}…</span>{" "}
                 · {pulse.run.hops} קפיצות מש · הכוונה: {pulse.run.intent}
               </Callout>

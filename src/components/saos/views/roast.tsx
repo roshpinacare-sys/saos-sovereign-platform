@@ -16,6 +16,7 @@ import { useLive } from "../lib";
 import type { RoastData, RoastGap } from "@/lib/saos/roast";
 import { PageHead } from "../shell";
 import { SAOS_VERSION } from "@/lib/saos/version";
+import { MESH_CONTRACT_COUNT } from "@/lib/saos/mesh-facts";
 import { cn } from "../ui";
 
 const STATUS_META: Record<RoastGap["status"], { label: string; tone: "green" | "amber" | "rose"; icon: React.ReactNode }> = {
@@ -176,7 +177,7 @@ function RoastBody({ d }: { d: RoastData }) {
         <PanelHeader
           icon={<Link2 size={15} />}
           title="השרשרת כפי שהיא — ביקורת שלמות חיה"
-          sub="קריאת-חוזים ישירה (read-only): סכום כל היתרות של 12 כתובות-הרישום + 10 חוזי-המש מול totalSupply · גיבוי wSAOS 1:1 · ריצות פתוחות · ריכוז היצע. לא ה-API שלנו על עצמנו — החוזים עצמם. (מצבת-הסוכנים החיה — במסך 'מעקב סוכנים → מצבת-האמת')"
+          sub={`קריאת-חוזים ישירה (read-only): סכום כל היתרות של 12 כתובות-הרישום + ${MESH_CONTRACT_COUNT} חוזי-המש מול totalSupply · גיבוי wSAOS 1:1 · ריצות פתוחות · ריכוז היצע. לא ה-API שלנו על עצמנו — החוזים עצמם. (מצבת-הסוכנים החיה — במסך 'מעקב סוכנים → מצבת-האמת')`}
           actions={
             !c.ok ? (
               <Pill tone="amber">ביקורת לא זמינה</Pill>

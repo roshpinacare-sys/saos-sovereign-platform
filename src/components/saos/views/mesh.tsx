@@ -1,11 +1,13 @@
 "use client";
 
 /**
- * SAOS v20 — רשת החוזים (CONTRACT MESH): תשעה חוזים משורשרים על SAOS-EVM,
+ * SAOS v20 — רשת החוזים (CONTRACT MESH): MESH_CONTRACT_COUNT חוזים משורשרים
+ * על SAOS-EVM (המספר נגזר מהרישום — src/lib/saos/mesh-facts.ts),
  * שרשרת המעבדה הריבונית (anvil, chainId 31337).
  * "פרוס את כל החוזים… חוזה שמדבר לחוזה שמדבר לחוזה.. פתרונות. ערך יעילות"
  *
- * הזרימה (עסקה אחת, תשעה חוזים, כל חץ קריאה אמיתית בין חוזים):
+ * הזרימה (עסקה אחת, חוזה-אחר-חוזה — מספר-החוזים בעיגול נגזר מאורך
+ * CHAIN_FLOW למטה, כל חץ קריאה אמיתית בין חוזים):
  *   Hub.dispatch → Relay.start → Identity → Ledger (mint, fee=0) →
  *   Solutions → Bridge (8 rails) → WorkBoard (פקודות עבודה + שכר) →
  *   Relay → Hub.complete → ValueEngine
@@ -21,6 +23,7 @@ import { fmtInt, postJson, short, timeAgo, useLive, useTick } from "../lib";
 import type { MeshFeedData, MeshLedgerData, MeshRunOutcome, MeshRunView, MeshStatusData } from "../types";
 import { PageHead } from "../shell";
 import { cn } from "@/lib/utils";
+import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 
 // ─── the chain flow (visual order = call order) ────────────────────────────
 
@@ -37,7 +40,7 @@ const CHAIN_FLOW: Array<{ name: string; label: string; icon: ReactNode }> = [
 ];
 
 const SUGGESTIONS = [
-  "mesh pulse: 8-chain anchor scan",
+  `mesh pulse: ${MESH_LINK_CHAIN_LENGTH}-chain anchor scan`,
   "מיפוי רשת: סריקת מסילות חיות",
   "value scan: efficiency audit",
   "solution seed: breakthrough proposals",
@@ -115,7 +118,7 @@ export function ViewMesh() {
       const out = res.ok ? res.data : null; // postJson wraps: { ok, data, error }
       if (out && out.ok && out.run) {
         toast.push({
-          title: `ריצת רשת #${out.run.id} הושלמה בתשעה חוזים`,
+          title: `ריצת רשת #${out.run.id} הושלמה ב-${CHAIN_FLOW.length} חוזים`,
           desc: `${fmtInt(out.run.gasUsed ?? 0)} גז · ניקוד ${out.run.score} · +${out.run.rewardAmount} SAOS-M ללא עמלה · ${out.anchorsStamped} עוגנים חיים`,
           tone: "green"
         });
@@ -143,7 +146,7 @@ export function ViewMesh() {
     <div className="space-y-5 animate-view">
       <PageHead
         title="רשת החוזים — CONTRACT MESH"
-        sub="תשעה חוזים משורשרים על SAOS-EVM, שרשרת המעבדה הריבונית: עסקה אחת עוברת Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Microgrid → ValueEngine — כל חץ הוא קריאה אמיתית בין חוזה לחוזה. ערך פנימי ללא עמלה, mint קטן לכל ריצה, פקודות עבודה שנמסרות בשרשרת ושכר שזורם לחיילים."
+        sub={`${MESH_CONTRACT_COUNT} חוזים משורשרים על SAOS-EVM (שרשור-ליבה ${MESH_LINK_CHAIN_LENGTH}), שרשרת המעבדה הריבונית: עסקה אחת עוברת Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Microgrid → ValueEngine — כל חץ הוא קריאה אמיתית בין חוזה לחוזה. ערך פנימי ללא עמלה, mint קטן לכל ריצה, פקודות עבודה שנמסרות בשרשרת ושכר שזורם לחיילים.`}
         actions={
           <>
             <Pill tone={live ? "green" : "rose"} pulse={live}>
@@ -208,7 +211,7 @@ export function ViewMesh() {
         <PanelHeader
           title="מפת השרשרת — חוזה מדבר לחוזה"
           icon={<Waypoints size={15} />}
-          actions={<Tag tone="gold">עסקה אחת · 9 חוזים · עיגול סגור</Tag>}
+          actions={<Tag tone="gold">עסקה אחת · {CHAIN_FLOW.length} חוזים · עיגול סגור</Tag>}
         />
         <PanelBody className="space-y-4">
           <div dir="ltr" className="flex items-stretch gap-2 overflow-x-auto scroll-slim pb-2">

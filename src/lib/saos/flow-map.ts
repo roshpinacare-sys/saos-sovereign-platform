@@ -261,7 +261,7 @@ async function build(): Promise<FlowMap> {
   const engines: EngineCard[] = [
     {
       id: "grid",
-      name: "מיקרו-גריד GRID-98 (חוזה תשיעי)",
+      name: "מיקרו-גריד GRID-98 (SAOSMicrogrid)",
       state: micro.grids > 0 ? "live" : "blocked",
       headline: `${micro.grids} גרידים · ${micro.ticks} טיקים · רווח ${micro.realized} SAOS-M`,
       capture: `שטיפה: ${micro.swept} SAOS-M לקופת-העבודה (לכידה ${capturePct !== null ? capturePct.toFixed(1) : "—"}%)`,

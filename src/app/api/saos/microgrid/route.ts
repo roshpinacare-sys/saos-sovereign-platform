@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/saos/microgrid — GRID-98 על השרשרת (v20): המצב החי.
- *   חוזה SAOSMicrogrid (mesh link #6, התשיעי) על שרשרת- המעבדה המתמשכת:
+ *   חוזה SAOSMicrogrid (mesh link #6) על שרשרת- המעבדה המתמשכת:
  *   אורקל מחירי-DEX אמיתיים · סולם 1.2% · שוליים 40bps · רמה 0.25 SAOS-M ·
  *   יומן מילויים על-השרשרת · רווח שנשטף לקופת העבודה (flywheel).
  *

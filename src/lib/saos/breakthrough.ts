@@ -34,6 +34,7 @@ import { bridgeCensus, type EvmRailState } from "./bridge-forge";
 import { networkCensus, type ChainRow } from "./multichain";
 import { liquidityRadar } from "./liquidity-radar";
 import { meshStatus } from "./mesh-client";
+import { MESH_CONTRACT_COUNT } from "./mesh-facts";
 import { keeperStatus, type KeeperMember } from "./keeper";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
 
@@ -391,7 +392,7 @@ export async function breakthroughEngine(opts: { force?: boolean } = {}): Promis
           { id: "services", he: "איברים חיים", value: `${membersAlive}/${memberList.length || "—"}`, note: "web · anvil · runner · keeper · herald · swarm", tone: "green" },
           { id: "agents", he: "סוכנים במרש", value: `${stats?.agents ?? agentCount ?? "—"}`, note: `${agentCount ?? "—"} זהויות רשומות ב-DB · לויאליות מוכחת`, tone: "green" },
           { id: "revives", he: "ריפויים-עצמיים", value: keeper?.keeper.revives != null ? `${keeper.keeper.revives}` : "—", note: "השומר מחייה איברים — מוכח חי מקצה-לקצה v42", tone: "zinc" },
-          { id: "contracts", he: "חוזי המרש", value: `${mesh?.contracts.length ?? 10}`, note: "10 חוזים משורשרים על SAOS-EVM", tone: "green" }
+          { id: "contracts", he: "חוזי המרש", value: `${mesh?.contracts.length ?? MESH_CONTRACT_COUNT}`, note: `${MESH_CONTRACT_COUNT} חוזים משורשרים על SAOS-EVM`, tone: "green" }
         ]
       },
       {

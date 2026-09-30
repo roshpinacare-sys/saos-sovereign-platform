@@ -31,6 +31,7 @@ import { probeDexPairs } from "./dex-live";
 import { trustedFetch } from "./security";
 import { resolveOwnerUploadFile } from "./owner-upload";
 import { microgridStatus } from "./microgrid-live";
+import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "./mesh-facts";
 
 const CACHE_TTL_MS = 90_000;
 
@@ -61,9 +62,9 @@ const ESTATE: EstateRepo[] = [
   },
   {
     name: "saos-sovereign-platform",
-    role: "הריפו הזה — פלטפורמת העגינה: 9 חוזים משורשרים (כולל מיקרו-גריד) · REAL WORK (LLM) · SAOSRelay ב-mainnet · מפת-8-רשתות",
+    role: `הריפו הזה — פלטפורמת העגינה: ${MESH_CONTRACT_COUNT} חוזים משורשרים (שרשור-ליבה ${MESH_LINK_CHAIN_LENGTH}, כולל מיקרו-גריד) · REAL WORK (LLM) · SAOSRelay ב-mainnet · מפת-8-רשתות`,
     status: "חי",
-    note: "v20 · GRID-98 על השרשרת (חוזה תשיעי) · DEX עומק (UniV2+V3+Pancake+Sushi) · SAOS-WORK rail חי · היגיינה: הטוקן/ה-env/ה-db הוסרו ממעקב (5bb5ef1)",
+    note: "v20 · GRID-98 על השרשרת (אז החוזה התשיעי) · DEX עומק (UniV2+V3+Pancake+Sushi) · SAOS-WORK rail חי · היגיינה: הטוקן/ה-env/ה-db הוסרו ממעקב (5bb5ef1)",
     connections: ["STEEM (עוגנים)", "ETHEREUM (SAOSRelay 0xa52D…8E6)", "TRON (אוצר headcorner)", "saos-dex (מחירי DEX חיים)"]
   },
   {
@@ -160,7 +161,7 @@ const CRITICAL_STEPS: CriticalStep[] = [
     rank: 4,
     title: "מיקרו-גריד — GRID-98 חי על השרשרת (v20)",
     owner: "סוכן",
-    blocker: "המנוע פועל (חוזה תשיעי, מחירי DEX אמיתיים, רווח→קופת-עבודה); מסחר אמיתי דורש מפתחות + החלטת סיכון",
+    blocker: "המנוע פועל (GRID-98 — SAOSMicrogrid, מחירי DEX אמיתיים, רווח→קופת-עבודה); מסחר אמיתי דורש מפתחות + החלטת סיכון",
     impact: "הוכחת-מנוע מלאה: סולם 1.2% · שוליים 40bps · רווח מונוטוני · גלגל-תמרים ל-TRON-energize כשהמפתחות יחזרו (ראה energize-TRON בעקבות עצה #1)"
   },
   {
