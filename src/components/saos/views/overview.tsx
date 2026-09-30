@@ -409,7 +409,7 @@ export function ViewOverview({
         <PanelHeader
           icon={<ScanSearch size={15} />}
           title="מסקנות-ביצוע · סקירת-העומק v42 (תמונה היסטורית)"
-          sub="תמונת-אמת מתועדת מסוף v42 (2026-09-11): 183 קבצי-src · 48 מסלולי-API · 24 תצוגות · 20 מודלי-DB · 12 חוזים · 4 שירותים · 29 סקריפטים. הריפו מאז גדל — נמדד חי בביקורת-הפריוויו (2026-09-12): 244 קבצי-src · 70 מסלולי-API · 37 תצוגות · 21 מודלי-DB · 12 חוזים · 4 שירותים + ווב · 24 סקריפטים. המסקנות קפואות בזמנן; האמת של הרגע נמדדת במכ&quot;מים החיים."
+          sub="תמונת-אמת מתועדת מסוף v42 (2026-09-11): 183 קבצי-src · 48 מסלולי-API · 24 תצוגות · 20 מודלי-DB · 12 חוזים · 4 שירותים · 29 סקריפטים. הריפו מאז גדל — נמדד מחדש (2026-09-30): 269 קבצי-src · 62 מסלולי-API · 39 תצוגות · 26 מודלי-DB · 10 חוזים · 61 סקריפטים. המסקנות קפואות בזמנן; האמת של הרגע נמדדת במכ&quot;מים החיים."
           actions={<Pill tone="zinc">אומת חי בזמנו (v42)</Pill>}
         />
         <PanelBody className="space-y-2.5">
@@ -437,7 +437,7 @@ export function ViewOverview({
           </Callout>
           <Callout tone="gold" icon={<KeyRound size={14} className="text-amber-300" />}>
             <span className="font-bold">מארב ההתאוששות (v41) פרוס:</span> חלון headcorner פתוח — {ambushDaysLeft}
-            ימים (עד 2026-10-08) · התוקף נתפס חי · קצב-עיצוב-היסטורי 40/שעה · הטריגר נסרק כל 60ש' — ההשתלטות
+            ימים (עד 2026-10-08) · התוקף נתפס חי · קצב-עיצוב היסטורי ~13 פעולות/שעה (נמדד 2026-09-29) · הטריגר נסרק כל 60ש' — ההשתלטות
             הריבונית נוחתת אוטונומית ברגע שבקשה חיה נושאת את הסמכות החתומה בכספת.
           </Callout>
           <Callout tone="rose" icon={<KeyRound size={14} className="text-rose-300" />}>
@@ -458,7 +458,7 @@ export function ViewOverview({
           </Callout>
           <Callout tone="green" icon={<ShieldCheck size={14} className="text-emerald-300" />}>
             <span className="font-bold">רשת החוזים — בוצע (v15):</span> {MESH_CONTRACT_COUNT} חוזים משורשרים על SAOS-EVM
-            (שרשור-ליבה {MESH_LINK_CHAIN_LENGTH}, שרשרת-מעבדה ריבונית): Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → ValueEngine — חוזה מדבר לחוזה
+            (שרשור-ליבה {MESH_LINK_CHAIN_LENGTH}, שרשרת-מעבדה ריבונית): Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Microgrid → Exchange → ValueEngine — חוזה מדבר לחוזה
             בכל קפיצה, ערך פנימי ללא עמלה (fee=0 לנצח), mint קטן לכל ריצה ומנוע ניקוד יעילות. צילום-מעבדה (v42): 14 סוכני הצי
             רשומים על השרשרת; הרשת מריצה ריצות כל 2 דקות — השרשרת קפואה ב-git, לא ספירה-חיה. לחץ "חוזים" בתפריט.
           </Callout>
@@ -466,8 +466,8 @@ export function ViewOverview({
             <span className="font-bold">מסירות אמיתיות — בוצע (v18):</span> מנוע הפתרונות של הפלטפורמה
             (LLM בצד השרת) מייצר לכל פקודה מסירה אמיתית — תקציר, צעדים קונקרטיים, סיכונים וערך.
             ה-digest (sha256) מעוגן בעסקה אמיתית על מסילת SAOS-WORK בשרשרת ונחתם כקבלה משורשרת-האש;
-            כל ריצת mesh עתידית מטביעה אותו (דבר מוביל לדבר). מעל לזה: החוזה השמיני SAOSWorkBoard —
-            המפקדה מפרסמת, ריצת חייל מבצעת בעסקה אחת דרך שמונת החוזים, והקופה (10 SAOS-M בכל ריצה)
+            כל ריצת mesh עתידית מטביעה אותו (דבר מוביל לדבר). מעל לזה: החוזה השביעי מתוך עשרה SAOSWorkBoard (קישור #5) —
+            המפקדה מפרסמת, ריצת חייל מבצעת בעסקה אחת דרך עשרת החוזים, והקופה (10 SAOS-M בכל ריצה)
             משלמת ללא-עמלה. לחץ "עבודה" בתפריט.
           </Callout>
           <Callout tone="gold" icon={<Network size={14} className="text-amber-300" />}>

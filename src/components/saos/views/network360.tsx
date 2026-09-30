@@ -210,9 +210,13 @@ export function Network360View() {
                   detail={a.enlist ? `Enlist("sovereign-user") · txid ${a.enlist.txid.slice(0, 22)}… מאושר` : "חסר ביומן (שוחזר מהשרשרת בעבר)"}
                 />
                 <AchieveRow
-                  ok
+                  ok={a.flowTrx > 0}
                   title="נזילות פרטית — הפעלת ה-TRX התקוע"
-                  detail={`${a.flowTrx} TRX זרמו לאוצר headcorner (${a.flowTxCount} עסקאות מאומתות) · מדידה חיה`}
+                  detail={
+                    a.flowTrx > 0
+                      ? `${a.flowTrx} TRX זרמו לאוצר headcorner (${a.flowTxCount} עסקאות מאומתות) · מדידה חיה`
+                      : "טבלת-הזרימה נבנתה מחדש 09-29 — המדידה מצטברת מחדש; 17.6 TRX מאומתי-שרשרת קיימים בפאנל הזרימה"
+                  }
                 />
                 <AchieveRow
                   ok

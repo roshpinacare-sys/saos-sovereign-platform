@@ -215,7 +215,9 @@ export function ViewEconomy() {
                     <FlowNode icon={<Landmark size={14} />} label="סה״כ רווח" value={`${fmt(r.totalPerDay)} SAOS`} tone="gold" />
                     <FlowStep pct={f.fly} />
                     <FlowNode icon={<Zap size={14} />} label="מושקע באנרגיה" value={`${fmt(r.reinvestedPerDay)} SAOS`} tone="green" />
-                    <FlowStep pct={60} />
+                    {/* v98 truth-fix: the % is DERIVED from the flywheel payload
+                        (energy budget = floor(reinvested × 0.6) in the lib) — never a constant. */}
+                    <FlowStep pct={r.reinvestedPerDay > 0 ? Math.round((r.energyFunded.trx / r.reinvestedPerDay) * 100) : 0} />
                     <FlowNode
                       icon={<Recycle size={14} />}
                       label="קיבולת עגינה"

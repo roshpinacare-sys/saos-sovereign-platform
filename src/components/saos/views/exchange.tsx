@@ -399,6 +399,9 @@ export function ExchangeView() {
   // (/api/saos/flow → radar). הוראת-הבעלים "אמת מוכח": מה שלא נמדד —
   // נאמר שלא נמדד, לא מספר-קפוא.
   const radar = flow.data?.radar?.assets ?? [];
+  // v98 truth-fix: the treasury radar's domain count derives from the live
+  // flow payload (9 domains incl. XRPL); "9" only stands in before it loads.
+  const radarDomains = radar.length > 0 ? new Set(radar.map((a) => a.domain)).size : 9;
   const radarTotal = (sym: string): number | null => {
     const rows = radar.filter((a) => a.symbol === sym);
     if (rows.length === 0) return null;
@@ -1508,7 +1511,7 @@ export function ExchangeView() {
         <PanelHeader
           icon={<Landmark size={15} />}
           title="אוצר אבן-הפינה — כמה כסף יש שם ומה אפשר לעשות"
-          sub="מכ״ם-הנזילות האמיתי (8 מרחבים · USD) · היתרות הפנימיות של בורסת SAOS · קציר נזילות OUT"
+          sub={`מכ״ם-הנזילות האמיתי (${radarDomains} מרחבים · USD) · היתרות הפנימיות של בורסת SAOS · קציר נזילות OUT`}
           actions={
             <Pill tone="gold">
               נקצר מאז ומתמיד {usd(t.harvestedUsd)}

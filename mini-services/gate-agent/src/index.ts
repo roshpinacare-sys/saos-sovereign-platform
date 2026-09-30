@@ -347,6 +347,48 @@ async function handleDirective(d: Directive): Promise<void> {
   }
 }
 
+// ─── one-net heartbeat (9-e · רשת-אחת) ────────────────────────────────────────
+
+// ONE signed beat per 45s poll (piggyback), fail-silent — a beat failure must
+// NEVER crash the poll loop (the beat route may not even be deployed yet:
+// 404 = honest skip, the next poll retries). The key is read fresh with a
+// 30s TTL, never logged, never journaled — hash-only doctrine, plaintext
+// never leaves this function.
+const BEAT_URL = "http://127.0.0.1:3000/api/saos/one-net/beat";
+const BEAT_KEY_FILE = "/home/z/.secrets/saos-admin-key";
+let beatKeyCache: { key: string | null; at: number } | null = null;
+function beatKey(): string | null {
+  const now = Date.now();
+  if (beatKeyCache && now - beatKeyCache.at < 30_000) return beatKeyCache.key;
+  let key: string | null = null;
+  try {
+    const raw = fs.readFileSync(BEAT_KEY_FILE, "utf8").trim();
+    key = raw.length >= 16 ? raw : null; // מפתח ריק/קצר — לא הופך bearer תקף
+  } catch {
+    key = null; // missing file — fail-silent, the next poll retries
+  }
+  beatKeyCache = { key, at: now };
+  return key;
+}
+async function beatOneNet(payload: Record<string, unknown>): Promise<void> {
+  try {
+    const key = beatKey();
+    if (!key) return; // fail-silent — a beat failure must never crash the poll
+    const body = JSON.stringify({ source: "gate-herald", vitality: "live", payload });
+    if (body.length > 2048) return; // contract: ≤2KB (ours is tiny by construction)
+    const res = await fetch(BEAT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body,
+      signal: AbortSignal.timeout(5_000)
+    });
+    if (res.ok) console.log(`[herald] one-net beat ok (${body.length}B)`);
+    // 404 (route not yet deployed) / 401 / network — honest silent skip
+  } catch {
+    /* fail-silent — the next poll retries */
+  }
+}
+
 // ─── the poll (presence + hearing) ────────────────────────────────────────
 
 async function pollOnce(): Promise<void> {
@@ -398,6 +440,13 @@ async function pollOnce(): Promise<void> {
       }
     }
   }
+
+  // 9-e — one-net beat: piggybacks THIS poll (fire-and-forget, fail-silent) —
+  // presence + the honest stats digest, numbers only, never the key.
+  void beatOneNet({
+    presence: { gateUp: S.gateUp, lastFeedAt: S.lastFeedAt, gateLatencyMs: S.gateLatencyMs },
+    stats: { polls: S.polls, orders: S.orders, heartbeats: S.heartbeats }
+  });
 }
 
 // ─── heartbeat ─────────────────────────────────────────────────────────────

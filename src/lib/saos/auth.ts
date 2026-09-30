@@ -35,6 +35,7 @@
  */
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { readFileSync } from "fs";
 import { db } from "@/lib/db";
 
 export const SESSION_COOKIE = "saos_session";
@@ -60,8 +61,55 @@ export function adminKeyHash(): string | null {
   return /^[0-9a-f]{64}$/.test(raw) ? raw : null;
 }
 
+/**
+ * 9-e — חוסן-סיבוב-מפתח (key-rotation resilience). Task 8-g חימש את השומר
+ * ב-bearer מ-/home/z/.secrets/saos-admin-key — והמפתח מוסב מחדש לפעמים
+ * (הקובץ ו-.env נוצרו יחד ב-16:37). תהליך-וב ארוך-חיים מחזיק ב-env hash
+ * מה-boot; אם המפתח התחלף, כל bearer טרי נכשל בהשוואה מול ה-hash המיושן
+ * → 401 חי (ראייה ביומן-השומר: backup-miss 18:22:45 · agri-error 18:42:57).
+ *
+ * הריפוי: קבוצת-hashים תקפים = ה-env hash + ה-sha256 של התוכן הנוכחי של
+ * קובץ-המפתח (נקרא טרי עם TTL של 30ש' בזיכרון-התהליך; הנתיב ניתן
+ * להגדרה ב-SAOS_ADMIN_KEY_FILE). כלל-ה-hash בלבד נשמר: הקובץ נחתם
+ * בתוך-הפונקציה, הטקסט הגולמי לעולם לא יוצא, לא נרשם ולא נשמר.
+ * כשל-קריאה שקט: קובץ חסר/בלתי-קריא → ה-hash פשוט לא בקבוצה (fail-closed).
+ */
+const ADMIN_KEY_FILE_PATH = process.env.SAOS_ADMIN_KEY_FILE ?? "/home/z/.secrets/saos-admin-key";
+const FILE_HASH_TTL_MS = 30_000;
+let fileHashCache: { hash: string | null; loadedAt: number } | null = null;
+
+/** sha256 of the CURRENT key-file content — cached 30s, plaintext never leaves. */
+function currentFileKeyHash(): string | null {
+  const now = Date.now();
+  if (fileHashCache && now - fileHashCache.loadedAt < FILE_HASH_TTL_MS) return fileHashCache.hash;
+  let hash: string | null = null;
+  try {
+    const raw = readFileSync(ADMIN_KEY_FILE_PATH, "utf8").trim();
+    // מפתח ריק/קצר-מדי לעולם לא הופך hash תקף — שום bearer ריק לא יאומת
+    if (raw.length >= 16) hash = sha256Hex(raw);
+  } catch {
+    /* silent — אין קובץ / הרשאות: הקבוצה פשוט מוותרת עליו */
+  }
+  fileHashCache = { hash, loadedAt: now };
+  return hash;
+}
+
+/**
+ * The de-duplicated set of currently-valid admin-key hashes: the env hash
+ * (valid hex64) + the fresh key-file hash. Empty set = unconfigured → the
+ * same fail-closed 403 as before. NEVER log or return plaintext key material.
+ */
+export function resolveAdminKeyHashes(): string[] {
+  const set: string[] = [];
+  const envHash = adminKeyHash();
+  if (envHash) set.push(envHash);
+  const fileHash = currentFileKeyHash();
+  if (fileHash && !set.includes(fileHash)) set.push(fileHash);
+  return set;
+}
+
 export function authConfigured(): boolean {
-  return adminKeyHash() !== null;
+  return resolveAdminKeyHashes().length > 0;
 }
 
 // ─── session epoch (Task 11): global revocation without a session list ──────
@@ -190,8 +238,8 @@ function readCookie(req: Request, name: string): string | undefined {
  * session epoch) → bearer key. Async since Task 11 (epoch read for cookies).
  */
 export async function requireAuth(req: Request): Promise<AuthResult> {
-  const hash = adminKeyHash();
-  if (!hash) {
+  const hashes = resolveAdminKeyHashes();
+  if (hashes.length === 0) {
     return {
       ok: false,
       authConfigured: false,
@@ -219,7 +267,9 @@ export async function requireAuth(req: Request): Promise<AuthResult> {
   if (authz?.toLowerCase().startsWith("bearer ")) {
     const presented = authz.slice(7).trim();
     const presentedHash = sha256Hex(presented);
-    if (safeHexEqual(presentedHash, hash)) {
+    // 9-e — timing-safe מול כל hash בקבוצה: bearer טרי מהקובץ עובד גם כשה-env
+    // של תהליך ארוך-חיים מיושן (הריפוי של חלון-ה-401 שנתפס חי).
+    if (hashes.some((h) => safeHexEqual(presentedHash, h))) {
       return {
         ok: true,
         authConfigured: true,
@@ -269,11 +319,15 @@ export async function issueSession(): Promise<{ value: string; maxAgeSec: number
   return { value: `${exp}.${signExpiry(exp, await currentSessionEpoch())}`, maxAgeSec: Math.floor(SESSION_TTL_MS / 1000) };
 }
 
-/** verify a presented plaintext login key against the configured hash */
+/**
+ * verify a presented plaintext login key against the valid hash set —
+ * 9-e: operator login survives key rotation exactly like the bearer plane.
+ */
 export function verifyLoginKey(key: string): boolean {
-  const hash = adminKeyHash();
-  if (!hash) return false;
-  return safeHexEqual(sha256Hex(key.trim()), hash);
+  const hashes = resolveAdminKeyHashes();
+  if (hashes.length === 0) return false;
+  const presented = sha256Hex(key.trim());
+  return hashes.some((h) => safeHexEqual(presented, h));
 }
 
 /**

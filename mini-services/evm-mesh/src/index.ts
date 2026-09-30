@@ -546,6 +546,64 @@ const MISSIONS: Array<{ mission: string; difficulty: number; reward: bigint }> =
 // apply to this direction.
 const WORK_API = "http://127.0.0.1:3000/api/saos/mesh/work";
 
+// 9-e — FIX loopback auth: the runner's work-order POST was the only unsigned
+// loopback call left (the P0 gate 401'd it into the honest-dry fallback since
+// day one). Same doctrine as the keeper (8-g): read the admin key ONCE per
+// process, attach Authorization: Bearer, NEVER log it. Missing file → {}
+// → the POST goes unsigned → 401 → the existing honest dry fallback continues.
+const ADMIN_KEY_FILE = "/home/z/.secrets/saos-admin-key";
+let loopbackAuthCache: Record<string, string> | null = null;
+function loopbackAuthHeaders(): Record<string, string> {
+  if (loopbackAuthCache === null) {
+    try {
+      const key = fs.readFileSync(ADMIN_KEY_FILE, "utf8").trim();
+      loopbackAuthCache = key ? { authorization: `Bearer ${key}` } : {};
+    } catch {
+      loopbackAuthCache = {}; // fail-silent: the POST then 401s into the honest dry fallback
+    }
+  }
+  return loopbackAuthCache;
+}
+
+// 9-e — one-net heartbeat (רשת-אחת): ONE signed beat per 120s auto-cycle,
+// fail-silent — a beat failure must NEVER crash the cycle (the beat route
+// may not even be deployed yet: 404 = honest skip, the next cadence retries).
+// The key is read fresh with a 30s TTL so the beat survives key rotation.
+const BEAT_URL = "http://127.0.0.1:3000/api/saos/one-net/beat";
+const BEAT_KEY_FILE = "/home/z/.secrets/saos-admin-key";
+let beatKeyCache: { key: string | null; at: number } | null = null;
+function beatKey(): string | null {
+  const now = Date.now();
+  if (beatKeyCache && now - beatKeyCache.at < 30_000) return beatKeyCache.key;
+  let key: string | null = null;
+  try {
+    const raw = fs.readFileSync(BEAT_KEY_FILE, "utf8").trim();
+    key = raw.length >= 16 ? raw : null; // מפתח ריק/קצר — לא הופך bearer תקף
+  } catch {
+    key = null; // missing file — fail-silent, the next cadence retries
+  }
+  beatKeyCache = { key, at: now };
+  return key;
+}
+async function beatOneNet(payload: Record<string, unknown>): Promise<void> {
+  try {
+    const key = beatKey();
+    if (!key) return; // fail-silent — a beat failure must never crash the loop
+    const body = JSON.stringify({ source: "evm-mesh", vitality: "live", payload });
+    if (body.length > 2048) return; // contract: ≤2KB (ours is tiny by construction)
+    const res = await fetch(BEAT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body,
+      signal: AbortSignal.timeout(5_000)
+    });
+    if (res.ok) console.log(`[evm-mesh] one-net beat ok (${body.length}B)`);
+    // 404 (route not yet deployed) / 401 / network — honest silent skip
+  } catch {
+    /* fail-silent — the next cadence retries */
+  }
+}
+
 /** post a work order WITH a real LLM deliverable through the web tier. */
 // v55 לולאת-המוות — תקציב-צעד קשיח: repro-abort.ts הוכיח ש-bun לעולם לא דוחה
 // קריאת-גוף תקועה ב-abort (ניסוי B: תלייה>15ש'). כל fetch ישיר במחזור רץ
@@ -594,7 +652,7 @@ async function postRealWorkOrder(job: { mission: string; difficulty: number; rew
   try {
     const out = await webJson<{ ok?: boolean; error?: string }>(WORK_API, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...loopbackAuthHeaders() },
       body: JSON.stringify({
         mission: job.mission,
         difficulty: job.difficulty,
@@ -1149,6 +1207,18 @@ async function autoCycle(): Promise<void> {
       } catch {
         console.log("[evm-mesh] v54 WRXP watcher: unreachable (honest skip — next window in ~20min)");
       }
+    }
+    // 9-e — one-net beat: ONE heartbeat per cycle (fire-and-forget, fail-silent)
+    // — the completed tick, the 10-contract mesh and the chain height while the
+    // provider still lives. A beat failure never touches the cycle's error path.
+    try {
+      const height = await Promise.race([
+        provider.getBlockNumber().catch(() => null),
+        new Promise<null>((r) => { const t = setTimeout(() => r(null), 2_000); t.unref?.(); })
+      ]);
+      void beatOneNet({ tick: startTick + 1, contracts: 10, blockHeight: typeof height === "number" ? height : null });
+    } catch {
+      /* never crash the cycle for a heartbeat */
     }
     runTick += 1;
     saveRunTick(runTick); // v46 — הפאזה שורדת מוות: הטיק נשמר בכל סוף-מחזור
@@ -1913,6 +1983,32 @@ async function main(): Promise<void> {
   // blocks — a future rebuild resumes instead of regenesis)
   mirrorChainState();
   genTimer("state-mirror", () => mirrorChainState(), STATE_MIRROR_MS);
+  // v98 יאניטור-דיסק (מדידה חיה 30-09): anvil מצביר ב-~/.foundry/anvil/tmp/
+  // ספריית-מצב per-run (קבצי-חשבון 0x*.json בני ~2MB) שגדלה 5.8GB ב-4 שעות
+  // והמיטה את הסנדבוקז על 100% דיסק. תיקון-השורש: כל 10 דק' נמחקות ספריות
+  // anvil-state-* שמזמן-השינוי שלהן ישן מ-2 שעות — ספרייה-חיה נכתבת כל 30ש'
+  // (state-interval) ולעולם לא תיפגע; ספרייה-מתה (תהליך שמת / run ישן) מתרוקנת.
+  genTimer("anvil-tmp-janitor", () => {
+    try {
+      const tmpRoot = path.join(process.env.HOME ?? "/home/z", ".foundry", "anvil", "tmp");
+      let freedBytes = 0;
+      for (const entry of fs.readdirSync(tmpRoot)) {
+        const dir = path.join(tmpRoot, entry);
+        try {
+          const st = fs.statSync(dir);
+          if (!st.isDirectory()) continue;
+          if (Date.now() - st.mtimeMs < 2 * 3_600_000) continue; // חיה או טרייה — נוגעים?
+          fs.rmSync(dir, { recursive: true, force: true });
+          freedBytes += st.size;
+        } catch {
+          /* per-entry best effort */
+        }
+      }
+      if (freedBytes > 0) console.log(`[evm-mesh] v98 anvil-tmp janitor: freed ${(freedBytes / 1e9).toFixed(2)}GB of stale anvil state dirs`);
+    } catch {
+      /* janitor is fail-silent by design */
+    }
+  }, 600_000);
   console.log(`[evm-mesh] SERVICE LIVE — state at ${STATE_PATH} · anvil state at ${ANVIL_STATE}`);
   console.log("[evm-mesh] auto-runner v30: REAL WORK every 120s (LLM + anchor) · microgrid oracle (כל 6 הזוגות) + tick + sweep · EXCHANGE CYCLE 4.9 (מסחר חיילים · בוט-ארב' אוצר · קציר→קופת-עבודה · מילוי חיילים · לסדר את הבריכות) · FOUND-MONEY CONNECT 4.10 (חיבור v29: WBNB + WRXP נרשמים על הבורסה החיה · סנכרון-גיבוי WETH לפי המדידה + burn לדלתא שלילית) · PHYSICAL MOVE 4.11 (תזוזה v30: הכסף זז פיזית — sweep-eth/sweep-bsc לבית-האוצר 0x01Bd · פעימת XRPL חתומה כל מחזור עשירי) · ROSE BLOOM (seed-signed, RESHUT-gated) · MAGEN auto-scan hourly · KEEPER mutual-revive (4.8) · CYCLE WATCHDOG 20min v46 (self-terminate on true frozen socket — healthy slow cycles live) · runTick PERSISTED v46 (rotations survive restarts) · provider destroyed per cycle (socket-leak fix) · v62 GENERATION CONVERGENCE (orphan timers self-retire · global single-flight cycle lock — one cycle per moment, across hot-swap generations)");
 }

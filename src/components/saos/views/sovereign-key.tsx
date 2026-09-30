@@ -25,7 +25,6 @@ import {
   ShieldCheck,
   UserCheck,
   Zap,
-  Flame,
   Gem,
   Cpu,
   Users
@@ -118,19 +117,11 @@ export function ViewSovereignKey() {
     <>
       <PageHead
         title="המפתח הריבוני"
-        sub={
-          d.mode === "evidence"
-            ? "מצב-ראיות — המפתח נחתם, הזרימה והגיוס אמת נצחית; הכספת נשרפה (מפתחות חדשים מהבעלים)"
-            : "חייל טוב — מעוגן לכספת, מזרים לנזילות, מגויס ב-mainnet"
-        }
+        sub="חייל טוב — מעוגן לכספת, מזרים לנזילות, מגויס ב-mainnet"
         actions={
-          d.mode === "evidence" ? (
-            <Pill tone="amber">
-              <span className="inline-flex items-center gap-1.5">
-                <Flame size={12} /> מצב-ראיות
-              </span>
-            </Pill>
-          ) : d.ok ? (
+          // v98 truth-fix (9-a #29): the d.mode==="evidence" branch was dead —
+          // the route measures "vault-live" (the burned-vault text is gone).
+          d.ok ? (
             <Pill tone="green">
               <span className="inline-flex items-center gap-1.5">
                 <ShieldCheck size={12} /> חתום בכספת
@@ -147,23 +138,13 @@ export function ViewSovereignKey() {
         <Kpi
           label="מילים חתומות"
           value={d.anchored.present ? `${d.anchored.words ?? 12}` : "—"}
-          hint={
-            d.mode === "evidence"
-              ? "נחתמו בכספת שנשרפה (פקודת-השמדה) — ההוכחות נשארו"
-              : d.anchored.present
-                ? "AES-256-GCM · לעולם לא מוצג"
-                : "המנמוניקה לא בכספת"
-          }
+          hint={d.anchored.present ? "AES-256-GCM · לעולם לא מוצג" : "המנמוניקה לא בכספת"}
           icon={<Lock size={15} />}
         />
         <Kpi
           label="אבן הפינה"
           value="24"
-          hint={
-            d.mode === "evidence"
-              ? "הזרע התפעולי — ממתין לאיטום"
-              : "הזרע התפעולי חתום · 12 סוכנים נגזרים"
-          }
+          hint="הזרע התפעולי חתום · 12 סוכנים נגזרים"
           icon={<Gem size={15} />}
         />
         <Kpi
@@ -175,7 +156,11 @@ export function ViewSovereignKey() {
         <Kpi
           label="TRX שזרם לנזילות"
           value={fmt(flowTotal)}
-          hint={`אוצר headcorner: ${fmt(d.treasury.balanceTrx)} TRX`}
+          hint={
+            flowTotal > 0
+              ? `אוצר headcorner: ${fmt(d.treasury.balanceTrx)} TRX`
+              : `טבלת-הזרימה נבנתה מחדש 09-29 — ההיסטוריה המאומתת (17.6 TRX) מתועדת בפאנל הזרימה · אוצר headcorner: ${fmt(d.treasury.balanceTrx)} TRX`
+          }
           icon={<Coins size={15} />}
         />
         <Kpi

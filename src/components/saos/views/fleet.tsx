@@ -91,6 +91,12 @@ export function ViewFleet() {
   const armTotals = fleet.data?.armLedger?.totals ?? {};
 
   const ready = armedCount(soldiers);
+  // v98 truth-fix (9-a #25): ONE source — the vault roster payload.
+  // Total atoms = soldiers.length; active soldiers = every atom except the
+  // sovereign head (tier "head") — 11 today, matching the measured live-gate
+  // (ynet out of the active fleet 2026-09-30, steem repo).
+  const fleetTotal = soldiers.length;
+  const activeSoldiers = soldiers.filter((s) => s.tier !== "head").length;
 
   const doMint = async () => {
     setMinting(true);
@@ -190,8 +196,8 @@ export function ViewFleet() {
             <Pill tone="gold">
               <Coins size={12} className="ms-1" /> ספקה {fmtInt(mint.data?.supply ?? 0)} SAOS
             </Pill>
-            <Pill tone={ready === (soldiers.length || 11) ? "green" : "amber"}>
-              <Users size={12} className="ms-1" /> {ready}/{soldiers.length || 11} חמושים
+            <Pill tone={ready === fleetTotal ? "green" : "amber"}>
+              <Users size={12} className="ms-1" /> {ready}/{fleetTotal || "—"} חמושים
             </Pill>
           </div>
         }
@@ -215,7 +221,7 @@ export function ViewFleet() {
         <Kpi
           icon={<Users size={15} />}
           label="חיילים חמושים"
-          value={`${ready}/${soldiers.length || 11}`}
+          value={`${ready}/${fleetTotal || "—"}`}
           hint="SAOS/ETH/SOL/RC מעל סף"
           tone={ready > 0 ? "green" : "default"}
         />
@@ -388,7 +394,7 @@ export function ViewFleet() {
                 <div className="mt-auto">
                   <Btn onClick={() => doArm("arm-steem", "STEEM")} disabled={busy} variant="primary" className="w-full">
                     <Send size={14} className="ms-1" />
-                    {arming === "arm-steem" ? "מחמש…" : "חמש את הצי (11 שידורים)"}
+                    {arming === "arm-steem" ? "מחמש…" : `חמש את הצי (${activeSoldiers || "—"} פעילים מתוך ${fleetTotal || "—"})`}
                   </Btn>
                 </div>
               </div>
@@ -407,7 +413,7 @@ export function ViewFleet() {
                 <div className="mt-auto">
                   <Btn onClick={() => doArm("arm-evm", "ETHEREUM")} disabled={busy} variant="primary" className="w-full">
                     <Send size={14} className="ms-1" />
-                    {arming === "arm-evm" ? "מחמש…" : "חמש EVM (11 העברות)"}
+                    {arming === "arm-evm" ? "מחמש…" : `חמש EVM (${activeSoldiers || "—"} פעילים מתוך ${fleetTotal || "—"})`}
                   </Btn>
                 </div>
               </div>
@@ -426,7 +432,7 @@ export function ViewFleet() {
                 <div className="mt-auto">
                   <Btn onClick={() => doArm("arm-sol", "SOLANA")} disabled={busy} variant="secondary" className="w-full">
                     <Send size={14} className="ms-1" />
-                    {arming === "arm-sol" ? "מחמש…" : "חמש SOL (11 העברות)"}
+                    {arming === "arm-sol" ? "מחמש…" : `חמש SOL (${activeSoldiers || "—"} פעילים מתוך ${fleetTotal || "—"})`}
                   </Btn>
                 </div>
               </div>

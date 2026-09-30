@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS v14 — רשתות חיות: רשת-8 שרשראות במדידה חיה.
+ * SAOS v14 — רשתות חיות: רשת-10 שרשראות במדידה חיה.
  * STEEM · HIVE · BLURT · TRON · SAOS-NET (אקוסיסטם קיים)
  *   + ETHEREUM · SOLANA (רכבי-רשת שחיבר הבעלים) + BSC (v14 — אותו מפתח EVM)
  *   + צמדי-DEX חיים (Uniswap V2 + PancakeSwap V2 — read-only).

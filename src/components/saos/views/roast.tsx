@@ -155,7 +155,7 @@ function RoastBody({ d }: { d: RoastData }) {
         <PanelBody className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Kpi label="פאניקות שנרפאו (מצטבר)" value={fmtNum(w.panicCures)} tone="rose" hint="page-500 + page-hang · הריפוי הוכח" />
-            <Kpi label="RSS של next-server" value={w.rssMb != null ? `${fmtNum(w.rssMb)}MB` : "—"} tone={w.rssMb != null && w.rssMb > 1500 ? "rose" : "gold"} hint={`סף מיחזור 1500MB · סה״כ ${fmtNum(w.totalMb)}MB`} />
+            <Kpi label="RSS של next-server" value={w.rssMb != null ? `${fmtNum(w.rssMb)}MB` : "—"} tone={w.rssMb != null && w.rssMb > 1500 ? "rose" : "gold"} hint={`מיחזור-עדין ב-1350MB · קוות-ההרג 1500/1790MB (נמדד) · סה״כ ${fmtNum(w.totalMb)}MB`} />
             <Kpi label="זיכרון פנוי במארח" value={w.availableMb != null ? `${fmtNum(w.availableMb)}MB` : "—"} tone={w.availableMb != null && w.availableMb < 700 ? "rose" : "green"} hint="המארח: 4GB בסה״כ" />
             <Kpi label="החייאות web / runner" value={`${fmtNum(w.webRevives)} / ${fmtNum(w.runnerRevives)}`} hint="האורגניזם מתאחה לבד" />
           </div>
@@ -164,8 +164,8 @@ function RoastBody({ d }: { d: RoastData }) {
               <MeterBar pct={Math.min(100, Math.round((w.rssMb / w.totalMb) * 100))} tone={w.rssMb > 1500 ? "rose" : "gold"} />
               <p className="mt-1.5 text-[11px] text-zinc-500">
                 {w.rssMb > 1500
-                  ? "מעל סף המיחזור — השומר ירסק אותו במחזור הקרוב. זו לא באג — זו הסביבה."
-                  : "צומח. כשיגיע ל-1500MB ימוחזר מראש (לפני שהקרנל יהרוג ב-1790MB)."}
+                  ? "מעל קו-ההרג הבוגר של הקרנל — השומר ירסק אותו במחזור הקרוב. זו לא באג — זו הסביבה."
+                  : "צומח. מיחזור-עדין ב-1350MB · קוות-ההרג 1500/1790MB (נמדד)."}
               </p>
             </div>
           )}
@@ -339,7 +339,7 @@ function RoastBody({ d }: { d: RoastData }) {
               </tbody>
             </Table>
             <p className="mt-3 text-[11px] text-zinc-500 leading-relaxed">
-              אמת מהשדה: קר (אחרי מיחזור) network360 לקח 9.4 שניות — נמדד חי ברוסט זה.
+              אמת מהשדה: קר (אחרי מיחזור) network360 לקח 9.4 שניות — נמדד חי ברוסט v54 — ההיסטוריה; הטבלה למעלה היא האמת הנוכחית.
               חם — מילי-שניות. הפער הזה הוא המחיר של מחזורי ה-purge.
             </p>
           </PanelBody>

@@ -75,6 +75,13 @@ async function statusHandler(): Promise<unknown> {
       orderBy: { createdAt: "desc" },
       select: { txid: true, createdAt: true, meta: true }
     });
+    // v98 — XRPL joins the same honest ledger read: the v96 cornerstone anchor
+    // (tx DF428A52…, ledger 107340977) is a real weave row — never fabricated.
+    const dbXrp = db.anchorTx.findFirst({
+      where: { kind: "weave", network: "XRPL", txid: { not: null }, status: "anchored" },
+      orderBy: { createdAt: "desc" },
+      select: { txid: true, createdAt: true, meta: true }
+    });
     const dbStats = Promise.all([
       db.sealRecord.findMany({
         orderBy: { createdAt: "desc" },
@@ -140,16 +147,29 @@ async function statusHandler(): Promise<unknown> {
       error: `דד-ליין ${RAIL_DEADLINE_MS / 1000}ש' — שורת STEEM נשארת על המצב החי האחרון`
     };
 
-    const [hiveRc, tronLive, steemChain, evmAnchor, solAnchor, zeroAnchor, stats] = await Promise.all([
+    const [hiveRc, tronLive, steemChain, evmAnchor, solAnchor, zeroAnchor, xrpAnchor, stats] = await Promise.all([
       railDeadline(probes.then((p) => p.hiveRc), hiveSentinel),
       railDeadline(probes.then((p) => p.tronLive), tronSentinel),
       railDeadline(probeSteemWeaveHistory(), steemSentinel),
       dbAnchors,
       dbSol,
       dbZero,
+      dbXrp,
       dbStats
     ]);
     const [seals, receipts, opCount, totalSeals, totalReceipts, agg, lastSeal] = stats;
+
+    // v98 — the XRPL ledger index rides in the anchor row's meta (best-effort,
+    // the row itself is the truth; a missing field never blocks the matrix).
+    let xrpLedger: number | null = null;
+    if (xrpAnchor?.meta) {
+      try {
+        const m = JSON.parse(xrpAnchor.meta) as { ledgerIndex?: unknown };
+        if (typeof m.ledgerIndex === "number") xrpLedger = m.ledgerIndex;
+      } catch {
+        // meta is optional enrichment — the txid row is the anchor of record
+      }
+    }
 
     // v9 — LIVE resource gates: the HIVE RC is MEASURED against the public
     // chain (60s cache) and the TRON vault state is probed read-only. On
@@ -202,6 +222,20 @@ async function statusHandler(): Promise<unknown> {
           ? `עוגן גז-אפס (selector-prefix מדוד + weave) · טרנזקציה אחרונה ${shortTx(zeroAnchor.txid)}`
           : "gasPrice מדוד 0x0 על Z Chain — עגינה אמיתית בעלות אפס, הפעימה מוכנה",
         recovery: zeroAnchor ? null : "POST /api/saos/anchor/zero — פעימה חינם (מאומתת חי)"
+      },
+      {
+        // v98 — XRPL joins the matrix (9-a truth audit): the flagship v96
+        // cornerstone anchor is LIVE on the XRPL livenet (tx DF428A52…,
+        // ledger 107340977, confirmedByHistory). The row reads the SAME
+        // weave anchor ledger as the other rails — the gate describes
+        // measured capability/coverage, never a fabricated state.
+        network: "XRPL",
+        status: xrpAnchor ? "anchored" : "pending",
+        gate: xrpAnchor ? null : "awaiting-anchor-row (העוגן הקנוני חי בספר — שורת-הספר תירשם בפעימה הבאה)",
+        detail: xrpAnchor
+          ? `עוגן weave חתום אבן-הפינה (m/44'/144'/0'/0/0) · טרנזקציה אחרונה ${shortTx(xrpAnchor.txid)}${xrpLedger ? ` · ledger ${xrpLedger}` : ""}`
+          : "חשבון אבן-הפינה r3Tq66 חי וחתום מהזרע (selfVerified) — שורת-עוגן תירשם בפעימה הבאה",
+        recovery: xrpAnchor ? null : "POST /api/saos/anchor/xrp — פעימה חיה (12 drops, מדוד)"
       }
     );
 

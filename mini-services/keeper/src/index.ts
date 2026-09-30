@@ -302,6 +302,63 @@ function loopbackAuthHeaders(): Record<string, string> {
   return loopbackAuthCache;
 }
 
+// 9-e — one-net heartbeat (רשת-אחת): ONE signed beat per minute inside the
+// 10s master loop (every 6th cycle), fire-and-forget + fail-silent — a beat
+// failure must NEVER crash or delay the loop (the beat route may not even be
+// deployed yet: 404 = honest skip, the next cadence retries). The key is read
+// fresh with a 30s TTL (rotation-resilient — unlike the cache-once loopback
+// headers above), never logged, never journaled — plaintext never leaves
+// this function.
+const BEAT_EVERY = 6; // every 6th 10s cycle = 60s
+const BEAT_URL = "http://127.0.0.1:3000/api/saos/one-net/beat";
+let beatKeyCache: { key: string | null; at: number } | null = null;
+function beatKey(): string | null {
+  const now = Date.now();
+  if (beatKeyCache && now - beatKeyCache.at < 30_000) return beatKeyCache.key;
+  let key: string | null = null;
+  try {
+    const raw = fs.readFileSync(ADMIN_KEY_FILE, "utf8").trim();
+    key = raw.length >= 16 ? raw : null; // מפתח ריק/קצר — לא הופך bearer תקף
+  } catch {
+    key = null; // missing file — fail-silent, the next cadence retries
+  }
+  beatKeyCache = { key, at: now };
+  return key;
+}
+async function beatOneNet(payload: Record<string, unknown>): Promise<void> {
+  try {
+    const key = beatKey();
+    if (!key) return; // fail-silent — a beat failure must never crash the loop
+    const body = JSON.stringify({ source: "keeper", vitality: "live", payload });
+    if (body.length > 2048) return; // contract: ≤2KB (ours is tiny by construction)
+    const res = await fetch(BEAT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body,
+      signal: AbortSignal.timeout(5_000)
+    });
+    if (res.ok) console.log(`[keeper] one-net beat ok (${body.length}B)`);
+    // 404 (route not yet deployed) / 401 / network — honest silent skip
+  } catch {
+    /* fail-silent — the next cadence retries */
+  }
+}
+/** the keeper's beat digest — members vitality + memory + backups + uptime */
+function keeperBeatPayload(): Record<string, unknown> {
+  return {
+    members: {
+      web: S.failStreak === 0 && S.lastOkAt !== null,
+      anvil: S.anvilOk === true,
+      runner: S.runnerSeen === true,
+      herald: S.heraldAlive === true,
+      swarm: S.swarmAlive === true
+    },
+    memory: { availableMb: S.mem.availableMb, nextRssMb: S.mem.nextRssMb },
+    backups: { ok: S.backups.ok, miss: S.backups.miss, lastAt: S.backups.lastAt },
+    uptimeSec: Math.round((Date.now() - Date.parse(S.startedAt)) / 1000)
+  };
+}
+
 // ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
 
 interface KeeperRuntime {
@@ -2037,6 +2094,13 @@ async function cycle(): Promise<void> {
   //     only hands on the mirror. Web down = honest wait.
   if (RT.cycle === RESERVES_FIRST_AT || (RT.cycle > RESERVES_FIRST_AT && (RT.cycle - RESERVES_FIRST_AT) % RESERVES_EVERY === 0)) {
     await checkReserves();
+  }
+
+  // 9-e — one-net beat: ONE signed heartbeat per minute (fire-and-forget,
+  // fail-silent) — members vitality + memory + backups + uptime, numbers
+  // and booleans only, never key material.
+  if (RT.cycle % BEAT_EVERY === 0) {
+    void beatOneNet(keeperBeatPayload());
   }
 }
 

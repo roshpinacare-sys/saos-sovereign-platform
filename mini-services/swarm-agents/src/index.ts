@@ -217,6 +217,67 @@ function journal(agent: string, kind: string, detail: string): void {
   }
 }
 
+// ─── one-net heartbeat (9-e · רשת-אחת) ──────────────────────────────────────
+
+// ONE signed beat per 45s cadence (piggybacks gold-scout's poll window — ONE
+// beat for the whole swarm, not one per agent), fail-silent — a beat failure
+// must NEVER crash the poll loop (the beat route may not even be deployed
+// yet: 404 = honest skip, the next cadence retries). The key is read fresh
+// with a 30s TTL, never logged, never journaled — plaintext never leaves
+// this function.
+const BEAT_URL = "http://127.0.0.1:3000/api/saos/one-net/beat";
+const BEAT_KEY_FILE = "/home/z/.secrets/saos-admin-key";
+let beatKeyCache: { key: string | null; at: number } | null = null;
+function beatKey(): string | null {
+  const now = Date.now();
+  if (beatKeyCache && now - beatKeyCache.at < 30_000) return beatKeyCache.key;
+  let key: string | null = null;
+  try {
+    const raw = fs.readFileSync(BEAT_KEY_FILE, "utf8").trim();
+    key = raw.length >= 16 ? raw : null; // מפתח ריק/קצר — לא הופך bearer תקף
+  } catch {
+    key = null; // missing file — fail-silent, the next cadence retries
+  }
+  beatKeyCache = { key, at: now };
+  return key;
+}
+async function beatOneNet(payload: Record<string, unknown>): Promise<void> {
+  try {
+    const key = beatKey();
+    if (!key) return; // fail-silent — a beat failure must never crash the loop
+    const body = JSON.stringify({ source: "swarm", vitality: "live", payload });
+    if (body.length > 2048) return; // contract: ≤2KB (ours is tiny by construction)
+    const res = await fetch(BEAT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body,
+      signal: AbortSignal.timeout(5_000)
+    });
+    if (res.ok) console.log(`[swarm] one-net beat ok (${body.length}B)`);
+    // 404 (route not yet deployed) / 401 / network — honest silent skip
+  } catch {
+    /* fail-silent — the next cadence retries */
+  }
+}
+
+/** the swarm's beat digest — agents armed + issues ledger + LLM engine health */
+function swarmBeatPayload(): Record<string, unknown> {
+  let issuesOpen = 0;
+  try {
+    issuesOpen = readIssues().filter((i) => i.status === "open").length;
+  } catch {
+    issuesOpen = 0; // honest 0 — the ledger reader never throws past here
+  }
+  return {
+    agents: [
+      { name: GOLD.name, armed: GOLD.identity !== null },
+      { name: NIGHT.name, armed: NIGHT.identity !== null }
+    ],
+    issuesOpen,
+    llm: { ok: SWARM.llm.ok, fail: SWARM.llm.fail }
+  };
+}
+
 // ─── v76 פנקס העניינים (THE ISSUES LEDGER) — the agents' own folder ───────
 // הוראת הבעלים: "תעלה את הסוגיה בתיקיה של הסוכנים" — the issues live in OUR
 // folder (issues/), and we read them from the file system on every boot and
@@ -1077,7 +1138,11 @@ void (async () => {
   }
 })();
 
-RT.timers.push(setInterval(() => void pollOnce(GOLD), POLL_MS));
+// 9-e — one-net beat: piggybacks the 45s poll (gold's window — ONE beat per
+// cadence for the whole swarm), fired after the poll settles, fail-silent.
+RT.timers.push(
+  setInterval(() => void pollOnce(GOLD).finally(() => void beatOneNet(swarmBeatPayload())), POLL_MS)
+);
 RT.timers.push(setInterval(() => void pollOnce(NIGHT), POLL_MS));
 RT.timers.push(setInterval(() => void goldWorkCycle(), GOLD_WORK_MS));
 RT.timers.push(setInterval(() => void nightPatrol(), NIGHT_PATROL_MS));
