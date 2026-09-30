@@ -231,3 +231,68 @@ export async function probeAgentsNet(opts: { force?: boolean } = {}): Promise<Ag
     inflight = null;
   }
 }
+
+// ─── v95 — the organism's agent-verify report (Domain/Console) ─────────────
+// The verify bots push every few minutes (money-watch etc.) so the LATEST
+// commit is usually NOT the last verify report. This fetches recent commits
+// and returns the first message that carries an "agent-verify:" verdict —
+// the honest population count of the organism's own agents (verified/total
+// · suspended). Read-only, 10-min cache, never throws.
+
+export interface OrganismVerifyReport {
+  repo: string;
+  verified: number;
+  total: number;
+  suspended: number;
+  state: string;
+  measuredAt: string;
+}
+
+const VERIFY_TTL_MS = 10 * 60_000;
+const verifyCache: Map<string, { at: number; value: OrganismVerifyReport | null }> = new Map();
+
+function parseVerifyCounts(msg: string): { verified: number; total: number; suspended: number; state: string } | null {
+  const m = msg.match(/(\d+)\s*\/\s*(\d+)/);
+  if (!m) return null;
+  const s = msg.match(/(\d+)\s+suspended/);
+  const stateMatch = msg.match(/agent-verify:\s*([A-Z_]+)/);
+  return {
+    verified: Number(m[1]),
+    total: Number(m[2]),
+    suspended: s ? Number(s[1]) : 0,
+    state: stateMatch ? stateMatch[1] : "REPORT"
+  };
+}
+
+export async function latestOrganismVerify(
+  owner: string,
+  repo: string
+): Promise<OrganismVerifyReport | null> {
+  const cached = verifyCache.get(repo);
+  if (cached && Date.now() - cached.at < VERIFY_TTL_MS) return cached.value;
+  try {
+    const token = await readToken();
+    if (!token) {
+      verifyCache.set(repo, { at: Date.now(), value: null });
+      return null;
+    }
+    const commits = await gh<GhCommit[]>(`/repos/${owner}/${repo}/commits?per_page=40`, token);
+    for (const c of commits ?? []) {
+      const msg = (c.commit?.message ?? "").split("\n")[0] ?? "";
+      if (!msg.includes("agent-verify")) continue;
+      const parsed = parseVerifyCounts(msg);
+      if (!parsed) continue;
+      const value: OrganismVerifyReport = {
+        repo,
+        ...parsed,
+        measuredAt: c.commit?.author?.date ?? new Date().toISOString()
+      };
+      verifyCache.set(repo, { at: Date.now(), value });
+      return value;
+    }
+    verifyCache.set(repo, { at: Date.now(), value: null });
+    return null;
+  } catch {
+    return null; // unmeasured — honest absence, never a fabricated count
+  }
+}

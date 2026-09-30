@@ -184,7 +184,7 @@ export function ViewFleet() {
     <div>
       <PageHead
         title="חימוש הצי"
-        sub="ה-mint הקטן של SAOS + יתרות-פעולה אמיתיות ל-11 החיילים על STEEM · ETHEREUM · SOLANA — עם עתודת-פיתוח שנשארת אצל הריבון, ושערים-כנים על HIVE · TRON."
+        sub={`ה-mint הקטן של SAOS + יתרות-פעולה אמיתיות ל-${soldiers.length || "—"} חיילי-הכספת (רוסטר חי מהמעטפת) על STEEM · ETHEREUM · SOLANA — עם עתודת-פיתוח שנשארת אצל הריבון, ושערים-נמדדים על HIVE · TRON.`}
         actions={
           <div className="flex items-center gap-2">
             <Pill tone="gold">
@@ -439,7 +439,7 @@ export function ViewFleet() {
                 </div>
                 <div className="text-[11px] text-zinc-400 space-y-1">
                   <div>אותה כתובת ריבונית כמו באיתריום: <span dir="ltr">{short(sovereign?.evm.address ?? "—")}</span> · מאזן BNB טרם הוקצה — מדידה דרוך מכ״ם-הרשתות.</div>
-                  <div>הקצאת BNB קטנה (≈0.003) תפתח: עוגן-weave + פריסת חוזה הממסר וחימוש 11 החיילים באותו קוד.</div>
+                  <div>הקצאת BNB קטנה (≈0.003) תפתח: עוגן-weave + פריסת חוזה הממסר וחימוש {soldiers.length || "—"} חיילי-הכספת באותו קוד.</div>
                   <div className="text-amber-300/80">החלפת ~1$ דרך גשר חוצה-שרשראות עולה יותר מ-1$ — הקצאה ישירה היא המסלול הריבוני.</div>
                 </div>
               </div>

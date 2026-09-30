@@ -34,7 +34,19 @@ function railDeadline<T>(p: Promise<T>, sentinel: T): Promise<T> {
   ]);
 }
 
-export async function GET() {
+// ─── v95 — response-level SWR (the 2.5s×N-requests fix) ───────────────────
+// The rail deadline caps a COLD read at 2.5s, but the dashboard polls this
+// route every few seconds — every poll paid the cold price whenever the
+// probe caches expired together (measured: 2.5s × N in dev.log).
+// Now the ASSEMBLED payload is cached 30s: instant serve from cache,
+// one-flight background rebuild. `ok:false` results are never cached —
+// a failed read must not poison the next 30 seconds.
+const SWR_TTL_MS = 30_000;
+const SWR_STALE_MS = 120_000;
+let swr: { at: number; data: unknown } | null = null;
+let swrInflight: Promise<unknown> | null = null;
+
+async function statusHandler(): Promise<unknown> {
   try {
     // R16 — שער-המארג: סקר-חיות רקע כל 30ש' מחמם את מטמונות-הפרובים
     // (60/90/60ש') — כך שהפרובים-להלן פוגעים במטמון חם במקום לרכוב על
@@ -294,4 +306,32 @@ export async function GET() {
       { status: 200 } // the API never 500s — errors are data
     );
   }
+}
+
+async function buildStatusInner(): Promise<unknown> {
+  const res = await statusHandler();
+  const j = res as NextResponse;
+  try {
+    const body = (await j.json()) as Record<string, unknown>;
+    if (body.ok !== false) swr = { at: Date.now(), data: body }; // cache successes only
+    return body;
+  } catch {
+    return res;
+  }
+}
+
+export async function GET() {
+  // v95 SWR: fresh cache → instant. stale cache → instant + background
+  // one-flight rebuild. nothing → build now (first hit after cold start).
+  if (swr) {
+    const age = Date.now() - swr.at;
+    if (age < SWR_TTL_MS) return NextResponse.json(swr.data);
+    if (age < SWR_STALE_MS) {
+      if (!swrInflight) swrInflight = buildStatusInner().finally(() => { swrInflight = null; });
+      return NextResponse.json(swr.data); // stale-while-revalidate
+    }
+  }
+  if (!swrInflight) swrInflight = buildStatusInner().finally(() => { swrInflight = null; });
+  const data = await swrInflight;
+  return NextResponse.json(data);
 }

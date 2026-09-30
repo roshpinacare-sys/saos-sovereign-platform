@@ -21,11 +21,25 @@
  * לכל מסמך — איזה סוכן כתב אותו, ומאיזה ערוץ הגיע.
  */
 
-import { Activity, ExternalLink, GitCommit, Inbox, Radio, RadioTower, Star, Users } from "lucide-react";
+import { Activity, ExternalLink, GitCommit, Inbox, Radio, RadioTower, ShieldCheck, Star, Users } from "lucide-react";
 import { Btn, Callout, CopyBtn, ErrorNotice, Kpi, Panel, PanelBody, PanelHeader, Pill, Skeleton, Tag } from "../ui";
 import { fmtInt, timeAgo, useLive, useTick } from "../lib";
-import type { AgentsNetData, BroadcastsData } from "../types";
+import type { AgentCensusData, AgentsNetData, BroadcastsData } from "../types";
 import { PageHead } from "../shell";
+
+const VITALITY: Record<string, { dot: string; label: string; pill: "green" | "amber" | "zinc" | "rose" }> = {
+  alive: { dot: "bg-emerald-400", label: "חי — נמדד", pill: "green" },
+  dormant: { dot: "bg-zinc-500", label: "רדום/אטום", pill: "zinc" },
+  unknown: { dot: "bg-amber-400", label: "לא נמדד", pill: "amber" }
+};
+
+const LAYER_LABEL: Record<string, string> = {
+  service: "שירותי-הפלטפורמה",
+  identity: "זהויות-שער",
+  "vault-fleet": "צי-הכספת",
+  repo: "ריפואי-האורגניזם",
+  organism: "אורגניזם-חוץ"
+};
 
 const FRESHNESS_TONE: Record<string, { dot: string; label: string; pill: "green" | "amber" | "zinc" | "rose" }> = {
   live: { dot: "bg-emerald-400", label: "פעיל-כרגע", pill: "green" },
@@ -38,6 +52,7 @@ export function ViewAgents() {
   useTick(15000);
   const net = useLive<AgentsNetData>("/api/saos/agents-net", 30000);
   const bc = useLive<BroadcastsData>("/api/saos/broadcasts", 60000);
+  const census = useLive<AgentCensusData>("/api/saos/agent-census", 60000);
 
   if (net.error && !net.data) {
     return <ErrorNotice message={net.error} onRetry={net.refresh} />;
@@ -56,6 +71,111 @@ export function ViewAgents() {
           </Btn>
         }
       />
+
+      {/* ── v95 · מצבת-האמת המאוחדת (THE UNIFIED AGENT CENSUS) ── */}
+      <Panel>
+        <PanelHeader
+          icon={<ShieldCheck size={15} />}
+          title="מצבת-האמת המאוחדת (v95)"
+          sub="כל שכבות-הסוכנים במדידה אחת: שירותים · זהויות-שער · צי-הכספת · ריפואי-האורגניזם · דוחות אימות-חוץ. חי = נמדד בסבב זה — אף מספר מוצהר ללא מדידה"
+          actions={
+            <Btn variant="ghost" size="xs" onClick={() => census.refresh()}>
+              <Activity size={11} /> ספירה טרייה
+            </Btn>
+          }
+        />
+        <PanelBody>
+          {census.loading && !census.data ? (
+            <Skeleton className="h-40 rounded-xl" />
+          ) : census.data && !census.data.ok ? (
+            <Callout tone="rose">מצבת-האמת נכשלה: {census.data.error}</Callout>
+          ) : census.data ? (
+            <div className="space-y-4">
+              {/* totals */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3">
+                  <div className="text-2xl font-black text-emerald-300 tabular-nums">{census.data.totals.alive}</div>
+                  <div className="text-[10px] text-emerald-200/70">חיים — נמדדו בסבב זה</div>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="text-2xl font-black text-zinc-300 tabular-nums">{census.data.totals.dormant}</div>
+                  <div className="text-[10px] text-zinc-500">רדומים/אטומים — קיימים, לא פעילים כעת</div>
+                </div>
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3">
+                  <div className="text-2xl font-black text-amber-300 tabular-nums">{census.data.totals.unknown}</div>
+                  <div className="text-[10px] text-amber-200/70">לא נמדדו — המדידה נכשלה</div>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="text-2xl font-black text-zinc-100 tabular-nums">{census.data.totals.total}</div>
+                  <div className="text-[10px] text-zinc-500">סה״כ סוכנים במצבת — ספירה אחת, אמת אחת</div>
+                </div>
+              </div>
+
+              {/* layer breakdown */}
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(census.data.layers).map(([layer, l]) => (
+                  <Pill key={layer} tone={l.alive === l.total ? "green" : l.alive > 0 ? "amber" : "zinc"}>
+                    {LAYER_LABEL[layer] ?? layer}: {l.alive}/{l.total} חיים
+                  </Pill>
+                ))}
+                {census.data.organismVerify.map((v) => (
+                  <Pill key={v.repo} tone={v.verified === v.total ? "green" : "amber"}>
+                    {v.repo} אימות-חוץ: {v.verified}/{v.total}{v.suspended > 0 ? ` · ${v.suspended} מושהים` : ""}
+                  </Pill>
+                ))}
+              </div>
+
+              {/* honest notes */}
+              {census.data.notes.length > 0 && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-2.5 space-y-1">
+                  {census.data.notes.slice(0, 6).map((n, i) => (
+                    <p key={i} className="text-[10px] text-amber-200/80 leading-relaxed">• {n}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* agent rows — grouped, scrollable */}
+              <div className="max-h-96 overflow-y-auto scroll-slim rounded-xl border border-white/[0.06]">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-zinc-950/95 backdrop-blur">
+                    <tr className="text-zinc-500">
+                      <th className="text-right px-3 py-2 font-medium">סוכן</th>
+                      <th className="text-right px-3 py-2 font-medium hidden md:table-cell">שכבה</th>
+                      <th className="text-right px-3 py-2 font-medium">מצב</th>
+                      <th className="text-right px-3 py-2 font-medium hidden lg:table-cell">מדידה</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {census.data.agents.map((a, i) => {
+                      const v = VITALITY[a.vitality] ?? VITALITY.unknown!;
+                      return (
+                        <tr key={`${a.layer}-${a.name}-${i}`} className="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                          <td className="px-3 py-2">
+                            <div className="font-semibold text-zinc-100" dir="ltr">{a.name}</div>
+                            <div className="text-[10px] text-zinc-500 line-clamp-1">{a.role}</div>
+                          </td>
+                          <td className="px-3 py-2 hidden md:table-cell">
+                            <Tag>{LAYER_LABEL[a.layer] ?? a.layer}</Tag>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className={`h-1.5 w-1.5 rounded-full ${v.dot}`} />
+                              <span className="text-[10px] text-zinc-400">{v.label}</span>
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 hidden lg:table-cell">
+                            <span className="text-[10px] text-zinc-500 line-clamp-1">{a.detail}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </PanelBody>
+      </Panel>
 
       {/* KPI */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">

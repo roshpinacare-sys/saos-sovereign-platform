@@ -254,44 +254,117 @@ function buildInventory(bundle: SealedBundle): SealInventory {
   // while the head (headcorner, tier=head, mode=recovered-from-operator)
   // lists chains as a bare array ["steem","hive"] with keys organized by
   // network. Both shapes are handled honestly below.
+  // v95 FLEET UNION (the "dead agents" fix): the FULL soldiers fleet sealed
+  // in v94 as keys/soldiers-vault.json (Z-20-era: accounts ARRAY of
+  // {agent|username, keys…}, older generations name-keyed maps) is now parsed
+  // INTO THE SAME INVENTORY — before this fix the roster showed only the
+  // head roster (1 agent) while 12 sealed soldiers sat invisible in the
+  // envelope. Union across both members, dedupe by username (head roster
+  // wins for shared names), fail-open per member (a malformed member never
+  // blanks the fleet — honesty over silence: missing member = fewer rows,
+  // never fabricated ones).
   const fleet: SealFleetMember[] = [];
+  const fleetIndex = new Map<string, number>();
+  const pushFleetMember = (m: SealFleetMember) => {
+    const name = m.username.trim();
+    if (!name) return;
+    const existing = fleetIndex.get(name);
+    if (existing !== undefined) {
+      // merge chain coverage across shapes for the same identity
+      const prev = fleet[existing]!;
+      fleet[existing] = {
+        ...prev,
+        chains: Array.from(new Set([...prev.chains, ...m.chains])),
+        keyRoles: Array.from(new Set([...prev.keyRoles, ...m.keyRoles])),
+        hasSteem: prev.hasSteem || m.hasSteem,
+        hasHive: prev.hasHive || m.hasHive
+      };
+      return;
+    }
+    fleetIndex.set(name, fleet.length);
+    fleet.push(m);
+  };
+  const parseFleetEntry = (raw: unknown, nameFallback?: string): SealFleetMember | null => {
+    if (typeof raw === "string") {
+      const name = raw.trim();
+      return name
+        ? { username: name, tier: name === "headcorner" ? "head" : "soldier", mode: "sealed", chains: [], keyRoles: [], hasSteem: false, hasHive: false }
+        : null;
+    }
+    if (!raw || typeof raw !== "object") return null;
+    const entry = raw as Record<string, unknown>;
+    const username = String(entry.agent ?? entry.username ?? entry.name ?? nameFallback ?? "").trim();
+    if (!username) return null;
+
+    const chainsRaw = entry.chains ?? {};
+    let chainNames: string[] = [];
+    let steemRoles: string[] = [];
+    let hiveRoles: string[] = [];
+    const keysRaw = (entry.keys ?? null) as Record<string, unknown> | null;
+    if (Array.isArray(chainsRaw)) {
+      // head shape: chains = ["steem","hive"], keys = {steem:{…},hive:{…}}
+      chainNames = chainsRaw.map(String);
+      const keysByNet = (entry.keys ?? {}) as Record<string, Record<string, unknown>>;
+      for (const net of chainNames) {
+        const roles = Object.keys(keysByNet[net] ?? {});
+        if (net === "steem") steemRoles = roles;
+        if (net === "hive") hiveRoles = roles;
+      }
+    } else if (chainsRaw && typeof chainsRaw === "object") {
+      // soldier shape: chains = {steem:[roles], hive:[roles]}
+      const chains = chainsRaw as Record<string, string[]>;
+      chainNames = Object.keys(chains);
+      steemRoles = chains.steem ?? [];
+      hiveRoles = chains.hive ?? [];
+    } else if (keysRaw && typeof keysRaw === "object") {
+      // Z-20 soldiers shape: keys = {steem:{posting:…,active:…}, hive:{posting:…}}
+      for (const [net, val] of Object.entries(keysRaw)) {
+        if (!val || typeof val !== "object") continue;
+        chainNames.push(net);
+        const roles = Object.keys(val as Record<string, unknown>);
+        if (net === "steem") steemRoles = roles;
+        if (net === "hive") hiveRoles = roles;
+      }
+    }
+    return {
+      username,
+      tier: String(entry.tier ?? (username === "headcorner" ? "head" : "soldier")),
+      mode: String(entry.mode ?? "sealed"),
+      chains: Array.from(new Set(chainNames)),
+      keyRoles: Array.from(new Set([...steemRoles, ...hiveRoles])),
+      hasSteem: steemRoles.length > 0,
+      hasHive: hiveRoles.length > 0
+    };
+  };
+  // member 1 — the head roster (keys/vault.json, all known shapes)
   try {
     const vaultJson = JSON.parse(bundle.files["keys/vault.json"] ?? "{}") as {
-      accounts?: Record<string, Record<string, unknown>>;
+      accounts?: unknown;
     };
-    for (const entry of Object.values(vaultJson.accounts ?? {})) {
-      const chainsRaw = entry.chains ?? {};
-      let chainNames: string[] = [];
-      let steemRoles: string[] = [];
-      let hiveRoles: string[] = [];
-      if (Array.isArray(chainsRaw)) {
-        // head shape: chains = ["steem","hive"], keys = {steem:{…},hive:{…}}
-        chainNames = chainsRaw.map(String);
-        const keysByNet = (entry.keys ?? {}) as Record<string, Record<string, unknown>>;
-        for (const net of chainNames) {
-          const roles = Object.keys(keysByNet[net] ?? {});
-          if (net === "steem") steemRoles = roles;
-          if (net === "hive") hiveRoles = roles;
-        }
-      } else {
-        // soldier shape: chains = {steem:[roles], hive:[roles]}
-        const chains = chainsRaw as Record<string, string[]>;
-        chainNames = Object.keys(chains);
-        steemRoles = chains.steem ?? [];
-        hiveRoles = chains.hive ?? [];
+    const rawAccounts = vaultJson.accounts ?? {};
+    if (Array.isArray(rawAccounts)) rawAccounts.forEach((e) => { const m = parseFleetEntry(e); if (m) pushFleetMember(m); });
+    else if (rawAccounts && typeof rawAccounts === "object")
+      for (const [k, v] of Object.entries(rawAccounts as Record<string, unknown>)) {
+        const m = parseFleetEntry(v, k);
+        if (m) pushFleetMember(m);
       }
-      fleet.push({
-        username: String(entry.username ?? ""),
-        tier: String(entry.tier ?? ""),
-        mode: String(entry.mode ?? ""),
-        chains: chainNames,
-        keyRoles: Array.from(new Set([...steemRoles, ...hiveRoles])),
-        hasSteem: steemRoles.length > 0,
-        hasHive: hiveRoles.length > 0
-      });
-    }
   } catch {
     // fleet section absent → empty list, not an error
+  }
+  // member 2 — the v94-sealed FULL soldiers fleet (keys/soldiers-vault.json)
+  try {
+    const soldiersJson = JSON.parse(bundle.files["keys/soldiers-vault.json"] ?? "{}") as {
+      accounts?: unknown;
+    };
+    const rawSoldiers = soldiersJson.accounts ?? soldiersJson;
+    if (Array.isArray(rawSoldiers)) rawSoldiers.forEach((e) => { const m = parseFleetEntry(e); if (m) pushFleetMember(m); });
+    else if (rawSoldiers && typeof rawSoldiers === "object")
+      for (const [k, v] of Object.entries(rawSoldiers as Record<string, unknown>)) {
+        const m = parseFleetEntry(v, k);
+        if (m) pushFleetMember(m);
+      }
+  } catch {
+    // soldiers member absent → head roster alone (pre-v94 envelopes)
   }
 
   // Wallets — public watch addresses only

@@ -37,6 +37,7 @@ import { readSealInventory, readSovereignWallets, withRoleWif, withVaultMember, 
 import { deriveSovereignEvm } from "./anchor-evm";
 import { deriveHeadcornerSol } from "./cornerstone-derive";
 import { saosLedger } from "./saos-mint";
+import { probeTronVault } from "./tron-live";
 import { ethers } from "ethers";
 import { assertTrustedEndpoints } from "./security";
 
@@ -64,7 +65,7 @@ export interface ArmPolicy {
   gatesHe: { hive: string; tron: string };
 }
 
-export function armPolicy(): ArmPolicy {
+export function armPolicy(): Omit<ArmPolicy, "gatesHe"> & { gatesHe: { hive: string; tron: string } } {
   return {
     steem: {
       delegateVests: STEEM_DELEGATE_VESTS,
@@ -74,11 +75,31 @@ export function armPolicy(): ArmPolicy {
     },
     evm: { perSoldierEth: EVM_PER_SOLDIER_ETH, reserveFloorEth: EVM_RESERVE_FLOOR_ETH },
     sol: { perSoldierSol: SOL_PER_SOLDIER, reserveFloorSol: SOL_RESERVE_FLOOR },
-    gatesHe: {
-      hive: "חסום בכנות: RC של headcorner ≈ 0% ואין HP להאצלה — החיילים קיימים ברשת אך חסרי משאב שידור",
-      tron: "חסום בכנות: 0 TRX בצי — האנרגזייז דורש הימור TRX חיצוני (אין מקור מימון בכספת)"
-    }
+    // v95 — static stale text REMOVED. Gates are MEASURED per roster read
+    // (measuredGatesHe below): the v94-era hardcoded "RC ≈ 0%" claim lied
+    // while the live chain showed 100%. Never again a wish-sheet string.
+    gatesHe: { hive: "—", tron: "—" }
   };
+}
+
+/** v95 — measured gates: the honest verdicts derive from the SAME live
+ *  numbers the roster just measured (rcPct, fleet TRX). */
+export function measuredGatesHe(input: {
+  rcPct: number | null;
+  fleetTrx: number;
+}): ArmPolicy["gatesHe"] {
+  const rc = input.rcPct;
+  const hiveGate =
+    rc === null
+      ? "שער-HIVE לא נמדד בסבב זה (קריאת-ה-RC נכשלה) — אין הצהרה"
+      : rc < 10
+        ? `חסום בכנות: RC נמדד ${rc.toFixed(1)}% (מתחת לרצפה 10%) — הפעמה הבאה תעגן כשה-RC יתאושש`
+        : `פתוח לפי מדידה: RC נמדד ${rc.toFixed(1)}% מעל הרצפה — העיגון הבא ירתה בפועל`;
+  const tronGate =
+    input.fleetTrx <= 0
+      ? "חסום בכנות: 0 TRX נמדדו בכל הצי — האנרגזייז דורשת הימור TRX חיצוני (אין מקור מימון בכספת)"
+      : `פתוח לפי מדידה: ${input.fleetTrx.toFixed(3)} TRX בצי — מסילת-האנרג'י זמינה`;
+  return { hive: hiveGate, tron: tronGate };
 }
 
 // ─── shared chain probes ───────────────────────────────────────────────────
@@ -310,7 +331,24 @@ export async function fleetRoster(): Promise<FleetRoster> {
       }
     : null;
 
-  const value: FleetRoster = { ok: true, soldiers, sovereign, policy: armPolicy(), saosSupply: ledger.supply, measuredAt };
+  // v95 — gates from the measured numbers, not from a stale hardcoded string.
+  // RC: from the same STEEM RC sweep this roster just ran. TRON: from the
+  // cached fleet-vault probe (tron-live, 60s+ cache — never a per-request hit).
+  const hcRc = steemMap.get("headcorner")?.rcPct ?? null;
+  let fleetTrx = 0;
+  try {
+    const tronAddrs = wallets.map((w) => w.tron).filter((a): a is string => !!a);
+    const tron = await probeTronVault(tronAddrs);
+    fleetTrx = tron.ok ? tron.totalBalanceTrx : 0;
+  } catch {
+    fleetTrx = 0; // honest zero — the gate text says what it measured
+  }
+  const policy: ArmPolicy = {
+    ...armPolicy(),
+    gatesHe: measuredGatesHe({ rcPct: hcRc, fleetTrx })
+  };
+
+  const value: FleetRoster = { ok: true, soldiers, sovereign, policy, saosSupply: ledger.supply, measuredAt };
   rosterCache = { at: Date.now(), value };
   return value;
 }

@@ -571,3 +571,71 @@
 {"t":"2026-09-30T15:30:56.568Z","kind":"pressure","detail":"RSS 1850MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
 {"t":"2026-09-30T15:30:56.569Z","kind":"web-recycle","detail":"pre-OOM recycle #3: RSS 1850MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
 {"t":"2026-09-30T15:31:01.577Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #3)"}
+{"t":"2026-09-30T15:31:09.517Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
+{"t":"2026-09-30T15:31:56.535Z","kind":"pressure","detail":"RSS 1494MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:32:58.158Z","kind":"pressure","detail":"RSS 1699MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:33:36.812Z","kind":"agri-error","detail":"agri-field tick non-OK HTTP 403 — honest wait, next window in 5 min"}
+{"t":"2026-09-30T15:33:39.255Z","kind":"sync-drifted","detail":"sync-radar finding: dirty-tree (ahead=16 behind=0 · 8 uncommitted files — engineer work in flight) — honest finding, never an action; the hands on local history stay in HQ"}
+{"t":"2026-09-30T15:33:56.550Z","kind":"pressure","detail":"RSS 2012MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-30T15:33:56.550Z","kind":"web-recycle","detail":"pre-OOM recycle #4: RSS 2012MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-30T15:33:56.552Z","kind":"sovereignty-miss","detail":"census unreachable: Unable to connect. Is the computer able to access the url? — next window retries"}
+{"t":"2026-09-30T15:34:01.553Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #4)"}
+{"t":"2026-09-30T15:34:12.447Z","kind":"web-degraded","detail":"web tier alive but not answering in 6s — watched (wedged-cure fires at ×30 = 300s total silence)"}
+{"t":"2026-09-30T15:34:16.458Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
+{"t":"2026-09-30T15:34:16.458Z","kind":"web-degraded-ok","detail":"web tier fast again (HTTP 200)"}
+{"t":"2026-09-30T15:34:56.557Z","kind":"pressure","detail":"RSS 1742MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:35:56.537Z","kind":"pressure","detail":"RSS 1640MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:36:56.532Z","kind":"pressure","detail":"RSS 1704MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:37:56.539Z","kind":"pressure","detail":"RSS 1717MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:38:26.774Z","kind":"backup-miss","detail":"snapshot refused/failed #2: 403"}
+{"t":"2026-09-30T15:38:37.763Z","kind":"agri-error","detail":"agri-field tick non-OK HTTP 403 — honest wait, next window in 5 min"}
+{"t":"2026-09-30T15:38:56.767Z","kind":"pressure","detail":"RSS 1801MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-30T15:38:56.767Z","kind":"web-recycle","detail":"pre-OOM recycle #5: RSS 1801MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-30T15:39:01.769Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #5)"}
+{"t":"2026-09-30T15:39:11.993Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
+{"t":"2026-09-30T15:39:56.545Z","kind":"pressure","detail":"RSS 2005MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:40:00.022Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-30T15:40:00.029Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — no result — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-30T15:41:36.449Z","kind":"web-dead","detail":"web tier connection refused ×7 — confirmed death"}
+{"t":"2026-09-30T15:41:36.453Z","kind":"web-revive","detail":"web tier dead (connection refused ×7) — bun run dev spawned detached, revive #1"}
+{"t":"2026-09-30T15:41:49.074Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #1"}
+{"t":"2026-09-30T15:42:03.656Z","kind":"restore-drill-ok","detail":"#1 — PASS(undetailed)"}
+{"t":"2026-09-30T15:42:58.503Z","kind":"pressure","detail":"RSS 1814MB ≥ 1350MB אך הווב בן 1.4 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:43:36.538Z","kind":"agri-error","detail":"agri-field tick non-OK HTTP 403 — honest wait, next window in 5 min"}
+{"t":"2026-09-30T15:43:56.544Z","kind":"pressure","detail":"RSS 1755MB ≥ 1350MB אך הווב בן 2.3 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:44:56.752Z","kind":"pressure","detail":"RSS 1792MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-30T15:44:56.752Z","kind":"web-recycle","detail":"pre-OOM recycle #6: RSS 1792MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-30T15:45:01.754Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #6)"}
+{"t":"2026-09-30T15:45:08.724Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #1"}
+{"t":"2026-09-30T15:45:56.538Z","kind":"pressure","detail":"RSS 1855MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:46:57.123Z","kind":"pressure","detail":"memory pressure: 583MB available / 4042MB · next-server RSS 1601MB — early warning (kernel acts lower)"}
+{"t":"2026-09-30T15:46:57.123Z","kind":"pressure","detail":"RSS 1601MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:47:36.451Z","kind":"web-dead","detail":"web tier connection refused ×4 — confirmed death"}
+{"t":"2026-09-30T15:47:36.453Z","kind":"web-revive","detail":"web tier dead (connection refused ×4) — bun run dev spawned detached, revive #2"}
+{"t":"2026-09-30T15:47:50.160Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #2"}
+{"t":"2026-09-30T15:47:56.549Z","kind":"pressure-ok","detail":"memory recovered: 1713MB available · next-server RSS 1430MB"}
+{"t":"2026-09-30T15:47:56.549Z","kind":"pressure","detail":"RSS 1430MB ≥ 1350MB אך הווב בן 0.3 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:48:24.214Z","kind":"boot","detail":"SHOMER v45.3.0 (ביקורת-הפריוויו — חלונות-תחייה נפרדים לכל איבר + קו-ההרג המיידי) up on :3005 — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · never touches key material"}
+{"t":"2026-09-30T15:48:24.448Z","kind":"boot","detail":"SHOMER v45.3.0 (ביקורת-הפריוויו — חלונות-תחייה נפרדים לכל איבר + קו-ההרג המיידי) up on :3005 — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · never touches key material"}
+{"t":"2026-09-30T15:48:44.600Z","kind":"anvil-up","detail":"anvil answering, block 2875"}
+{"t":"2026-09-30T15:48:44.678Z","kind":"backup-miss","detail":"snapshot refused/failed #1: 403"}
+{"t":"2026-09-30T15:48:44.679Z","kind":"herald-up","detail":"gate-herald serving on :3006 — feeds advance, the poll timer lives (v36)"}
+{"t":"2026-09-30T15:48:44.681Z","kind":"swarm-up","detail":"swarm-agents serving on :3007 — agent feeds advance, the poll timers live (v36) — gold-scout + night-scout alive"}
+{"t":"2026-09-30T15:48:55.774Z","kind":"agri-error","detail":"agri-field tick non-OK HTTP 403 — honest wait, next window in 5 min"}
+{"t":"2026-09-30T15:48:57.215Z","kind":"sync-drifted","detail":"sync-radar finding: dirty-tree (ahead=16 behind=0 · 20 uncommitted files — engineer work in flight) — honest finding, never an action; the hands on local history stay in HQ"}
+{"t":"2026-09-30T15:49:14.574Z","kind":"pressure","detail":"RSS 1665MB ≥ 1350MB אך הווב בן 1.6 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:49:17.585Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 1 · token-in-url 0 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-30T15:49:47.454Z","kind":"cheap-route-watched","detail":"cheap-route watcher LIVE: 10 external cheap routes scanned keylessly — gate blocked (measured fact, re-checked every scan) — the standing try of v72, watched every 5 min"}
+{"t":"2026-09-30T15:49:47.454Z","kind":"reserve-watched","detail":"reserve-watcher LIVE: custody undefined USD ↔ mirror 2.35 USD · drift 0.0000 USD · 3 mesh-managed rails (organ authority) · readiness 3/8 — advisory organ, HQ owns the hands"}
+{"t":"2026-09-30T15:50:14.567Z","kind":"pressure","detail":"RSS 1807MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-30T15:50:14.568Z","kind":"web-recycle","detail":"pre-OOM recycle #1: RSS 1807MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-30T15:50:19.570Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #1)"}
+{"t":"2026-09-30T15:50:26.366Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
+{"t":"2026-09-30T15:51:14.567Z","kind":"pressure","detail":"RSS 1597MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:52:14.589Z","kind":"pressure","detail":"RSS 1743MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:53:14.554Z","kind":"pressure","detail":"RSS 1766MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:53:55.386Z","kind":"agri-error","detail":"agri-field tick non-OK HTTP 403 — honest wait, next window in 5 min"}
+{"t":"2026-09-30T15:54:14.583Z","kind":"pressure","detail":"RSS 1809MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-30T15:54:14.583Z","kind":"web-recycle","detail":"pre-OOM recycle #2: RSS 1809MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-30T15:54:19.585Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #2)"}
+{"t":"2026-09-30T15:54:26.486Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
