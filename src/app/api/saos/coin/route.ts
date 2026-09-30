@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { mintPolicy, saosLedger } from "@/lib/saos/saos-mint";
 import { exchangeStatus } from "@/lib/saos/exchange-live";
 import { SAOS_VERSION } from "@/lib/saos/version";
+import { MESH_CONTRACT_COUNT } from "@/lib/saos/mesh-facts";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -19,7 +20,8 @@ export const dynamic = "force-dynamic";
  *   1. מדיניות ה-mint הקטן (saos-mint/v1) — lib/saos/saos-mint.ts
  *   2. הפנקס החי — SaosMint + SaosMintEntry (DB, העסקאות שבוצעו)
  *   3. הבורסה החיה — exchangeStatus() (חוזה SAOSExchange על SAOS-EVM)
- *   4. רשת-החוזים — state/deployment.json (10 חוזים, כתובות אמת)
+ *   4. רשת-החוזים — state/deployment.json (MESH_CONTRACT_COUNT חוזים —
+ *      נגזר מהרישום; כתובות אמת)
  *   5. SAOS-NET — SealRecord (הגבהים/שורשים) — השרשרת הריבונית
  *   6. שערי-כנות — מה עדיין לא נאמת ולמה (בלי לייפות)
  *
@@ -123,7 +125,7 @@ export async function GET() {
         wrapped: "wSAOS (עטוף 1:1 מול פיקדון SAOS-M אמיתי — לעולם לא מוטבע ישירות)",
         chains: [
           { id: "SAOS-NET", kind: "kernel+seals", note: "השרשרת הריבונית — גרעין דטרמיניסטי + איטומים + עגינה חוץ" },
-          { id: "SAOS-EVM (chainId 31337)", kind: "lab-chain", note: "שרשרת-המעבדה המתמשכת — SAOSLedger + SAOSExchange (10 חוזים)" }
+          { id: "SAOS-EVM (chainId 31337)", kind: "lab-chain", note: `שרשרת-המעבדה המתמשכת — SAOSLedger + SAOSExchange (${MESH_CONTRACT_COUNT} חוזים)` }
         ],
         policyPriceUsd: 0.001,
         policyPriceNote: "מדיניות נמוכה בכוונה (לא $3): יחידות רבות לכל דולר גיבוי = בריכות רבות ועומק אמיתי — החלטת הבעלים",

@@ -32,6 +32,7 @@ import {
   SkeletonPanel, HashLine, cn
 } from "../ui";
 import { PageHead } from "../shell";
+import { MESH_CONTRACT_COUNT } from "@/lib/saos/mesh-facts";
 
 // ─── DTOs (זהים לחוזה של /api/saos/coin) ────────────────────────────────────
 
@@ -407,9 +408,9 @@ export default function CoinView() {
           </PanelBody>
         </Panel>
 
-        {/* ── מגורים על ה-EVM: 10 חוזים ── */}
+        {/* ── מגורים על ה-EVM: MESH_CONTRACT_COUNT חוזים (נגזר — mesh-facts) ── */}
         <Panel>
-          <PanelHeader icon={<Layers size={16} />} title="המגורים על SAOS-EVM — 10 חוזי-המש" sub={`${dep?.chain} · artifact ${dep?.artifactVersion} · בלוק פריסה ${dep?.deployBlock ?? "—"}`} />
+          <PanelHeader icon={<Layers size={16} />} title={`המגורים על SAOS-EVM — ${MESH_CONTRACT_COUNT} חוזי-המש`} sub={`${dep?.chain} · artifact ${dep?.artifactVersion} · בלוק פריסה ${dep?.deployBlock ?? "—"}`} />
           <PanelBody className="space-y-2">
             <div className="max-h-64 overflow-y-auto scroll-slim space-y-1.5 pe-1">
               {Object.entries(dep?.contracts ?? {}).map(([name, addr]) => (

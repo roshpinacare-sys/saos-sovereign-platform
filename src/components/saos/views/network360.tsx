@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useLive, timeAgo } from "../lib";
 import { Panel, PanelHeader, PanelBody, Kpi, Pill, Table, Th, Td, Callout, Tag, SkeletonPanel, ErrorNotice, LiveDot } from "../ui";
+import { MESH_CONTRACT_COUNT } from "@/lib/saos/mesh-facts";
 
 interface N360Repo {
   name: string;
@@ -216,8 +217,8 @@ export function Network360View() {
                 />
                 <AchieveRow
                   ok
-                  title="תשעה חוזים משורשרים"
-                  detail="Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Value → GRID-98 · שכר ללא-עמלה"
+                  title={`${MESH_CONTRACT_COUNT} חוזים משורשרים`}
+                  detail="Hub → Relay → Identity → Ledger → Solutions → Bridge → WorkBoard → Microgrid → Exchange → ValueEngine · שכר ללא-עמלה"
                 />
                 <AchieveRow
                   ok={live?.dex.ok ?? false}
@@ -234,7 +235,7 @@ export function Network360View() {
           <PanelHeader
             icon={<TrendingUp size={16} />}
             title="DEX חי + מיקרו-גריד (GRID-98 על השרשרת)"
-            sub="זרועות-ההכנסה של הרשת — מחירים אמיתיים נמדדים + מנוע הגריד החי (החוזה התשיעי)"
+            sub="זרועות-ההכנסה של הרשת — מחירים אמיתיים נמדדים + מנוע הגריד החי (GRID-98)"
           />
           <PanelBody className="space-y-3">
             <div className="grid grid-cols-2 gap-2">

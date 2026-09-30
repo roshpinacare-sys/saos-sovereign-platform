@@ -36,6 +36,7 @@ import { db } from "@/lib/db";
 import { withVaultMember } from "@/lib/vault-seal";
 import { guardPermission } from "./permissions";
 import { cornerstoneStatus, invalidateCornerstoneCache, type CornerstoneStatus, type DerivedAgent } from "./cornerstone";
+import { MESH_CONTRACT_COUNT } from "./mesh-facts";
 import { liquidityRadar, type LiquidityRadar } from "./liquidity-radar";
 import { microgridStatus, type MicrogridStatus } from "./microgrid-live";
 import meshArtifact from "./generated/SAOSMesh.json";
@@ -587,7 +588,7 @@ function buildFrontier(
     arm(
       "saos-net",
       "SAOS-NET",
-      "השרשרת הריבונית — 9 חוזים, כלכלה משלמת",
+      `השרשרת הריבונית — ${MESH_CONTRACT_COUNT} חוזים, כלכלה משלמת`,
       "live",
       "live",
       "live",
@@ -691,7 +692,7 @@ function buildFrontier(
     arm(
       "grid",
       "מנוע המיקרו-גריד",
-      "GRID-98 על השרשרת — החוזה התשיעי",
+      "GRID-98 על השרשרת — SAOSMicrogrid",
       "live",
       "live",
       "live",

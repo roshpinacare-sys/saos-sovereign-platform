@@ -5,7 +5,9 @@
  * produce REAL deliverables:
  *
  *   1. HQ posts a work order → a REAL soldier run delivers it on-chain
- *      through the 8-contract mesh and the payroll pays (v17 flow).
+ *      through the full contract mesh (MESH_CONTRACT_COUNT contracts —
+ *      derived from the generated registry, see lib/saos/mesh-facts.ts)
+ *      and the payroll pays (v17 flow).
  *   2. The platform's solution engine — a server-side LLM
  *      (z-ai-web-dev-sdk, backend only, never client) — generates an ACTUAL
  *      deliverable for the mission: concrete summary, steps, risks, value.
@@ -26,6 +28,7 @@ import { db } from "@/lib/db";
 import { canonicalize, sha256Hex } from "./canonical-json";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { anchorWorkDigest, meshBoard, postWorkOrder, workRail } from "./mesh-client";
+import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "./mesh-facts";
 import { redactSecrets } from "./security";
 import type { MeshBoardData, MeshDeliverableView, MeshRealWorkOutcome, RealWorkStats } from "@/components/saos/types";
 
@@ -151,7 +154,7 @@ export async function deliverRealWork(
   try {
     // 2. live platform context for the engine — real numbers only
     const [contractCount, board] = await Promise.all([db.sovereignContract.count(), meshBoardSafe()]);
-    const context = `רשת חוזים פנימית (SAOS-EVM) עם 8 חוזים משורשרים; ${board?.stats?.delivered ?? 0} פקודות נמסרו עד כה; ${contractCount} חוזים ציבוריים פרוסים (ETH/BSC); אוצר TRON בפיקוח המפקדה; עמלה פנימית 0.`;
+    const context = `רשת חוזים פנימית (SAOS-EVM) עם ${MESH_CONTRACT_COUNT} חוזים משורשרים (שרשור-ליבה ${MESH_LINK_CHAIN_LENGTH}); ${board?.stats?.delivered ?? 0} פקודות נמסרו עד כה; ${contractCount} חוזים ציבוריים פרוסים (ETH/BSC); אוצר TRON בפיקוח המפקדה; עמלה פנימית 0.`;
 
     // 3. the REAL deliverable
     const gen = await generateSolution(order.mission, order.difficulty, context);

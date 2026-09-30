@@ -333,7 +333,7 @@ export async function deployMesh(): Promise<DeploymentState> {
     return c.abi;
   };
 
-  // 1. deploy all seven contracts
+  // 1. deploy all contracts from the generated registry (count derived, never hand-typed)
   const addr: Record<string, string> = {};
   for (const c of artifact.contracts) {
     const factory = new ethers.ContractFactory(c.abi, c.bytecode, operator);

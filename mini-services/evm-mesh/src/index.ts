@@ -3,7 +3,8 @@
  *
  * Responsibilities:
  *   1. run anvil (the sovereign laboratory chain) on :8545, chainId 31337
- *   2. deploy the 9-contract CONTRACT MESH + wire the chain
+ *   2. deploy the full CONTRACT MESH (contract count derived from the
+ *      generated SAOSMesh.json registry — no hand-typed numbers) + wire the chain
  *   3. AUTO-RUNNER v20: every 120s the HQ posts a REAL work order THROUGH
  *      the platform's solution engine (POST /api/saos/mesh/work realWork:
  *      LLM generates the actual deliverable, sha256 digest anchored on the
