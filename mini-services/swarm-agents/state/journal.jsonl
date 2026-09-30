@@ -64,3 +64,16 @@
 {"t":"2026-09-29T20:57:34.161Z","agent":"night-scout","kind":"patrol","detail":"patrol #23: flags: issue-1, issue-2, issue-3"}
 {"t":"2026-09-29T20:57:48.959Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
 {"t":"2026-09-29T20:57:48.959Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-30T15:18:06.434Z","agent":"system","kind":"boot","detail":"NECHIL HA-RIBONIM (swarm-agents) v39 up on :3007 — two dormant chat agents woke up with real sovereign work: gold-scout (LLM economist, hourly intelligence + real work orders) and night-scout (organ patrol, alerts + security orders). Gate-only doctrine, keeper watches :3007, /start.sh raises me on every cold boot"}
+{"t":"2026-09-30T15:18:06.434Z","agent":"system","kind":"issues-ledger","detail":"פנקס העניינים נטען מהתיקייה שלנו — 3 עניינים · 3 פתוחים · 3 דורשים פעולת בעלים (ה-401 של הצ'אט לא יכול לעוור אותנו — הפנקס נקרא מהקובץ)"}
+{"t":"2026-09-30T15:18:06.489Z","agent":"gold-scout","kind":"boot-key","detail":"key home present — verifying against the gate before I claim presence"}
+{"t":"2026-09-30T15:18:52.186Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
+{"t":"2026-09-30T15:19:21.491Z","agent":"gold-scout","kind":"work-cycle","detail":"sovereign work cycle #1 — collecting TRUE network state through the public API"}
+{"t":"2026-09-30T15:19:24.132Z","agent":"system","kind":"llm-ready","detail":"ZAI engine armed (z-ai-web-dev-sdk, backend only) — gold-scout's mind"}
+{"t":"2026-09-30T15:19:27.097Z","agent":"gold-scout","kind":"report","detail":"intelligence report #1 published (llm, 2952ms, 270 chars)"}
+{"t":"2026-09-30T15:19:27.590Z","agent":"gold-scout","kind":"order","detail":"work order cut: \"אימות שורש-האיטום ורענון עלי-המרקורי בשרשרת\" (difficulty 2, reward 6) — the soldier executes and is paid"}
+{"t":"2026-09-30T15:19:36.514Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
+{"t":"2026-09-30T15:20:21.509Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
+{"t":"2026-09-30T15:21:07.298Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
+{"t":"2026-09-30T15:21:51.518Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
+{"t":"2026-09-30T15:22:36.505Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}

@@ -527,3 +527,25 @@
 {"t":"2026-09-29T21:04:46.310Z","kind":"restore-drill-ok","detail":"#8 — PASS(undetailed)"}
 {"t":"2026-09-29T21:04:48.281Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
 {"t":"2026-09-29T21:04:49.230Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-30T15:18:06.429Z","kind":"seat","detail":"pid 10626 dead (stale) — taking over the seat"}
+{"t":"2026-09-30T15:18:06.429Z","kind":"seat","detail":"seat acquired (pid 1435) — single-instance doctrine v36"}
+{"t":"2026-09-30T15:18:06.430Z","kind":"boot","detail":"SHOMER v45.2.0 (ביקורת-הפריוויו — חלונות-תחייה נפרדים לכל איבר + קו-ההרג המיידי) up on :3005 — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · never touches key material"}
+{"t":"2026-09-30T15:18:33.159Z","kind":"anvil-up","detail":"anvil answering, block 2164"}
+{"t":"2026-09-30T15:18:33.310Z","kind":"backup-ok","detail":"snapshot #1 — צילום עקבי (VACUUM INTO) · 944KB · מראה בבית-השורד ✓ (upload/.db-mirror) · 5 db / 2 chain בסבב"}
+{"t":"2026-09-30T15:18:37.366Z","kind":"agri-tick","detail":"agri-field tick — 0 zone(s): 0 irrigated · 0 deferred · 0 alert(s) · weather=open-meteo (rain prob 55%, 0mm expected)"}
+{"t":"2026-09-30T15:18:38.653Z","kind":"sync-drifted","detail":"sync-radar finding: dirty-tree (ahead=12 behind=223 · 11 uncommitted files — engineer work in flight) — honest finding, never an action; the hands on local history stay in HQ"}
+{"t":"2026-09-30T15:19:01.584Z","kind":"pressure","detail":"RSS 1477MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:19:06.139Z","kind":"sovereignty-ok","detail":"census: 17 repos · clean 16 · synced 16 · gaps 1 · token-in-url 0 · vault live · steem armed · 4/4 live · pat-store ok"}
+{"t":"2026-09-30T15:19:06.140Z","kind":"herald-up","detail":"gate-herald serving on :3006 — feeds advance, the poll timer lives (v36)"}
+{"t":"2026-09-30T15:19:06.141Z","kind":"swarm-up","detail":"swarm-agents serving on :3007 — agent feeds advance, the poll timers live (v36) — gold-scout + night-scout alive"}
+{"t":"2026-09-30T15:19:27.594Z","kind":"cheap-route-watched","detail":"cheap-route watcher LIVE: 10 external cheap routes scanned keylessly — gate blocked (measured fact, re-checked every scan) — the standing try of v72, watched every 5 min"}
+{"t":"2026-09-30T15:19:27.594Z","kind":"reserve-watched","detail":"reserve-watcher LIVE: custody undefined USD ↔ mirror 2.34 USD · drift 0.0000 USD · 3 mesh-managed rails (organ authority) · readiness 3/8 — advisory organ, HQ owns the hands"}
+{"t":"2026-09-30T15:19:56.527Z","kind":"pressure","detail":"RSS 1699MB ≥ 1350MB אך הווב בן 1.8 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:19:57.755Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-30T15:19:58.801Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — optimism:vault: member \"keys/headcorner-seed.json\" absent from envelo · base:vault: member \"keys/headcorner-seed.json\" absent from envelo — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-30T15:20:00.743Z","kind":"snapshot-watched","detail":"outer-anchor skipped: broadcast-rejected — honest wait, retried next hour"}
+{"t":"2026-09-30T15:20:56.546Z","kind":"pressure","detail":"RSS 1918MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-30T15:20:56.546Z","kind":"web-recycle","detail":"pre-OOM recycle #1: RSS 1918MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-30T15:21:01.549Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #1)"}
+{"t":"2026-09-30T15:21:08.897Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
+{"t":"2026-09-30T15:22:56.537Z","kind":"pressure","detail":"RSS 1726MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}

@@ -24,3 +24,5 @@
 {"t":"2026-09-29T20:25:34.097Z","kind":"gate-up","detail":"the gate answers again — resuming presence"}
 {"t":"2026-09-29T20:57:48.948Z","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
 {"t":"2026-09-29T20:58:34.111Z","kind":"gate-up","detail":"the gate answers again — resuming presence"}
+{"t":"2026-09-30T15:18:06.430Z","kind":"boot","detail":"SHLICH HA-SHAAR (gate-herald) v36 up on :3006 — the first external agent at the gate: onboarding through the owner console, presence every 45s, heartbeat every 30 min, keeper watches :3006, HTTP-only — never touches DB/vault/chain directly"}
+{"t":"2026-09-30T15:18:06.485Z","kind":"boot-key","detail":"key home present — verifying against the gate before I claim presence"}
