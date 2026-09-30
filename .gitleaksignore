@@ -1,0 +1,18 @@
+# .gitleaksignore — triaged 2026-10-01 by Task 13-d2 (org-gitleaks run 36763896413)
+# one fingerprint per line; git form (commit:file:rule:line) + HEAD-only form (file:rule:line)
+# so full-history AND --no-git scans agree. No secret material in this file (fingerprints+comments only).
+
+# historical: file absent at HEAD — but token == ACTIVE org PAT at triage time (2026-10-01): OWNER ROTATION URGENT (owner-blocked; history retains)
+34e3d5c5b54e57983d290cfe912108afd7a5d78c:upload/pat.env:github-fine-grained-pat:1
+
+# false-positive: public format documentation — canonical BIP-143 test vector / content-hash manifest (documented public constants)
+2f89b65a78347d56555cef0f8ac4b12b978361cb:src/lib/saos/utxo-forge.ts:generic-api-key:358
+2f89b65a78347d56555cef0f8ac4b12b978361cb:src/lib/saos/utxo-forge.ts:generic-api-key:366
+52ca3ffd7208e7f258da8c5de698181128928c97:scripts/partner-reports.manifest.json:generic-api-key:44
+52ca3ffd7208e7f258da8c5de698181128928c97:src/lib/saos/utxo-forge.ts:generic-api-key:358
+52ca3ffd7208e7f258da8c5de698181128928c97:src/lib/saos/utxo-forge.ts:generic-api-key:366
+e539aa48b7db9b956aa5b99db54a05d5e3e523d8:scripts/partner-reports.manifest.json:generic-api-key:44
+f16598917466d27f7894ccc2d857b82e3f25737f:scripts/partner-reports.manifest.json:generic-api-key:44
+scripts/partner-reports.manifest.json:generic-api-key:44
+src/lib/saos/utxo-forge.ts:generic-api-key:358
+src/lib/saos/utxo-forge.ts:generic-api-key:366
