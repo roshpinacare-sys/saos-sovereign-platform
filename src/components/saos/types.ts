@@ -723,6 +723,28 @@ export interface AgentsNetData {
   error?: string;
 }
 
+// ─── v95: THE UNIFIED AGENT CENSUS (מצבת-האמת המאוחדת) ─────────────────────
+
+export interface CensusAgentRow {
+  name: string;
+  layer: "service" | "identity" | "vault-fleet" | "repo" | "organism";
+  role: string;
+  vitality: "alive" | "dormant" | "unknown";
+  detail: string;
+  measuredAt: string | null;
+}
+
+export interface AgentCensusData {
+  ok: boolean;
+  totals: { alive: number; dormant: number; unknown: number; total: number };
+  layers: Record<string, { total: number; alive: number; dormant: number; unknown: number }>;
+  agents: CensusAgentRow[];
+  organismVerify: Array<{ repo: string; verified: number; total: number; suspended: number; state: string }>;
+  notes: string[];
+  measuredAt: string;
+  error?: string;
+}
+
 // ─── v63: The listening plane (מישור-הקשבה) ────────────────────────────────
 
 export interface BroadcastLocalRow {

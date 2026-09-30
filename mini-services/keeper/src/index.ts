@@ -168,9 +168,16 @@ const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
 const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "45.2.0";
+const KEEPER_VERSION = "45.3.0";
 const SOVEREIGNTY_EVERY = 90; // v93 — sovereignty census tick every 90th cycle (≈15min)
 const SOVEREIGNTY_FIRST_AT = 6; // first census 60s after boot
+// v95 — the unified agent census tick (מצבת-האמת): every 30th cycle (≈5min)
+// the keeper reads /api/saos/agent-census over loopback — services, gate
+// identities, the sealed vault fleet, ecosystem repos — so the agent
+// organism's vitality is JOURNALED, not just rendered. A census that stops
+// landing is itself a finding ("census-miss").
+const CENSUS_EVERY = 30;
+const CENSUS_FIRST_AT = 4;
 const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const RESTORE_DRILL_EVERY = 144; // v45.1 — restore drill every 144th cycle (≈24min)
@@ -734,6 +741,39 @@ async function runSovereignty(): Promise<void> {
     }
   } catch (e) {
     journal("sovereignty-miss", `census unreachable: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"} — next window retries`);
+  }
+}
+
+/**
+ * v95 — agent-census tick: every ≈5min the keeper reads the unified agent
+ * census over loopback (services · gate identities · vault fleet · ecosystem
+ * repos · organism verify) and journals a compact verdict. Numbers only —
+ * the census payload itself is public (names + booleans, zero secrets).
+ */
+async function runAgentCensus(): Promise<void> {
+  try {
+    const res = await fetch("http://127.0.0.1:3000/api/saos/agent-census", {
+      signal: AbortSignal.timeout(45_000)
+    });
+    const j = (await res.json()) as {
+      ok?: boolean;
+      totals?: { alive?: number; dormant?: number; unknown?: number; total?: number };
+      layers?: Record<string, { total?: number; alive?: number }>;
+    };
+    if (res.ok && j.ok && j.totals) {
+      const t = j.totals;
+      const layerSummary = Object.entries(j.layers ?? {})
+        .map(([k, v]) => `${k}:${v.alive ?? 0}/${v.total ?? 0}`)
+        .join(" · ");
+      journal(
+        "census-ok",
+        `agents alive ${t.alive ?? 0}/${t.total ?? 0} · dormant ${t.dormant ?? 0} · unmeasured ${t.unknown ?? 0} · ${layerSummary}`
+      );
+    } else {
+      journal("census-miss", `agent-census refused/failed: HTTP ${res.status} — next window retries`);
+    }
+  } catch (e) {
+    journal("census-miss", `agent-census unreachable: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"} — next window retries`);
   }
 }
 
@@ -1810,6 +1850,11 @@ async function cycle(): Promise<void> {
   // folders + key layer measured over loopback; verdict journaled either way.
   if (RT.cycle === SOVEREIGNTY_FIRST_AT || (RT.cycle > SOVEREIGNTY_FIRST_AT && (RT.cycle - SOVEREIGNTY_FIRST_AT) % SOVEREIGNTY_EVERY === 0)) {
     await runSovereignty();
+  }
+  // v95 — the unified agent census every ≈5min (first 40s after boot):
+  // the agent organism's vitality journaled, not just rendered.
+  if (RT.cycle === CENSUS_FIRST_AT || (RT.cycle > CENSUS_FIRST_AT && (RT.cycle - CENSUS_FIRST_AT) % CENSUS_EVERY === 0)) {
+    await runAgentCensus();
   }
   if (RT.cycle % SLOW_EVERY === 0) {
     rotateDevLog();
