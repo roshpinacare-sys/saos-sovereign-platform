@@ -13,7 +13,9 @@ import { BLURT_FEE_FORMULA } from "./anchor-gates";
 // ─── מניפסט הכספת — מבנה החריצים המוגדר מציאות הרשתות ────────────────────
 
 export interface VaultManifestEntry {
-  network: "STEEM" | "BLURT" | "HIVE" | "TRON";
+  // v94 union — ETHEREUM/SOLANA are sovereign WATCH seats (read-only control
+  // rows over the sealed registry identities), never Graphene signing rails.
+  network: "STEEM" | "BLURT" | "HIVE" | "TRON" | "ETHEREUM" | "SOLANA";
   slot: string;
   purpose: string;
 }

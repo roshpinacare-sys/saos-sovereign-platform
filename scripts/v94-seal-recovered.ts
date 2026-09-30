@@ -130,7 +130,7 @@ async function main(): Promise<void> {
 
   // registry — headcorner must equal the fleet head
   const registryRaw = readFileSync(path.join(zipDir, "agent/keys/wallets-registry.json"), "utf8");
-  const registry = JSON.parse(registryRaw) as { accounts?: Array<{ agent?: string; evm?: { address?: string } }> };
+  const registry = JSON.parse(registryRaw) as { accounts?: Array<{ agent?: string; evm?: { address?: string }; tron?: { address?: string } }> };
   const hc = (registry.accounts ?? []).find((a) => a.agent === "headcorner");
   if (hc?.evm?.address?.toLowerCase() !== FLEET_HEAD.toLowerCase()) {
     die(`registry headcorner.evm ${hc?.evm?.address ?? "—"} ≠ ${FLEET_HEAD}`);

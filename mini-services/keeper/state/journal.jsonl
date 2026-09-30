@@ -550,3 +550,24 @@
 {"t":"2026-09-30T15:21:08.897Z","kind":"web-recovered","detail":"web tier answering again (HTTP 200) after revive #0"}
 {"t":"2026-09-30T15:22:56.537Z","kind":"pressure","detail":"RSS 1726MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
 {"t":"2026-09-30T15:24:10.446Z","kind":"web-recovered","detail":"web tier answering again (HTTP 500) after revive #0"}
+{"t":"2026-09-30T15:24:56.519Z","kind":"pressure","detail":"RSS 1722MB ≥ 1350MB אך הווב בן 0.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:25:56.518Z","kind":"pressure","detail":"RSS 1655MB ≥ 1350MB אך הווב בן 1.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:26:56.601Z","kind":"pressure","detail":"RSS 1722MB ≥ 1350MB אך הווב בן 2.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:27:56.457Z","kind":"pressure","detail":"memory pressure: 682MB available / 4042MB · next-server RSS 1654MB — early warning (kernel acts lower)"}
+{"t":"2026-09-30T15:27:56.457Z","kind":"pressure","detail":"RSS 1654MB ≥ 1350MB אך הווב בן 3.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:27:56.460Z","kind":"herald-zombie","detail":"gate-herald port-live but FROZEN (feeds stale while the web is healthy) — SIGTERM pid 1442: alive ≠ serving (v36)"}
+{"t":"2026-09-30T15:27:56.461Z","kind":"herald-revive","detail":"gate-herald zombie pid 1442 SIGTERM'd — bun run dev spawned detached, revive #1 + grace reset (v54) — the fresh herald takes the stale seat over (v36)"}
+{"t":"2026-09-30T15:27:56.463Z","kind":"swarm-zombie","detail":"swarm-agents port-live but FROZEN (agent feeds stale while the web is healthy) — SIGTERM pid 1448: alive ≠ serving (v36)"}
+{"t":"2026-09-30T15:27:56.465Z","kind":"swarm-revive","detail":"swarm-agents zombie pid 1448 SIGTERM'd — bun run dev spawned detached, revive #1 + grace reset (v54) — the awakened chat agents are a member now, no member stays FUNCTION-dead (v36)"}
+{"t":"2026-09-30T15:28:26.956Z","kind":"backup-miss","detail":"snapshot unreachable #1: Failed to parse JSON — next window retries"}
+{"t":"2026-09-30T15:28:36.586Z","kind":"agri-error","detail":"agri-field tick non-OK HTTP 500 — honest wait, next window in 5 min"}
+{"t":"2026-09-30T15:28:56.486Z","kind":"pressure-ok","detail":"memory recovered: 1424MB available · next-server RSS 1523MB"}
+{"t":"2026-09-30T15:28:56.486Z","kind":"pressure","detail":"RSS 1523MB ≥ 1350MB אך הווב בן 4.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:29:56.534Z","kind":"pressure","detail":"RSS 1697MB ≥ 1350MB אך הווב בן 5.9 דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים"}
+{"t":"2026-09-30T15:29:56.535Z","kind":"herald-up","detail":"gate-herald serving on :3006 — feeds advance, the poll timer lives (v36)"}
+{"t":"2026-09-30T15:29:56.536Z","kind":"swarm-up","detail":"swarm-agents serving on :3007 — agent feeds advance, the poll timers live (v36) — gold-scout + night-scout alive"}
+{"t":"2026-09-30T15:29:58.952Z","kind":"expansion-armed","detail":"auto-expansion: 2 rail(s) crossed the ×2 gate (seal h1) — firing the pipeline (deploy → anchor through SAOSRelay, source=auto)"}
+{"t":"2026-09-30T15:29:58.960Z","kind":"expansion-fired","detail":"auto-expansion FIRED (0 rail(s)) — no result — every step receipted by the engine (proof or it never happened)"}
+{"t":"2026-09-30T15:30:56.568Z","kind":"pressure","detail":"RSS 1850MB ≥ קו-ההרג 1790MB (ווב צעיר — סערה חריגה) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)"}
+{"t":"2026-09-30T15:30:56.569Z","kind":"web-recycle","detail":"pre-OOM recycle #3: RSS 1850MB ≥ 1350MB ×2 readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"}
+{"t":"2026-09-30T15:31:01.577Z","kind":"web-revive","detail":"recycled web tree respawned detached (recycle #3)"}

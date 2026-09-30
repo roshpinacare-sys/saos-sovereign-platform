@@ -827,6 +827,7 @@ export async function securityScan(force = false): Promise<SecurityStatus> {
   if (!force && cache && now - cache.at < STALE_SERVE_MS) {
     if (!backgroundScan) {
       backgroundScan = runSecurityScan()
+        .then(() => undefined)
         .catch(() => undefined)
         .finally(() => {
           backgroundScan = null;

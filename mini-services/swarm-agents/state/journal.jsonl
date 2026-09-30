@@ -78,3 +78,21 @@
 {"t":"2026-09-30T15:21:51.518Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
 {"t":"2026-09-30T15:22:36.505Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): סוכן \"night-scout\" כבר קיים — שם חדש נדרש — honest, retry next poll"}
 {"t":"2026-09-30T15:24:10.448Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Failed to parse JSON — honest, retry next poll"}
+{"t":"2026-09-30T15:24:51.726Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Failed to parse JSON — honest, retry next poll"}
+{"t":"2026-09-30T15:25:36.746Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Failed to parse JSON — honest, retry next poll"}
+{"t":"2026-09-30T15:26:21.697Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Failed to parse JSON — honest, retry next poll"}
+{"t":"2026-09-30T15:27:06.840Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Failed to parse JSON — honest, retry next poll"}
+{"t":"2026-09-30T15:27:51.602Z","agent":"night-scout","kind":"arm-failed","detail":"join refused (first-boot): Failed to parse JSON — honest, retry next poll"}
+{"t":"2026-09-30T15:27:58.581Z","agent":"system","kind":"boot","detail":"NECHIL HA-RIBONIM (swarm-agents) v39 up on :3007 — two dormant chat agents woke up with real sovereign work: gold-scout (LLM economist, hourly intelligence + real work orders) and night-scout (organ patrol, alerts + security orders). Gate-only doctrine, keeper watches :3007, /start.sh raises me on every cold boot"}
+{"t":"2026-09-30T15:27:58.582Z","agent":"system","kind":"issues-ledger","detail":"פנקס העניינים נטען מהתיקייה שלנו — 3 עניינים · 3 פתוחים · 3 דורשים פעולת בעלים (ה-401 של הצ'אט לא יכול לעוור אותנו — הפנקס נקרא מהקובץ)"}
+{"t":"2026-09-30T15:27:58.614Z","agent":"gold-scout","kind":"boot-key","detail":"key home present — verifying against the gate before I claim presence"}
+{"t":"2026-09-30T15:27:58.786Z","agent":"gold-scout","kind":"gate-error","detail":"inbox GET 500 — retry next poll"}
+{"t":"2026-09-30T15:27:58.803Z","agent":"night-scout","kind":"boot-key","detail":"key home present — verifying against the gate before I claim presence"}
+{"t":"2026-09-30T15:27:58.835Z","agent":"night-scout","kind":"gate-error","detail":"inbox GET 500 — retry next poll"}
+{"t":"2026-09-30T15:28:38.754Z","agent":"night-scout","kind":"patrol","detail":"patrol #1: flags: web-status, issue-1, issue-2, issue-3"}
+{"t":"2026-09-30T15:28:38.792Z","agent":"night-scout","kind":"order-refused","detail":"order refused: 500"}
+{"t":"2026-09-30T15:29:13.615Z","agent":"gold-scout","kind":"work-cycle","detail":"sovereign work cycle #1 — collecting TRUE network state through the public API"}
+{"t":"2026-09-30T15:29:13.737Z","agent":"system","kind":"llm-ready","detail":"ZAI engine armed (z-ai-web-dev-sdk, backend only) — gold-scout's mind"}
+{"t":"2026-09-30T15:29:15.844Z","agent":"gold-scout","kind":"order-refused","detail":"order refused: 500"}
+{"t":"2026-09-30T15:30:58.615Z","agent":"gold-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
+{"t":"2026-09-30T15:30:58.616Z","agent":"night-scout","kind":"gate-down","detail":"inbox unreachable: Unable to connect. Is the computer able to access the url? — honest wait, the keeper owns the web revive"}
