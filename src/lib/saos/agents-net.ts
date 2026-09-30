@@ -22,13 +22,20 @@ import { trustedFetch } from "./security";
  * קובץ-אמת אחד, מסלולים-מועמדים; הראשון שנמצא וקריא — זוכה.
  */
 const TOKEN_PATHS = [
+  // Task 10-d-5 (2026-09-30) · ordering 13-c2b: the operator's explicit pointer
+  // (SAOS_GH_TOKEN_FILE — המוסכמה הקיימת ב-scripts/*) מנצח ראשון — override
+  // semantics, same order as gh-token.ts. מסלול בלבד — תוכן הטוקן לעולם לא
+  // נכנס ללוג ולא לתשובה.
+  process.env.SAOS_GH_TOKEN_FILE || "",
+  // Task 13-c (2026-10-01): pat.env = קובץ-ה-PAT החי הנוכחי שהמפעיל מעלה
+  // (93B, bare-token — מדוד). Roshcaregt.txt נשאר לגאסי-לגיטימי בסוף-השרשרת.
+  path.join(process.cwd(), "upload", "pat.env"),
+  path.join(process.cwd(), "..", "upload", "pat.env"),
+  "/home/z/my-project/upload/pat.env",
   path.join(process.cwd(), "upload", "Roshcaregt.txt"),
   path.join(process.cwd(), "..", "upload", "Roshcaregt.txt"),
-  // Task 10-d-5 (2026-09-30): המפעיל יכול להפנות את קובץ-הטוקן מבחוץ
-  // (SAOS_GH_TOKEN_FILE — המוסכמה הקיימת ב-scripts/*) — ברירת-המחדל הקנונית
-  // נשארת גיבוי-האמת המתועד. מסלול בלבד — תוכן הטוקן לעולם לא נכנס ללוג.
-  process.env.SAOS_GH_TOKEN_FILE || "/home/z/my-project/upload/Roshcaregt.txt"
-];
+  "/home/z/my-project/upload/Roshcaregt.txt"
+].filter(Boolean);
 
 let cachedToken: string | null = null;
 

@@ -31,9 +31,13 @@ set -u
 
 SECRETS_DIR="/home/z/.secrets"
 CANON="$SECRETS_DIR/github-token"
+LIVE_PAT="/home/z/my-project/upload/pat.env"
 LEGACY="/home/z/my-project/upload/Roshcaregt.txt"
 DG_SECRETS="/home/z/.devgate/secrets/github-pat"
-REPO_SCRIPTS="/home/z/my-project/scripts"
+# Task 13-c: the scripts' source of truth is THIS repo — resolve the scripts
+# dir from the script's own location (the old hardcoded /home/z/my-project/scripts
+# died with the sandbox reset; the repo copy is canonical now).
+REPO_SCRIPTS="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 MAIN_REPO_URL="https://github.com/roshpinacare-sys/saos-sovereign-platform.git"
 export DG_DATA_DIR="/home/z/.devgate"
 
@@ -46,12 +50,14 @@ echo "== SAOS GitHub connection bootstrap =="
 mkdir -p "$SECRETS_DIR"
 chmod 700 "$SECRETS_DIR"
 if [ ! -s "$CANON" ]; then
-  if [ -s "$LEGACY" ]; then
-    umask 077; tr -d '[:space:]' < "$LEGACY" > "$CANON.tmp" && mv "$CANON.tmp" "$CANON"
+  SEED=""
+  if [ -s "$LIVE_PAT" ]; then SEED="$LIVE_PAT"; elif [ -s "$LEGACY" ]; then SEED="$LEGACY"; fi
+  if [ -n "$SEED" ]; then
+    umask 077; tr -d '[:space:]' < "$SEED" > "$CANON.tmp" && mv "$CANON.tmp" "$CANON"
     chmod 600 "$CANON"
-    echo "  seeded canonical token from legacy upload path (values never printed)"
+    echo "  seeded canonical token from upload path (values never printed)"
   else
-    fail "no token found at $CANON nor $LEGACY — owner must stage a token first (gh-rotate.sh)"
+    fail "no token found at $CANON nor $LIVE_PAT nor $LEGACY — owner must stage a token first (gh-rotate.sh)"
   fi
 fi
 chmod 600 "$CANON" 2>/dev/null

@@ -276,14 +276,26 @@ const SRC_STABLE_MS = 180_000; // source untouched for 3 min
 // user as this keeper) — read ONCE per process, cached in module memory,
 // NEVER logged, NEVER journaled. Missing/unreadable file → {} → the POST
 // goes unsigned → honest 401 in the journal (fail-closed, nothing fabricated).
-const ADMIN_KEY_FILE = "/home/z/.secrets/saos-admin-key";
+// Task 13-c: /home/z/.secrets died with a sandbox reset — the chain now is
+// env SAOS_ADMIN_KEY_FILE → the historical .secrets path → the devgate broker
+// copy. Still fail-closed if none exists (owner-blocked re-materialization).
+const ADMIN_KEY_CANDIDATES = [
+  process.env.SAOS_ADMIN_KEY_FILE || "",
+  "/home/z/.secrets/saos-admin-key",
+  "/home/z/.devgate/secrets/saos-admin-key",
+].filter(Boolean);
 let loopbackAuthCache: Record<string, string> | null = null;
 function loopbackAuthHeaders(): Record<string, string> {
   if (loopbackAuthCache === null) {
-    try {
-      const key = fs.readFileSync(ADMIN_KEY_FILE, "utf8").trim();
-      loopbackAuthCache = key ? { authorization: `Bearer ${key}` } : {};
-    } catch {
+    for (const ADMIN_KEY_FILE of ADMIN_KEY_CANDIDATES) {
+      try {
+        const key = fs.readFileSync(ADMIN_KEY_FILE, "utf8").trim();
+        if (key) { loopbackAuthCache = { authorization: `Bearer ${key}` }; break; }
+      } catch {
+        /* next candidate */
+      }
+    }
+    if (loopbackAuthCache === null) {
       loopbackAuthCache = {}; // fail-closed: the POST then 401s and journals honestly
     }
   }

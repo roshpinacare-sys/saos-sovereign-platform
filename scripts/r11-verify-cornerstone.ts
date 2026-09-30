@@ -17,7 +17,9 @@ import { Keypair } from "@solana/web3.js";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { ripemd160 } from "@noble/hashes/legacy.js";
 
-const DIR = "/home/z/.secrets/r11-recovery/r11-open/agent/keys";
+// Task 13-c: the restored R11 workdir died with ~/.secrets — allow pointing at
+// a fresh restore via env; the historical path stays first-class for provenance.
+const DIR = process.env.R11_OPEN_DIR || "/home/z/.secrets/r11-recovery/r11-open/agent/keys";
 const MAGIC = "SAOS-FLEET-VAULT-1";
 const TARGET_EVM = "0x01bd2879cd9990cb4b25cd6de47f378dc5d18b37";
 const TARGET_TRON = "TMXHfFQdG6BB8kwVfbMYuiXWqr9P5S4VAU";
