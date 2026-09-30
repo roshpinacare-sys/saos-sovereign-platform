@@ -17,6 +17,7 @@
  * SAOS_GH_TOKEN_FILE), honest per-repo result lines.
  */
 import fs from "fs";
+import { createHash } from "crypto";
 
 const tokenFile = process.env.SAOS_GH_TOKEN_FILE;
 if (!tokenFile) {
@@ -59,7 +60,7 @@ if (REPOS.length === 0) {
 /** git blob sha1 (the value GitHub stores/compares) */
 function blobSha(content: Buffer): string {
   const header = Buffer.from(`blob ${content.length}\0`);
-  return require("crypto").createHash("sha1").update(Buffer.concat([header, content])).digest("hex");
+  return createHash("sha1").update(Buffer.concat([header, content])).digest("hex");
 }
 
 async function main() {
