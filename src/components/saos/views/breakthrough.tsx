@@ -480,7 +480,7 @@ export function BreakthroughView() {
       <Panel>
         <PanelHeader
           title="תוכנית-ההשקיה — ההעברות שמדליקות את הבית"
-          sub="8 מסילות EVM: יתרה חיה · נדרש (פריסה 450K + קריאה 110K) ×2 · החסר ב-USD חי"
+          sub="9 מסילות EVM (כולל SKALE מאז v69): יתרה חיה · נדרש (פריסה 450K + קריאה 110K) ×2 · החסר ב-USD חי"
           icon={<Droplets size={15} />}
         />
         <PanelBody>

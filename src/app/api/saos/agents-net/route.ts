@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/saos/agents-net — LIVE AGENT NETWORK MONITOR (read-only GitHub):
- * the 8 private repos of roshpinacare-sys — last commit, pushed_at,
+ * the 16 private repos of roshpinacare-sys — last commit, pushed_at,
  * freshness (<1h "פעיל-כרגע" · <24h "פעיל" · else "רדום").
  *
  * גבול-האמת: the operator token is read server-side ONLY and never

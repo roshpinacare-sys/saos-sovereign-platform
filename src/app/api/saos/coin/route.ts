@@ -96,8 +96,11 @@ export async function GET() {
     if (ledger.supply === 0) {
       honestGates.push({
         gate: "mint-קטן-טרם-בוצע",
-        he: "מדיניות ה-mint הקטן (300,000 SAOS) מוגדרת ומקופאת בקוד — אבל הפנק החי מציג אפס: אף גרעין-הטבעה עוד לא רץ. הסיבה הנמדדת: רוסטר-החיילים נקרא מהכספת החתומה — והכספת נשרפה בפקודת-ההשמדה 2026-09-08. בלי כספת חתומה חדשה — המטבע לא מוטבע. לא מזויף.",
-        opens: "פעולת-בעלים: איטום כספת חדשה → רוסטר חיילים → POST /api/saos/mint"
+        // 8-h truth-fix: the vault is LIVE since v93 (16-member sealed envelope,
+        // roster readable) — the gate that remains is the un-executed mint /
+        // pending policy decision, not a burned vault.
+        he: "מדיניות ה-mint הקטן (300,000 SAOS) מוגדרת ומקופאת בקוד — אבל הפנק החי מציג אפס: אף גרעין-הטבעה עוד לא רץ. המצב הנמדד: הכספת חיה מאז v93 (מעטפת חתומה של 16 חברים — רוסטר-החיילים קריא ממנה), והשער שנותר הוא החלטה: ה-mint טרם הורץ / החלטת-מדיניות ממתינה לבעלים. לא מזויף.",
+        opens: "פעולת-בעלים: החלטת-מדיניות → POST /api/saos/mint (הרוסטר נקרא מהמעטפת החתומה החיה)"
       });
     }
     if (exchange && exchange.totals.swaps === 0) {

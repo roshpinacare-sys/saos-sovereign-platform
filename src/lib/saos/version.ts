@@ -1,5 +1,5 @@
 /**
- * SAOS v45 — מקור הגרסה היחיד (Single Source of Truth).
+ * SAOS v97 — מקור הגרסה היחיד (Single Source of Truth).
  * נולד ברוסט v44: הסרגל-צד הציג "v29.0" קפואה בעוד הפלטפורמה ב-v43 —
  * תווית שקרית מבלי שאיש שם לב. מהיום: מספר אחד, מקור אחד, אמת אחת.
  * bump בכל מהדורה — package.json · shell · footer · overview — הכל מכאן.
@@ -175,10 +175,18 @@
  *    נפתחה, כפופה לשערי-יתרה כנים; reconcileV96 מיישר את ה-DB.
  */
 
-export const SAOS_VERSION = "96.0.0";
+/**
+ * v97 ביקורת-התצוגה (THE PREVIEW TRUTH) — סבב-ביקורת 8 (8-c) על כל טענות
+ * הפריוויו: 6 סוכני-ביקורת קראו ויו-אחר-ויו מול המדידה החיה — שקרים,
+ * סימולציות ומספרים-קפואים תוקנו לנגזרת-מהנתונים (39 ויו · 16 ריפואים ·
+ * 12 אטומים · 10 חוזים · RSS 1350 · שמירה 8 שעות), השומר חומש מחדש,
+ * הרשאות נאטמו — ומעטפת-הכניסה למנהל נפתחה למשתמש (fail-closed נשמר).
+ */
+
+export const SAOS_VERSION = "97.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "המילים בכספות (THE WORDS IN THE VAULTS)";
+export const SAOS_CODENAME = "ביקורת-התצוגה (THE PREVIEW TRUTH)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

@@ -80,7 +80,7 @@ interface MgStatus {
     spreads: Array<{ base: string; chain: string; spreadPct: number; venues: string[] }>;
     v3: { price: string | null; error?: string };
   };
-  historic: { ticks: number; rounds: number; treasuryPnlSaos: number; engine: string; note: string };
+  historic: { ticks: number; rounds: number; treasuryPnlSaos: number; engine: string; note: string; snapshotAt: string | null };
   error?: string;
 }
 
@@ -214,7 +214,7 @@ export function MicrogridView() {
             <span className="flex items-center gap-2">
               {live && <LiveDot tone="green" />}
               <span className="text-[10px] text-zinc-500" dir="ltr">
-                {live ? `saos-mesh/v3 · ${live.contract.slice(0, 10)}…` : "…"}
+                {live ? `${live.artifact} · ${live.contract.slice(0, 10)}…` : "…"}
               </span>
             </span>
           }
@@ -236,7 +236,8 @@ export function MicrogridView() {
                 <strong>רצף היסטורי אמיתי:</strong> המנוע רץ ב-STEEM/Saosmartwallet מאז 2026-09 (grid98.cjs —{" "}
                 <span dir="ltr" className="font-mono">{fmt(live.historic.ticks)}</span> טיקים ·{" "}
                 <span dir="ltr" className="font-mono">{fmt(live.historic.rounds)}</span> סבבים · רווח אוצר{" "}
-                <span dir="ltr" className="font-mono">{fmt(live.historic.treasuryPnlSaos)}</span> SAOS) — v20 מעביר אותו ל-EVM העקב כחוזה משורשר.
+                <span dir="ltr" className="font-mono">{fmt(live.historic.treasuryPnlSaos)}</span> SAOS{" "}
+                — {live.historic.snapshotAt ? `נכון ל-${live.historic.snapshotAt}` : "נקרא חי מקובץ-המצב של המנוע הרץ"}) — v20 מעביר אותו ל-EVM העקב כחוזה משורשר.
               </Callout>
             </>
           )}

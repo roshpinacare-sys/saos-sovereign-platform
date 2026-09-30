@@ -2,9 +2,9 @@
  * lib/saos/microgrid-live.ts — GRID-98 על השרשרת (v20): המיקרו-גריד החי.
  * =====================================================================
  * "לבחון אפשרויות המיקרו גריד" — התשובה היא לא סימולציה. המנוע
- * ההיסטורי (grid98.cjs, SAOS-NET: 11,240 טיקים · 54,136 סבבים · רווח
- * אוצר 10,089 SAOS) הועבר לשרשרת-המעבדה המתמשכת כחוזה
- * SAOSMicrogrid (mesh link #6).
+ * ההיסטורי (grid98.cjs — נקרא חי מקובץ-המצב של המנוע הרץ; נקודת-המדידה
+ * הקפואה 2026-09-08: 11,240 טיקים · 54,136 סבבים · רווח אוצר 10,089 SAOS)
+ * הועבר לשרשרת-המעבדה המתמשכת כחוזה תשיעי: SAOSMicrogrid (mesh link #6).
  *
  *   אורקל: ה-HQ מפרסם מחירי DEX אמיתיים שנמדדו (Uniswap/Pancake —
  *   read-only eth_call, מקור: dex-live.ts).
@@ -40,15 +40,56 @@ const ARTIFACT = meshArtifact as unknown as {
   contracts: Array<{ name: string; abi: unknown[] }>;
 };
 
-// the historic GRID-98 engine (grid98-state.json, 2026-09-08) — continuity:
-const GRID98_HISTORIC = {
-  engine: "grid98.cjs @ SAOS-NET (kernel chain)",
-  ticks: 11_240,
-  rounds: 54_136,
-  treasuryPnlSaos: 10_089.134_812,
-  pairs: ["WSBD/SAOS", "ENERGY/SAOS", "WBLURT/SAOS"],
-  note: "המנוע ההיסטורי רץ על הקרנל של SAOS-NET — v20 מעביר אותו ל-EVM העקב"
-} as const;
+// the historic GRID-98 engine (grid98.cjs @ STEEM/Saosmartwallet) — continuity.
+// v96: the engine KEPT RUNNING after the 2026-09-08 snapshot — the live state
+// file is read on every status call and the three counters are derived from
+// it; if the file is missing/unreadable, the frozen 2026-09-08 snapshot is
+// served RELABELED as such (never presented as current).
+const GRID98_STATE_PATH = "/home/z/repos/steem/sovereign/node/grid98-state.json";
+
+export interface Grid98Historic {
+  engine: string;
+  ticks: number;
+  rounds: number;
+  treasuryPnlSaos: number;
+  pairs: string[];
+  note: string;
+  /** null = read live from the running engine; a date = frozen snapshot */
+  snapshotAt: string | null;
+}
+
+function grid98Historic(): Grid98Historic {
+  try {
+    const s = JSON.parse(fs.readFileSync(GRID98_STATE_PATH, "utf8")) as {
+      ticks?: unknown;
+      rounds?: unknown;
+      treasuryPnlµ?: unknown;
+    };
+    if (typeof s.ticks === "number" && typeof s.rounds === "number") {
+      const pnlMicro = typeof s.treasuryPnlµ === "number" ? s.treasuryPnlµ : null;
+      return {
+        engine: "grid98.cjs @ SAOS-NET (kernel chain) — חי",
+        ticks: s.ticks,
+        rounds: s.rounds,
+        treasuryPnlSaos: pnlMicro !== null ? pnlMicro / 1_000_000 : 0,
+        pairs: ["WSBD/SAOS", "ENERGY/SAOS", "WBLURT/SAOS"],
+        note: "נקרא חי מ-grid98-state.json של המנוע הרץ — v20 מעביר אותו ל-EVM העקב",
+        snapshotAt: null
+      };
+    }
+  } catch {
+    // file missing/unreadable → the frozen snapshot below, relabeled
+  }
+  return {
+    engine: "grid98.cjs @ SAOS-NET (kernel chain)",
+    ticks: 11_240,
+    rounds: 54_136,
+    treasuryPnlSaos: 10_089.134_812,
+    pairs: ["WSBD/SAOS", "ENERGY/SAOS", "WBLURT/SAOS"],
+    note: "נכון ל-2026-09-08 (קובץ-המצב החי לא נקרא במחזור זה) — v20 מעביר אותו ל-EVM העקב",
+    snapshotAt: "2026-09-08"
+  };
+}
 
 interface DeploymentState {
   ok: boolean;
@@ -163,7 +204,7 @@ export interface MicrogridStatus {
     spreads: Array<{ base: string; chain: string; spreadPct: number; venues: string[] }>;
     v3: { price: string | null; error?: string };
   };
-  historic: typeof GRID98_HISTORIC;
+  historic: Grid98Historic;
   error?: string;
 }
 
@@ -236,7 +277,7 @@ export async function microgridStatus(): Promise<MicrogridStatus> {
       totals: { grids: 0, realizedPnl: "0", sweptPnl: "0", unswept: "0", profitFund: "0", fillSeq: 0, payrollBalance: "0" },
       recentFills: [],
       dex: { ok: false, measuredAt: null, tracked: [], spreads: [], v3: { price: null } },
-      historic: GRID98_HISTORIC,
+      historic: grid98Historic(),
       error: "SAOSMicrogrid לא פרוס (SAOS-EVM למעלה? deployment.json חסר)"
     };
   }
@@ -254,7 +295,7 @@ export async function microgridStatus(): Promise<MicrogridStatus> {
       totals: { grids: 0, realizedPnl: "0", sweptPnl: "0", unswept: "0", profitFund: "0", fillSeq: 0, payrollBalance: "0" },
       recentFills: [],
       dex: { ok: false, measuredAt: null, tracked: [], spreads: [], v3: { price: null } },
-      historic: GRID98_HISTORIC,
+      historic: grid98Historic(),
       error: "ארטיפקט/מצב לא תואמים (honest)"
     };
   }
@@ -371,7 +412,7 @@ export async function microgridStatus(): Promise<MicrogridStatus> {
         spreads: (dex?.spreads ?? []).map((s) => ({ base: s.base, chain: s.chain, spreadPct: s.spreadPct, venues: s.venues })),
         v3: { price: dex?.v3.price ?? null, error: dex?.v3.error }
       },
-      historic: GRID98_HISTORIC
+      historic: grid98Historic()
     };
   } catch (e) {
     return {
@@ -384,7 +425,7 @@ export async function microgridStatus(): Promise<MicrogridStatus> {
       totals: { grids: 0, realizedPnl: "0", sweptPnl: "0", unswept: "0", profitFund: "0", fillSeq: 0, payrollBalance: "0" },
       recentFills: [],
       dex: { ok: false, measuredAt: null, tracked: [], spreads: [], v3: { price: null } },
-      historic: GRID98_HISTORIC,
+      historic: grid98Historic(),
       error: e instanceof Error ? e.message.slice(0, 160) : "microgrid read failed"
     };
   }

@@ -53,6 +53,10 @@ function statusPill(status: string): { tone: "green" | "gold" | "amber" | "rose"
     case "mismatch": return { tone: "rose", label: "אי-תאום" };
     case "revoked": return { tone: "rose", label: "נשלל" };
     case "imported": return { tone: "gold", label: "מיובא" };
+    // v96 — evidence = the envelope holds the provenance material (pubs,
+    // derivation matches, doc + registration trails) even where a raw WIF is
+    // intentionally not stored: honest amber, not an untested grey.
+    case "evidence": return { tone: "amber", label: "הוכח-ממצאים (חומר במעטפת)" };
     default: return { tone: "zinc", label: "לא נבדק" };
   }
 }
@@ -350,7 +354,7 @@ export function SmartLinkView() {
             </div>
           )}
           <div className="text-[10px] text-zinc-600 mt-2 leading-relaxed">
-            מצב "מדור קודם" ל-WIFs של headcorner = הרשויות הוחלפו בשרשרת (08/09 21:17) — המפתחות שמורים לחלון ההתאוששות (עד 2026-10-08 — נותרו {Math.max(0, Math.ceil((new Date("2026-10-08T00:00:00Z").getTime() - Date.now()) / 86_400_000))} ימים, נגזר חי). חומר המפתח עצמו חי בכספת ולעולם לא מוצג כאן.
+            מצב "מדור קודם" ל-WIFs של headcorner = הרשויות הוחלפו בשרשרת (08/09 21:17) — המפתחות שמורים לחלון ההתאוששות (עד 2026-10-08T21:17:33Z — נותרו {Math.max(0, Math.ceil((new Date("2026-10-08T21:17:33Z").getTime() - Date.now()) / 86_400_000))} ימים, נגזר חי מזמן-הסיום המתועד בקונצנזוס). חומר המפתח עצמו חי בכספת ולעולם לא מוצג כאן.
           </div>
         </PanelBody>
       </Panel>

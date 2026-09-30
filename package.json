@@ -1,6 +1,6 @@
 {
   "name": "nextjs_tailwind_shadcn_ts",
-  "version": "96.0.0",
+  "version": "97.0.0",
   "private": true,
   "scripts": {
     "dev": "DATABASE_URL=\"file:$PWD/db/custom.db\" next dev -p 3000 2>&1 | tee dev.log",

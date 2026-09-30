@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SAOS v18 — מעטפת REAL WORK (COMMAND DECK + 8-CHAIN GRID + חוזי-המרש — ספירת-החוזים נגזרת מ-SAOSMesh.json + פקודות עבודה + מסירות אמיתיות).
+ * SAOS v97 (ביקורת-התצוגה / THE PREVIEW TRUTH — מ-SAOS_VERSION) — מעטפת REAL WORK (COMMAND DECK + 8-CHAIN GRID + חוזי-המרש — ספירת-החוזים נגזרת מ-SAOSMesh.json + פקודות עבודה + מסירות אמיתיות) + כניסת-מנהל (fail-closed).
  * סרגל-צד (דסקטופ) + סרגל-עליון חי (שעון, חיבור, רענון) + **פס-פיקוד 8-רשתות חי**
  * (SAOS-NET · STEEM · BLURT · HIVE · TRON · ETHEREUM · BSC · SOLANA) + ניווט-גלילה (מובייל)
  * + כותרת-תחתונה דביקה.
@@ -9,7 +9,11 @@
 
 import { Anchor, ArrowLeftRight, Boxes, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
 import { type ReactNode, useState, memo } from "react";
-import { cn, LiveDot, Pill } from "./ui";
+import { useRouter } from "next/navigation";
+import { cn, LiveDot, Pill, useToast } from "./ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fmtInt, timeAgo, useClock, useLive, useTick } from "./lib";
 import type { LiveResult } from "./lib";
 import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/version";
@@ -144,7 +148,7 @@ export const VIEWS: ViewDef[] = [
     id: "network360",
     label: "רשת-360",
     short: "רשת-360",
-    desc: "מפת האורגניזם החיה — 11 ריפואים במדידה מול GitHub · הישגים מאומתי-שרשרת · הצעדים הקריטיים",
+    desc: "מפת האורגניזם החיה — 16 ריפואים במדידה מול GitHub · הישגים מאומתי-שרשרת · הצעדים הקריטיים",
     icon: <Boxes size={16} />,
     group: "תפעול"
   },
@@ -224,7 +228,7 @@ export const VIEWS: ViewDef[] = [
     id: "workboard",
     label: "פקודות עבודה",
     short: "עבודה",
-    desc: "החוזה השמיני — המפקדה מפרסמת, חיילים מבצעים, ומנוע הפתרונות (LLM) מייצר מסירה אמיתית מעוגנת לכל משימה",
+    desc: "חוזה SAOSWorkBoard (השביעי מתוך 10) — המפקדה מפרסמת, חיילים מבצעים, ומנוע הפתרונות (LLM) מייצר מסירה אמיתית מעוגנת לכל משימה",
     icon: <HardHat size={16} />,
     group: "תפעול"
   },
@@ -232,7 +236,7 @@ export const VIEWS: ViewDef[] = [
     id: "fleet",
     label: "חימוש הצי",
     short: "הצי",
-    desc: "mint קטן ל-SAOS + יתרות-פעולה ל-11 החיילים על STEEM · ETH · SOL — עם עתודת פיתוח",
+    desc: "mint קטן ל-SAOS + יתרות-פעולה ל-12 האטומים (11 פעילים לפי שער-החיות) על STEEM · ETH · SOL — עם עתודת פיתוח",
     icon: <Crosshair size={16} />,
     group: "תפעול"
   },
@@ -289,7 +293,7 @@ export const VIEWS: ViewDef[] = [
     id: "microgrid",
     label: "מיקרו-גריד",
     short: "מיקרו-גריד",
-    desc: "GRID-98 על השרשרת — SAOSMicrogrid: אורקל מחירי-DEX אמיתיים · סולם 1.2% · רווח שנשטף לקופת העבודה · עומק DEX",
+    desc: "GRID-98 על השרשרת — החוזה השמיני מתוך 10: אורקל מחירי-DEX אמיתיים · סולם 1.2% · רווח שנשטף לקופת העבודה · עומק DEX",
     icon: <Zap size={16} />,
     group: "כלכלה ואנרגיה"
   },
@@ -355,7 +359,7 @@ const ShellFooter = memo(function ShellFooter() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
           <span className="flex items-center gap-2">
             <Anchor size={12} className="text-amber-500/80" />
-            SAOS Sovereign Platform v{SAOS_VERSION} — {SAOS_CODENAME} — מניפסט האיברים המצטבר (היסטורי, מ-v44): רוסט-אמת (TRUTH ROAST) · מימוש (REALIZATION: מנוע שווי-הרשת החי + פעימת המימוש) — התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת ({MESH_CONTRACT_COUNT} חוזי-המש · בורסה · מיקרו-גריד · כסף אמיתי ETH/BNB/XRP/TRX · מארב STEEM) מופרד לעולם ל: ממומש (הוכח — ריצות · מסירות · תזוזות) · אחזקה (חי ביד) · חמוש (ממתין לטריגר — לא נספר כהון) · מנוע (תקרות כנות) · ופעימת מימוש שמבצעת ערך על הרשת עכשיו — אורקל+סולם+שטיפה+קציר→קופת-עבודה+ריצה ריבונית אמיתית דרך כל {MESH_CONTRACT_COUNT} החוזים, הכל עם txid וקבלה משורשרת-האש) + חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה (Coinomi) — מחובר לבורסה החיה: WBNB + WRXP נרשמים 1:1 מול המדידה, בריכות #3/#4 נזרעות, אספקת WETH מסונכרנת לאוצר האמיתי · מסילת XRPL חיה במכ"ם · בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה · עמלה 20bps — 10 לקופת האוצר ו-10 לצמיחת הבריכה · נזילות שקוצרת OUT לאוצר ומוזרמת לקופת העבודה · חיילים סוחרים בהון-מסחר · ראוטר לדקסים המובילים — סטייה &gt;0.8% מתוקנת ע"י סוכן-ארביטראז' אוטונומי · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי ?XTransformPort=8545) + אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM ב-RSS 1350MB (v55) לפני שהקרנל הורג ב-1790 — ומ-keeperv43: חלונות-תחייה נפרדים לכל איבר + מיחזור מיידי בקו-ההרג (שיעור 2026-09-12: הקרנל ניצח פעם, לא ינצח שוב · גיבויים ריבוניים כל 10 דק' — DB עקבי VACUUM INTO + שרשרת יומית בסבב 48+7 · דד-ליין 9ש' לפסי-הרשת) + SHOMER (שומר: החייאה עצמית — השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil⇄שער, גלאי-זומבים על בסיס בלוקים + אמת-תפקוד (חי ≠ משרת — פיד שלא מתקדם = מת), מושב-יחיד לכל שירות (נעילת-PID — אין כפילויות) ואב-סנדק לרץ מהשער — אף איבר לא נשאר מת-תפקוד) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה אחת לשעה מה-runner) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + RECOVERY (התאוששות v41: מארב headcorner — אמת-שתי-שרשרות חיה, הוכחת-החזקה קריפטוגרפית מול previous_owner_authority, ספירת-חלון עד 2026-10-08, והשתלטות אוטונומית ברגע שבקשה נושאת את הסמכות הריבונית — השומר בודק כל 60ש') + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+            SAOS Sovereign Platform v{SAOS_VERSION} — {SAOS_CODENAME} — מניפסט האיברים המצטבר (היסטורי, מ-v44): רוסט-אמת (TRUTH ROAST) · מימוש (REALIZATION: מנוע שווי-הרשת החי + פעימת המימוש) — התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת (10 חוזי-המש · בורסה · מיקרו-גריד · כסף אמיתי ETH/BNB/XRP/TRX · מארב STEEM) מופרד לעולם ל: ממומש (הוכח — ריצות · מסירות · תזוזות) · אחזקה (חי ביד) · חמוש (ממתין לטריגר — לא נספר כהון) · מנוע (תקרות כנות) · ופעימת מימוש שמבצעת ערך על הרשת עכשיו — אורקל+סולם+שטיפה+קציר→קופת-עבודה+ריצה ריבונית אמיתית דרך כל 10 החוזים, הכל עם txid וקבלה משורשרת-האש) + חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה (Coinomi) — מחובר לבורסה החיה: WBNB + WRXP נרשמים 1:1 מול המדידה, בריכות #3/#4 נזרעות, אספקת WETH מסונכרנת לאוצר האמיתי · מסילת XRPL חיה במכ"ם · בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה · עמלה 20bps — 10 לקופת האוצר ו-10 לצמיחת הבריכה · נזילות שקוצרת OUT לאוצר ומוזרמת לקופת העבודה · חיילים סוחרים בהון-מסחר · ראוטר לדקסים המובילים — סטייה &gt;0.8% מתוקנת ע"י סוכן-ארביטראז' אוטונומי · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי ?XTransformPort=8545) + אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM ב-RSS 1350MB (v55) לפני שהקרנל הורג ב-1790 — ומ-keeperv43: חלונות-תחייה נפרדים לכל איבר + מיחזור מיידי בקו-ההרג (שיעור 2026-09-12: הקרנל ניצח פעם, לא ינצח שוב · גיבויים ריבוניים כל 10 דק' — DB עקבי VACUUM INTO + שרשרת יומית בסבב 48+7 · דד-ליין 9ש' לפסי-הרשת) + SHOMER (שומר: החייאה עצמית — השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil⇄שער, גלאי-זומבים על בסיס בלוקים + אמת-תפקוד (חי ≠ משרת — פיד שלא מתקדם = מת), מושב-יחיד לכל שירות (נעילת-PID — אין כפילויות) ואב-סנדק לרץ מהשער — אף איבר לא נשאר מת-תפקוד) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה אחת לשעה מה-runner) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + RECOVERY (התאוששות v41: מארב headcorner — אמת-שתי-שרשרות חיה, הוכחת-החזקה קריפטוגרפית מול previous_owner_authority, ספירת-חלון עד 2026-10-08, והשתלטות אוטונומית ברגע שבקשה נושאת את הסמכות הריבונית — השומר בודק כל 60ש') + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
           </span>
           <span className="flex items-center gap-3">
             <a
@@ -391,6 +395,40 @@ export function AppShell({
   const stats = status.data?.stats;
   const live = !status.error && !!status.data;
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 20000);
+  const toast = useToast();
+  const router = useRouter();
+
+  // v97 — כניסת-מנהל (fail-closed): המפתח נבדק מול השרת בלבד; עוגיית-הסשן
+  // HttpOnly נקבעת ב-route — בקוד-הלקוח היא לא נשמרת מעבר לשדה-הסיסמה.
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginKey, setLoginKey] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+
+  const doLogin = async () => {
+    if (loginBusy || !loginKey) return;
+    setLoginBusy(true);
+    try {
+      const res = await fetch("/api/saos/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: loginKey }),
+        cache: "no-store"
+      });
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (res.ok && json?.ok) {
+        toast.push({ title: "חיבור-מנהל פעיל", desc: "עוגיית-סשן חתומה HttpOnly — פעולות-הרשות פתוחות", tone: "green" });
+        setLoginOpen(false);
+        setLoginKey("");
+        router.refresh();
+      } else {
+        toast.push({ title: "כניסה נכשלה (כנות)", desc: json?.error ?? `HTTP ${res.status}`, tone: "rose" });
+      }
+    } catch (e) {
+      toast.push({ title: "שגיאת רשת בכניסה", desc: e instanceof Error ? e.message : "", tone: "rose" });
+    } finally {
+      setLoginBusy(false);
+    }
+  };
 
   const doRefresh = () => {
     status.refresh();
@@ -515,6 +553,18 @@ export function AppShell({
               >
                 {clock}
               </span>
+              {/* v97 — כניסת-מנהל: השער לפעולות-הרשות (POST-ים רגישים 401 בלעדיה) */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLoginOpen(true)}
+                className="h-9 gap-1.5 border-white/[0.08] bg-white/[0.02] px-2.5 text-[11px] text-zinc-300 hover:border-amber-400/40 hover:bg-amber-400/10 hover:text-amber-200 focus-visible:ring-amber-400/60"
+                aria-label="כניסת-מנהל — אימות לפעולות רגישות"
+              >
+                <KeyRound size={13} className="text-amber-300/80" />
+                <span className="hidden sm:inline">כניסת-מנהל</span>
+                <span className="sm:hidden">מנהל</span>
+              </Button>
               <button
                 onClick={doRefresh}
                 title="רענון נתונים"
@@ -566,6 +616,63 @@ export function AppShell({
         {/* כותרת-תחתונה — דביקה · R16: memo, אינה נבנית-מחדש עם השעון */}
         <ShellFooter />
       </div>
+
+      {/* v97 — דיאלוג כניסת-מנהל: POST /api/saos/auth {key} — fail-closed */}
+      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+        <DialogContent dir="rtl" className="max-w-[380px] gap-4 border-white/[0.08] bg-zinc-950 text-zinc-100">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <KeyRound size={15} className="text-amber-300" />
+              כניסת-מנהל
+            </DialogTitle>
+            <DialogDescription className="text-[11.5px] leading-relaxed text-zinc-400">
+              המפתח נבדק מול ה-hash בשרת בלבד (fail-closed) — העוגייה חתומה, HttpOnly, ולא נשמרת בקוד-הלקוח. מגבלה: 8 ניסיונות לדקה.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void doLogin();
+            }}
+            className="space-y-4"
+          >
+            <Input
+              type="password"
+              value={loginKey}
+              onChange={(e) => setLoginKey(e.target.value)}
+              placeholder="מפתח-מנהל"
+              autoComplete="off"
+              dir="ltr"
+              aria-label="מפתח-מנהל"
+              className="h-10 border-white/[0.1] bg-zinc-950/60 text-zinc-100"
+            />
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setLoginOpen(false)}
+                className="text-zinc-400 hover:text-zinc-200"
+              >
+                ביטול
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={loginBusy || !loginKey}
+                className="gap-1.5 bg-amber-400 text-zinc-950 hover:bg-amber-300"
+              >
+                {loginBusy ? (
+                  <span className="h-3.5 w-3.5 rounded-full border-2 border-zinc-500/40 border-t-zinc-200 animate-spin" aria-hidden />
+                ) : (
+                  <KeyRound size={13} />
+                )}
+                התחבר
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

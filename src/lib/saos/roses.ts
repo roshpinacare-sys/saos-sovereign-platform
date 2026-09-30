@@ -33,7 +33,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ethers } from "ethers";
 import { db } from "@/lib/db";
-import { withVaultMember } from "@/lib/vault-seal";
+import { withVaultMember, readSealInventory } from "@/lib/vault-seal";
 import { guardPermission } from "./permissions";
 import { cornerstoneStatus, invalidateCornerstoneCache, type CornerstoneStatus, type DerivedAgent } from "./cornerstone";
 import { MESH_CONTRACT_COUNT } from "./mesh-facts";
@@ -635,7 +635,7 @@ function buildFrontier(
       "שורש TRON m/44'/195' — זהויות הזרימה אומתו",
       "תשלומי אנרגיה (energy renting) ומסילת USDT זולה",
       "10–20 TRX להפעלת אנרגיה ראשונה",
-      `זרוע-הזרע ${trx ?? "—"} TRX · אוצר ישן ${bal("tron-treasury")} TRX (נעול — המפתח נשרף, כנה)`
+      `זרוע-הזרע ${trx ?? "—"} TRX · אוצר ישן ${bal("tron-treasury")} TRX (רישום-הדלתות TRON חתום במעטפת החיה v93+ — 12 כתובות, 1 ממומנת ~0.193 TRX)`
     ),
     arm(
       "solana",
@@ -655,12 +655,14 @@ function buildFrontier(
       "STEEM",
       "הנכס האמיתי הגדול — כוח-המשמורת של headcorner",
       "live",
-      "owner",
+      // 8-h truth-fix: the WIFs are sealed in the live envelope and armed —
+      // signing is no longer "owner-only" (v93+ rearm, 4/4 live-verified).
+      "armed",
       "gated",
       "gated",
-      "לא מכוסה — STEEM חותמת ב-WIF, לא ב-BIP39; ה-WIF נשרף",
+      "מכוסה v93+ — WIFs active+posting של STEEM אטומים במעטפת החיה וחמושים (4/4 אומתו חי); חתימה חיה",
       "534 SP ≈ $244: הקצאות RC, אנקור רחב, power-down עתידי",
-      "מפתח active מהבעלים (הסוכן headcorner כבר עומד)",
+      "אין — הזרוע חמושה וחתימה חיה מהמעטפת (שער-הרשות כרגיל)",
       `headcorner ${bal("social-steem")} STEEM · 8.6M VESTS · RC 99.99%`
     ),
     arm(
@@ -718,16 +720,25 @@ function buildFrontier(
   ];
 }
 
-function buildSeedProvision(member: SeedMemberInternal | null, history: BloomRow[]): SeedProvision {
+async function buildSeedProvision(member: SeedMemberInternal | null, history: BloomRow[]): Promise<SeedProvision> {
   const agents = member?.agents ?? [];
   // DISTINCT agents that actually signed through the seed: the rose rows
   // + the v22 cornerstone-enlist (block 690 — signed by headcorner's key,
   // the same m/44'/60'/0'/0/0 derivation). Honest union, no double count.
   const signers = new Set(history.map((h) => h.agent));
   signers.add("headcorner");
+  // 8-h truth-fix: the R11 member file carries the OLD seal time (2026-09-12
+  // era) while the LIVE envelope was re-sealed v93+. Read the live envelope's
+  // seal time when the seal opens; never present the R11 date as the current seal.
+  let liveSealedAt: string | null = null;
+  try {
+    liveSealedAt = (await readSealInventory()).sealedAt ?? null;
+  } catch {
+    liveSealedAt = null; // seal not readable this cycle — honest
+  }
   return {
     sealed: Boolean(member?.phrase),
-    sealedAt: member?.sealedAt ?? null,
+    sealedAt: liveSealedAt,
     roots: "דו-שורש: זהות (12 מילים — אומת מול ראיות mainnet+TRON) + תפעול (24 מילים, Coinomi — אבן הפינה)",
     agentsDerived: agents.length,
     chainsPerAgent: 3,
@@ -735,8 +746,10 @@ function buildSeedProvision(member: SeedMemberInternal | null, history: BloomRow
     signersProven: signers.size,
     armsLiveNow: `SAOS-NET — ${signers.size}/12 סוכנים חתמו בפעול דרך הזרע (גיוס אבן-הפינה + שושנות)`,
     armsAwaitingGas: "EVM (ETH+BSC) · TRON · SOL — 36 זרועות mainnet חמושות, ממתינות לדלק",
-    notCovered: "STEEM/HIVE/BLURT — מערכת-מפתחות נפרדת (WIF נשרף); חתימה מהבעלים בלבד",
-    storage: "נגזרים-לעולם-לא-נשמרים: אפס קובצי-מפתח; המפתח קיים רק בתוך היקף-הכספת, בזמן-החתימה"
+    notCovered: "STEEM — חמוש (v93+): WIFs active+posting אטומים במעטפת החיה ואומתו 4/4 חי · HIVE/BLURT — מערכת-מפתחות נפרדת שטרם אוטמה במעטפת (כנה)",
+    storage: liveSealedAt
+      ? "נגזרים-לעולם-לא-נשמרים: אפס קובצי-מפתח; המפתח קיים רק בתוך היקף-הכספת, בזמן-החתימה · זמן-האיטום נקרא מהמעטפת החיה"
+      : "נגזרים-לעולם-לא-נשמרים: אפס קובצי-מפתח · איטום-מקור R11; מעטפת-חיה נאטמה מחדש v93+ (זמן-האיטום החי לא נקרא במחזור זה)"
   };
 }
 
@@ -745,10 +758,10 @@ function buildNeeds(radar: LiquidityRadar | null, mesh: MeshTotals, seed: SeedPr
     {
       id: "steem-key",
       what: "מפתח active של headcorner (STEEM)",
-      why: "534 SP ≈ $244 — הנכס הריבוני הגדול; בלעדיו הזרוע קריאה-בלבד",
+      why: "534 SP ≈ $244 — הנכס הריבוני הגדול; הזרוע מאוישת מהמעטפת",
       from: "owner",
       unlocks: "הקצאת-RC לצי, אנקורים רחבים, power-down עתידי",
-      state: "headcorner עומד בשרשרת · ה-WIF הישן נשרף — נדרש מפתח טרי"
+      state: "חמוש v93+: WIF active אטום במעטפת החיה ואומת חי (4/4) — הזרוע פעילה לחתימה"
     },
     {
       id: "seed-fuel",
@@ -833,7 +846,7 @@ async function measureStatus(): Promise<RosesStatus> {
   ]);
 
   const history = await bloomHistory();
-  const seed = buildSeedProvision(member, history);
+  const seed = await buildSeedProvision(member, history);
 
   let workDeliveries = 0;
   try {

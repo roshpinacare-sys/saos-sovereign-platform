@@ -72,7 +72,10 @@ export function ViewResearch() {
                 </p>
                 <div className="relative">
                   {data.data.synthesis.roadmap.map((step, i) => {
-                    const done = i === 0; // שלב 1 — מגדל-פיקוח חי — ממומש ומאומת
+                    // v96 — שלב 1 (מגדל-הפיקוח) ושלב 2 (מפתחות אמת → עגינה אמיתית,
+                    // נמדד v94–v96: מעטפת 16 חברים + XRPL/ZERO/STEEM/BLURT) ממומשים;
+                    // "HIVE נוחת" (שלב 3) ואילך — פתוחים. ההכרעה נמדדת מהנתונים.
+                    const done = i <= 1;
                     const last = i === (data.data?.synthesis.roadmap.length ?? 0) - 1;
                     return (
                       <div key={i} className="relative flex gap-3.5 pb-4">

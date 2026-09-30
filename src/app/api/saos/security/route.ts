@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120; // full history scan (every git blob) can take a minute
 
 /**
- * GET /api/saos/security — מצב-המגן החי (סריקה מלאה, מטמון 60ש'):
+ * GET /api/saos/security — מצב-המגן החי (סריקה מלאה, SWR: serve ≤30min, background refresh):
  *   שער-פישינג · שומר-טוקנים · קנרית-זרע · ממצאי דימומים (עץ +
  *   היסטוריית git + זנב dev.log) · ביקורת יציאות מול הרישום · ביקורת
  *   כספת (הרשאות + gitignore של קבצי-הכתר) · מצב הסריקות-האוטומטיות.

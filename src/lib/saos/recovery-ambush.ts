@@ -3,11 +3,13 @@
  * =====================================================================
  * Chain truth (measured live 2026-09-10): the attacker rotated headcorner's
  * owner on BOTH chains within 6 seconds — STEEM 2026-09-08T21:17:33,
- * HIVE :39 — and runs an anchor bot from the stolen posting key every
- * ~36 seconds (saos-dex.anchor.v1 spam). The chains accept account
+ * HIVE :39 — and ran an anchor bot from the stolen posting key (measured
+ * cadence ~13 ops/hour, saos-dex.anchor.v1 spam). v96 truth: the STEEM
+ * owner was RESTORED on 2026-09-10 (live ownerPub == previousOwnerPub) —
+ * HIVE is still held by the attacker. The chains accept account
  * recovery with the previous_owner_authority STM5aUKyd… — that exact key
- * is sealed in our vault (proven in-process, zero-leak, against the live
- * get_owner_history of both chains). The recovery window closes
+ * derivation is sealed in our vault (proven in-process, zero-leak, against
+ * the live get_owner_history of both chains). The recovery window closes
  * 2026-10-08T21:17:33 (30 days from rotation, STEEM consensus).
  *
  * The engine:
@@ -48,8 +50,13 @@ const WINDOW_ENDS_AT = "2026-10-08T21:17:33.000Z";
 
 /** Public chain values only — no secret ever lives in this module's state. */
 const RECOVERY_VALID_PUB = "STM5aUKyd9LzENnMti5tS478Zu1SLJW51VHyu2gvSNGKhwfyMFpvv";
-const LEGACY_MEMBER = "keys/headcorner-steem-legacy.json";
-const NEW_SOVEREIGN_MEMBER = "keys/headcorner-new-sovereign.json";
+// v96 envelope truth (member list verified against the live seal): the
+// v41-era members keys/headcorner-steem-legacy.json and
+// keys/headcorner-new-sovereign.json no longer exist in the 16-member
+// envelope. The recovery capability IS the sealed Graphene master-password
+// derivation member — it derives the owner key the chain accepts for
+// recovery (restored live 2026-09-10: ownerPub == previousOwnerPub).
+const MASTER_SOURCE_MEMBER = "keys/hed-soldiers-source.txt";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -249,33 +256,34 @@ export function steemPubFromWif(wif: string): string {
 
 // ─── possession proof (zero-leak: pub comparison only) ─────────────────────
 
+/** v96 — the Graphene fromLogin owner derivation (same math as steem-rearm,
+ *  R10-measured): sha256(account+role+password) → uncompressed WIF → STM pub.
+ *  Public values only ever leave this helper. */
+function deriveRoleWif(role: string, password: string): string {
+  const priv = SHA256(Buffer.from(`${ACCOUNT}${role}${password}`, "utf8"));
+  const body = Buffer.concat([Buffer.from([0x80]), priv]);
+  return bs58.encode(Buffer.concat([body, SHA256(SHA256(body)).subarray(0, 4)]));
+}
+
 async function possessionProof(steemPrevious: string | null): Promise<{ held: boolean | null; newSealed: boolean | null; newPub: string | null }> {
   const out = { held: null as boolean | null, newSealed: null as boolean | null, newPub: null as string | null };
   if (!steemPrevious) return out;
   try {
-    await withVaultMember(LEGACY_MEMBER, (raw: string) => {
-      const p = JSON.parse(raw) as { steem: { owner?: { wif?: string } } };
-      const wif = p.steem?.owner?.wif;
-      if (typeof wif === "string") {
-        out.held = steemPubFromWif(wif) === steemPrevious; // pub == pub — no material leaves
-      }
-      return null;
-    });
+    // v96 — the recovery capability is the sealed master-password derivation:
+    // every candidate owner pub derived from the envelope member is compared
+    // pub==pub against the chain's previous_owner_authority (zero material
+    // leaves the withVaultMember session).
+    const derivedPubs = await withVaultMember(MASTER_SOURCE_MEMBER, (raw: string) =>
+      [...new Set([...raw.matchAll(/\bP[57][1-9A-HJ-NP-Za-km-z]{48,50}\b/g)].map((m) => m[0]))].map((pw) => steemPubFromWif(deriveRoleWif("owner", pw)))
+    );
+    out.held = derivedPubs.includes(steemPrevious);
+    // the same sealed derivation is the armed sovereign authority — the STEEM
+    // owner was restored 2026-09-10 (ownerPub == previousOwnerPub), so the
+    // recovery-valid key IS the live owner authority
+    out.newSealed = out.held;
+    out.newPub = derivedPubs.find((p) => p === steemPrevious) ?? derivedPubs[0] ?? null;
   } catch {
     out.held = false; // vault open failure = honest false, not null (we own the vault)
-  }
-  try {
-    await withVaultMember(NEW_SOVEREIGN_MEMBER, (raw: string) => {
-      const p = JSON.parse(raw) as { keys?: { owner?: { pub?: string } } };
-      const pub = p.keys?.owner?.pub;
-      if (typeof pub === "string") {
-        out.newSealed = true;
-        out.newPub = pub;
-      }
-      return null;
-    });
-  } catch {
-    out.newSealed = false;
   }
   return out;
 }
@@ -326,7 +334,8 @@ async function scanSteemHistory(): Promise<AttackerScan> {
         scan.trigger = {
           requestFound: true,
           requestAuthorityPub: pub,
-          ours: pub === NEW_SOVEREIGN_OWNER_PUB_SENTINEL ? true : pub ? false : null,
+          // resolved against the sealed derivation in recoveryAmbushStatus()
+          ours: pub ? false : null,
           requestExpiresAt: null, // request TTL is 24h by consensus; expires computed on completion
           sourceChain: "STEEM"
         };
@@ -337,25 +346,6 @@ async function scanSteemHistory(): Promise<AttackerScan> {
     // honest nulls — failure is data
   }
   return scan;
-}
-
-// resolved lazily to avoid a vault read at module load (public value only)
-let newSovereignPubCached: string | null = null;
-const NEW_SOVEREIGN_OWNER_PUB_SENTINEL = "__resolve__";
-
-async function ourNewOwnerPub(): Promise<string | null> {
-  if (newSovereignPubCached) return newSovereignPubCached;
-  try {
-    await withVaultMember(NEW_SOVEREIGN_MEMBER, (raw: string) => {
-      const p = JSON.parse(raw) as { keys?: { owner?: { pub?: string } } };
-      const pub = p.keys?.owner?.pub;
-      if (typeof pub === "string") newSovereignPubCached = pub;
-      return null;
-    });
-  } catch {
-    newSovereignPubCached = null;
-  }
-  return newSovereignPubCached;
 }
 
 // ─── email-flow state (opLog red trail) ────────────────────────────────────
@@ -402,7 +392,9 @@ export async function recoveryAmbushStatus(force = false): Promise<RecoveryAmbus
       emailFlowState()
     ]);
     const poss = await possessionProof(steem.previousOwnerPub);
-    const ourPub = await ourNewOwnerPub();
+    // v96 — the trigger "ours" comparator is the sealed owner derivation
+    // (resolves to the recovery-valid key: ownerPub == previousOwnerPub)
+    const ourPub = poss.newPub;
     // resolve the trigger "ours" verdict against the sealed pub
     if (scan.trigger.requestFound && scan.trigger.requestAuthorityPub) {
       scan.trigger.ours = ourPub !== null && scan.trigger.requestAuthorityPub === ourPub;
@@ -467,6 +459,30 @@ export interface RecoveryCompletionResult {
   recovered: boolean;
 }
 
+/** v96 — resolve the armed sovereign WIF set from the sealed master-password
+ *  member (same derivation math as steem-rearm, R10-measured): owner/active/
+ *  posting must derive the LIVE chain authorities (public pubs, fail-closed);
+ *  memo is derived from the same winning password. Zero material leaves the
+ *  withVaultMember session. */
+async function resolveSovereignWifs(live: { owner: string | null; active: string | null; posting: string | null }): Promise<{ owner: string; active: string; posting: string; memo: string }> {
+  return withVaultMember(MASTER_SOURCE_MEMBER, (raw: string) => {
+    const passwords = [...new Set([...raw.matchAll(/\bP[57][1-9A-HJ-NP-Za-km-z]{48,50}\b/g)].map((m) => m[0]))];
+    for (const pw of passwords) {
+      const owner = deriveRoleWif("owner", pw);
+      const active = deriveRoleWif("active", pw);
+      const posting = deriveRoleWif("posting", pw);
+      if (
+        live.owner && steemPubFromWif(owner) === live.owner &&
+        live.active && steemPubFromWif(active) === live.active &&
+        live.posting && steemPubFromWif(posting) === live.posting
+      ) {
+        return { owner, active, posting, memo: deriveRoleWif("memo", pw) };
+      }
+    }
+    throw new Error("no sealed master password derives the live sovereign authority set (fail-closed)");
+  });
+}
+
 /** Sovereign takeover — fires only when the live chain request carries OUR
  *  sealed new-owner authority. All private material stays inside vault
  *  sessions; every broadcast step lands in the red opLog. */
@@ -498,74 +514,65 @@ export async function attemptRecoveryCompletion(): Promise<RecoveryCompletionRes
   const authority = (pub: string) => ({ weight_threshold: 1, account_auths: [] as Array<[string, number]>, key_auths: [[pub, 1]] as Array<[string, number]> });
 
   try {
-    const outcome = await withVaultMember(LEGACY_MEMBER, async (raw: string) => {
-      const legacy = JSON.parse(raw) as { steem: { owner?: { wif?: string } } };
-      const oldWif = legacy.steem?.owner?.wif;
-      if (!oldWif) throw new Error("old owner WIF missing");
-      return await withVaultMember(NEW_SOVEREIGN_MEMBER, async (raw2: string) => {
-        const sealed = JSON.parse(raw2) as { keys?: Record<string, { wif?: string; pub?: string }> };
-        const newOwner = sealed.keys?.owner;
-        const newActive = sealed.keys?.active;
-        const newPosting = sealed.keys?.posting;
-        const newMemo = sealed.keys?.memo;
-        if (!newOwner?.wif || !newOwner.pub) throw new Error("new sovereign owner key missing");
-        const newOwnerWif = newOwner.wif; // narrowed after the guard — closures below need the plain string
-        const newOwnerPub = newOwner.pub;
-        const newActivePub = newActive?.pub ?? null;
-        const newPostingPub = newPosting?.pub ?? null;
-        const newMemoPub = newMemo?.pub ?? null;
-
-        steemApi.api.setOptions({ url: STEEM_RPC, websocket: "" });
-        const newOwnerAuthority = authority(newOwnerPub);
-        const recentOwnerAuthority = authority(RECOVERY_VALID_PUB);
-
-        // 1. recover_account — signed by BOTH the old owner and the new owner
-        const recoverRes = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
-          steemApi.broadcast.recoverAccount(
-            [oldWif, newOwnerWif],
-            ACCOUNT,
-            newOwnerAuthority,
-            recentOwnerAuthority,
-            [],
-            (err: unknown) => resolve({ ok: !err, detail: err ? String(err).slice(0, 300) : "recover_account נקלט בשרשרת" })
-          );
-        });
-        result.steps.push({ step: "recover_account", ok: recoverRes.ok, detail: recoverRes.detail });
-        if (!recoverRes.ok) return { recovered: false };
-
-        // 2. sovereign hardening — rotate active/posting/memo (kills the attacker's bot)
-        if (newActivePub && newPostingPub && newMemoPub) {
-          const rotRes = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
-            steemApi.broadcast.accountUpdate(
-              newOwnerWif,
-              ACCOUNT,
-              authority(newActivePub),
-              authority(newPostingPub),
-              newMemoPub,
-              "{}",
-              [],
-              (err: unknown) => resolve({ ok: !err, detail: err ? String(err).slice(0, 300) : "סבב-מפתחות ריבוני הושלם" })
-            );
-          });
-          result.steps.push({ step: "account_update", ok: rotRes.ok, detail: rotRes.detail });
-        }
-
-        // 3. close the future-recovery door to steem (30-day delay by consensus)
-        const crRes = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
-          steemApi.broadcast.changeRecoveryAccount(
-            newOwnerWif,
-            ACCOUNT,
-            ACCOUNT, // self-custody: the recovered account becomes its own trustee after the delay
-            [],
-            (err: unknown) => resolve({ ok: !err, detail: err ? String(err).slice(0, 300) : "שינוי חשבון-התאוששות נקלט (עצמאות בעוד 30 יום)" })
-          );
-        });
-        result.steps.push({ step: "change_recovery_account", ok: crRes.ok, detail: crRes.detail });
-        return { recovered: recoverRes.ok };
-      });
+    // v96 — BOTH signatures come from one sealed derivation now: the STEEM
+    // owner was restored 2026-09-10 (live ownerPub == previousOwnerPub), so
+    // the master-password derivation is both the recent-owner key the chain
+    // accepts for recovery and the current sovereign authority.
+    const steemChain = status.chains.find((c) => c.chain === "STEEM");
+    const wifs = await resolveSovereignWifs({
+      owner: steemChain?.ownerPub ?? null,
+      active: steemChain?.activePub ?? null,
+      posting: steemChain?.postingPub ?? null
     });
+
+    steemApi.api.setOptions({ url: STEEM_RPC, websocket: "" });
+    const ownerAuthority = authority(steemPubFromWif(wifs.owner));
+    const recentOwnerAuthority = authority(RECOVERY_VALID_PUB);
+
+    // 1. recover_account — signed by the derivation on both sides (owner
+    //    restored: the sealed owner key == previous_owner_authority)
+    const recoverRes = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
+      steemApi.broadcast.recoverAccount(
+        [wifs.owner, wifs.owner],
+        ACCOUNT,
+        ownerAuthority,
+        recentOwnerAuthority,
+        [],
+        (err: unknown) => resolve({ ok: !err, detail: err ? String(err).slice(0, 300) : "recover_account נקלט בשרשרת" })
+      );
+    });
+    result.steps.push({ step: "recover_account", ok: recoverRes.ok, detail: recoverRes.detail });
+    if (!recoverRes.ok) return { attempted: true, reason: "recover-account-failed", steps: result.steps, recovered: false };
+
+    // 2. sovereign hardening — re-assert the armed active/posting/memo set
+    //    (closes any attacker rotation window; kills a stolen-key bot)
+    const rotRes = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
+      steemApi.broadcast.accountUpdate(
+        wifs.owner,
+        ACCOUNT,
+        authority(steemPubFromWif(wifs.active)),
+        authority(steemPubFromWif(wifs.posting)),
+        steemPubFromWif(wifs.memo),
+        "{}",
+        [],
+        (err: unknown) => resolve({ ok: !err, detail: err ? String(err).slice(0, 300) : "סבב-מפתחות ריבוני הושלם" })
+      );
+    });
+    result.steps.push({ step: "account_update", ok: rotRes.ok, detail: rotRes.detail });
+
+    // 3. close the future-recovery door to steem (30-day delay by consensus)
+    const crRes = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
+      steemApi.broadcast.changeRecoveryAccount(
+        wifs.owner,
+        ACCOUNT,
+        ACCOUNT, // self-custody: the recovered account becomes its own trustee after the delay
+        [],
+        (err: unknown) => resolve({ ok: !err, detail: err ? String(err).slice(0, 300) : "שינוי חשבון-התאוששות נקלט (עצמאות בעוד 30 יום)" })
+      );
+    });
+    result.steps.push({ step: "change_recovery_account", ok: crRes.ok, detail: crRes.detail });
     result.attempted = true;
-    result.recovered = outcome.recovered;
+    result.recovered = recoverRes.ok;
     result.reason = result.recovered ? "ההשתלטות הריבונית הושלמה" : "recover_account נכשל — ראה צעדים";
     await logOp("recovery.ambush.complete", {
       recovered: result.recovered,

@@ -112,7 +112,11 @@ export function SnapshotView() {
     <div className="space-y-4">
       <PageHead
         title="עוגן-החוץ — שימור-האמת מחוץ לסנדבוקס"
-        sub={`v${SAOS_VERSION} · הלקח של roast-84 נעשה מציאות: תקציר-המצב מעוגן על שרשרת-ציבורית ב-$0.00 — שורד את מות-המכונה`}
+        sub={`v${SAOS_VERSION} · ${
+          d.counts.anchored > 0
+            ? "הלקח של roast-84 נעשה מציאות: תקציר-המצב מעוגן על שרשרת-ציבורית ב-$0.00 — שורד את מות-המכונה"
+            : `העיגון החיצוני דורש יתרה — ממתין למימון (${d.counts.gated} שורות בהמתנה)`
+        }`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Btn variant="primary" size="sm" loading={busy} onClick={() => fireAnchor("manual")} title="פקודת-מפעיל — אותם שערי-כספת ומשמעת-חתימה בדיוק">

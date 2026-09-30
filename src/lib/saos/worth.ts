@@ -223,8 +223,13 @@ export async function networkWorth(): Promise<WorthData> {
   };
   const liveSources = Object.values(sources).filter(Boolean).length;
 
+  // 8-h truth-fix: the supply % is computed like row 78 (never hardcoded), and
+  // the physical-moves counter is named for what it counts (the moves-ledger
+  // table) — signed XRPL anchor pulses live in the treasury book, not here.
+  const supplyPct =
+    n(s?.orders) > 0 ? ((n(s?.ordersDelivered) / Math.max(1, n(s?.orders))) * 100).toFixed(1) : "—";
   const headline = mesh?.ok && s
-    ? `הרשת הריבונית חיה: ${fmtInt(n(s.completed))} ריצות הוכחו · ${fmtInt(n(s.ordersDelivered))} פקודות נמסרו (100% אספקה) · ${fmtSaos(s.valueMoved)} SAOS-M זזו בעמלה 0 — והכסף האמיתי זז פיזית (${physical?.ok ? fmtInt(physical.stats.movesConfirmed) : "—"} תזוזות מאומתות).`
+    ? `הרשת הריבונית חיה: ${fmtInt(n(s.completed))} ריצות הוכחו · ${fmtInt(n(s.ordersDelivered))} פקודות נמסרו (${supplyPct}% אספקה) · ${fmtSaos(s.valueMoved)} SAOS-M זזו בעמלה 0 — פנקס-התזוזות הפיזיות: ${physical?.ok ? fmtInt(physical.stats.movesConfirmed) : "—"} תנועות-פיזיות בפנקס-הציוד; פעימות-העוגן ב-XRPL (חתימה חיה) נמדדות בספר-האוצר.`
     : "מקורות-האמת במדידה — חלק לא ענו כרגע (כנות גלויה)";
 
   const potential = [
@@ -239,7 +244,11 @@ export async function networkWorth(): Promise<WorthData> {
 
   const honesty = [
     "SAOS-M הוא מטבע-מעבדה ($0.001 מדיניות) — ערך פנימי; הכסף האמיתי (ETH/BNB/XRP/TRX) נמדד חי מה-RPC הציבורי ומסומן בנפרד.",
-    "הנכס החמוש (STEEM headcorner) אינו נספר כהון — הוא ממתין לטריגר קונצנזוס של שרשרת-STEEM; החלון פתוח וספירתו חיה.",
+    // 8-h truth-fix: this bullet renders ONLY when the recovery sensor actually
+    // answered this cycle — no more "window open and counting live" on a dead probe.
+    sources.recovery
+      ? "הנכס החמוש (STEEM headcorner) אינו נספר כהון — הוא ממתין לטריגר קונצנזוס של שרשרת-STEEM; החלון פתוח וספירתו חיה."
+      : "גשש-ההתאוששות לא נענה במחזור זה — הנכס החמוש (STEEM headcorner) אינו נספר כהון ואינו נמדד כאן עכשיו.",
     "כל מספר כאן נקרא חי מהמקור ברגע הקריאה — אין מספרים שמורים או מומצאים.",
     `מקורות שענו: ${liveSources}/5${liveSources < 5 ? " — החסרים מסומנים בכנות וייבדקו שוב בקריאה הבאה" : ""}`
   ];

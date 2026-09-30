@@ -7,7 +7,7 @@
  *
  * לוח אחד, ארבע שכבות:
  *   (1) המטרות — מקודדות, עם המקור שממנו נולדה כל אחת ומדידה חיה
- *   (2) מסילות EVM — 8 רשתות במפקד RPC חי (chainId · בלוק · גז · יתרה · relay)
+ *   (2) מסילות EVM — כל המסילות במפקד RPC חי (chainId · בלוק · גז · יתרה · relay)
  *   (3) כל הנתיבים — 24 דלתות לפי משפחה: מנגנון, הליך-פתיחה, רצפת-עלות
  *   (4) טיסת-בדיקה — הודעת-הגשר הבלתי-חתומה מוכחת חי בלחיצה
  */
@@ -41,6 +41,7 @@ const GOAL_ICONS: Record<string, ReactNode> = {
 const STATUS_TONE: Record<LaneStatus, { pill: "green" | "gold" | "amber" | "zinc"; icon: ReactNode }> = {
   live: { pill: "green", icon: <CheckCircle2 size={12} /> },
   "ready-open": { pill: "gold", icon: <Rocket size={12} /> },
+  "anchored-thin": { pill: "amber", icon: <Link2 size={12} /> },
   "needs-gas": { pill: "amber", icon: <Fuel size={12} /> },
   "needs-module": { pill: "zinc", icon: <CircleDashed size={12} /> },
   documented: { pill: "zinc", icon: <CircleDashed size={12} /> }
@@ -144,7 +145,7 @@ function LaneCard({ lane }: { lane: BridgeLaneOut }) {
         "rounded-xl border p-4 space-y-2.5 transition-colors",
         lane.status === "live"
           ? "border-emerald-500/30 bg-emerald-500/[0.04]"
-          : lane.status === "ready-open"
+          : lane.status === "ready-open" || lane.status === "anchored-thin"
             ? "border-amber-500/30 bg-amber-500/[0.04]"
             : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.03]"
       )}
@@ -350,7 +351,7 @@ function PreflightPanel({ lanes }: { lanes: { id: string; heName: string; family
 
 const FAMILY_ORDER: BridgeLaneOut["family"][] = ["evm", "btc-utxo", "secp256k1", "ed25519"];
 const FAMILY_HE: Record<string, string> = {
-  evm: "משפחת EVM — blueprint אחד, 8 רשתות",
+  evm: "משפחת EVM — blueprint אחד לכל המסילות",
   "btc-utxo": "משפחת UTXO — OP_RETURN",
   secp256k1: "secp256k1 — טרון · XRP · קוסמוס",
   ed25519: "ed25519 — סולאנה וחברותיה"
@@ -390,12 +391,14 @@ export function BridgesView() {
     family: f,
     lanes: d.lanes.filter((l) => l.family === f)
   }));
+  // v96 — המניינים נגזרים מהמפקד (d.evm.length = המסילות שנבדקו, incl. SKALE)
+  const fundedLanes = d.lanes.filter((l) => l.funded === true).length;
 
   return (
     <div className="space-y-4">
       <PageHead
         title="בית-היוצר לגשרים (THE BRIDGE FOUNDRY)"
-        sub={`תשתית לעוד גשרים לעוד רשתות — 24 נתיבים ברישום, 8 מסילות EVM במפקד RPC חי, וטיסת-בדיקה שמוכיחה שהצינור מוכן בלי לגעת במפתח. הכתובת הציבורית בלבד: ${d.address}`}
+        sub={`תשתית לעוד גשרים לעוד רשתות — ${d.kpis.lanesTotal} נתיבים ברישום, ${d.evm.length} מסילות EVM במפקד RPC חי, וטיסת-בדיקה שמוכיחה שהצינור מוכן בלי לגעת במפתח. הכתובת הציבורית בלבד: ${d.address}`}
         actions={
           <>
             <Pill tone="gold" pulse>{SAOS_VERSION}</Pill>
@@ -447,18 +450,18 @@ export function BridgesView() {
         <Kpi label="גשרים חיים" value={d.kpis.live} icon={<CheckCircle2 size={15} />} tone="green" hint="מעוגן + ממומן — פועל" />
         <Kpi label="ממומנים לפתיחה" value={d.kpis.readyOpen} icon={<Rocket size={15} />} tone="gold" hint="מחכים לפקודת הירי" />
         <Kpi label="ממתינים לגז" value={d.kpis.needsGas} icon={<Fuel size={15} />} tone="rose" hint="החלטת מימון של הבעלים" />
-        <Kpi label="Relay-EVM חי" value={`${d.kpis.evmLive}/8`} icon={<Zap size={15} />} tone="green" hint="קוד חוזה נקרא מהשרשרת" />
-        <Kpi label="עוגנים חקוקים" value={d.kpis.anchored} icon={<BookOpen size={15} />} tone="gold" hint="מתוך 5 הממומנות" />
+        <Kpi label="Relay-EVM חי" value={`${d.kpis.evmLive}/${d.evm.length}`} icon={<Zap size={15} />} tone="green" hint="קוד חוזה נקרא מהשרשרת" />
+        <Kpi label="עוגנים חקוקים" value={d.kpis.anchored} icon={<BookOpen size={15} />} tone="gold" hint={`מתוך ${fundedLanes} הממומנות`} />
       </div>
 
       {/* ─── (3) מסילות EVM — המפקד החי ─── */}
       <Panel>
         <PanelHeader
           title="מסילות EVM — המפקד החי"
-          sub="שמונה רשתות נבדקות כרגע ב-RPC ציבורי מהימן: chainId מאומת, בלוק, מחיר גז, יתרת הכתובת המשותפת, וקוד ה-relay על השרשרת. אותו bytecode של SAOSRelay (v14) פורש על כולן — הפריסה מגודרת-כנות: מאזן ×2 לפני כל ירי."
+          sub={`${d.evm.length} רשתות נבדקות כרגע ב-RPC ציבורי מהימן: chainId מאומת, בלוק, מחיר גז, יתרת הכתובת המשותפת, וקוד ה-relay על השרשרת. אותו bytecode של SAOSRelay (v14) פורש על כולן — הפריסה מגודרת-כנות: מאזן ×2 לפני כל ירי.`}
           actions={
             <Pill tone={d.evm.every((e) => e.chainIdOk) ? "green" : "amber"}>
-              {d.evm.filter((e) => e.chainIdOk).length}/8 chainId מאומת
+              {d.evm.filter((e) => e.chainIdOk).length}/{d.evm.length} chainId מאומת
             </Pill>
           }
         />
@@ -502,7 +505,7 @@ export function BridgesView() {
         icon={<Hammer size={14} />}
       >
         <span className="font-bold">האמת המצטברת — </span>
-        {d.summaryHe}. התשתית כולה — רישום הנתיבים, מנגנוני הפתיחה, הכלי לפריסת ה-relay על 8 רשתות EVM וטיסת-הבדיקה — מוכנה ופועלת; הדלתות החשוכות ממתינות לגז בלבד, וזו החלטת הבעלים. הכספת לא נפתחה באף שלב של המפקד.
+        {d.summaryHe}. התשתית כולה — רישום הנתיבים, מנגנוני הפתיחה, הכלי לפריסת ה-relay על {d.evm.length} רשתות EVM וטיסת-הבדיקה — מוכנה ופועלת; הדלתות החשוכות ממתינות לגז בלבד, וזו החלטת הבעלים. הכספת לא נפתחה באף שלב של המפקד.
       </Callout>
     </div>
   );

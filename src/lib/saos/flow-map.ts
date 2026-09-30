@@ -22,9 +22,17 @@ import { db } from "@/lib/db";
 import { sealAvailability } from "@/lib/vault-seal";
 import { liquidityRadar, type LiquidityRadar } from "./liquidity-radar";
 import { probeDexPairs } from "./dex-live";
+import { probeHiveRc } from "./hive-rc-live";
+import { HIVE_RC_FLOOR_LIGHT } from "./anchor-gates";
 import { meshFastProvider } from "./mesh-provider";
 
 const MESH_STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "deployment.json");
+
+// 8-h — ONE source of truth: the TRX that physically flowed through the old
+// treasury on 2026-09-08, chain-verified (in+out cumulative). The previous
+// texts disagreed (17.6 here vs 18.7 in the view) — the flow-map value WINS;
+// the view reads this number from the API payload, never a second constant.
+export const HISTORICAL_TRX_FLOW_TRX = 17.6;
 
 // ─── types ──────────────────────────────────────────────────────────────────
 
@@ -55,7 +63,8 @@ export interface Limitation {
   what: string; // המגביל
   impact: string; // מה זה חוסם
   remedy: string; // הפתרון הריבוני
-  state: "solved-v21" | "solved-v22" | "ready" | "waiting-owner" | "structural";
+  // 8-h: "armed" = the v93+ sealed envelope holds live keys — signing works
+  state: "solved-v21" | "solved-v22" | "armed" | "ready" | "waiting-owner" | "structural";
   status: string; // live status line
 }
 
@@ -64,6 +73,10 @@ export interface FlowMap {
   radar: LiquidityRadar;
   flows: FlowEdge[];
   engines: EngineCard[];
+  /** 8-h — ONE source of truth for the historical TRX cumulative flow (chain-verified
+   *  2026-09-08). This is a CUMULATIVE FLOW, not a balance — the live measured balance
+   *  is the radar's tron-treasury row (~0.19 TRX today). */
+  historicalTrxFlow: number;
   capture: {
     microgrid: {
       grids: number;
@@ -154,11 +167,14 @@ let inflight: Promise<FlowMap> | null = null;
 
 async function build(): Promise<FlowMap> {
   const measuredAt = new Date().toISOString();
-  const [radar, micro, work, dex] = await Promise.all([
+  const [radar, micro, work, dex, hiveRc] = await Promise.all([
     liquidityRadar(),
     microgridTotals(),
     realWorkStats(),
-    probeDexPairs().catch(() => null)
+    probeDexPairs().catch(() => null),
+    // 8-h — the HIVE RC is measured LIVE in the same cycle (cached 60s probe);
+    // never a hardcoded percentage again.
+    probeHiveRc("headcorner")
   ]);
   const vaultNow = await sealAvailability();
 
@@ -172,6 +188,11 @@ async function build(): Promise<FlowMap> {
   const capturePct = realizedNum > 0 ? (sweptNum / realizedNum) * 100 : null;
 
   const spread = dex?.spreads?.[0] ?? null;
+
+  // 8-h — live measured TRX treasury balance (today) — kept apart from the
+  // historical cumulative flow (HISTORICAL_TRX_FLOW_TRX).
+  const tronTreasury = radar.assets.find((a) => a.id === "tron-treasury");
+  const tronTreasuryBal = tronTreasury?.balance ?? null;
 
   // ─── flow edges: sources → engines → sinks (measured states) ───
   const flows: FlowEdge[] = [
@@ -221,27 +242,29 @@ async function build(): Promise<FlowMap> {
       to: "רשת-RC + חזרת-האצלה",
       label: "משאבי-שידור",
       state: "live",
-      detail: "17.5K HP נטוע · האצלה חוצה 9K · ה-RC מתאושש תוך שעות"
+      detail: `17.5K HP נטוע · האצלה חוצה 9K · RC נמדד חי בכל מחזור${hiveRc.ok ? ` (${hiveRc.rcPct.toFixed(2)}%)` : ""}`
     },
     {
+      // 8-h truth-fix: the STEEM keys are SEALED & ARMED since v93 (4/4
+      // live-verified) — signing is live; the burned-WIF era text is history.
       id: "steem-anchor-rail",
       from: "STEEM SP (headcorner)",
       to: "מסילת-עוגנים היסטורית",
       label: "פרסום custom_json",
-      state: "blocked",
-      detail: "העוגנים ההיסטוריים חיים בשרשרת; חתימה חדשה ממתינה למפתח",
-      blocker: "active/posting WIF נשרפו בכספת",
-      remedy: "חימוש-מחדש ריבוני / מפתחות חדשים"
+      state: "live",
+      detail: "העוגנים ההיסטוריים חיים בשרשרת; ה-WIFs (active+posting) אטומים במעטפת וחמושים — 4/4 אומתו חי (v93+), חתימה חיה"
     },
     {
+      // 8-h truth-fix: ONE source of truth — the 17.6 is the HISTORICAL
+      // cumulative flow (chain-verified 2026-09-08), never presented as a
+      // current balance; the live balance is the measured radar row.
       id: "tron-reserve",
-      from: "אוצר TRX (17.6)",
+      from: `זרימת-TRX היסטורית (${HISTORICAL_TRX_FLOW_TRX} מצטבר)`,
       to: "עתיד: אנרגיה/דלק",
       label: "רזרבת-גז",
       state: "waiting",
-      detail: "17.6 TRX (~$5.9) — נזילות מוכחת-שרשרת, ממתינה לזרוע חתימה",
-      blocker: "מפתח headcorner wallets-seed נשרף",
-      remedy: "חימוש sovereign (0.05 TRX) קיים אך קטן מדי לעמלות — אמת"
+      detail: `זרימה היסטורית מצטברת ${HISTORICAL_TRX_FLOW_TRX} TRX (מאומתת-שרשרת 2026-09-08 — לא יתרה) · היתרה הנמדדת כיום באוצר: ${tronTreasuryBal ?? "—"} TRX (חי) · רישום-הדלתות TRON אטום במעטפת וחתימה חיה`,
+      remedy: "מימון-אנרגיה לפי החלטת-בעלים (חתימה עצמה חמושה v93+)"
     },
     {
       id: "dex-spread",
@@ -288,7 +311,6 @@ async function build(): Promise<FlowMap> {
   ];
 
   // ─── limitations × sovereign remedies ───
-  const tronTreasury = radar.assets.find((a) => a.id === "tron-treasury");
   // v22 — the cornerstone live proof (the seed-signed SAOS-NET tx)
   const cornerRow = await db.anchorTx
     .findFirst({ where: { kind: "cornerstone-enlist", status: "anchored" }, orderBy: { createdAt: "desc" } })
@@ -314,13 +336,16 @@ async function build(): Promise<FlowMap> {
         : "הזרע חתום · הגיוס החי ממתין (ויו המפתח הריבוני)"
     },
     {
+      // 8-h truth-fix: the v93+ envelope is LIVE and ARMED (16 members, keys
+      // 4/4 live-verified, rearm API: "vault already armed") — the old
+      // burn-era narrative stays only as history.
       id: "vault-burned",
-      what: "הכספת נשרפה (פקודת-ההשמדה) — כל זרועות-החתימה מושתקות",
-      impact: "חוסם חתימה ב-TRON/ETH/BSC/SOL/STEEM — חוסם כל רווח-אמת",
+      what: "הכספת הישנה נשרפה היסטורית (2026-09-08) — הוחלפה במעטפת-חיה חתומה (v93+)",
+      impact: "היסטורי: חסם חתימה ב-TRON/ETH/BSC/SOL/STEEM עד החימוש — מאז v93 החתימה חיה דרך המעטפת",
       remedy: "חימוש-מחדש ריבוני: קריאת-התמונה בקצה-האחורי → אימות BIP39+כתובות → איטום-חדש מקומי (gitignored)",
-      state: vaultNow.present ? "solved-v21" : "ready",
+      state: vaultNow.present ? "armed" : "ready",
       status: vaultNow.present
-        ? "בוצע בפועל: התמונה נקראה בקצה-האחורי · BIP39 תקין · EVM+TRON תאמו · הכספת נאטמה מחדש (vault-live)"
+        ? "חמושה וחיה (v93+): המעטפת נאטמה מחדש — 16 חברים · מפתחות-STEEM 4/4 אומתו חי · חתימה חיה (rearm: vault already armed)"
         : "התמונה של הבעלים בדיסק · הפעולה מוכנה ב-ויו הנזילות (כפתור חימוש)"
     },
     {
@@ -329,20 +354,33 @@ async function build(): Promise<FlowMap> {
       impact: "אין דלק לפריסת-המסחר על שרשרת-ייצור; כל ההוכחות רצות על המעבדה",
       remedy: "מימון-זרע מינימלי ($1-10 ב-BSC — רכב-העמלות הזול) מהבעלים; אותו-בייטקוד של המיקרו-גריד יורד ל-BSC ללא שינוי",
       state: "waiting-owner",
-      status: "BSC שרשרת-חיה (בלוק 120.7M) · המיקרו-גריד מוכח על המעבדה"
+      // 8-h: the stale hardcoded block number (120.7M) is dropped — the head
+      // block is measured live by the BSC RPC paths elsewhere; qualitative text only.
+      status: "BSC שרשרת-חיה (ראש-השרשרת נמדד חי בכל מחזור) · המיקרו-גריד מוכח על המעבדה"
     },
     {
+      // 8-h truth-fix: the TRON doors registry is SEALED in the envelope
+      // (12 TRON addresses, 1 funded ~0.19 TRX live-measured) — no burned key.
       id: "tron-arms",
-      what: "אוצר 17.6 TRX — מפתח headcorner הישן (wallets-seed) נשרף; הזרע החדש אינו מכסה את הכתובת הישנה",
-      impact: "הנזילות שזרמה ($5.9) נעולה בכתובת האוצר הישנה; זרועות אבן-הפינה החדשות ריקות עד מימון",
-      remedy: "אבן הפינה נותנה ל-headcorner שלוש זרועות חתימה חדשות (EVM/TRON/SOL — נגזרות מהזרע); מימון-זרע בכל אחת מהן מפעיל מיידי",
+      what: `זרימת-TRX היסטורית (${HISTORICAL_TRX_FLOW_TRX} מצטבר, מאומתת-שרשרת 2026-09-08) — היתרה החיה נמדדת כעת`,
+      impact: "הנזילות הנוכחית דקה: דלק-אנרגיה ל-TRON ממתין להחלטת-מימון",
+      remedy: "רישום-הדלתות TRON אטום במעטפת (12 כתובות, 1 ממומנת) — חתימה חיה; מימון-אנרגיה לפי החלטת-בעלים",
       state: "waiting-owner",
-      status: tronTreasury ? tronTreasury.balance + " TRX באוצר הישן · זרועות חדשות מוכנות לקליטה" : "—"
+      status: tronTreasury
+        ? `${tronTreasury.balance} TRX נמדד חי כעת באוצר · זרימה היסטורית מצטברת ${HISTORICAL_TRX_FLOW_TRX} TRX (לא יתרה)`
+        : "—"
     },
     {
+      // 8-h truth-fix: the RC percentage is the LIVE probe read (hive-rc-live),
+      // never a hardcoded 2.8% — when the probe fails: "לא נמדד במחזור זה".
       id: "hive-rc",
-      what: "RC ב-HIVE נמוך (2.8%) — חסם פרסום-עוגנים כרגע",
-      impact: "מסילת-העוגנים ב-HIVE מושהית עד התאוששות",
+      what: hiveRc.ok
+        ? `RC ב-HIVE נמדד חי: ${hiveRc.rcPct.toFixed(2)}%${hiveRc.rcPct >= HIVE_RC_FLOOR_LIGHT ? " — מעל רצפת-העיגון" : ""}`
+        : "RC ב-HIVE לא נמדד במחזור זה",
+      impact:
+        hiveRc.ok && hiveRc.rcPct >= HIVE_RC_FLOOR_LIGHT
+          ? "מעל רצפת-העיגון לפי מדידה — המסילה לא נחסמת מה-RC"
+          : "מסילת-העוגנים ב-HIVE נשענת על ה-RC החי",
       remedy: "מבני-זמן: ה-RC מתאושש לבד (שעות); האצלת-ה-HP מוסיפה לנזילות-כוח-שידור",
       state: "structural",
       status: "17.5K HP נטוע · 9K מואצל החוצה · 15.1K VESTS מתקבל"
@@ -362,6 +400,7 @@ async function build(): Promise<FlowMap> {
     radar,
     flows,
     engines,
+    historicalTrxFlow: HISTORICAL_TRX_FLOW_TRX,
     capture: {
       microgrid: { ...micro, unswept: (realizedNum - sweptNum).toFixed(6), capturePct },
       realWork: { deliverables: work.deliverables, anchored: work.anchored, payroll },

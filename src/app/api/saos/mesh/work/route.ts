@@ -35,9 +35,9 @@ export async function GET() {
 
 /**
  * POST /api/saos/mesh/work — the HQ posts a REAL work order on-chain, then
- * a REAL soldier mesh run delivers it through the whole contract chain
- * (MESH_CONTRACT_COUNT — derived from the generated registry) and the
- * payroll pays the soldier — zero fee, forever.
+ * a REAL soldier mesh run delivers it through the whole 10-contract mesh
+ * (linkOrder core: Identity → Ledger → Solutions → Bridge → WorkBoard) and
+ * the payroll pays the soldier — zero fee, forever.
  *
  * v18 — body: { mission, difficulty?, reward?, realWork? }: with
  * realWork=true (default) the platform's solution engine (server-side LLM)

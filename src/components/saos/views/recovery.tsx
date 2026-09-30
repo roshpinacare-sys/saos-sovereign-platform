@@ -4,7 +4,9 @@
  * =====================================================================
  * שרשרת-האמת שנמדדה חי (2026-09-10): התוקף החליף את מפתח ה-owner של
  * headcorner בשתי הרשתות בפער של 6 שניות (STEEM 21:17:33 · HIVE 21:17:39)
- * ומריץ בוט עוגנים גנוב ממפתח ה-posting כל ~36 שניות. שתי השרשרות מקבלות
+ * והריץ בוט עוגנים גנוב ממפתח ה-posting (קצב נמדד: ~13 פעולות/שעה).
+ * v96: מפתח ה-owner ב-STEEM שוחזר (2026-09-10: ownerPub == previousOwnerPub)
+ * — HIVE עדיין מוחזק על-ידי התוקף. שתי השרשרות מקבלות
  * התאוששות עם ה-previous_owner_authority — STM5aUKyd… — המפתח הזה בדיוק
  * חתום בכספת שלנו (הוכחה קריפטוגרפית בתוך-תהליך, מול get_owner_history
  * החי של שתי הרשתות). החלון נסגר 2026-10-08T21:17:33.
@@ -74,6 +76,9 @@ export function RecoveryView() {
   const [fireMsg, setFireMsg] = useState<string | null>(null);
 
   const d = live.data;
+  // v96 — steps 1-2 of the official email flow are driven by the measured
+  // opLog state (never hardcoded): submitted/confirmed/completed ⇒ both ran.
+  const emailSubmitted = d?.emailFlow.state === "submitted" || d?.emailFlow.state === "confirmed" || d?.emailFlow.state === "completed";
 
   const onFireAmbush = async () => {
     setFiring(true);
@@ -142,7 +147,7 @@ export function RecoveryView() {
 
           {/* story callout */}
           <Callout tone="gold" icon={<Swords size={14} />}>
-            <b>הקרב על headcorner:</b> ה-08/09 בשעה 21:17 הוחלף מפתח ה-owner בשתי השרשרות בו-זמנית (פער 6 שניות — שחקן אחד עם שני המפתחות מהכספת השרופה). מאז מריץ התוקף בוט עוגנים ממפתח ה-posting הגנוב. אבל השרשרת זוכרת: <b>המפתח שהיה תקף לפני ההחלפה — STM5aUKyd… — הוא הכרטיס להתאוששות</b>, והוא חתום אצלנו. הבקשה עצמה (request_account_recovery) טעונה חתימת חשבון-הנאמן `steem` — הוגשה בקשת אימייל רשמית דרך steemitwallet (אימות step-1 עבר!), והמארב שלנו ישלים את ההשתלטות ברגע שהבקשה תנחת עם הסמכות הריבונית שחתומה בכספת.
+            <b>הקרב על headcorner:</b> ה-08/09 בשעה 21:17 הוחלף מפתח ה-owner בשתי השרשרות בו-זמנית (פער 6 שניות — שחקן אחד עם שני המפתחות מהכספת השרופה). מאז הריץ התוקף בוט עוגנים ממפתח ה-posting הגנוב (קצב נמדד: ~13 פעולות/שעה). אבל השרשרת זוכרת: <b>המפתח שהיה תקף לפני ההחלפה — STM5aUKyd… — הוא הכרטיס להתאוששות</b>, והוא חתום אצלנו — ואכן שוחזר לשרשרת ב-2026-09-10 (ownerPub == previousOwnerPub) — HIVE עדיין מוחזק על-ידי התוקף. הבקשה עצמה (request_account_recovery) טעונה חתימת חשבון-הנאמן `steem` — {d.emailFlow.state === "none" ? "בקשת האימייל הרשמית דרך steemitwallet טרם הוגשה (אימות step-1 טרם רץ)" : `הוגשה בקשת אימייל רשמית דרך steemitwallet (${d.emailFlow.latestEventAt ? timeAgo(d.emailFlow.latestEventAt) : d.emailFlow.state})`}, והמארב שלנו ישלים את ההשתלטות ברגע שהבקשה תנחת עם הסמכות הריבונית שחתומה בכספת.
           </Callout>
 
           {d.trigger.requestFound && !d.trigger.ours && (
@@ -312,10 +317,15 @@ export function RecoveryView() {
             <PanelBody>
               <ol className="space-y-2 text-[11.5px] text-zinc-400 leading-relaxed list-decimal list-inside">
                 <li>
-                  <b className="text-zinc-200">אימות step-1 — עבר ✓</b> — שם החשבון + המפתח הישן אומתו מול השרשרת בטופס הרשמי (הלקוח בודק get_owner_history — בדיוק ההוכחה שלנו).
+                  <b className={emailSubmitted ? "text-emerald-300" : "text-zinc-200"}>
+                    אימות step-1 — {emailSubmitted ? "עבר ✓" : "טרם רץ"}
+                  </b> — שם החשבון + המפתח הישן מאומתים מול השרשרת בטופס הרשמי (הלקוח בודק get_owner_history — בדיוק ההוכחה שלנו){emailSubmitted ? "" : " — ירוץ בהגשה הראשונה"}.
                 </li>
                 <li>
-                  <b className="text-zinc-200">בקשת אימייל — הוגשה ✓</b> — {d.emailFlow.latestEventAt ? timeAgo(d.emailFlow.latestEventAt) : "—"} דרך ממשק steemitwallet ({d.emailFlow.note.slice(0, 120)}).
+                  <b className={emailSubmitted ? "text-emerald-300" : d.emailFlow.state === "failed" ? "text-rose-300" : "text-amber-300"}>
+                    בקשת אימייל — {emailSubmitted ? "הוגשה ✓" : d.emailFlow.state === "failed" ? "נכשלה — נדרשת הגשה מחדש" : "טרם הוגשה"}
+                  </b>
+                  {" — "}{d.emailFlow.latestEventAt ? `${timeAgo(d.emailFlow.latestEventAt)} דרך ממשק steemitwallet` : "טרם נרשם אירוע ביומן"} ({d.emailFlow.note.slice(0, 120)}).
                 </li>
                 <li>
                   <b className={d.emailFlow.state === "confirmed" || d.emailFlow.state === "completed" ? "text-emerald-300" : "text-zinc-200"}>

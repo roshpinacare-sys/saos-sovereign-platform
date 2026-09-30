@@ -104,7 +104,7 @@ export function RailPanel({ rail, readiness, ledger, pulsing, result, onPulse, o
   const ready = r && r.ok && "address" in r.readiness ? r.readiness : null;
   const title = isEvm ? "פעימת עגינה חיה — ETHEREUM" : "פעימת עגינה חיה — SOLANA";
   const sub = isEvm
-    ? "רכב-ה-EVM חי: עסקה עצמית (to=הכתובת הריבונית, value=0) עם שורש-המרקל בגוף העסקה — חתומה מזרע הכספת (m/44'/60'/0'/0/2), מאומתת איטומית ונקראת-חזרה מהשרשרת"
+    ? "רכב-ה-EVM חי: עסקה עצמית (to=הכתובת הריבונית, value=0) עם שורש-המרקל בגוף העסקה — חתומה מאבן-הפינה הריבונית (m/44'/60'/0'/0/0 — 0x01Bd2879, selfVerified v96 · נגזרת-הצי m/…/2 פרשה), מאומתת איטומית ונקראת-חזרה מהשרשרת"
     : "רכב-ה-SVM חי: הוראת Memo יחידה עם שורש-המרקל — חתומה מזרע הכספת (ed25519(sha256(seed|sol|headcorner))), zero lamports, מאומתת read-back מהקלאסטר";
   const explorerName = isEvm ? "etherscan ↗" : "solscan ↗";
 

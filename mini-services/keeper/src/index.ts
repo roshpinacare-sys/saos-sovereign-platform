@@ -269,6 +269,27 @@ const PAGE_EVERY = 3; // every 3rd cycle = 30s
 const PAGE_500_STREAK = 2; // two consecutive 5xx = objective
 const SRC_STABLE_MS = 180_000; // source untouched for 3 min
 
+// 8-g — P0 auth plane re-arm. v95's requireAuth gate silently 401'd every
+// keeper loopback POST (the v27 backup / v66 expansion / v67 drip / v80 agri
+// / v73 anchor / v74 heal / v41 ambush cadences died behind the wall). The
+// admin key plaintext lives at /home/z/.secrets/saos-admin-key (0600, same
+// user as this keeper) — read ONCE per process, cached in module memory,
+// NEVER logged, NEVER journaled. Missing/unreadable file → {} → the POST
+// goes unsigned → honest 401 in the journal (fail-closed, nothing fabricated).
+const ADMIN_KEY_FILE = "/home/z/.secrets/saos-admin-key";
+let loopbackAuthCache: Record<string, string> | null = null;
+function loopbackAuthHeaders(): Record<string, string> {
+  if (loopbackAuthCache === null) {
+    try {
+      const key = fs.readFileSync(ADMIN_KEY_FILE, "utf8").trim();
+      loopbackAuthCache = key ? { authorization: `Bearer ${key}` } : {};
+    } catch {
+      loopbackAuthCache = {}; // fail-closed: the POST then 401s and journals honestly
+    }
+  }
+  return loopbackAuthCache;
+}
+
 // ─── hot-reload bookkeeping (bun --hot re-evaluates this module) ───────────
 
 interface KeeperRuntime {
@@ -690,7 +711,7 @@ async function runBackup(): Promise<void> {
   try {
     const res = await fetch("http://127.0.0.1:3000/api/saos/backup", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
       body: JSON.stringify({ action: "snapshot", trigger: "keeper" }),
       signal: AbortSignal.timeout(45_000)
     });
@@ -1085,6 +1106,7 @@ async function checkRecoveryAmbush(): Promise<void> {
     if (st.trigger?.requestFound && st.trigger.ours === true) {
       const res = await fetch("http://127.0.0.1:3000/api/saos/recovery", {
         method: "POST",
+        headers: { ...loopbackAuthHeaders() },
         signal: AbortSignal.timeout(45_000)
       });
       const out = (await res.json().catch(() => null)) as { recovered?: boolean; reason?: string } | null;
@@ -1148,7 +1170,7 @@ async function checkAutoExpansion(): Promise<void> {
       // ×2 · receipt-from-node · chained receipt); the keeper only pokes.
       const res = await fetch(EXPANSION_URL, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
         body: JSON.stringify({ source: "auto" }),
         signal: AbortSignal.timeout(180_000)
       });
@@ -1226,7 +1248,7 @@ async function checkIrrigation(): Promise<void> {
       // wait on L2) — the timeout is long on purpose.
       const res = await fetch(IRRIGATION_URL, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
         body: JSON.stringify({ chain: fundable[0]!.chain, source: "auto" }),
         signal: AbortSignal.timeout(600_000)
       });
@@ -1278,7 +1300,7 @@ async function checkAgri(): Promise<void> {
   try {
     const res = await fetch(AGRI_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
       body: JSON.stringify({ action: "tick", source: "auto" }),
       signal: AbortSignal.timeout(30_000)
     });
@@ -1383,7 +1405,7 @@ async function checkSnapshot(): Promise<void> {
     // purpose.
     const res = await fetch(SNAPSHOT_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
       body: JSON.stringify({ action: "anchor", source: "auto" }),
       signal: AbortSignal.timeout(120_000)
     });
@@ -1473,7 +1495,7 @@ async function checkSyncRadar(): Promise<void> {
     if (st.healable === true) {
       const res = await fetch(SYNC_RADAR_URL, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
         body: JSON.stringify({ action: "heal", source: "auto" }),
         signal: AbortSignal.timeout(120_000)
       });

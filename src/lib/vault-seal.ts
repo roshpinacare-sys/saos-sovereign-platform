@@ -87,6 +87,7 @@ async function selfHealHomes(from: string): Promise<string[]> {
     } catch {
       try {
         fs.mkdirSync(dir, { recursive: true });
+        fs.chmodSync(dir, 0o700); // 8-g: the home dir itself stays private (no-op on ossfs, bites on POSIX)
         fs.writeFileSync(path.join(dir, "fleet_keys.enc"), enc, { mode: 0o600 });
         fs.writeFileSync(path.join(dir, "fleet_keys.meta.json"), meta, { mode: 0o600 });
         fs.chmodSync(path.join(dir, "fleet_keys.enc"), 0o600);
@@ -451,6 +452,7 @@ export async function appendVaultMember(memberPath: string, content: string): Pr
     if (path.dirname(enc) === dir) continue;
     try {
       fs.mkdirSync(dir, { recursive: true });
+      fs.chmodSync(dir, 0o700); // 8-g: the home dir itself stays private (no-op on ossfs, bites on POSIX)
       fs.writeFileSync(path.join(dir, "fleet_keys.enc"), sealed, { mode: 0o600 });
       fs.writeFileSync(path.join(dir, "fleet_keys.meta.json"), metaNoSecret(), { mode: 0o600 });
       fs.chmodSync(path.join(dir, "fleet_keys.enc"), 0o600);

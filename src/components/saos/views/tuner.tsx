@@ -150,9 +150,9 @@ export function TunerView() {
         <Kpi
           icon={<Snowflake size={15} />}
           label="נתקים ≥300ms"
-          value={`${d.delta.stallsAfter ?? 0}`}
-          hint={`בגשש 35ש' — לפני: ${d.delta.stallsBefore ?? "—"} (898ms שיא)`}
-          tone={(d.delta.stallsAfter ?? 0) === 0 ? "green" : "rose"}
+          value={d.delta.stallsAfter ?? "לא נמדד"}
+          hint={`בגשש 35ש' — לפני: ${d.delta.stallsBefore ?? "לא נמדד"}${d.delta.rpcMaxBeforeMs != null ? ` (${Math.round(d.delta.rpcMaxBeforeMs)}ms שיא)` : ""}`}
+          tone={d.delta.stallsAfter == null ? "default" : d.delta.stallsAfter === 0 ? "green" : "rose"}
         />
         <Kpi
           icon={<Timer size={15} />}

@@ -204,7 +204,7 @@ export function PermissionsView() {
           value={st.lastAutoScan.at ? timeAgo(st.lastAutoScan.at) : "ממתין ל-runner"}
           tone="gold"
           icon={<Radar size={16} />}
-          hint="מגן v25: סריקה מלאה אחת לשעה מה-runner"
+          hint={st.lastAutoScan.at ? `סריקות תקופתיות מה-runner (מחזור אחרון: ${new Date(st.lastAutoScan.at).toISOString().slice(0, 16).replace("T", " ")}Z / תדירות משתנה לפי עומס)` : "סריקות תקופתיות מה-runner (תדירות משתנה לפי עומס)"}
         />
       </div>
 

@@ -26,15 +26,31 @@ import { PageHead } from "../shell";
 export function ViewEnergy() {
   const [trx, setTrx] = useState(6500);
   const [txs, setTxs] = useState(4);
-  const [rc, setRc] = useState(0.6);
+  // v8-j lint repair — the slider value is DERIVED at render (no setState
+  // inside an effect): until touched it follows the live measurement.
+  const [rcManual, setRcManual] = useState(0.6);
+  // v96 — 0.6 is only the boot default: the slider seeds from the live probe
+  // as soon as the network answers, and once the owner touches it the slider
+  // becomes (and stays) an honest what-if tool.
+  const [rcTouched, setRcTouched] = useState(false);
 
   // v9 — מדידה חיה של RC (קריאה בלבד) — הסליידר נשאר כלי-סימולציה,
   // אך ברירת-המחדל של האמת היא הרשת, לא סביבה מקומית
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 60000);
   const hiveLiveRc = probes.data?.hive.ok ? probes.data.hive.rcPct : null;
 
+  // v96 — seed the slider default from the live measurement (never stuck on
+  // 0.6 when the network answers): until the slider is touched, the view
+  // stays in measured mode (no ?rc= override ⇒ the API returns rcSource:"live").
+  const rc = rcTouched ? rcManual : hiveLiveRc ?? rcManual;
+
   const tronUrl = `/api/saos/energy?net=tron&trx=${trx}&txs=${txs}`;
-  const hiveUrl = `/api/saos/energy?net=hive&rc=${rc}`;
+  // ?rc= is appended ONLY when the slider carries a human what-if value —
+  // an untouched slider equal to the live measurement must not masquerade
+  // as a simulation (the 8-e audit lie).
+  const rcParam =
+    rcTouched || hiveLiveRc === null || Math.abs(rc - hiveLiveRc) > 0.05 ? `&rc=${rc}` : "";
+  const hiveUrl = `/api/saos/energy?net=hive${rcParam}`;
 
   const [tronDeb, setTronDeb] = useState(tronUrl);
   const [hiveDeb, setHiveDeb] = useState(hiveUrl);
@@ -181,22 +197,28 @@ export function ViewEnergy() {
                     variant="secondary"
                     size="sm"
                     className="ms-2"
-                    onClick={() => setRc(hiveLiveRc)}
+                    onClick={() => setRcManual(hiveLiveRc)}
                   >
                     טען לסליידר
                   </Btn>
                 )}
               </Callout>
             )}
-            <RangeSlider label="RC נוכחי של החשבון" value={rc} min={0} max={100} step={0.1} suffix="%" onChange={setRc} />
+            <RangeSlider label="RC נוכחי של החשבון" value={rc} min={0} max={100} step={0.1} suffix="%" onChange={(v) => { setRcTouched(true); setRcManual(v); }} />
 
-            {/* R15 — כנות-מקור: כשמדידת-ה-RC החיה נכשלה, התוכנית מחושבת על מודל
-                0.6% (fallback כן בשער) — והדף חייב לומר את זה בפנים-הפאנל,
-                לא רק בהערת-רגל. */}
-            {hiveLive.data?.rcSource === "sim" && (
+            {/* R15/v96 — כנות-מקור: שני מקרים נבדלים — (א) מצב what-if שנבחר
+                בסליידר (לא מדידה, וזה בסדר — מציינים את המדידה החיה),
+                (ב) מדידה חיה שנכשלה בפועל (fallback 0.6 מוצהר). אף אחד
+                מהם לא יכול להתחפש לשני. */}
+            {hiveLive.data?.rcSource === "sim" && hiveLiveRc !== null && (
               <Callout tone="gold" icon={<AlertTriangle size={13} />}>
-                <span className="font-semibold">סימולציה — לא מדידה:</span> מדידת-ה-RC החיה נכשלה במחזור זה,
-                והתוכנית שלהלן מחושבת על מודל ברירת-המחדל (0.6%). כשהמדידה תצליח, התוכנית תיבנה מהאמת.
+                <span className="font-semibold">מצב what-if (סליידר) — לא מדידה:</span> התוכנית שלהלן מחושבת על ערך הסליידר ({rc}%), לא על מדידה. המדידה החיה האחרונה:{" "}
+                <b dir="ltr">{hiveLiveRc.toFixed(1)}%</b>{probes.data?.hive.ok ? ` (נמדד ${timeAgo(probes.data.hive.measuredAt)})` : ""}. כשהסליידר חוזר לערך החי — התוכנית נבנית מהמדידה.
+              </Callout>
+            )}
+            {hiveLive.data?.rcSource === "sim" && probes.data && hiveLiveRc === null && (
+              <Callout tone="gold" icon={<AlertTriangle size={13} />}>
+                <span className="font-semibold">מדידת-ה-RC החיה לא עמדה לרשות המחזור:</span> התוכנית שלהלן מחושבת על מודל ברירת-המחדל (0.6%) — מודל, לא מדידה חיה. המדידה החיה זמינה בלוח-הרשתות; כשהיא תצליח, התוכנית תיבנה מהאמת.
               </Callout>
             )}
 

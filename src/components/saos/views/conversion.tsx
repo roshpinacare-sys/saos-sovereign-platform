@@ -190,9 +190,15 @@ function AuthorizedTryPanel({ t, onMint, mintBusy }: { t: TryAuthorization; onMi
     <Panel accent className="border-amber-400/30">
       <PanelHeader
         icon={<Sparkles size={15} />}
-        title={`הניסיון המאושר — ההמרה רצה (${t.grantedAt})`}
-        sub="הבעלים אישר לנסות במילים פשוטות — והניסיון רץ במלואו על הרשת שלנו: סנכרון-המראה נורה, מעגל SOL↔TRX חי הוכח, ופקודת ההטבעה נחתמה. הכסף לא זז מהמשמרת — הערך נכנס לרשת"
-        actions={<Pill tone="gold">פקודת הטבעה — בוצע</Pill>}
+        title={`הניסיון המאושר — אימות היסטורי (v70 · ${t.grantedAt})`}
+        sub="הבעלים אישר לנסות — וב-v70 (2026-09-11) הניסיון רץ במלואו על הרשת שלנו: סנכרון-המראה נורה, מעגל SOL↔TRX חי הוכח, ופקודת ההטבעה נחתמה. זהו תיעוד היסטורי שקפוא בקוד — לא טענה על המחזור הנוכחי: ההוכחה וההטבעה של המחזור החי נמדדות בפאנלים למטה"
+        actions={
+          t.executedHe && t.proofHe ? (
+            <Pill tone="gold">פקודת הטבעה — בוצע</Pill>
+          ) : (
+            <Pill tone="amber">אימות היסטורי v70 — לא הורץ במחזור זה</Pill>
+          )
+        }
       />
       <PanelBody className="space-y-4">
         {/* ההרשאה — כלשונה, בציטוט */}
