@@ -4,8 +4,8 @@
  * קובץ-חדש בלבד (אפס דריסות).
  */
 import fs from "fs";
+import { ghToken } from "../src/lib/saos/gh-token"; // Task 13-c: canonical token chain (env → pat.env → legacy Roshcaregt)
 
-const TOKEN = fs.readFileSync("upload/Roshcaregt.txt", "utf8").trim().split("\n")[0];
 const OWNER = "roshpinacare-sys";
 const PATH = "broadcasts/2026-09-11-cheap-conversion.md";
 const REPOS = [
@@ -23,6 +23,8 @@ const REPOS = [
 ];
 
 async function main() {
+  const TOKEN = await ghToken();
+  if (!TOKEN) throw new Error("gh-token: no GitHub token (env GITHUB_TOKEN / SAOS_GH_TOKEN_FILE / upload/pat.env / upload/Roshcaregt.txt)");
   const content = fs.readFileSync("broadcasts/2026-09-11-cheap-conversion.md");
   const b64 = content.toString("base64");
   let ok = 0;

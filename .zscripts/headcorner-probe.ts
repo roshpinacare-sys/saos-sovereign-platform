@@ -15,8 +15,10 @@ import bs58 from "bs58";
 import { Keypair } from "@solana/web3.js";
 import { PrismaClient } from "@prisma/client";
 
-const WORDS_PATH = "/home/z/my-project/upload/ראשגד.txt";
-const TOKEN_PATH = "/home/z/my-project/upload/Roshcaregt.txt";
+// Task 13-c: the upload files move between sandbox resets — env overrides first
+// (HEADCORNER_WORDS_FILE / SAOS_GH_TOKEN_FILE), then the historical upload paths.
+const WORDS_PATH = process.env.HEADCORNER_WORDS_FILE || "/home/z/my-project/upload/ראשגד.txt";
+const TOKEN_PATH = process.env.SAOS_GH_TOKEN_FILE || "/home/z/my-project/upload/pat.env";
 const REGISTRY_URL =
   "https://raw.githubusercontent.com/roshpinacare-sys/steem/main/sovereign/node/wallets-public.json";
 

@@ -12,7 +12,8 @@
 # Resolution order (first non-empty wins):
 #   1) /home/z/.secrets/github-token            (canonical, 0600)
 #   2) /home/z/.devgate/secrets/github-pat      (devgate secret broker ref)
-#   3) /home/z/my-project/upload/Roshcaregt.txt (owner upload legacy path)
+#   3) /home/z/my-project/upload/pat.env         (live operator-staged PAT)
+#   4) /home/z/my-project/upload/Roshcaregt.txt (owner upload legacy path)
 #
 # Protocol: git invokes  <this-script> get  with key=value on stdin.
 # We must consume stdin, then print username=/password= lines.
@@ -32,6 +33,7 @@ TOKEN=""
 for f in \
   /home/z/.secrets/github-token \
   /home/z/.devgate/secrets/github-pat \
+  /home/z/my-project/upload/pat.env \
   /home/z/my-project/upload/Roshcaregt.txt
 do
   if [ -s "$f" ]; then
