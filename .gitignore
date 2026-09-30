@@ -46,7 +46,6 @@ local-*
 *.log
 dev.log
 dev.out.log
-test
 prompt
 
 server.log
@@ -57,3 +56,10 @@ server.log
 /agent/
 /.secrets/
 /db/backups/
+
+# ── foundry build artifacts (8-c: forge test gate merged from fleet/r130) ──
+# foundry.toml out=/out — collides with next.js's own /out/ above; both ignored.
+/cache/
+/broadcast/
+# note: the old bare `test` ignore (pre-forge) was removed — test/*.t.sol is
+# now tracked regression law and must never be git-invisible.

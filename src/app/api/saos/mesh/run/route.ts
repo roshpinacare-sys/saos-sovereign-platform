@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth, audit } from "@/lib/saos/auth";
 import { runMesh } from "@/lib/saos/mesh-client";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,14 @@ export const dynamic = "force-dynamic";
  * body: { intent: string } — the run's intent (default: manual dispatch)
  */
 export async function POST(req: Request) {
+
+  // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  const __auth = await requireAuth(req);
+  if (!__auth.ok) {
+    await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/mesh/run", allowed: false, req });
+    return NextResponse.json({ ok: false, error: __auth.error ?? "auth-required" }, { status: __auth.status });
+  }
+
   try {
     let intent = "";
     try {

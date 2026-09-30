@@ -72,6 +72,7 @@ const TITLES: Record<ViewId, string> = {
   "sovereign-net": "הרחבת הריבונות — פתרונות נוספים שנמצאו על הרשת",
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
+  sovereignty: "ריבונות — מפת-השליטה העצמית",
   reshut: "רשות — מטריצת הסמכויות",
   keeper: "שומר — החייאה עצמית",
   networks: "רשתות חיות",

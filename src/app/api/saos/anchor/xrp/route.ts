@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth, audit } from "@/lib/saos/auth";
 import { guardPermission } from "@/lib/saos/permissions";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
@@ -185,6 +186,14 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+
+  // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  const __auth = await requireAuth(req);
+  if (!__auth.ok) {
+    await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/anchor/xrp", allowed: false, req });
+    return NextResponse.json({ ok: false, error: __auth.error ?? "auth-required" }, { status: __auth.status });
+  }
+
   try {
     // v91 — RESHUT: the manual mainnet pulse is a declared, audited operation —
     // every attempt (allow AND deny) lands in the permission journal.

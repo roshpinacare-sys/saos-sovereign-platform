@@ -1,5 +1,6 @@
 import { guardPermission } from "@/lib/saos/permissions";
 import { NextResponse, after } from "next/server";
+import { requireAuth, audit } from "@/lib/saos/auth";
 import { executeSaosMint, saosLedger, fireAutoAnchorForNewSeal } from "@/lib/saos/saos-mint";
 import { db } from "@/lib/db";
 
@@ -28,7 +29,15 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+
+  // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  const __auth = await requireAuth(req);
+  if (!__auth.ok) {
+    await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/mint", allowed: false, req });
+    return NextResponse.json({ ok: false, error: __auth.error ?? "auth-required" }, { status: __auth.status });
+  }
+
   try {
     // v91 — RESHUT: this operator action is a declared, audited operation —
     // every attempt (allow AND deny) lands in the permission journal.
