@@ -316,11 +316,21 @@ function beatKey(): string | null {
   const now = Date.now();
   if (beatKeyCache && now - beatKeyCache.at < 30_000) return beatKeyCache.key;
   let key: string | null = null;
-  try {
-    const raw = fs.readFileSync(ADMIN_KEY_FILE, "utf8").trim();
-    key = raw.length >= 16 ? raw : null; // מפתח ריק/קצר — לא הופך bearer תקף
-  } catch {
-    key = null; // missing file — fail-silent, the next cadence retries
+  // v98 FIX: the 13-c alignment replaced the single ADMIN_KEY_FILE const with
+  // ADMIN_KEY_CANDIDATES — the old single-path reference here resolved to an
+  // out-of-scope name → ReferenceError → silent key=null → beats silently
+  // stopped (live-caught: "beat-tick cycle=6 key=null"). Now the same
+  // candidate chain the loopback auth uses (env → .secrets → devgate).
+  for (const cand of ADMIN_KEY_CANDIDATES) {
+    try {
+      const raw = fs.readFileSync(cand, "utf8").trim();
+      if (raw.length >= 16) {
+        key = raw; // מפתח ריק/קצר — לא הופך bearer תקף
+        break;
+      }
+    } catch {
+      /* next candidate — fail-silent, the next cadence retries */
+    }
   }
   beatKeyCache = { key, at: now };
   return key;

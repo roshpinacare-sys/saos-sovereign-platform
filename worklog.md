@@ -756,3 +756,19 @@ Stage Summary:
 - The survival layer is rotation-proof: key rotation no longer breaks keeper loopback auth (live-file hash resolution); the mesh runner is signed and produces real deliverables again
 - 30/30 remaining preview-truth findings fixed (3 LIE, 2 SIM, 18 STALE, 5 CONTRA, 1 DEAD) incl. XRPL in the anchor matrix and the 10-chain command bar
 - Disk stability fixed at the root (anvil-tmp janitor + 5.8GB/4.4GB reclaims) — measured 38% usage
+---
+Task ID: 9-fix (post-rebase heartbeat resurrection — live-caught merge regression)
+Agent: Z.ai (orchestrator)
+
+Work Log:
+- After push, origin had advanced (bb491a1 "13-c alignment: shared gh-token module") — rebased v98 on top, pushed clean (0/0)
+- MINUTES LATER the one-net beat ledger showed keeper/herald/swarm beats frozen (~19:25) while all services stayed alive — diagnosed by bisection: beat route 200 (manual + bun-fetch), keeper cycle() completing (checks 21→24), ports listening, journals writing — then added a TEMP diagnostic at the beat call site → "[keeper] beat-tick cycle=6 key=null"
+- ROOT CAUSE (merge semantics, not logic): bb491a1 REPLACED the module const ADMIN_KEY_FILE with ADMIN_KEY_CANDIDATES (env → .secrets → devgate chain); 9-e's beatKey() still referenced the deleted const name → bun (no typecheck across hot reloads) compiled it → ReferenceError at call time → swallowed by the try → key=null → beats silently skipped. The rebase replay created the broken coexistence WITHOUT a textual conflict (different hunks)
+- Why herald/swarm/evm-mesh were immune: 13-c touched only the keeper; their 9-e beat code kept its own local consts
+- FIX: beatKey() now walks the same ADMIN_KEY_CANDIDATES chain (also honors the 13-c env-override doctrine); temp diagnostic removed
+- The rebase hot-reload window itself caused the wedge: bun --hot evaluated the intermediate (pre-replay) tree — the final merged file was never re-evaluated until this content change
+- Process hygiene: stale seat-locked swarm (24291) killed; supervisor respawned herald/swarm/keeper cleanly (booted 19:40-19:44)
+- FINAL measured state: one-net 7/7 services live (web/keeper/gate-herald/swarm/evm-mesh/anvil/supervisor) · anvil block 8259 advancing · census 37/37 · repos 16/16 activeNow · keeper beat ok (251B) 52s ago · tsc 0 (keeper + evm-mesh + src) · lint 0
+
+Stage Summary:
+- The one-net heartbeat plane is rotation-proof AND merge-proof: every key-path consumer now walks the shared candidates chain; the silent-skip failure mode is documented here for the next merge touching key resolution
