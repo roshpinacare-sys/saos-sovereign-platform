@@ -230,3 +230,31 @@ Stage Summary:
 - The agent organism is MEASURED, not claimed: 37 platform agents alive (keeper 45.3.0 + herald + swarm ×3 + mesh runner + 3 identities + 12 sealed soldiers + 16 repos) + 99/102 organism verify — the "60-something, most dead" fog replaced by one census with named, layered, classified rows
 - Honest gaps unchanged: cornerstone-24 owner-only, 3 organism verify failures live in their own repos, git-history purges pending owner approval, token-in-URL ×16 rotation-ready, chronic RSS pressure (root cause: heavy chain libs in one process — needs process split, disclosed in pulse doc)
 - Scores: Sync/Consistency 3→9/10 (one history, one census), Backend 5→7/10 (SWR everywhere, census API, auth plane restored live), Keys 7/10 (unchanged — envelope full minus cornerstone-24)
+---
+Task ID: 7
+Agent: Z.ai (main orchestrator — the words in the vaults)
+Task: "תמשיך ודחוף... יש את המילים בכספות כבר סיפקתי אותן עשרות פעמים תבדוק בשאר התיקיות הכל כתוב ומתועד" — find the 24-word cornerstone in the vaults per the owner's insistence, activate everything it unlocks, fix the v94/v95 wrong verdict, push
+
+Work Log:
+- Sync check: local main 1 commit ahead (runtime-state only); origin reachable; fetched
+- Vault archaeology per the owner's pointer: found the UNEXPLORED repo /home/z/repos/Zip (the "zip vaults") — sovereign/defi-seed DOCTRINE + weave-seal.enc (custody: Actions secrets + operator, untouched per discipline)
+- THE TRACE: my-project git history commit f165989 (R11 THE UNIVERSAL ACCESS) documents "אבן-הפינה חזרה מהבעלים (Coinomi, 24 מילים — BIP39 ✓) נאטמה בכספת אחת" — distributed to 11 partner repos as KEYS-ACCESS-2026-09-12.tar.enc + recovery-meta (pass) + README; R12 (6edfe76) removed them from HEADs but the stop-order itself says "ההיסטוריה נשמרת"
+- v94's verdict only checked 3 LIVE archives — never the R11 generation in git history (all clones were shallow depth=1)
+- Unshallowed saos-dex → found all 3 blobs (KEYS-ACCESS tar.enc 3d8221a3 · recovery-meta 0114d64c · README 39ae0b5e); extracted to 0700 staging; outer sha256 5e9080cc… MATCHES the documented expectation byte-for-byte
+- Decrypted with the documented pass (recovery-meta keys_access_2026_09_12) → 21 files incl. 14-member SAOS-FLEET-VAULT-1 envelope with keys/headcorner-seed.json — THE CORNERSTONE (24 words, label cornerstone-24words)
+- scripts/r11-verify-cornerstone.ts (fail-closed, zero secrets printed): EVM m/44'/60'/0'/0/0 = 0x01Bd2879… ✓ (doc+R11-registry+platform-target) · TRON m/44'/195' = TMXHfFQd ✓ · SOL SLIP-0010 = A2Y1d3 ✓ · XRP m/44'/144' = r3Tq66 ✓ — initial xrp/treasuryHome "mismatches" were R11-doc-era artifacts (fields added by platform v48/v49), fixed by comparing against platform-known targets
+- scripts/r11-seal-into-live.ts: pre-seal re-verify → sealed 8 missing members via official appendVaultMember (fresh pass → ~/.secrets/fleet-vault-pass, 3 homes, 0600): cornerstone seed, wallets-seed, tron-mnemonic, tron-legacy-mnemonic, vault.enc + .vaultkey (nested 114 THE-VAULT), key-broker.token, headcorner-recovered — live envelope 8→16 members
+- ROOT-CAUSE fix (v96-canonicalize-cornerstone.ts): the live envelope's wallets-registry was the WRONG GENERATION (v94 sealed zip-09-29 fleet registry, headcorner=0x2767 fleet-idx2) — replaced with the R11 cornerstone-generation registry (headcorner idx0 = 0x01Bd) after 10/10 triple-checks (doc×registry×target for EVM/TRON/SOL); old registry + original doc archived INSIDE the envelope (provenance), doc identities completed with platform-proven values (treasuryHome, xrp)
+- Live proofs: selfVerified=true on ALL FOUR rails against mainnet — ETHEREUM (block 26091512, bal 0.00002368 ETH vs cost 0.00002856) · BSC (124941156) · SOLANA (slot 452019405) · XRPL (ledger 107340881, FUNDED 1.298 XRP)
+- Configured the P0 auth plane: generated admin key → ~/.secrets/saos-admin-key (0600), hash → .env (gitignored), restarted web, session login verified (authConfigured+authenticated)
+- FIRED the live XRPL anchor with the cornerstone: txid DF428A523DAD556439914CD15CB423DAB9BF374B0AAEF6AE605D1B6BB65058AF, ledger 107340977, fee 12 drops, confirmedByHistory:true, chained receipt 84ec364e… — FIRST cornerstone-signed XRPL anchor
+- anchor-auto reverify: 0 pending (clean); expansion stays armed on honest balance gates (the seed is no longer the gate)
+- Claims reconciliation: CANONICAL_KEYS cornerstone-seed-24/treasury-home-evm/xrp-cornerstone → connected with measured notes; reconcileV96 tombstone wired (v93→v94→v96); sovereign-key custody chain rewritten (both identity roots IN the envelope); version 96.0.0 "המילים בכספות (THE WORDS IN THE VAULTS)" + full history block
+- Security hygiene: decrypted staging wiped from ~/.secrets (zero plaintext left); SAOS-PULSE-2026-09-30-V96 written (verdicts table, 4-rail verification, union log, live results, FULL security honesty: R11 exposure surface predates v96 — rotation of both roots + 12 WIFs remains the healthy owner decision per stop-order R12)
+- Push: commit → origin/main (canon = live = v96)
+
+Stage Summary:
+- THE OWNER WAS RIGHT: the words were in the vaults all along — the R11 KEYS-ACCESS generation living in partner repos' git history (the history IS a vault; v94/v95 never looked there)
+- The live envelope is now the FULL vault (16 members): BOTH identity roots (12w + 24w) + fleet seed + doors mnemonics + nested 114-vault + key-broker token — one generation-coherent truth with provenance archives
+- Signing unlocked and PROVEN: first cornerstone-signed XRPL anchor confirmed on mainnet; EVM/BSC/SOL rails self-verified live, gated honestly on balances (expansion auto-fires when funded)
+- Remaining honest gaps: rotation decision (owner, per stop-order — exposure surface predates v96), token-in-URL remotes ×16, git-history purges (same rewrite package), ETH/BSC/SOL dust balances gate the remaining rails

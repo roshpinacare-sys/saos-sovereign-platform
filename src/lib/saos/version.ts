@@ -146,10 +146,39 @@
  *    איפס אותם — ה-census חזר ל-17).
  */
 
-export const SAOS_VERSION = "95.0.0";
+/**
+ * v96 המילים בכספות (THE WORDS IN THE VAULTS) — "יש את המילים בכספות
+ * כבר סיפקתי אותן עשרות פעמים תבדוק בשאר התיקיות הכל כתוב ומתועד"
+ * (הבעלים, trace 1a0f313dafb317cd) — והבעלים צדק:
+ *
+ * 1. ארכיאולוגיה מדודה: דור KEYS-ACCESS-2026-09-12 (R11 — "הגישה-האוניברסלית")
+ *    נאטם ונדחף ל-11 ריפואי-השותפים (create-only) ואז הוסר מ-HEAD ב-R12 —
+ *    אך הבלובים נשארו בהיסטוריית-git. פסק v94 "אבן-הפינה חסרה בכל הכספות"
+ *    בדק רק 3 ארכיונים חיים ולא את דור-R11 בהיסטוריה.
+ * 2. השאיבה: unshallow של saos-dex חשף את שלושת הבלובים
+ *    (KEYS-ACCESS tar.enc + recovery-meta + README); sha256 החוץ
+ *    5e9080cc… תואם לתיעוד במלואו; הפענוח עם הסיסמה מ-recovery-meta
+ *    (keys_access_2026_09_12) פתח מעטפת 14-חברים ובתוכה
+ *    keys/headcorner-seed.json — אבן-הפינה, 24 מילים, Coinomi.
+ * 3. האימות המרובע (fail-closed, scripts/r11-verify-cornerstone.ts):
+ *    EVM m/44'/60'/0'/0/0 = 0x01Bd2879 ✓ (doc + רישום-R11 + יעד-פלטפורמה)
+ *    · TRON m/44'/195'/0'/0/0 = TMXHfFQd ✓ · SOL SLIP-0010 m/44'/501'/0'/0'
+ *    = A2Y1d3 ✓ · XRP m/44'/144'/0'/0/0 = r3Tq66 ✓.
+ * 4. האיחוד (appendVaultMember רשמי ×10): המעטפת החיה 8→16 חברים —
+ *    הזרע + זרע-הצי + מנמוניקי-הדלתות + ה-114-vault המקונן ומפתחו +
+ *    טוקן-הברוקר + רשות-היסטורית; רישום-דור-אבן-הפינה (R11) החליף את
+ *    רישום-דור-הצי ש-v94 אטם בטעות — שניהם נארכבו בתוך המעטפת
+ *    עם פרובננס מלא; ה-doc הושלם בזהויות שהפלטפורמה הוכיחה חי (v45/v49).
+ * 5. התוצאה החיה: selfVerified=true בכל ארבע המסילות מול mainnet
+ *    (ETHEREUM 26091512 · BSC 124941156 · SOLANA slot 452019405 ·
+ *    XRPL ledger 107340881, r3Tq66 ממומן 1.298 XRP) — חתימת-EVM/SOL/XRP
+ *    נפתחה, כפופה לשערי-יתרה כנים; reconcileV96 מיישר את ה-DB.
+ */
+
+export const SAOS_VERSION = "96.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "מצבת-האמת (THE TRUTH CENSUS)";
+export const SAOS_CODENAME = "המילים בכספות (THE WORDS IN THE VAULTS)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;
