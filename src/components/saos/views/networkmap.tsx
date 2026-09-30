@@ -18,7 +18,7 @@ import { SAOS_VERSION } from "@/lib/saos/version";
 import { cn } from "../ui";
 
 const FAMILY_META: Record<string, { label: string; icon: ReactNode; desc: string }> = {
-  evm: { label: "משפחת EVM — מפתח אחד, 8 רשתות", icon: <Zap size={14} />, desc: "כל רשתות ה-EVM חולקות את אותה כתובת 0x01Bd — אותה זהות, יתרה נפרדת לכל רשת, גז מקומי לכל אחת" },
+  evm: { label: "משפחת EVM — מפתח אחד, 8 שרשראות-EVM מקוריות + SKALE = 9 מסילות", icon: <Zap size={14} />, desc: "כל רשתות ה-EVM חולקות את אותה כתובת 0x01Bd — אותה זהות, יתרה נפרדת לכל רשת, גז מקומי לכל אחת" },
   "btc-utxo": { label: "משפחת ביטקוין/UTXO — base58check + bech32", icon: <Link2 size={14} />, desc: "פורמט הכתובות של BTC/DOGE/LTC — גזירה סטנדרטית מאותו זרע" },
   secp256k1: { label: "secp256k1 — טרון · XRP · קוסמוס", icon: <Compass size={14} />, desc: "אותה עקומה של EVM, קידודים שונים לגמרי לכל רשת" },
   ed25519: { label: "משפחת ed25519 — סולאנה וחברותיה", icon: <RadioTower size={14} />, desc: "עקומת SLIP-0010 — סולאנה, סטלאר, פולקאדוט, אפטוס, סווי, טזוס, NEAR" },
@@ -129,12 +129,19 @@ function ChainCard({ r }: { r: ChainRow }) {
 
 export function NetworkMapView() {
   const data = useLive<NetworkCensus>("/api/saos/networks", 5 * 60_000);
+  // v98 truth-fix (9-a #26): the identity/family counts derive from the live
+  // census payload — the old static "22 ב-4 משפחות" predated the ZERO family.
+  const totals = data.data?.totals;
 
   return (
     <div className="space-y-5 animate-view">
       <PageHead
         title="מפת-רשתות — הארנק הרב-רשתי"
-        sub="התשובה הקודדת לשאלת הבעלים: איך ארנק אחד פותח הרבה רשתות · מטבעות · עיגונים — 24 המילים של אבן-הפינה נגזרות ל-22 זהויות ב-4 משפחות קריפטו, עם מפקד יתרות חי מ-RPC ציבוריים מהימנים"
+        sub={
+          totals
+            ? `התשובה הקודדת לשאלת הבעלים: איך ארנק אחד פותח הרבה רשתות · מטבעות · עיגונים — 24 המילים של אבן-הפינה נגזרות ל-${totals.derived} זהויות (+${totals.documented} מתועדות) ב-${totals.families} משפחות קריפטו, עם מפקד יתרות חי מ-RPC ציבוריים מהימנים`
+            : "התשובה הקודדת לשאלת הבעלים: איך ארנק אחד פותח הרבה רשתות · מטבעות · עיגונים — 24 המילים של אבן-הפינה נגזרות לזהויות רב-רשת; המניין המדויק נגזר מהמפקד החי בטעינה"
+        }
         actions={
           <div className="flex gap-1.5">
             <Pill tone="gold" pulse>{SAOS_VERSION}</Pill>
@@ -264,9 +271,9 @@ function MapBody({ d }: { d: NetworkCensus }) {
       <Panel>
         <PanelHeader
           icon={<Zap size={15} />}
-          title="משפחת EVM — מפתח אחד, שמונה רשתות"
+          title="משפחת EVM — מפתח אחד, 8 שרשראות-EVM מקוריות + SKALE = 9 מסילות"
           sub={FAMILY_META.evm.desc}
-          actions={<Pill tone="green">{evmRows.filter((r) => r.probeOk).length}/8 חיות</Pill>}
+          actions={<Pill tone="green">{evmRows.filter((r) => r.probeOk).length}/{evmRows.length} חיות</Pill>}
         />
         <PanelBody className="space-y-4">
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3.5">

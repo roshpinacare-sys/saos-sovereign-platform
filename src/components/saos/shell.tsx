@@ -20,7 +20,7 @@ import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/ver
 import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "smartlink" | "agentchat" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -108,7 +108,7 @@ export const VIEWS: ViewDef[] = [
     id: "bridges",
     label: "בית-היוצר לגשרים",
     short: "גשרים",
-    desc: "תשתית לעוד גשרים לעוד רשתות — מטרות הגישור המקודדות, 24 נתיבים עם מנגנון והליך-פתיחה, 8 מסילות EVM במפקד חי, וטיסת-בדיקה שמוכיחה שהצינור מוכן בלי לגעת במפתח",
+    desc: "תשתית לעוד גשרים לעוד רשתות — מטרות הגישור המקודדות, 24 נתיבים עם מנגנון והליך-פתיחה, 9 מסילות EVM במפקד חי (כולל SKALE), וטיסת-בדיקה שמוכיחה שהצינור מוכן בלי לגעת במפתח",
     icon: <Hammer size={16} />,
     group: "תפעול"
   },
@@ -140,7 +140,7 @@ export const VIEWS: ViewDef[] = [
     id: "sovereign-net",
     label: "הרחבת הריבונות",
     short: "הרחבה",
-    desc: "פתרונות ריבוניים נוספים שנמצאו על הרשת — דלת EVM בגז-חינם (SKALE), מסילות-מודול ב-RPC חינם, שכבות-פרסום NOSTR — בבדיקה חיה · עוגן-ynet אומת עצמאית · 12 הריפואים · סוופ-סודות ריבוני",
+    desc: "פתרונות ריבוניים נוספים שנמצאו על הרשת — דלת EVM בגז-חינם (SKALE), מסילות-מודול ב-RPC חינם, שכבות-פרסום NOSTR — בבדיקה חיה · עוגן-ynet אומת עצמאית · 16 הריפואים · סוופ-סודות ריבוני",
     icon: <Globe2 size={16} />,
     group: "תפעול"
   },
@@ -188,7 +188,7 @@ export const VIEWS: ViewDef[] = [
     id: "networks",
     label: "רשתות חיות",
     short: "רשתות",
-    desc: "רשת-8 שרשראות במדידה חיה — ETH · SOL · BSC + צמדי DEX אמיתיים",
+    desc: "רשת-10 שרשראות במדידה חיה — ETH · SOL · BSC + צמדי DEX אמיתיים",
     icon: <Globe2 size={16} />,
     group: "תפעול"
   },
@@ -196,7 +196,7 @@ export const VIEWS: ViewDef[] = [
     id: "agents",
     label: "מעקב סוכנים",
     short: "סוכנים",
-    desc: "כל ריפואי האורגניזם (12 ב-v58) במדידה חיה מול GitHub — דחיפות, קומיטים וטריות",
+    desc: "כל ריפואי האורגניזם (16 — גדל 8→12 ב-v58) במדידה חיה מול GitHub — דחיפות, קומיטים וטריות",
     icon: <Users size={16} />,
     group: "תפעול"
   },
@@ -252,7 +252,7 @@ export const VIEWS: ViewDef[] = [
     id: "sovereignty",
     label: "מרשם-הריבונות — 17 תיקיות-גיט",
     short: "ריבונות",
-    desc: "הוראת הבעלים 'לחזק את האוטונומיה והריבונות על כלל תיקיות הגיט' (v93) — מפקד חי: ענף/HEAD/סנכרון/ניקיון-עץ לכל ריפו · שכבת-המפתחות (כספת · חתימת-STEEM 4/4 · חנות-PAT) · פערים מגושרים · פסקי-טענות v93 למסמכי-הקנון",
+    desc: "הוראת הבעלים 'לחזק את האוטונומיה והריבונות על כלל תיקיות הגיט' (v93) — מפקד חי: ענף/HEAD/סנכרון/ניקיון-עץ לכל ריפו · שכבת-המפתחות (כספת · חתימת-STEEM 4/4 · חנות-PAT) · פערים מגושרים · פסקי-טענות v96 למסמכי-הקנון",
     icon: <ShieldCheck size={16} />,
     group: "תפעול"
   },
@@ -270,6 +270,14 @@ export const VIEWS: ViewDef[] = [
     short: "צ'אט",
     desc: "צרף סוכנים כמוני דרך API — כותבים לנו ומבצעים פקודות-עבודה",
     icon: <MessagesSquare size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "one-net",
+    label: "רשת-אחת — היחידה המתואמת",
+    short: "רשת-אחת",
+    desc: "הוראת הבעלים 'יחידה אחת, רשת אחת, הכל מתואם' — תמונת-מצב אחת מורכבת מכל המצרפים החיים: שבעת השירותים עם דופק ויומן-זנב · מצבת-הסוכנים · 16 הריפואים · עשרת החוזים · העבודה האמיתית · פנקס-הדופק (חי ≤120ש') — נגזר וכנה, בלי ירוק-מזויף",
+    icon: <RadioTower size={16} />,
     group: "תפעול"
   },
 
@@ -317,7 +325,7 @@ export const VIEWS: ViewDef[] = [
     id: "flow",
     label: "נזילות וזרימה",
     short: "נזילות",
-    desc: "מכ\"ם-נזילות חי (8 מרחבים · USD) · מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני (תמונה→אימות→איטום)",
+    desc: "מכ\"ם-נזילות חי (9 מרחבים · USD) · מפת-הזרימה מקורות→מנועים→לכידה · חימוש-מחדש ריבוני (תמונה→אימות→איטום)",
     icon: <Droplets size={16} />,
     group: "כלכלה ואנרגיה"
   },
@@ -359,7 +367,7 @@ const ShellFooter = memo(function ShellFooter() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
           <span className="flex items-center gap-2">
             <Anchor size={12} className="text-amber-500/80" />
-            SAOS Sovereign Platform v{SAOS_VERSION} — {SAOS_CODENAME} — מניפסט האיברים המצטבר (היסטורי, מ-v44): רוסט-אמת (TRUTH ROAST) · מימוש (REALIZATION: מנוע שווי-הרשת החי + פעימת המימוש) — התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת (10 חוזי-המש · בורסה · מיקרו-גריד · כסף אמיתי ETH/BNB/XRP/TRX · מארב STEEM) מופרד לעולם ל: ממומש (הוכח — ריצות · מסירות · תזוזות) · אחזקה (חי ביד) · חמוש (ממתין לטריגר — לא נספר כהון) · מנוע (תקרות כנות) · ופעימת מימוש שמבצעת ערך על הרשת עכשיו — אורקל+סולם+שטיפה+קציר→קופת-עבודה+ריצה ריבונית אמיתית דרך כל 10 החוזים, הכל עם txid וקבלה משורשרת-האש) + חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה (Coinomi) — מחובר לבורסה החיה: WBNB + WRXP נרשמים 1:1 מול המדידה, בריכות #3/#4 נזרעות, אספקת WETH מסונכרנת לאוצר האמיתי · מסילת XRPL חיה במכ"ם · בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה · עמלה 20bps — 10 לקופת האוצר ו-10 לצמיחת הבריכה · נזילות שקוצרת OUT לאוצר ומוזרמת לקופת העבודה · חיילים סוחרים בהון-מסחר · ראוטר לדקסים המובילים — סטייה &gt;0.8% מתוקנת ע"י סוכן-ארביטראז' אוטונומי · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי ?XTransformPort=8545) + אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM ב-RSS 1350MB (v55) לפני שהקרנל הורג ב-1790 — ומ-keeperv43: חלונות-תחייה נפרדים לכל איבר + מיחזור מיידי בקו-ההרג (שיעור 2026-09-12: הקרנל ניצח פעם, לא ינצח שוב · גיבויים ריבוניים כל 10 דק' — DB עקבי VACUUM INTO + שרשרת יומית בסבב 48+7 · דד-ליין 9ש' לפסי-הרשת) + SHOMER (שומר: החייאה עצמית — השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil⇄שער, גלאי-זומבים על בסיס בלוקים + אמת-תפקוד (חי ≠ משרת — פיד שלא מתקדם = מת), מושב-יחיד לכל שירות (נעילת-PID — אין כפילויות) ואב-סנדק לרץ מהשער — אף איבר לא נשאר מת-תפקוד) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה אחת לשעה מה-runner) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + RECOVERY (התאוששות v41: מארב headcorner — אמת-שתי-שרשרות חיה, הוכחת-החזקה קריפטוגרפית מול previous_owner_authority, ספירת-חלון עד 2026-10-08, והשתלטות אוטונומית ברגע שבקשה נושאת את הסמכות הריבונית — השומר בודק כל 60ש') + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 8-CHAIN LIVE GRID + מעקב סוכנים
+            SAOS Sovereign Platform v{SAOS_VERSION} — {SAOS_CODENAME} — מניפסט האיברים המצטבר (היסטורי, מ-v44): רוסט-אמת (TRUTH ROAST) · מימוש (REALIZATION: מנוע שווי-הרשת החי + פעימת המימוש) — התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת (10 חוזי-המש · בורסה · מיקרו-גריד · כסף אמיתי ETH/BNB/XRP/TRX · מארב STEEM) מופרד לעולם ל: ממומש (הוכח — ריצות · מסירות · תזוזות) · אחזקה (חי ביד) · חמוש (ממתין לטריגר — לא נספר כהון) · מנוע (תקרות כנות) · ופעימת מימוש שמבצעת ערך על הרשת עכשיו — אורקל+סולם+שטיפה+קציר→קופת-עבודה+ריצה ריבונית אמיתית דרך כל 10 החוזים, הכל עם txid וקבלה משורשרת-האש) + חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה (Coinomi) — מחובר לבורסה החיה: WBNB + WRXP נרשמים 1:1 מול המדידה, בריכות #3/#4 נזרעות, אספקת WETH מסונכרנת לאוצר האמיתי · מסילת XRPL חיה במכ"ם · בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה · עמלה 20bps — 10 לקופת האוצר ו-10 לצמיחת הבריכה · נזילות שקוצרת OUT לאוצר ומוזרמת לקופת העבודה · חיילים סוחרים בהון-מסחר · ראוטר לדקסים המובילים — סטייה &gt;0.8% מתוקנת ע"י סוכן-ארביטראז' אוטונומי · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי ?XTransformPort=8545) + אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM ב-RSS 1350MB (v55) לפני שהקרנל הורג ב-1790 — ומ-keeperv43: חלונות-תחייה נפרדים לכל איבר + מיחזור מיידי בקו-ההרג (שיעור 2026-09-12: הקרנל ניצח פעם, לא ינצח שוב · גיבויים ריבוניים כל 10 דק' — DB עקבי VACUUM INTO + שרשרת יומית בסבב 48+7 · דד-ליין 9ש' לפסי-הרשת) + SHOMER (שומר: החייאה עצמית — השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil⇄שער, גלאי-זומבים על בסיס בלוקים + אמת-תפקוד (חי ≠ משרת — פיד שלא מתקדם = מת), מושב-יחיד לכל שירות (נעילת-PID — אין כפילויות) ואב-סנדק לרץ מהשער — אף איבר לא נשאר מת-תפקוד) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה במחזור-משתנה מה-runner (המדידה בפאנל)) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + RECOVERY (התאוששות v41: מארב headcorner — אמת-שתי-שרשרות חיה, הוכחת-החזקה קריפטוגרפית מול previous_owner_authority, ספירת-חלון עד 2026-10-08, והשתלטות אוטונומית ברגע שבקשה נושאת את הסמכות הריבונית — השומר בודק כל 60ש') + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 10-CHAIN LIVE GRID + מעקב סוכנים
           </span>
           <span className="flex items-center gap-3">
             <a
@@ -604,7 +612,7 @@ export function AppShell({
           </nav>
         </header>
 
-        {/* פס-פיקוד 8-רשתות — חי מול live-probes (SAOS-NET + 7 מסילות חיצוניות) */}
+        {/* פס-פיקוד 10-רשתות — חי מול live-probes (SAOS-NET + 9 מסילות חיצוניות) */}
         <ChainTicker height={stats?.lastHeight} status={status} probes={probes} />
 
         {/* תוכן */}
@@ -677,9 +685,10 @@ export function AppShell({
   );
 }
 
-// ─── ChainTicker — פס-פיקוד 8-רשתות חי ───────────────────────────────────────
+// ─── ChainTicker — פס-פיקוד 10-רשתות חי ───────────────────────────────────────
 // SAOS-NET (גובה) · STEEM/BLURT (עוגן) · HIVE (RC) · TRON (מעבר)
-// · ETHEREUM (בלוק) · BSC (בלוק + מאזן BNB) · SOLANA (slot) — מדידה read-only מול RPC ציבורי.
+// · ETHEREUM (בלוק) · BSC (בלוק + מאזן BNB) · SOLANA (slot) · XRPL (עוגן אבן-הפינה v96) · ZERO (גז-אפס)
+// — מדידה read-only מול RPC ציבורי.
 
 interface TickerChip {
   id: string;
@@ -783,6 +792,23 @@ function ChainTicker({
         p?.sol?.epoch != null
           ? `epoch ${p.sol.epoch}${p.sol.epochProgressPct != null ? ` · ${p.sol.epochProgressPct}%` : ""}`
           : "רכב-חי"
+    },
+    {
+      // v98 — XRPL joins the ticker: the flagship v96 cornerstone anchor is a
+      // measured matrix row (/api/saos/status) — no longer invisible in the bar.
+      id: "xrpl",
+      name: "XRPL",
+      value: gateOf("XRPL")?.status === "anchored" ? "עוגן" : "…",
+      tone: gateOf("XRPL")?.status === "anchored" ? "green" : "zinc",
+      label: "מסילת-עגינה · אבן-הפינה v96"
+    },
+    {
+      // v98 — ZERO joins the ticker: the zero-gas rail (anchored since v94).
+      id: "zero",
+      name: "ZERO",
+      value: gateOf("ZERO")?.status === "anchored" ? "עוגן" : "גז-אפס",
+      tone: gateOf("ZERO")?.status === "anchored" ? "green" : "zinc",
+      label: "מסילת-האפס · Z Chain גז-אפס"
     }
   ];
 
@@ -797,11 +823,11 @@ function ChainTicker({
     <div
       className="sticky top-14 z-20 border-b border-white/[0.05] bg-zinc-950/80 backdrop-blur-md"
       role="status"
-      aria-label="פס-פיקוד 8 רשתות חי"
+      aria-label="פס-פיקוד 10 רשתות חי"
     >
       <div className="max-w-6xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto scroll-slim h-9">
         <span className="hidden sm:inline-flex items-center gap-1.5 shrink-0 pe-2 me-1 border-e border-white/[0.06] text-[9px] font-bold tracking-wider text-amber-400/80 uppercase">
-          8-Chain
+          10-Chain
         </span>
         {chips.map((c) => (
           <span

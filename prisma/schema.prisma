@@ -473,3 +473,21 @@ model SessionControl {
   rotatedBy    String? // non-reversible actor label
   note         String?
 }
+
+// ─── v97: one-net heartbeat ledger (פנקס-הדופק של רשת-אחת) ──────────────────
+// Every coordinated member of the organism (keeper · gate-herald · swarm ·
+// evm-mesh · anvil · web) POSTs its beat to /api/saos/one-net/beat with the
+// admin bearer key. One row per beat, bounded history: after each insert the
+// sink prunes the source to its latest 30 rows. Bearer-plane only (P0);
+// vitality is a plain string ("live" | "stale") — sqlite has no enums.
+// Numbers and booleans discipline: payload is JSON ≤4096 chars, never secrets.
+
+model AgentHeartbeat {
+  id       Int      @id @default(autoincrement())
+  source   String // keeper | gate-herald | swarm | evm-mesh | web | anvil
+  vitality String   @default("live")
+  payload  String // JSON ≤4096 chars — the beater's own measured digest
+  at       DateTime @default(now())
+
+  @@index([source, at])
+}

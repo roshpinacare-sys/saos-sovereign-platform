@@ -12,7 +12,10 @@ export interface ChainGate {
   // v37 — widened honestly: the status route appends the EVM/SVM rails
   // (ETHEREUM · SOLANA) to the same matrix since v12; the type must say so.
   // R9 — ZERO joins: the zero-gas EVM mainnet (Z Chain) rail, measured live.
-  network: "STEEM" | "BLURT" | "HIVE" | "TRON" | "ETHEREUM" | "SOLANA" | "ZERO";
+  // v98 — XRPL joins: the flagship v96 cornerstone anchor (tx DF428A52…,
+  // ledger 107340977, confirmedByHistory) is a real row of the same weave
+  // anchor ledger — the matrix must not stay blind to a live rail.
+  network: "STEEM" | "BLURT" | "HIVE" | "TRON" | "ETHEREUM" | "SOLANA" | "ZERO" | "XRPL";
   status: "anchored" | "pending" | "gated" | "transit";
   gate: string | null;
   detail: string;

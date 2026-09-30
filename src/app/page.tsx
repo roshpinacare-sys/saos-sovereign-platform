@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * SAOS Sovereign Platform v96/97 — רוסט-אמת (TRUTH ROAST): החשיפה העצמית
+ * SAOS Sovereign Platform v97 (SAOS_VERSION) — רוסט-אמת (TRUTH ROAST): החשיפה העצמית
  * החיה — התשובה הקודדת להוראת הבעלים "חפש בעיות רבות ותקן את כולן חפש
  * פערים רבים וסדר אותם יש לנו מלא פערים מה אמת למציאות תעשה לעצמך
  * roast חריף לרשת כדי לחשוף אותך ותתקן דחוף": מנוע truthRoast (5
  * מקורות-אמת: כסף USD חי · keeper · herald · swarm · מדידת-עצמי) + ויו
  * 'רוסט-אמת' מקום 3 — פסק-דין, נייר מול אמת, ופערים fixed/open/honest.
- * הרכבה דקה: AppShell (פס-פיקוד 8-רשתות חי) + 39 עמודים. קיצורי-מקלדת Alt+1..9.
+ * הרכבה דקה: AppShell (פס-פיקוד 10-רשתות חי) + 39 עמודים. קיצורי-מקלדת Alt+1..9.
  */
 
 import { useEffect, useState } from "react";
@@ -44,6 +44,7 @@ import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
 import { SovereigntyView } from "@/components/saos/views/sovereignty";
 import { SmartLinkView } from "@/components/saos/views/smartlink";
 import { AgentChatView } from "@/components/saos/views/agentchat";
+import { OneNetView } from "@/components/saos/views/one-net";
 import { ViewProofs } from "@/components/saos/views/proofs";
 import { ViewEnergy } from "@/components/saos/views/energy";
 import { MicrogridView } from "@/components/saos/views/microgrid";
@@ -85,6 +86,7 @@ const TITLES: Record<ViewId, string> = {
   "sovereign-key": "המפתח הריבוני",
   smartlink: "החיבור החכם — כספת ריבוי-בתים",
   agentchat: "צ'אט הסוכנים — שער API",
+  "one-net": "רשת-אחת — היחידה המתואמת",
   proofs: "הוכחות",
   energy: "ריבונות אנרגיה",
   microgrid: "מיקרו-גריד",
@@ -178,6 +180,7 @@ export default function Home() {
         {view === "sovereignty" && <SovereigntyView />}
         {view === "smartlink" && <SmartLinkView />}
         {view === "agentchat" && <AgentChatView />}
+        {view === "one-net" && <OneNetView />}
         {view === "proofs" && <ViewProofs seals={status.data?.seals ?? []} />}
         {view === "energy" && <ViewEnergy />}
         {view === "microgrid" && <MicrogridView />}

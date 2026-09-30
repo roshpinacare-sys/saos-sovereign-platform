@@ -183,10 +183,23 @@
  * הרשאות נאטמו — ומעטפת-הכניסה למנהל נפתחה למשתמש (fail-closed נשמר).
  */
 
-export const SAOS_VERSION = "97.0.0";
+/**
+ * v98 רשת-אחת (ONE NETWORK) — הוראת הבעלים "יחידה אחת, רשת אחת, הכל מתואם":
+ * מוח-התיאום one-net מרכיב את כל המצרפים החיים (מצבת · שומר · מפקח · ריפואים ·
+ * חוזים · עבודה-אמת) לתמונה-אחת (GET /api/saos/one-net, חם ~7מ"ש), כל שירות
+ * דופק לב-חתום (beat) במחזור-שלו לכספת AgentHeartbeat, וויו "רשת-אחת" מציג
+ * את היחידה המתואמת — נגזר וכנה. שיקום-מישור-האימות: resolveAdminKeyHashes
+ * פותר את hash-המפתח מהקובץ-החי (TTL 30ש') בנוסף ל-env — רוטציית-מפתח
+ * כבר לא שוברת את דפיקות-ה-loopback של השומר (ה-401 של 18:22 נרפא חי,
+ * backup-ok מוכח). רץ-החוזים חתום (deliverable 222/223 אמיתי). סבב-אמת
+ * 9-a/9-d: 30 ממצאים (3 LIE · 2 SIM · 18 STALE · 5 CONTRA · 1 DEAD)
+ * תוקנו כולם — כולל XRPL במטריצת-העיגון ובפס-הפיקוד (10 רשתות חי).
+ */
+
+export const SAOS_VERSION = "98.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "ביקורת-התצוגה (THE PREVIEW TRUTH)";
+export const SAOS_CODENAME = "רשת-אחת (ONE NETWORK)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

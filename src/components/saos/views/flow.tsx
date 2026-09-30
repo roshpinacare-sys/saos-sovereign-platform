@@ -6,7 +6,7 @@
  * ערך... מה שמגביל אותך צריך למצוא פתרון ריבוני" — הוויו הזה הוא התשובה
  * החיה:
  *
- *   • מכ"ם נזילות — 12 נכסים ב-8 מרחבים, יתרות בזמן-אמת + שווי USD
+ *   • מכ"ם נזילות — 14 נכסים ב-9 מרחבים (נגזר מהמכ"ם החי), יתרות בזמן-אמת + שווי USD
  *     (מקורות-מחיר חיים; אין מחיר = null כנה, לא מספר מומצא)
  *   • מפת-זרימה — מקורות → מנועים → לכידה, כל זרימה עם מצב חי
  *   • חימוש-מחדש ריבוני — התמונה של הבעלים נקראת בקצה-האחורי, מאומתת
@@ -293,12 +293,15 @@ export function FlowView() {
   const liveFlows = flows.filter((f) => f.state === "live").length;
   const blockedFlows = flows.filter((f) => f.state === "blocked").length;
   const topAssets = [...radar.assets].sort((a, b) => (b.usd ?? 0) - (a.usd ?? 0)).slice(0, 3);
+  // v98 truth-fix: the domain count is DERIVED from the live radar payload
+  // (14 assets across 9 domains, XRPL included) — never a hardcoded "8".
+  const radarDomains = new Set(radar.assets.map((a) => a.domain)).size;
 
   return (
     <div className="space-y-4">
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi icon={<Droplets size={14} />} label="שווי-נזילות USD" value={`$${fmt(radar.totals.usdKnown)}`} hint={`${radar.totals.assetsTracked} נכסים · 8 מרחבים`} />
+        <Kpi icon={<Droplets size={14} />} label="שווי-נזילות USD" value={`$${fmt(radar.totals.usdKnown)}`} hint={`${radar.totals.assetsTracked} נכסים · ${radarDomains} מרחבים`} />
         <Kpi icon={<Workflow size={14} />} label="זרימות חיות" value={String(liveFlows)} hint={`${flows.length} זרימות במפה`} />
         <Kpi icon={<Lock size={14} />} label="חסומות" value={String(blockedFlows)} hint="ממתינות לחימוש" />
         <Kpi icon={<Coins size={14} />} label="לכידת-מיקרו-גריד" value={capture.microgrid.capturePct !== null ? `${capture.microgrid.capturePct.toFixed(0)}%` : "—"} hint={`${capture.microgrid.swept} / ${capture.microgrid.realized} SAOS-M`} />

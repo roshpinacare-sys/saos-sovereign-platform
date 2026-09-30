@@ -222,12 +222,12 @@ export function SovereigntyView() {
         </CardContent>
       </Card>
 
-      {/* פסקי-טענות v93 */}
+      {/* פסקי-טענות v96 */}
       <Card className="border-white/[0.06]">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm text-zinc-100">
             <ScrollText size={15} className="text-amber-300" />
-            איחוד-טענות חוצה-תיקיות — פסק-v93 למסמכי-הקנון
+            איחוד-טענות חוצה-תיקיות — פסק-v96 למסמכי-הקנון
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">

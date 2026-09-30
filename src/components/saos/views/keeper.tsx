@@ -213,11 +213,22 @@ export function KeeperView() {
   const memberCount = Object.keys(members).length;
   const memOk = d.memory.pressure === false;
 
+  // v98 truth-fix: the strong "backups every 10min" headline is GATED on the
+  // measured loop — ok>0 AND a lastAt younger than 2.5 cadences (25min).
+  // Otherwise the page says plainly that the loop is being repaired.
+  const kb = d.keeperBackups;
+  const kbOk = kb.ok ?? 0;
+  const kbTotal = kbOk + (kb.miss ?? 0);
+  const kbFresh = kbOk > 0 && kb.lastAt !== null && Date.now() - new Date(kb.lastAt).getTime() < 25 * 60 * 1000;
+  const backupsClaim = kbFresh
+    ? "גיבויים עקביים כל 10 דק' (v40) — האמת (DB+שרשרת) שורדת הכל"
+    : `לולאת-הגיבוי בתיקון — ${kbOk} מתוך ${kbTotal} מחזורים תקינים (המדידה בפאנל הגיבויים למטה)`;
+
   return (
     <div className="space-y-4">
       <PageHead
         title="שומר — האורגניזם מחיה ומשמר את עצמו"
-        sub={`הגבול המדוד של המכונה הוא הזיכרון (OOM הרג את הווב ב-1.79GB) — התשובה הריבונית היא אורגניזם: מיחזור-עדין לפני הקרנל (RSS ${d.recycle.rssShedMb ?? 1350}MB · קוות-ההרג של הקרנל: 1500 mature · 1790 young), החייאה אוטומטית אחרי מוות מאומת, וגיבויים עקביים כל 10 דק' (v40) — האמת (DB+שרשרת) שורדת הכל. השומר לעולם לא נוגע במפתחות.`}
+        sub={`הגבול המדוד של המכונה הוא הזיכרון (OOM הרג את הווב ב-1.79GB) — התשובה הריבונית היא אורגניזם: מיחזור-עדין לפני הקרנל (RSS ${d.recycle.rssShedMb ?? 1350}MB · קוות-ההרג של הקרנל: 1500 mature · 1790 young), החייאה אוטומטית אחרי מוות מאומת, ו${backupsClaim}. השומר לעולם לא נוגע במפתחות.`}
         actions={
           <>
             <Pill tone={aliveCount === memberCount ? "green" : "gold"}>
