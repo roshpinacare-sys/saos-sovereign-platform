@@ -1,13 +1,13 @@
 {
  "agent": "platform-selftest",
- "generatedAt": "2026-10-01T13:51:55Z",
+ "generatedAt": "2026-10-01T19:50:28Z",
  "verdict": "PASS",
  "checks": {
   "selftestPassed": 12,
   "selftestTotal": 12,
   "selftestExitOk": 0,
-  "ruleLayer": "pass",
-  "edgeRunner": "compiles"
+  "ruleLayerLoad": "pass",
+  "edgeRunnerCompile": "compiles"
  },
  "reason": "selftest 12/12, rule layer loads"
 }
