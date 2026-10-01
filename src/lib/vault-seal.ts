@@ -744,3 +744,138 @@ export function stage2Assignments(inv: SealInventory): Stage2Assignment[] {
   }
   return out;
 }
+
+// ─── v99 — הדלת-הריבונית (the sovereign door) ──────────────────────────────
+//
+// ADDITIVE ONLY — the existing openSeal mechanism, the envelope format and
+// the readVaultPass precedence are untouched. This section gives the OWNER
+// a server-side door for the sandbox-reset gap: the envelope is present but
+// the pass died with ~/.secrets, so the whole wallet plane is fail-closed.
+// The owner holds the pass in their head; these helpers let them prove it
+// (GCM) and re-arm the platform — without the pass ever crossing any log,
+// DB row or audit entry, and without it living next to the ciphertext.
+//
+//   vaultPassState()  — honest "armed"|"missing" probe (no open, no secrets)
+//   resetVaultCache() — invalidate the cached vault home (used after arm)
+//   verifyVaultPass() — offline GCM verification of a candidate pass
+//   armVaultPass()    — verify → persist pass to ~/.secrets (0600) → self-heal
+
+export type VaultPassState = "armed" | "missing";
+
+/**
+ * Honest pass availability with the EXACT openSeal precedence
+ * (env SAOS_VAULT_PASS → ~/.secrets/fleet-vault-pass → legacy meta pass).
+ * Never opens the seal, never returns the secret itself.
+ */
+export async function vaultPassState(): Promise<VaultPassState> {
+  const envPass = process.env.SAOS_VAULT_PASS;
+  if (envPass && envPass.length > 0) return "armed";
+  try {
+    const { meta } = await vaultPaths();
+    await readVaultPass(meta); // throws only when NO tier holds a pass
+    return "armed";
+  } catch {
+    return "missing";
+  }
+}
+
+/** v99: drop the cached vault home so the next open re-resolves (used after arm). */
+export function resetVaultCache(): void {
+  cachedDir = null;
+}
+
+export interface VaultArmInventory {
+  /** member PATHS inside the envelope — public names only, zero content */
+  members: string[];
+  /** count of wallets in the sealed registry (no addresses) */
+  wallets: number;
+  sealedAt: string;
+}
+
+export interface VaultArmResult {
+  ok: boolean;
+  /** machine-readable cause: "absent" (no envelope) | "bad-format" | "wrong-pass" */
+  reason?: "absent" | "bad-format" | "wrong-pass";
+  inventory?: VaultArmInventory;
+  /** off-repo/upload homes that were re-mirrored during the arm */
+  healedHomes: string[];
+}
+
+/**
+ * Offline GCM verification of a candidate pass against the live envelope —
+ * the same scrypt(32) + aes-256-gcm tag logic as openSeal, but nothing is
+ * cached, nothing is persisted and the decrypted bundle exists ONLY inside
+ * this function's scope (the caller receives it by reference for the arm
+ * flow alone; it must never leave the server process).
+ */
+export async function verifyVaultPass(
+  pass: string
+): Promise<{ ok: boolean; reason?: "absent" | "bad-format" | "wrong-pass"; bundle?: SealedBundle }> {
+  if (typeof pass !== "string" || pass.length === 0) return { ok: false, reason: "wrong-pass" };
+  const { enc } = await vaultPaths();
+  let raw: string;
+  try {
+    raw = await readFile(enc, "utf8");
+  } catch {
+    return { ok: false, reason: "absent" };
+  }
+  if (!raw.startsWith(MAGIC)) return { ok: false, reason: "bad-format" };
+  try {
+    const payload = Buffer.from(raw.slice(MAGIC.length).replace(/\s+/g, ""), "hex");
+    const salt = payload.subarray(0, 16);
+    const iv = payload.subarray(16, 28);
+    const tag = payload.subarray(28, 44);
+    const ct = payload.subarray(44);
+    const key = scryptSync(pass, salt, 32);
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    const plain = Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+    return { ok: true, bundle: JSON.parse(plain) as SealedBundle };
+  } catch {
+    return { ok: false, reason: "wrong-pass" }; // GCM tag mismatch = wrong pass, nothing else
+  }
+}
+
+/**
+ * Arm: verify the pass against the envelope (GCM, fail-closed) → persist it
+ * ONLY to ~/.secrets/fleet-vault-pass (same 0600 + trailing-\n discipline as
+ * reseal) → reset the home cache → let the v31 self-heal re-mirror any home
+ * that died with the sandbox. After a successful arm every vault-dependent
+ * API (networks / sovereign-key / utxo / fleet…) revives by itself, because
+ * readVaultPass now finds the external file. The pass never appears in any
+ * return value, log or audit row.
+ */
+export async function armVaultPass(pass: string): Promise<VaultArmResult> {
+  const verdict = await verifyVaultPass(pass);
+  if (!verdict.ok || !verdict.bundle) {
+    return { ok: false, reason: verdict.reason ?? "wrong-pass", healedHomes: [] };
+  }
+  await writeVaultPass(pass);
+  resetVaultCache();
+  // re-resolve AFTER the cache reset — the v31 path self-heals the three
+  // homes on first resolution (honest per-home skips, never a crash).
+  let healedHomes: string[] = [];
+  try {
+    const vp = await vaultPaths();
+    healedHomes = vp.healed;
+  } catch {
+    // healing is best-effort — the primary home already holds the envelope
+  }
+  const bundle = verdict.bundle;
+  let wallets = 0;
+  try {
+    const reg = JSON.parse(bundle.files["keys/wallets-registry.json"] ?? "{}") as { accounts?: unknown[] };
+    wallets = Array.isArray(reg.accounts) ? reg.accounts.length : 0;
+  } catch {
+    // registry member absent → 0 (honest)
+  }
+  return {
+    ok: true,
+    inventory: {
+      members: Object.keys(bundle.files),
+      wallets,
+      sealedAt: bundle.sealedAt
+    },
+    healedHomes
+  };
+}

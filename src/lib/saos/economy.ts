@@ -127,3 +127,45 @@ export function simulateEconomy(input: EconomyInput): EconomyResult {
 function round2(x: number): number {
   return Math.round(x * 100) / 100;
 }
+
+// ─── v99 — סולם-האמת הכלכלי (הרחבה: חיבור הסימולטור אל EconomyRun) ─────────
+// ארבעת השלבים מ-1-c (מתווה) → עכשיו קבוע-קוד אחד שה-API וה-UI חולקים.
+// ש-3 אינו נגזר אוטומטית (טרם קיים מנוע-צמיחה נמדד) — הוא יעד, לא הצהרה.
+export interface EconomyLadderStage {
+  stage: 0 | 1 | 2 | 3;
+  key: string;
+  he: string;
+  sub: string;
+}
+
+export const ECONOMY_LADDER_STAGES: EconomyLadderStage[] = [
+  { stage: 0, key: "sim", he: "סים-כנה", sub: "אפסים מוצהרים — אין מדידה חיה" },
+  { stage: 1, key: "anvil", he: "מדידה-חיה על anvil", sub: "txid/מדידות משרשרת-המעבדה · SAOS-M במחיר-מדיניות" },
+  { stage: 2, key: "micro-real", he: "micro-real מיינטנט", sub: "txid אמיתי (XRPL/STEEM) — עדות-עבודה חוץ" },
+  { stage: 3, key: "flywheel", he: "צמיחה-מחזורית", sub: "גלגל-החור מממן צמיחה נמדדת — טרם נמדד" }
+] as const;
+
+/**
+ * פסק-דין כנה לריצת-כלכלה נמדדת (EconomyRun) — אותו קול כמו verdict של
+ * simulateEconomy: סימולציה לעולם לא מתלבשת כהכנסה, ומדידה לעולם לא
+ * מתנצלת על כך שהיא קטנה. MISSION-1000 ($0.0103/יום) הוא סרגל-ההשוואה
+ * המדוד היחיד שקיים — מוזכר כהקשר, לא כהישג.
+ */
+export function economyRunVerdict(
+  stage: number,
+  mode: string,
+  totalPerDayUsdMicro: number,
+  measuredTxidsCount: number
+): string {
+  const totalUsd = totalPerDayUsdMicro / 1_000_000;
+  if (stage <= 0 || mode === "sim") {
+    return `סים-כנה (mode=sim): אף זרימה לא נמדדה בריצה זו — אפסים הם נתון, לא כישלון. המדידה האמתית (MISSION-1000): $0.0103/יום. הרץ מדידה-חיה כשהמנועים חיים.`;
+  }
+  if (stage >= 2 && mode === "txid-real") {
+    return `txid-real (שלב 2): ${measuredTxidsCount} עדות-txid מיינטנט (XRPL/STEEM) — העבודה חוץ-מוכחת. סה״כ נמדד $${totalUsd.toFixed(6)}/יום מול סרגל MISSION-1000 ($0.0103/יום) — הכיוון נכון, הסדר-גודל כנה.`;
+  }
+  if (totalPerDayUsdMicro > 0) {
+    return `נמדד (mode=measured, שלב 1): ${measuredTxidsCount} txid משרשרת-המעבדה · סה״כ $${totalUsd.toFixed(6)}/יום — SAOS-M במחיר-מדיניות פנימי ($0.001), לא שוק חוץ. השלב הבא: txid מיינטנט אמיתי.`;
+  }
+  return `נמדד (mode=measured, שלב 1): ${measuredTxidsCount} txid חי משרשרת-המעבדה — הפעילות אמיתית, ההכנסה-בUSD עדיין 0. כנות: תנועה בלי ערך-נמדד אינה הכנסה.`;
+}

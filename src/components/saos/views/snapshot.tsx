@@ -347,7 +347,7 @@ export function SnapshotView() {
                             href={r.explorer ?? "#"}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-mono text-sky-300/80 hover:text-sky-300 underline decoration-dotted"
+                            className="font-mono text-amber-300/80 hover:text-amber-300 underline decoration-dotted"
                             title={r.txid}
                           >
                             {short(r.txid, 10)}

@@ -272,7 +272,7 @@ export function IrrigationView() {
           tone="gold"
         />
         <Kpi
-          icon={<Receipt className="text-sky-300" size={15} />}
+          icon={<Receipt className="text-emerald-300" size={15} />}
           label="טפטופים מתועדים"
           value={String(d.journal.length)}
           hint="כל טיפה: txid + עלות מהקבלה + הגעה מה-L2 + המזג שלה"
@@ -283,7 +283,7 @@ export function IrrigationView() {
       {/* v71 — עין-מזג-האוויר: לא משקים בצהריים */}
       <Panel>
         <PanelHeader
-          icon={<CloudSun className="text-sky-300" size={16} />}
+          icon={<CloudSun className="text-zinc-300" size={16} />}
           title="עין-מזג-האוויר — הגז של עכשיו, נמדד חי מהצומת"
           actions={
             <span className="flex items-center gap-1.5">
@@ -355,7 +355,7 @@ export function IrrigationView() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {d.weatherRulesHe.map((r, i) => (
               <div key={i} className="flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
-                <ShieldCheck size={12} className="text-sky-300/80 mt-0.5 shrink-0" />
+                <ShieldCheck size={12} className="text-zinc-400 mt-0.5 shrink-0" />
                 <p className="text-[10px] leading-relaxed text-zinc-400">{r}</p>
               </div>
             ))}
@@ -570,7 +570,7 @@ export function IrrigationView() {
       {/* יומן הטפטוף */}
       <Panel>
         <PanelHeader
-          icon={<Receipt className="text-sky-300" size={16} />}
+          icon={<Receipt className="text-emerald-300" size={16} />}
           title="יומן-הטפטוף — כל טיפה עם הוכחה"
           actions={<Tag tone="zinc">{d.journal.length} רשומות</Tag>}
         />
