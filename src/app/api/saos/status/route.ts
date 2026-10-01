@@ -6,6 +6,8 @@ import { probeHiveRc, hiveAnchorAccount, type HiveRcLive } from "@/lib/saos/hive
 import { probeTronVault, type TronLive } from "@/lib/saos/tron-live";
 import { probeSteemWeaveHistory, type SteemWeaveHistory } from "@/lib/saos/steem-history-live";
 import { ensureMeshGate } from "@/lib/saos/mesh-gate";
+import { vaultPassState } from "@/lib/vault-seal";
+import { authConfigured } from "@/lib/saos/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -262,6 +264,12 @@ async function statusHandler(): Promise<unknown> {
     return NextResponse.json({
       ok: true,
       motto: "אנחנו מנצחים את הבלוקצ'יין",
+      // v99 — הדלת-הריבונית: שדות-מצב כנים בלבד (additive — לא נוגע באף
+      // שדה/מבנה קיים ולא שובר צרכנים קיימים של ה-API):
+      //   vaultPassState — האם סיסמת-איטום הכספת נוכחת (armed/missing)
+      //   adminState     — האם מנהל-הפלטפורמה מוגדר (configured/unconfigured)
+      vaultPassState: await vaultPassState(),
+      adminState: authConfigured() ? ("configured" as const) : ("unconfigured" as const),
       matrix,
       meshGate: {
         runs: gate.runs,

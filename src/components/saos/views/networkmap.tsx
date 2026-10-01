@@ -8,10 +8,10 @@
  * עוגנים שנורו והערות-כנות לכל רשת.
  */
 
-import { Compass, Copy, Fingerprint, Fuel, Globe2, KeyRound, Link2, RadioTower, ShieldCheck, Waypoints, Zap } from "lucide-react";
-import type { ReactNode } from "react";
+import { Compass, Copy, Fingerprint, Fuel, Globe2, KeyRound, Link2, Lock, RadioTower, ShieldAlert, ShieldCheck, Waypoints, Zap } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { Btn, Callout, CopyBtn, HashLine, Kpi, Panel, PanelBody, PanelHeader, Pill, SkeletonPanel, Tag } from "../ui";
-import { useLive } from "../lib";
+import { postJson, useLive, type LiveResult } from "../lib";
 import type { ChainRow, NetworkCensus } from "@/lib/saos/multichain";
 import { PageHead } from "../shell";
 import { SAOS_VERSION } from "@/lib/saos/version";
@@ -127,8 +127,213 @@ function ChainCard({ r }: { r: ChainRow }) {
   );
 }
 
+// ─── v99 — הדלת-הריבונית (כרטיס מקומי; משוכפל בקטן ב-networks.tsx —
+// אין רשות לקובץ-רכיב חדש מחוץ להיקף) ─────────────────────────────────────
+
+export interface VaultUnlockState {
+  ok: boolean;
+  vaultPresent: boolean;
+  passState: "armed" | "missing";
+  adminState: "configured" | "unconfigured";
+  homesHealed: number;
+  homesTotal: number;
+  note?: string;
+}
+
+interface VaultArmResult {
+  ok: boolean;
+  inventory?: { members: string[]; wallets: number; sealedAt: string };
+  healedHomes?: string[];
+}
+
+export function VaultGateCard({
+  vault,
+  onChanged
+}: {
+  vault: LiveResult<VaultUnlockState>;
+  onChanged: () => void;
+}) {
+  const s = vault.data;
+  const [pass, setPass] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [armed, setArmed] = useState<VaultArmResult["inventory"] | null>(null);
+  const [healed, setHealed] = useState(0);
+  const [adminKey, setAdminKey] = useState<string | null>(null); // one-time surface — לא נשמר ולא נרשם
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminErr, setAdminErr] = useState<string | null>(null);
+
+  const doArm = async () => {
+    if (busy || !pass) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await postJson<VaultArmResult>("/api/saos/vault-unlock", { op: "arm", pass });
+      if (r.ok && r.data?.inventory) {
+        setArmed(r.data.inventory);
+        setHealed(r.data.healedHomes?.length ?? 0);
+        setPass(""); // הערך לא נשאר בזיכרון-הרכיב
+        vault.refresh();
+        onChanged(); // רענון הנתונים-החיים של הוויו (לא טעינת-עמוד)
+      } else {
+        setErr(r.error ?? "כישלון לא ידוע");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doCreateAdmin = async () => {
+    if (adminBusy) return;
+    setAdminBusy(true);
+    setAdminErr(null);
+    try {
+      const r = await postJson<{ key?: string }>("/api/saos/vault-unlock", { op: "create-admin" });
+      if (r.ok && r.data?.key) {
+        setAdminKey(r.data.key);
+        vault.refresh();
+      } else {
+        setAdminErr(r.error ?? "כישלון לא ידוע");
+      }
+    } finally {
+      setAdminBusy(false);
+    }
+  };
+
+  if (vault.loading && !s) return null;
+  if (!s || !s.ok) return null;
+
+  // armed → ✓ אמת (פס-דק; במקום הכרטיס המלא)
+  if (s.passState === "armed") {
+    return (
+      <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.05] px-4 py-2.5 flex items-start gap-2.5">
+        <ShieldCheck size={16} className="text-emerald-300 shrink-0 mt-0.5" />
+        <p className="text-[11.5px] text-emerald-200/90 leading-relaxed">
+          <strong className="font-semibold">✓ אמת: הכספת זרועה</strong> — סיסמת-האיטום נוכחת בשרת והגזירות פעילות ·
+          {" "}{s.homesHealed}/{s.homesTotal} בתי-כספת נוכחים.
+          {armed
+            ? ` חומשה כעת: ${armed.members.length} חברי-מעטפת · ${armed.wallets} ארנקים${healed > 0 ? ` · ${healed} בתים הושלמו (self-heal)` : ""}.`
+            : ""}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<Lock size={15} />}
+        title="הדלת-הריבונית — פתיחת הכספת"
+        sub="fail-closed כנה: הכספת אטומה כי אין סיסמת-איטום בשרת — הסיסמה אצל הבעלים בלבד"
+        actions={<Pill tone="rose">passState: missing</Pill>}
+      />
+      <PanelBody className="space-y-3.5">
+        {!s.vaultPresent ? (
+          <Callout tone="rose" icon={<ShieldAlert size={14} />}>
+            <span>
+              <strong>אין מעטפת-כספת על הדיסק</strong> — אין מה לחמש (fail-closed). המפתחות הישנים לא ישוחזרו;
+              מפתחות חדשים מהבעלים בלבד. עד אז: מצב-ראיות (DB + שרשרת).
+            </span>
+          </Callout>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              <p className="text-[11.5px] leading-relaxed text-zinc-300">
+                המעטפת נוכחת אך אטומה — אין סיסמת-איטום בשרת ({""}
+                <span dir="ltr" className="font-mono text-rose-300">vaultPassState: "missing"</span>
+                {" "}), ולכן אף זהות/כתובת לא נגזרת והשורות נשארות "לא נגזר/ממתין". זו הדיסציפלינה, לא תקלה:
+                אין פתיחה-שקרית ואין עותק-סודות בשרת.
+              </p>
+              <p className="text-[11px] leading-relaxed text-zinc-500">
+                הזן את סיסמת-האיטום שנבחרה בעת איטום המעטפת (fleet-vault-pass — <strong className="text-zinc-400">לא</strong> משפט-ה-24-מילים).
+                האימות מקומי מול המעטפת (AES-256-GCM): ערך שגוי נדחה 401 כנה — והערך עצמו לעולם לא נרשם בשום יומן.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="password"
+                value={pass}
+                autoComplete="off"
+                dir="ltr"
+                placeholder="סיסמת-איטום הכספת…"
+                aria-label="סיסמת-איטום הכספת"
+                onChange={(e) => setPass(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void doArm();
+                }}
+                className="flex-1 h-10 rounded-lg border border-white/[0.09] bg-zinc-950/60 px-3 text-sm text-zinc-100 placeholder:text-zinc-600 transition-colors hover:border-white/[0.14] focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/40"
+              />
+              <Btn variant="primary" size="md" loading={busy} disabled={!pass} onClick={doArm}>
+                <KeyRound size={14} /> פתח את הכספת
+              </Btn>
+            </div>
+
+            {err && (
+              <p className="text-[11.5px] text-rose-300 leading-relaxed" role="alert">
+                ⚠ {err}
+              </p>
+            )}
+
+            {armed && (
+              <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/[0.05] px-3.5 py-3 space-y-1">
+                <p className="text-[12px] font-semibold text-emerald-200">✓ הכספת חומשה — הגזירות קמות עכשיו</p>
+                <p className="text-[11px] text-emerald-200/80 leading-relaxed">
+                  {armed.members.length} חברי-מעטפת · {armed.wallets} ארנקים רשומים · נאטם{" "}
+                  {new Date(armed.sealedAt).toLocaleString("he-IL")}
+                  {healed > 0
+                    ? ` · ${healed} בתים חסרים הושלמו (self-heal) — הצלחה חלקית כנה`
+                    : " · כל שלושת בתי-הכספת נוכחים"}
+                  . הנתונים-החיים בוויו זה רועננו.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* bootstrap-מנהל — מוצע רק כשאין מנהל מוגדר (אחרת 403 fail-closed) */}
+        {s.adminState === "unconfigured" && (
+          <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-3.5 py-3 space-y-2">
+            <p className="text-[11.5px] text-amber-200/90 leading-relaxed">
+              <strong className="font-semibold">מנהל-הפלטפורמה עוד לא הוגדר</strong> ({""}
+              <span dir="ltr" className="font-mono">adminState: "unconfigured"</span>
+              {" "}) — גם אחרי פתיחת-הכספת, כל POST רגיש מקבל 403 auth-unconfigured. צור מפתח-מנהל חזק כאן;
+              הערך יוצג <strong>פעם-אחת בלבד</strong> ולא יירשם בשום יומן.
+            </p>
+            {adminKey ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <code dir="ltr" className="flex-1 min-w-0 truncate text-[11px] font-mono text-amber-200 bg-black/40 rounded px-2 py-1.5 border border-amber-400/20">
+                    {adminKey}
+                  </code>
+                  <CopyBtn text={adminKey} size={12} />
+                </div>
+                <p className="text-[10.5px] text-amber-300/80">
+                  העתק עכשיו — לא יוצג שוב לעולם. השתמש בו בכניסת-המנהל בפס-העליון.
+                </p>
+                <Btn variant="ghost" size="xs" onClick={() => setAdminKey(null)}>
+                  סיימתי — נקה מהמסך
+                </Btn>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Btn variant="secondary" size="sm" loading={adminBusy} onClick={doCreateAdmin}>
+                  <KeyRound size={13} /> צור מפתח-מנהל (פעם-אחת)
+                </Btn>
+                {adminErr && <span className="text-[11px] text-rose-300" dir="auto">⚠ {adminErr}</span>}
+              </div>
+            )}
+          </div>
+        )}
+      </PanelBody>
+    </Panel>
+  );
+}
+
 export function NetworkMapView() {
   const data = useLive<NetworkCensus>("/api/saos/networks", 5 * 60_000);
+  // v99 — מצב-הדלת-הריבונית (כנה, בלי סודות): הכרטיס ניזון ממנו
+  const vault = useLive<VaultUnlockState>("/api/saos/vault-unlock", 30_000);
   // v98 truth-fix (9-a #26): the identity/family counts derive from the live
   // census payload — the old static "22 ב-4 משפחות" predated the ZERO family.
   const totals = data.data?.totals;
@@ -152,6 +357,8 @@ export function NetworkMapView() {
         }
       />
 
+      <VaultGateCard vault={vault} onChanged={() => data.refresh()} />
+
       {data.loading && !data.data ? (
         <div className="space-y-4">
           <SkeletonPanel lines={3} />
@@ -161,6 +368,20 @@ export function NetworkMapView() {
         <Panel>
           <PanelBody className="py-10 text-center text-xs text-zinc-500 space-y-3">
             <p>המפקד לא הצליח להיגזר כרגע — כישלון הוא נתון, וזו האבחנה המדויקת:</p>
+            {/* v99 — סיבה-מובנית מה-API במקום "כישלון טכני": כשהכספת fail-closed
+                זה לא תקל — זה המצב המדויק, עם הדרך-חוצה בכרטיס למעלה. */}
+            {vault.data?.passState === "missing" && (
+              <div className="max-w-2xl mx-auto rounded-lg border border-rose-400/25 bg-rose-400/[0.05] px-4 py-3 space-y-1 text-start">
+                <p className="text-[12px] font-semibold text-rose-200">
+                  סיבה מובנית: הכספת fail-closed — סיסמת-האיטום חסרה בשרת ({""}
+                  <span dir="ltr" className="font-mono">vaultPassState: "missing"</span>)
+                </p>
+                <p className="text-[11px] text-rose-300/80 leading-relaxed">
+                  אף כתובת לא תיגזר עד שהבעלים יזין את סיסמת-האיטום בכרטיס "הדלת-הריבונית" למעלה —
+                  זו הדיסציפלינה, לא תקלה.
+                </p>
+              </div>
+            )}
             <p className="max-w-3xl mx-auto leading-relaxed text-zinc-400">
               {data.error ?? data.data?.error ?? "שגיאה לא ידועה"}
             </p>

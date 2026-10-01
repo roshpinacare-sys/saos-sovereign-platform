@@ -384,7 +384,7 @@ export function ViewAgents() {
                               dir="ltr"
                               className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold tabular-nums ${
                                 l.ours
-                                  ? "border-sky-400/25 bg-sky-400/[0.06] text-sky-300/90"
+                                  ? "border-emerald-400/25 bg-emerald-400/[0.06] text-emerald-300/90"
                                   : "border-zinc-500/25 bg-zinc-500/[0.06] text-zinc-400"
                               }`}
                               title={l.ours ? "מסמך שכתבנו אנחנו" : `נכתב על-ידי ${l.sourceAgent}`}

@@ -7,8 +7,8 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
-import { type ReactNode, useState, memo } from "react";
+import { Anchor, ArrowLeftRight, Boxes, ChevronDown, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
+import { Fragment, memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { cn, LiveDot, Pill, useToast } from "./ui";
 import { Button } from "@/components/ui/button";
@@ -359,29 +359,102 @@ export const VIEWS: ViewDef[] = [
  * פוטר-המוסד (R16) — סטטי לחלוטין: גרסה, שם-קוד ומניפסט-האיברים בלבד.
  * memo עוצר את הבנייה-מחדש של עץ-ה-DOM הענק בכל שנייה — AppShell מרנדר
  * כל שנייה (useClock) + כל 8ש' (useTick), אך הפוטר אינו תלוי שעון/נתונים.
+ * v99: המניפסט (2,672 תווים) מקופל ב-<details> — 2 שורות גלויות בלבד,
+ * והפוטר נשאר דביק-לתחתית (mt-auto על ה-footer, בתוך flex-col).
  */
 const ShellFooter = memo(function ShellFooter() {
   // כותרת-תחתונה — דביקה
   return (
       <footer className="mt-auto border-t border-white/[0.06] bg-zinc-950/90 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
-          <span className="flex items-center gap-2">
-            <Anchor size={12} className="text-amber-500/80" />
-            SAOS Sovereign Platform v{SAOS_VERSION} — {SAOS_CODENAME} — מניפסט האיברים המצטבר (היסטורי, מ-v44): רוסט-אמת (TRUTH ROAST) · מימוש (REALIZATION: מנוע שווי-הרשת החי + פעימת המימוש) — התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת (10 חוזי-המש · בורסה · מיקרו-גריד · כסף אמיתי ETH/BNB/XRP/TRX · מארב STEEM) מופרד לעולם ל: ממומש (הוכח — ריצות · מסירות · תזוזות) · אחזקה (חי ביד) · חמוש (ממתין לטריגר — לא נספר כהון) · מנוע (תקרות כנות) · ופעימת מימוש שמבצעת ערך על הרשת עכשיו — אורקל+סולם+שטיפה+קציר→קופת-עבודה+ריצה ריבונית אמיתית דרך כל 10 החוזים, הכל עם txid וקבלה משורשרת-האש) + חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה (Coinomi) — מחובר לבורסה החיה: WBNB + WRXP נרשמים 1:1 מול המדידה, בריכות #3/#4 נזרעות, אספקת WETH מסונכרנת לאוצר האמיתי · מסילת XRPL חיה במכ"ם · בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה · עמלה 20bps — 10 לקופת האוצר ו-10 לצמיחת הבריכה · נזילות שקוצרת OUT לאוצר ומוזרמת לקופת העבודה · חיילים סוחרים בהון-מסחר · ראוטר לדקסים המובילים — סטייה &gt;0.8% מתוקנת ע"י סוכן-ארביטראז' אוטונומי · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי ?XTransformPort=8545) + אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM ב-RSS 1350MB (v55) לפני שהקרנל הורג ב-1790 — ומ-keeperv43: חלונות-תחייה נפרדים לכל איבר + מיחזור מיידי בקו-ההרג (שיעור 2026-09-12: הקרנל ניצח פעם, לא ינצח שוב · גיבויים ריבוניים כל 10 דק' — DB עקבי VACUUM INTO + שרשרת יומית בסבב 48+7 · דד-ליין 9ש' לפסי-הרשת) + SHOMER (שומר: החייאה עצמית — השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil⇄שער, גלאי-זומבים על בסיס בלוקים + אמת-תפקוד (חי ≠ משרת — פיד שלא מתקדם = מת), מושב-יחיד לכל שירות (נעילת-PID — אין כפילויות) ואב-סנדק לרץ מהשער — אף איבר לא נשאר מת-תפקוד) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה במחזור-משתנה מה-runner (המדידה בפאנל)) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + RECOVERY (התאוששות v41: מארב headcorner — אמת-שתי-שרשרות חיה, הוכחת-החזקה קריפטוגרפית מול previous_owner_authority, ספירת-חלון עד 2026-10-08, והשתלטות אוטונומית ברגע שבקשה נושאת את הסמכות הריבונית — השומר בודק כל 60ש') + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 10-CHAIN LIVE GRID + מעקב סוכנים
-          </span>
-          <span className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2 text-[11px] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <details className="saos-fold group/manifest">
+            <summary className="flex cursor-pointer select-none items-center justify-between gap-3 min-h-[44px] text-zinc-400 hover:text-zinc-200 transition-colors">
+              <span className="flex items-center gap-2 min-w-0">
+                <Anchor size={12} className="text-amber-500/80 shrink-0" />
+                <span className="font-medium truncate">
+                  SAOS Sovereign Platform v{SAOS_VERSION} — {SAOS_CODENAME}
+                </span>
+              </span>
+              <span className="flex items-center gap-1 shrink-0 font-medium text-amber-400/80 group-open/manifest:text-amber-300 transition-colors">
+                המניפסט המלא
+                <ChevronDown size={13} aria-hidden className="transition-transform group-open/manifest:rotate-180" />
+              </span>
+            </summary>
+            <p className="mt-1 mb-2 ps-3 border-s-2 border-amber-400/20 leading-relaxed text-zinc-400 max-h-60 overflow-y-auto scroll-slim">
+              מניפסט האיברים המצטבר (היסטורי, מ-v44): רוסט-אמת (TRUTH ROAST) · מימוש (REALIZATION: מנוע שווי-הרשת החי + פעימת המימוש) — התשובה הקודדת לשאלת הבעלים "מה יש לנו בידיים · מה הפוטנציאל האמיתי שאפשר לממש ממנו מנקודה זו": מאזן חי מ-5 מקורות-אמת (10 חוזי-המש · בורסה · מיקרו-גריד · כסף אמיתי ETH/BNB/XRP/TRX · מארב STEEM) מופרד לעולם ל: ממומש (הוכח — ריצות · מסירות · תזוזות) · אחזקה (חי ביד) · חמוש (ממתין לטריגר — לא נספר כהון) · מנוע (תקרות כנות) · ופעימת מימוש שמבצעת ערך על הרשת עכשיו — אורקל+סולם+שטיפה+קציר→קופת-עבודה+ריצה ריבונית אמיתית דרך כל 10 החוזים, הכל עם txid וקבלה משורשרת-האש) + חיבור (CHIBUR: הכסף שנמצא — ETH אבק + BNB + XRP מארנק אבן-הפינה (Coinomi) — מחובר לבורסה החיה: WBNB + WRXP נרשמים 1:1 מול המדידה, בריכות #3/#4 נזרעות, אספקת WETH מסונכרנת לאוצר האמיתי · מסילת XRPL חיה במכ"ם · בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 מדיניות-נמוכה בכוונה · עמלה 20bps — 10 לקופת האוצר ו-10 לצמיחת הבריכה · נזילות שקוצרת OUT לאוצר ומוזרמת לקופת העבודה · חיילים סוחרים בהון-מסחר · ראוטר לדקסים המובילים — סטייה &gt;0.8% מתוקנת ע"י סוכן-ארביטראז' אוטונומי · השרת על הרשת שלנו — RPC חי דרך הפתח הציבורי ?XTransformPort=8545) + אחיזה (MAACHEZ: השומר לא רק מחיה — הוא גם משמר: מיחזור-עדין לפני OOM ב-RSS 1350MB (v55) לפני שהקרנל הורג ב-1790 — ומ-keeperv43: חלונות-תחייה נפרדים לכל איבר + מיחזור מיידי בקו-ההרג (שיעור 2026-09-12: הקרנל ניצח פעם, לא ינצח שוב · גיבויים ריבוניים כל 10 דק' — DB עקבי VACUUM INTO + שרשרת יומית בסבב 48+7 · דד-ליין 9ש' לפסי-הרשת) + SHOMER (שומר: החייאה עצמית — השגחה הדדית ווב⇄שומר⇄ראנר⇄anvil⇄שער, גלאי-זומבים על בסיס בלוקים + אמת-תפקוד (חי ≠ משרת — פיד שלא מתקדם = מת), מושב-יחיד לכל שירות (נעילת-PID — אין כפילויות) ואב-סנדק לרץ מהשער — אף איבר לא נשאר מת-תפקוד) + RESHUT (רשות: מטריצת הסמכויות — אין חתימה בלי רשות; 10 פעולות-מפתח ברישום מפורש, שחקנים מוסמכים בלבד, מגבלות קצב/היקף לפני גזירת-מפתח, שובל-ביקורת אדום מעודכ; יומן-פעולות אדום 100% — logOp מעודכ בכל שורה; מגן אוטומטי — סריקה מלאה במחזור-משתנה מה-runner (המדידה בפאנל)) + MAGEN (מגן: שער-פישינג fail-closed · שומר-טוקנים · קנרית-זרע) + RECOVERY (התאוששות v41: מארב headcorner — אמת-שתי-שרשרות חיה, הוכחת-החזקה קריפטוגרפית מול previous_owner_authority, ספירת-חלון עד 2026-10-08, והשתלטות אוטונומית ברגע שבקשה נושאת את הסמכות הריבונית — השומר בודק כל 60ש') + ROSES (סבב-הפריחה: סוכן אחד כל מחזור נגזר מהזרע החתום וחותם בעצמו ריצה, השרשרת משלמת) + CORNERSTONE (דו-שורש + מפעל-מפתחות דטרמיניסטי) + FLOW (מכ״ם-נזילות · חימום-מחדש) + MICROGRID (GRID-98 · אורקל DEX חי · שטיפה לקופה) + REAL WORK (מנוע LLM מעוגן) + WORK ORDERS + SOVEREIGN KEY + CONTRACT MESH + 10-CHAIN LIVE GRID + מעקב סוכנים
+            </p>
+          </details>
+          <div className="flex flex-wrap items-center justify-between gap-2 py-1 text-zinc-500">
             <a
               href="https://github.com/roshpinacare-sys/saos-sovereign-platform"
               target="_blank"
               rel="noreferrer"
-              className="hover:text-amber-300 transition-colors"
+              className="inline-flex items-center min-h-[44px] hover:text-amber-300 transition-colors"
             >
               GitHub
             </a>
             <span className="text-amber-500/80 font-semibold">הוכחות נושאות-ראיות · משורשרות-האש</span>
-          </span>
+          </div>
         </div>
       </footer>
+  );
+});
+
+/**
+ * v99 — פס-הניווט המובייל (40 צ'יפים · ~3,800px גלילה):
+ * memo — לא נבנה מחדש בכל שנייה עם השעון (AppShell מרנדר כל-שנייה);
+ * הצ'יפ הפעיל נגלל אל מרכז-הפס (scrollIntoView inline:center) על כל שינוי-ויו;
+ * scroll-snap + מסכות-fade בקצוות + הפרדות-קבוצות — ב-globals.css (.mobile-nav-scroll);
+ * מטרות-מגע min-h-[44px] · active:scale-95 · gold-underline על הצ'יפ הפעיל.
+ */
+const MobileNav = memo(function MobileNav({
+  view,
+  onNav
+}: {
+  view: ViewId;
+  onNav: (v: ViewId) => void;
+}) {
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const reduce =
+      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    activeRef.current?.scrollIntoView({
+      block: "nearest",
+      inline: "center",
+      behavior: reduce ? "auto" : "smooth"
+    });
+  }, [view]);
+  return (
+    <nav
+      aria-label="ניווט מובייל"
+      className="mobile-nav-scroll lg:hidden flex gap-1.5 overflow-x-auto scroll-slim px-4 pb-2.5"
+    >
+      {VIEWS.map((v, i) => {
+        const active = view === v.id;
+        const groupStart = i > 0 && VIEWS[i - 1].group !== v.group;
+        return (
+          <Fragment key={v.id}>
+            {groupStart && <span aria-hidden className="my-auto h-5 w-px shrink-0 bg-white/[0.08]" />}
+            <button
+              ref={active ? activeRef : undefined}
+              onClick={() => onNav(v.id)}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "relative flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium min-h-[44px]",
+                "transition active:scale-95",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
+                active
+                  ? "gold-underline border-amber-400/40 bg-amber-400/10 text-amber-200"
+                  : "border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:text-zinc-200"
+              )}
+            >
+              <span className={active ? "text-amber-300" : "text-zinc-500"}>{v.icon}</span>
+              {v.short}
+            </button>
+          </Fragment>
+        );
+      })}
+    </nav>
   );
 });
 
@@ -405,6 +478,40 @@ export function AppShell({
   const probes = useLive<LiveProbesData>("/api/saos/live-probes", 20000);
   const toast = useToast();
   const router = useRouter();
+
+  // v99 — גובה-הכותרת הדביקה נמדד חי (מובייל: פס-הניווט יושב בתוך הכותרת → ~103px)
+  // ומוזרם ל-var --saos-header-h על עמודת-התוכן; הטיקר נדבק מתחתיה
+  // (sticky-under-header) במקום להיבלע מאחורי ה-header השקוף.
+  const mainColRef = useRef<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const col = mainColRef.current;
+    const header = headerRef.current;
+    if (!col || !header || typeof ResizeObserver === "undefined") return;
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const h = header.offsetHeight;
+      if (h > 0) col.style.setProperty("--saos-header-h", `${h}px`);
+    };
+    measure();
+    const ro = new ResizeObserver(() => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    });
+    ro.observe(header);
+    window.addEventListener("orientationchange", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("orientationchange", measure);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // v99 — onNav יציב-זהות (latest-ref) כדי ש-MobileNav ה-memo לא ירנדר מחדש
+  // בכל שנייה עם השעון — רק שינוי-ויו מרנדר את פס-הניווט.
+  const onNavRef = useRef(onNav);
+  onNavRef.current = onNav;
+  const stableNav = useCallback((v: ViewId) => onNavRef.current(v), []);
 
   // v97 — כניסת-מנהל (fail-closed): המפתח נבדק מול השרת בלבד; עוגיית-הסשן
   // HttpOnly נקבעת ב-route — בקוד-הלקוח היא לא נשמרת מעבר לשדה-הסיסמה.
@@ -458,7 +565,7 @@ export function AppShell({
             <p className="text-sm font-bold tracking-tight text-zinc-50 leading-none">
               SAOS <span className="text-amber-400">Sovereign</span>
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Network 360 · v{SAOS_VERSION} · {SAOS_CODENAME_SHORT}</p>
+            <p className="text-[11px] text-zinc-400 mt-1">Network 360 · v{SAOS_VERSION} · {SAOS_CODENAME_SHORT}</p>
           </div>
         </div>
 
@@ -475,7 +582,7 @@ export function AppShell({
               </span>
             )}
           </div>
-          <div className="mt-1.5 flex items-center justify-between text-[10px] text-zinc-600">
+          <div className="mt-1.5 flex items-center justify-between text-[11px] text-zinc-500">
             <span>{stats ? `${stats.seals} חותמים` : "—"}</span>
             <span>{status.updatedAt ? `עודכן ${timeAgo(status.updatedAt)}` : "—"}</span>
           </div>
@@ -485,7 +592,7 @@ export function AppShell({
         <nav className="flex-1 overflow-y-auto scroll-slim px-3 py-4 space-y-4" aria-label="ניווט ראשי">
           {["תפעול", "כלכלה ואנרגיה", "מחקר"].map((group) => (
             <div key={group}>
-              <p className="px-2 mb-1.5 text-[10px] font-semibold text-zinc-600 tracking-wide">{group}</p>
+              <p className="px-2 mb-1.5 text-[11px] font-semibold text-zinc-500 tracking-wide">{group}</p>
               <ul className="space-y-0.5">
                 {VIEWS.filter((v) => v.group === group).map((v) => {
                   const active = view === v.id;
@@ -495,7 +602,7 @@ export function AppShell({
                         onClick={() => onNav(v.id)}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "relative w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors min-h-[40px]",
+                          "relative w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors min-h-[44px]",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50",
                           active
                             ? "bg-white/[0.05] text-zinc-50"
@@ -522,21 +629,21 @@ export function AppShell({
             href="https://github.com/roshpinacare-sys/saos-sovereign-platform"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-between text-[11px] text-zinc-500 hover:text-amber-300 transition-colors rounded-md py-1"
+            className="flex items-center justify-between text-[11px] text-zinc-500 hover:text-amber-300 transition-colors rounded-md min-h-[44px]"
           >
             הריפו הקנוני
             <ExternalLink size={11} />
           </a>
-          <p dir="ltr" className="text-[9px] text-zinc-700 font-mono text-left">
+          <p dir="ltr" className="text-[11px] text-zinc-700 font-mono text-left">
             productionAuthority: NONE
           </p>
         </div>
       </aside>
 
       {/* אזור ראשי */}
-      <div className="flex flex-col flex-1 lg:ps-64">
+      <div ref={mainColRef} className="flex flex-col flex-1 lg:ps-64">
         {/* סרגל-עליון */}
-        <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-zinc-950/85 backdrop-blur-md">
+        <header ref={headerRef} className="sticky top-0 z-30 border-b border-white/[0.06] bg-zinc-950/85 backdrop-blur-md">
           <div className="flex items-center justify-between gap-3 h-14 px-4 sm:px-6">
             <div className="flex items-center gap-3 min-w-0">
               {/* מותג מובייל */}
@@ -545,7 +652,7 @@ export function AppShell({
               </div>
               <div className="hidden lg:block min-w-0">
                 <h1 className="text-[15px] font-bold tracking-tight text-zinc-50 truncate">{def.label}</h1>
-                <p className="text-[11px] text-zinc-500 truncate">{def.desc}</p>
+                <p className="text-[11px] text-zinc-400 truncate">{def.desc}</p>
               </div>
               <p className="lg:hidden text-sm font-bold text-zinc-100 truncate">{def.label}</p>
             </div>
@@ -566,7 +673,7 @@ export function AppShell({
                 variant="outline"
                 size="sm"
                 onClick={() => setLoginOpen(true)}
-                className="h-9 gap-1.5 border-white/[0.08] bg-white/[0.02] px-2.5 text-[11px] text-zinc-300 hover:border-amber-400/40 hover:bg-amber-400/10 hover:text-amber-200 focus-visible:ring-amber-400/60"
+                className="h-11 gap-1.5 border-white/[0.08] bg-white/[0.02] px-2.5 text-[11px] text-zinc-300 hover:border-amber-400/40 hover:bg-amber-400/10 hover:text-amber-200 focus-visible:ring-amber-400/60"
                 aria-label="כניסת-מנהל — אימות לפעולות רגישות"
               >
                 <KeyRound size={13} className="text-amber-300/80" />
@@ -577,39 +684,15 @@ export function AppShell({
                 onClick={doRefresh}
                 title="רענון נתונים"
                 aria-label="רענון"
-                className="grid place-items-center h-9 w-9 rounded-lg border border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:text-amber-300 hover:border-amber-400/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
+                className="grid place-items-center h-11 w-11 rounded-lg border border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:text-amber-300 hover:border-amber-400/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
               >
                 <RefreshCcw size={14} className={cn(spinning && "animate-spin")} />
               </button>
             </div>
           </div>
 
-          {/* ניווט מובייל — גלילה אופקית */}
-          <nav
-            aria-label="ניווט מובייל"
-            className="lg:hidden flex gap-1.5 overflow-x-auto scroll-slim px-4 pb-2.5"
-          >
-            {VIEWS.map((v) => {
-              const active = view === v.id;
-              return (
-                <button
-                  key={v.id}
-                  onClick={() => onNav(v.id)}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors min-h-[36px]",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
-                    active
-                      ? "border-amber-400/40 bg-amber-400/10 text-amber-200"
-                      : "border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:text-zinc-200"
-                  )}
-                >
-                  <span className={active ? "text-amber-300" : "text-zinc-500"}>{v.icon}</span>
-                  {v.short}
-                </button>
-              );
-            })}
-          </nav>
+          {/* ניווט מובייל — גלילה אופקית · v99: memo + scrollIntoView + snap + fade */}
+          <MobileNav view={view} onNav={stableNav} />
         </header>
 
         {/* פס-פיקוד 10-רשתות — חי מול live-probes (SAOS-NET + 9 מסילות חיצוניות) */}
@@ -660,7 +743,7 @@ export function AppShell({
                 variant="ghost"
                 size="sm"
                 onClick={() => setLoginOpen(false)}
-                className="text-zinc-400 hover:text-zinc-200"
+                className="h-11 text-zinc-400 hover:text-zinc-200"
               >
                 ביטול
               </Button>
@@ -668,7 +751,7 @@ export function AppShell({
                 type="submit"
                 size="sm"
                 disabled={loginBusy || !loginKey}
-                className="gap-1.5 bg-amber-400 text-zinc-950 hover:bg-amber-300"
+                className="h-11 gap-1.5 bg-amber-400 text-zinc-950 hover:bg-amber-300"
               >
                 {loginBusy ? (
                   <span className="h-3.5 w-3.5 rounded-full border-2 border-zinc-500/40 border-t-zinc-200 animate-spin" aria-hidden />
@@ -821,12 +904,12 @@ function ChainTicker({
 
   return (
     <div
-      className="sticky top-14 z-20 border-b border-white/[0.05] bg-zinc-950/80 backdrop-blur-md"
+      className="sticky sticky-under-header z-20 border-b border-white/[0.05] bg-zinc-950/80 backdrop-blur-md"
       role="status"
       aria-label="פס-פיקוד 10 רשתות חי"
     >
       <div className="max-w-6xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto scroll-slim h-9">
-        <span className="hidden sm:inline-flex items-center gap-1.5 shrink-0 pe-2 me-1 border-e border-white/[0.06] text-[9px] font-bold tracking-wider text-amber-400/80 uppercase">
+        <span className="hidden sm:inline-flex items-center gap-1.5 shrink-0 pe-2 me-1 border-e border-white/[0.06] text-[11px] font-bold tracking-wider text-amber-400/80 uppercase">
           10-Chain
         </span>
         {chips.map((c) => (
@@ -839,18 +922,18 @@ function ChainTicker({
               <span className={`absolute inline-flex h-full w-full rounded-full ${dotTone(c.tone)} opacity-60 animate-ping`} />
               <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${dotTone(c.tone)}`} />
             </span>
-            <span dir="ltr" className="text-[10px] font-bold tracking-tight text-zinc-300">
+            <span dir="ltr" className="text-[11px] font-bold tracking-tight text-zinc-300">
               {c.name}
             </span>
             <span
               dir={/[0-9]/.test(c.value) ? "ltr" : "rtl"}
-              className="text-[10px] font-semibold tabular-nums text-zinc-500 whitespace-nowrap"
+              className="text-[11px] font-semibold tabular-nums text-zinc-400 whitespace-nowrap"
             >
               {c.value}
             </span>
           </span>
         ))}
-        <span className="shrink-0 ms-auto ps-2 text-[9px] text-zinc-600 hidden sm:inline" dir="ltr">
+        <span className="shrink-0 ms-auto ps-2 text-[11px] text-zinc-500 hidden sm:inline" dir="ltr">
           probes {online}/5
         </span>
       </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth, audit } from "@/lib/saos/auth";
-import { simulateEconomy, DEFAULT_ECONOMY, type EconomyInput } from "@/lib/saos/economy";
+import { simulateEconomy, DEFAULT_ECONOMY, ECONOMY_LADDER_STAGES, type EconomyInput } from "@/lib/saos/economy";
+import { collectEconomyRun, recentEconomyRuns, economyLadderSummary, type EconomyRunView, type EconomyLadderSummary } from "@/lib/saos/economy-run";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { db } from "@/lib/db";
 import { logOp } from "@/lib/saos/oplog";
@@ -8,8 +9,10 @@ import { logOp } from "@/lib/saos/oplog";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/saos/economy — simulator (query params) + optional ?list=1 → recent snapshots.
- * POST /api/saos/economy — persist an EconomySnapshot (label + inputs) with receipt.
+ * GET /api/saos/economy — simulator (query params) + optional ?list=1 → recent snapshots
+ *                          + optional ?runs=1 → last 12 EconomyRun + truth-ladder summary (v99).
+ * POST /api/saos/economy — {action:"run"} → live measured EconomyRun (v99, fail-closed auth)
+ *                          | persist an EconomySnapshot (label + inputs) with receipt.
  * All inputs are clamped server-side — validation is data, never a 500.
  */
 
@@ -63,6 +66,22 @@ async function recentSnapshots(take = 6) {
   }));
 }
 
+// ─── v99 — סולם-האמת: EconomyRun + סיכום-סולם (רק ב-?runs=1; תאימות-אחורה מלאה) ──
+function runsPayload(runs: EconomyRunView[], ladder: EconomyLadderSummary) {
+  return {
+    runs,
+    ladder: {
+      currentStage: ladder.currentStage,
+      lastMode: ladder.lastMode,
+      lastTotalUsdMicro: ladder.lastTotalUsdMicro,
+      lastRunAt: ladder.lastRunAt,
+      stageCounts: ladder.stageCounts,
+      totalRuns: ladder.totalRuns,
+      stages: ECONOMY_LADDER_STAGES
+    }
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -84,11 +103,15 @@ export async function GET(req: Request) {
     // R15 — GET קריאה-בלבד: בדומה ל-energy, כל דפדוף רשם קבלה-שרשרתית
     // (economy-sim) לפנקס-הראיות — רעש-רישום תחת דפדוף. קבלה נרשמת
     // רק ב-POST (שמירת-תמונת-מצב מפורשת של המפעיל).
+    // v99 — ?runs=1: 12 ה-EconomyRun האחרונות + סיכום-סולם-האמת. בלי הפרמטר
+    // התשובה זהה לגמרי למבנה הקיים (תאימות-אחורה מלאה).
+    const runsSection = q.get("runs") === "1" ? await loadRunsSection() : null;
     return NextResponse.json({
       ok: true,
       input,
       result,
-      ...(q.get("list") === "1" ? { snapshots: await recentSnapshots() } : {})
+      ...(q.get("list") === "1" ? { snapshots: await recentSnapshots() } : {}),
+      ...(runsSection ?? {})
     });
   } catch (e) {
     return NextResponse.json(
@@ -98,9 +121,21 @@ export async function GET(req: Request) {
   }
 }
 
+async function loadRunsSection() {
+  try {
+    const [runs, ladder] = await Promise.all([recentEconomyRuns(12), economyLadderSummary()]);
+    return runsPayload(runs, ladder);
+  } catch {
+    // EconomyRun טרם-נודד (DB ישן) — כנה ושקט: הסולם ריק, הסימולטור ממשיך לעבוד
+    return { runs: [], ladder: { currentStage: null, lastMode: null, lastTotalUsdMicro: null, lastRunAt: null, stageCounts: { 0: 0, 1: 0, 2: 0, 3: 0 }, totalRuns: 0, stages: ECONOMY_LADDER_STAGES } };
+  }
+}
+
 export async function POST(req: Request) {
 
   // P0 gate (2026-09-29): sensitive POST — fail-closed auth (foundry model).
+  // v99: requireAuth מכסה גם bearer-שומר חוקי (אותו שער שה-keeper חותם איתו —
+  // agri/backup דפוס) — cookie או Bearer key, ההשוואה timing-safe.
   const __auth = await requireAuth(req);
   if (!__auth.ok) {
     await audit({ kind: "sensitive-denied", actor: __auth.actorRef, action: "POST /api/saos/economy", allowed: false, req });
@@ -109,6 +144,19 @@ export async function POST(req: Request) {
 
   try {
     const body: unknown = await req.json().catch(() => ({}));
+
+    // v99 — {action:"run"} → מדידה-חיה: collectEconomyRun("manual") → הריצה עצמה.
+    // action אחר → 400 (fail-closed). POST בלי action = תמונת-מצב (הזרימה הקיימת נשמרת).
+    const action = typeof body === "object" && body !== null ? (body as { action?: unknown }).action : undefined;
+    if (action !== undefined) {
+      if (action !== "run") {
+        return NextResponse.json({ ok: false, error: "action לא מוכר — הפעולה התקפה: run" }, { status: 400 });
+      }
+      const run = await collectEconomyRun("manual");
+      const section = await loadRunsSection();
+      return NextResponse.json({ ok: true, run, ladder: section.ladder });
+    }
+
     const obj = (typeof body === "object" && body !== null ? body : {}) as {
       label?: unknown;
       inputs?: unknown;

@@ -16,7 +16,7 @@
 
 import {
   Activity, AlertTriangle, Bot, Clock, GitBranch, HeartPulse, Layers,
-  ListChecks, Network, Radio, Server, ShieldCheck
+  ListChecks, Network, Radio, Server, ShieldCheck, UserPlus
 } from "lucide-react";
 import { useLive, timeAgo, fmtInt } from "../lib";
 import {
@@ -25,6 +25,19 @@ import {
 } from "../ui";
 import { PageHead } from "../shell";
 import type { OneNetSnapshot, NetVitality } from "@/lib/saos/one-net";
+import type { AgentRoleView } from "@/lib/saos/role-registry";
+
+// ─── v99 גיוס-עצמי (Self-Recruiting) — טיפוסי-תגובה כנים ───────────────────
+
+interface RolesSnapshot {
+  ok: boolean;
+  roles: AgentRoleView[];
+  counts: { proposed: number; active: number; retired: number };
+  lastSweepAt: string | null;
+  nextProposeAt?: string | null;
+  propose?: { throttled?: boolean; capReached?: boolean; proposed?: string[]; error?: string };
+  error?: string;
+}
 
 type ServiceRow = OneNetSnapshot["services"][number];
 type SupRow = OneNetSnapshot["chain"]["supervision"][number];
@@ -63,6 +76,120 @@ function overallPill(services: ServiceRow[]): { tone: "green" | "gold" | "zinc";
   if (services.some((s) => s.vitality === "stale")) return { tone: "gold", label: "יש פיגום" };
   if (services.every((s) => s.vitality === "live")) return { tone: "green", label: "מתואם וחי" };
   return { tone: "zinc", label: "לא נמדד" };
+}
+
+// ─── v99 סעיף-גיוס-עצמי — מצבת-התפקידים המגייסת את עצמה ────────────────────
+
+const ROLE_STATUS_META: Record<AgentRoleView["status"], { label: string; tone: "green" | "gold" | "zinc" }> = {
+  proposed: { label: "מוצע", tone: "gold" },
+  active: { label: "חי", tone: "green" },
+  retired: { label: "פרש", tone: "zinc" }
+};
+
+const ROLE_ORIGIN_LABEL: Record<string, string> = {
+  auto: "גלאי-פערים (אוטומטי)",
+  owner: "יד-בעלים",
+  "swarm-agent": "סוכן-נחיל"
+};
+
+/**
+ * גיוס-עצמי — הסעיף בקטע-המצבת: גלאי-הפערים קורא פנקס-העניינים ופערי-
+ * רוסט, מציע תפקידים עם נימוק, ומפנה לפרישה-כנה (48ש' בלי-העלאה · 72ש'
+ * בלי-artifact). תפקיד חי רק כשזהות-סוכן אמיתית מקבלת אותו — אין סוכני-רפאים.
+ */
+function SelfRecruitPanel() {
+  const live = useLive<RolesSnapshot>("/api/saos/agents-roles", 30000);
+  const d = live.data;
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<UserPlus size={15} />}
+        title="גיוס-עצמי (Self-Recruiting) — הצבא שמגייס את עצמו"
+        sub="גלאי-הפערים קורא פנקס-העניינים ופערי-רוסט → מציע תפקיד עם נימוק ומקור → פרישה-כנה אוטומטית (מוצע 48ש' בלי-העלאה · חי 72ש' בלי-artifact) · מקסימום 3 מוצעים במצבר — אנטי-נפיחות"
+      />
+      <PanelBody>
+        {!d ? (
+          live.error ? (
+            <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
+          ) : (
+            <p className="text-[12px] text-zinc-500 py-4 text-center">מצבת-התפקידים נמדדת…</p>
+          )
+        ) : (
+          <div className="space-y-3">
+            {/* פס-ספירות: מוצע / חי / פרש */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {[
+                { label: "מוצעים", v: d.counts.proposed, tone: "gold" as const },
+                { label: "חיים", v: d.counts.active, tone: "green" as const },
+                { label: "פרשים", v: d.counts.retired, tone: "zinc" as const }
+              ].map((x) => (
+                <div key={x.label} className="rounded-lg border border-white/[0.06] bg-white/[0.02] py-2">
+                  <p
+                    className={`text-lg font-bold tabular-nums ${x.tone === "green" ? "text-emerald-300" : x.tone === "gold" ? "text-amber-300" : "text-zinc-400"}`}
+                    dir="ltr"
+                  >
+                    {fmtInt(x.v)}
+                  </p>
+                  <p className="text-[10px] text-zinc-500">{x.label}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-zinc-500">
+              <span>
+                טיפול-פרישה אחרון: {d.lastSweepAt ? timeAgo(d.lastSweepAt) : "טרם רץ"}
+              </span>
+              {d.propose?.capReached ? <span className="text-amber-300/90">חוק-אנטי-נפיחות: 3 מוצעים במצבר</span> : null}
+              {d.propose?.throttled ? <span>הצעה-עצלה: הבאה ≤15 דק&apos;</span> : null}
+            </div>
+
+            {/* רשימת-התפקידים */}
+            {d.roles.length === 0 ? (
+              <p className="text-[11.5px] text-zinc-500 rounded-lg border border-dashed border-white/[0.09] bg-white/[0.01] py-4 px-3 text-center leading-relaxed">
+                אין תפקידים במצבת כרגע — גלאי-הפערים רץ בעצלתיות (≤15 דק&apos;) על פערים פתוחים;
+                פער פתוח בלי תפקיד יוצע כאן עם נימוק ומקור.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {d.roles.map((r) => {
+                  const st = ROLE_STATUS_META[r.status] ?? ROLE_STATUS_META.retired;
+                  return (
+                    <li
+                      key={r.slug}
+                      className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-semibold text-zinc-100 truncate" dir="auto">{r.titleHe}</p>
+                          <p className="text-[10.5px] text-zinc-500 font-mono truncate" dir="ltr">{r.slug}</p>
+                        </div>
+                        <Tag tone={st.tone}>{st.label}</Tag>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed line-clamp-2" dir="auto" title={r.justification}>
+                        {r.justification}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-zinc-500">
+                        {r.fromIssue ? (
+                          <span className="font-mono" dir="ltr" title={r.fromIssue}>מקור: {r.fromIssue}</span>
+                        ) : null}
+                        <span>{ROLE_ORIGIN_LABEL[r.origin] ?? r.origin}</span>
+                        <span>הוצע {timeAgo(r.at)} · {r.proposedBy || "—"}</span>
+                        {r.status === "active" && r.activatedAt ? <span className="text-emerald-300/70">הועלה {timeAgo(r.activatedAt)}</span> : null}
+                        {r.lastArtifactAt ? <span>artifact {timeAgo(r.lastArtifactAt)}</span> : null}
+                        {r.status === "retired" && r.artifactNote ? (
+                          <span className="text-zinc-600" dir="auto">{r.artifactNote}</span>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </PanelBody>
+    </Panel>
+  );
 }
 
 // ─── הוויו ──────────────────────────────────────────────────────────────────
@@ -312,6 +439,9 @@ export function OneNetView() {
           </PanelBody>
         </Panel>
       </div>
+
+      {/* ─── v99 גיוס-עצמי — מצבת-התפקידים ───────────────────────────────── */}
+      <SelfRecruitPanel />
 
       {/* ─── שרשרת + עבודה ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

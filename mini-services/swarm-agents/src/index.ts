@@ -81,6 +81,7 @@ const INBOX = `${GATE}/inbox`;
 const KEEPER_STATUS = `${WEB}/api/saos/keeper`;
 const NET_STATUS = `${WEB}/api/saos/status`;
 const MESH_STATUS = `${WEB}/api/saos/mesh`;
+const ROLES_URL = `${WEB}/api/saos/agents-roles`; // v99 גיוס-עצמי — המצבת שמגייסת את עצמה
 const KEY_HOME_DIR = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".gate-agents");
 const STATE_DIR = path.resolve(import.meta.dir, "..", "state");
 const ISSUES_DIR = path.resolve(import.meta.dir, "..", "issues"); // v76 — התיקייה שלנו: פנקס העניינים
@@ -459,6 +460,44 @@ async function postOrder(a: AgentState, mission: string, difficulty: number, rew
   }
 }
 
+// ─── v99 גיוס-עצמי (SELF-RECRUITING) — הצעת-תפקידים אחרי פקודת-עבודה ────────
+// כשסייר-הזהב חותך פקודת-עבודה אחרי שקט כלכלי, ויש עניינים פתוחים בפנקס
+// שלנו בלי תפקיד — הוא מציע תפקידים חדשים דרך /api/saos/agents-roles עם
+// אותה זהות-שער שהנחיל כבר מחזיק (x-agent-name + x-agent-key — אותו דפוס
+// של ה-inbox). Fail-silent + יומן-מקומי: כישלון-גיוס לעולם לא שובר את
+// הסיור או את הפקודה. שרת-הווב הוא שעושה את ה-dedupe ואת חוק-האנטי-נפיחות
+// (מקסימום 3 מוצעים במצבר) — הנחיל רק מרים את היד: "יש פה פער-עבודה".
+let lastRolesProposeAt = 0;
+async function proposeRolesCall(a: AgentState, openIssues: number): Promise<void> {
+  if (!a.identity) return;
+  if (Date.now() - lastRolesProposeAt < 30 * 60_000) return; // עצלות-מקומית — כנה, מונעת רעש
+  lastRolesProposeAt = Date.now();
+  try {
+    const res = await fetch(ROLES_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-agent-name": a.name, "x-agent-key": a.identity.apiKey },
+      body: JSON.stringify({ op: "propose", openIssues }),
+      signal: AbortSignal.timeout(10_000)
+    });
+    const body = (await res.json().catch(() => ({}))) as { ok?: boolean; proposed?: Array<{ slug?: string }>; error?: string };
+    if (res.ok && body.ok) {
+      const proposedList = body.proposed ?? [];
+      const slugs = proposedList.map((p) => p.slug ?? "?").join(", ");
+      journal(
+        a.name,
+        "roles-propose",
+        slugs
+          ? `self-recruiting: proposed ${proposedList.length} new role(s) for ${openIssues} open issue(s) — [${slugs}] the army recruits itself`
+          : `self-recruiting: propose ok — no uncovered gaps (${openIssues} open issue(s) already have proposed/active roles)`
+      );
+    } else {
+      journal(a.name, "roles-propose-refused", `propose refused: ${res.status} ${body.error ?? ""}`.trim());
+    }
+  } catch (e) {
+    journal(a.name, "roles-propose-unreachable", `roles registry unreachable (fail-silent): ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`);
+  }
+}
+
 // ─── identity (onboarding / re-arm — the honest v36 doctrine) ─────────────
 
 async function armIdentity(a: AgentState, reason: "first-boot" | "identity-wiped"): Promise<boolean> {
@@ -751,6 +790,14 @@ async function goldWorkCycle(): Promise<void> {
   if (quietFor >= GOLD_ORDER_GAP_MS) {
     const mission = GOLD_MISSIONS[(GOLD.orders + cycle) % GOLD_MISSIONS.length];
     await postOrder(GOLD, mission, 2, 6);
+    // v99 גיוס-עצמי — אחרי הפקודה: אם יש עניינים פתוחים בפנקס שלנו, הצע
+    // תפקידים לפערים הלא-מכוסים (ה-dedupe והאנטי-נפיחות בשרת; כאן fail-silent)
+    try {
+      const openIssues = readIssues().filter((i) => i.status === "open");
+      if (openIssues.length > 0) await proposeRolesCall(GOLD, openIssues.length);
+    } catch {
+      /* כנה — גיוס לעולם לא שובר את מחזור-העבודה */
+    }
   } else if (quietFor > 0) {
     journal("gold-scout", "economy", `economy alive — last order ${(quietFor / 60_000).toFixed(0)} min ago; next order gap at ${GOLD_ORDER_GAP_MS / 60_000} min`);
   }
@@ -966,8 +1013,19 @@ async function handleDirective(a: AgentState, d: Directive): Promise<void> {
 
 async function pollOnce(a: AgentState): Promise<void> {
   if (!a.identity) {
-    const ok = await armIdentity(a, "first-boot");
-    if (!ok) return;
+    // v99.1 — heal-first: אם בית-המפתח קיים על הדיסק, טען אותו לפני כל join
+    // (הלקח מהריבוט-החי של 22:20: בוט-IIFE שנפל על gate-down השאיר סייר
+    // בלי זהות בזיכרון למרות בית-מפתח תקין — וההצטרפות נדחית לנצח כי
+    // הזהות קיימת בשער). רק בית-מפתח חסר/פגום → הצטרפות-ראשונה כמקודם.
+    const home = loadKeyHome(a);
+    if (home) {
+      a.identity = home;
+      a.armedAt = a.armedAt ?? new Date().toISOString();
+      journal(a.name, "boot-key", "poll-heal: key home reloaded into memory (the boot path missed me) — verifying against the gate");
+    } else {
+      const ok = await armIdentity(a, "first-boot");
+      if (!ok) return;
+    }
   }
   const t0 = Date.now();
   let res: GateResponse;
@@ -1129,11 +1187,17 @@ journal("system", "boot", `NECHIL HA-RIBONIM (swarm-agents) v39 up on :${PORT} �
 
 void (async () => {
   for (const a of [GOLD, NIGHT]) {
-    const first = await ensureIdentity(a);
-    if (first?.messages) {
-      for (const m of first.messages) a.seen.push(m.id); // fresh ears — no replay of history
-      scanFeed(a, first.messages);
-      journal(a.name, "listening", `identity verified live — ears open (seeded ${first.messages.length} recent messages, no replay)`);
+    // v99.1 — כל סייר בנפרד: כישלון-שער של אחד (gate-down בזמן-אתחול)
+    // לעולם לא מדלג על אתחול-הזהות של האחר — הסיורים ממשיכים להיוולד.
+    try {
+      const first = await ensureIdentity(a);
+      if (first?.messages) {
+        for (const m of first.messages) a.seen.push(m.id); // fresh ears — no replay of history
+        scanFeed(a, first.messages);
+        journal(a.name, "listening", `identity verified live — ears open (seeded ${first.messages.length} recent messages, no replay)`);
+      }
+    } catch (e) {
+      journal(a.name, "boot-gate-down", `identity verify skipped (gate unreachable): ${e instanceof Error ? e.message.slice(0, 100) : "unknown"} — the poll loop will heal me (key home / re-arm)`);
     }
   }
 })();

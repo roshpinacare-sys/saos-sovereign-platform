@@ -217,6 +217,19 @@ const AGRI_URL = "http://127.0.0.1:3000/api/saos/agri";
 const AGRI_EVERY = 30; // every 30th cycle = 5 min
 const AGRI_FIRST_AT = 4; // first tick 40s after boot
 
+// v99 — the economy-truth tick (מדידת-סולם-האמת הכלכלי). The web tier owns
+// the honest collector (economy-run.ts reads the LIVE engines: exchange
+// harvest · grid sweeps · paid work orders · XRPL/STEEM anchors) and writes
+// the EconomyRun ledger; the keeper owns the cadence: every HOUR it fires
+// ONE POST {action:"run"} signed with the SAME loopback bearer the backup/
+// agri ticks use (loopbackAuthHeaders — never logged, never journaled).
+// 401/403 (auth-unconfigured) is an HONEST journal row, not an error storm —
+// the ladder stays empty until the operator arms the admin key. Fail-silent
+// to the loop, journaled to the organism.
+const ECONOMY_URL = "http://127.0.0.1:3000/api/saos/economy";
+const ECONOMY_EVERY = 360; // every 360th cycle = 1 hour (same cadence as the outer-anchor scout)
+const ECONOMY_FIRST_AT = 6; // first measurement 60s after boot
+
 // v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
 // weave + the signing hand (vault gates · fail-closed self-verify · the
 // single whitelisted op custom_json saos.snapshot.v1 · inclusion proof from
@@ -445,7 +458,10 @@ interface KeeperEvent {
     | "agri-error"
     // v93 — the sovereignty census tick (מרשם-הריבונות — 17 תיקיות-גיט + שכבת-המפתחות)
     | "sovereignty-ok"
-    | "sovereignty-miss";
+    | "sovereignty-miss"
+    // v99 — the economy-truth tick (מדידת-הסולם הכלכלי החי — EconomyRun שעתי)
+    | "economy-tick"
+    | "economy-error";
   detail: string;
 }
 
@@ -1428,6 +1444,50 @@ async function checkAgri(): Promise<void> {
   }
 }
 
+/** v99 — the economy-truth tick (מדידת-הסולם הכלכלי). Fires ONE POST
+ *  {action:"run"} every hour (same signed loopback bearer as backup/agri).
+ *  The web tier owns every honesty gate: the collector reads the LIVE engines
+ *  (exchange harvest · grid sweeps · paid work orders · XRPL/STEEM anchors),
+ *  derives the ladder stage from the txids and writes the chained EconomyRun.
+ *  Non-OK HTTP (401/403 auth-unconfigured, 404, web down) = honest journal
+ *  row, never fabricated — fail-silent to the loop, journaled to the organism.
+ *  The keeper NEVER touches key material. */
+async function checkEconomy(): Promise<void> {
+  try {
+    const res = await fetch(ECONOMY_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ action: "run" }),
+      signal: AbortSignal.timeout(90_000) // the collector reads 3 live engines — measured, not instant
+    });
+    if (!res.ok) {
+      journal(
+        "economy-error",
+        `economy-truth tick non-OK HTTP ${res.status}${res.status === 401 || res.status === 403 ? " (auth-required — דורש אימות-מנהל/שומר; הסולם נשאר כנה-וריק עד חימוש-המפתח)" : ""} — honest wait, next window in 1 hour`
+      );
+      return;
+    }
+    const out = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      run?: { id?: number; stage?: number; mode?: string; totalPerDayUsdMicro?: number; proofTxids?: string[]; trigger?: string };
+      error?: string;
+    } | null;
+    if (!out || out.ok !== true || !out.run) {
+      journal("economy-error", `economy-truth tick failed honestly: ${out?.error ?? "non-JSON/unparseable response"} — next window in 1 hour`);
+      return;
+    }
+    const r = out.run;
+    journal(
+      "economy-tick",
+      `economy-truth run #${r.id ?? "?"} — stage ${r.stage ?? "?"} · mode=${r.mode ?? "?"} · measured $${((r.totalPerDayUsdMicro ?? 0) / 1_000_000).toFixed(6)}/day · ${r.proofTxids?.length ?? 0} proof-txid(s) · trigger=${r.trigger ?? "?"}`
+    );
+  } catch (e) {
+    // web down or collector slow = honest wait — the web revive owns recovery.
+    const msg = e instanceof Error ? e.message : String(e);
+    journal("economy-error", `economy-truth fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
+  }
+}
+
 /** v73 — the outer-anchor scout (עוגן-החוץ). Reads the snapshot board,
  *  and every hour asks the engine to anchor the current state digest
  *  (source=auto). The engine dedupes UNCHANGED digests (a still state
@@ -2088,6 +2148,16 @@ async function cycle(): Promise<void> {
   //     the cadence. Web down = honest wait.
   if (RT.cycle === SNAPSHOT_FIRST_AT || (RT.cycle > SNAPSHOT_FIRST_AT && (RT.cycle - SNAPSHOT_FIRST_AT) % SNAPSHOT_EVERY === 0)) {
     await checkSnapshot();
+  }
+
+  // 12.5 v99 — the economy-truth tick (מדידת-סולם-האמת). Every hour: fire ONE
+  //      POST {action:"run"} — the honest collector measures every LIVE
+  //      engine and writes the chained EconomyRun ladder row. 401/403 =
+  //      honest journal row (auth-unconfigured) — never a fabricated
+  //      measurement. The web tier owns every gate; the keeper owns the
+  //      cadence. Web down = honest wait.
+  if (RT.cycle === ECONOMY_FIRST_AT || (RT.cycle > ECONOMY_FIRST_AT && (RT.cycle - ECONOMY_FIRST_AT) % ECONOMY_EVERY === 0)) {
+    await checkEconomy();
   }
 
   // 10.5. v74 — the sync-radar scout (מכ"ם-הסנכרון). Every 10 min: read the

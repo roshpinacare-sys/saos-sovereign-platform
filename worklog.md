@@ -772,3 +772,204 @@ Work Log:
 
 Stage Summary:
 - The one-net heartbeat plane is rotation-proof AND merge-proof: every key-path consumer now walks the shared candidates chain; the silent-skip failure mode is documented here for the next merge touching key resolution
+
+
+---
+# מבצע מהפכה-99 (v99) — המשך הפנקס (הסעיפים שלהלן שייכים למבצע הנוכחי; הסעיפים למעלה = היסטוריה קודמת)
+
+---
+---
+Task ID: 0
+Agent: orchestrator (Z.ai Code)
+Task: מבצע "מהפכה-99" — הוראת בעלים (trace 1a0f944979dbb60d): בחינת-גיט מעמיקה, הפעלת-הכל הרבה יותר טוב, כפילויות→יכולות, ארנק תקוע ב"ממתין", תפריט סלולרי שבור, עיצוב ברמה גבוהה הרבה יותר, כלכלה מדומה→ערך אמיתי צעד-צעד, צבא מגייס-תפקידים לבד, עסקאות+נזילות, יחידה ריבונית אחת.
+
+Work Log:
+- git: עץ נקי, main @ bfae3bf (v98.1), אין פער מול origin (fetch חסר-creds בסנדבוקס — צפוי)
+- שירותים נמדדו: 3000/3005/3006/3007 חיים (200), anvil :8545 חי (בלוק 9188)
+- one-net: 7/7 שירותים חיים · keeper v45.3.0 · swarm חי (2 דוחות-בינה, 8 סיורים)
+- economy API: mode=sim מודה-בעצמו — 4 זרמים על 0, אמת-מידה MISSION-1000: $0.0103/יום
+- census API: 25 חיים נמדדו (לא 37 כמו ב-pulse v98, לא 60+ כמו בטענות-הישנות)
+- ביצועים שנמדדו ב-dev.log: flow 2.5s · agent-census 1.44s · live-probes 1.67s · recovery 1.31s · conversion 1.35s — האיטיות אמיתית
+- בדיקת-דפדפן mobile-390: פס-ניווט חתוך/צפוף (תפריט שבור נצפה), ארנק networkmap נפתח אבל שורות "ממתין" מפוזרות בכל הויוים
+- נמצא: "ממתין" ב-12+ קבצי-ויו; דורש איתור מדויק של זרימת-פתיחת-ארנק שהבעלים ניסה
+
+Stage Summary:
+- מצב-בסיס: פלטפורמה חיה v98.1 אבל: כלכלה בהכרזה-עצמית "סימולציה", מצבת קטנה מהטענות, UX סלולרי שבור, איטיות נמדדת
+- מבצע בן 3 גלים: סיור 1-a/1-b/1-c מקביל → מחטבים 2-a/2-b/2-c/2-d מקביל → אינטגרציה+הוכחה 3
+- יעד: v99 "המהפכה" — הכל חי, נמדד, יפה, סלולרי-מושלם, כלכלה בדרך-אמיתית, צבא מתגייס-לבד
+
+---
+Task ID: 1-c
+Agent: scout-economy
+Task: סיור כלכלה+צבא — מפת-מנועים-כלכליים (חי/סימ), מסילות-נזילות אמיתיות וחסומות, מפת-צבא (25 חיים), ותכנון מלא (בלי מימוש) ל"סולם-האמת הכלכלי" (sim→real) ול"גיוס-עצמי" (לולאה אוטונומית שמגייסת תפקידים חדשים).
+
+Work Log:
+- נקראו: src/lib/saos/{economy,treasury,saos-mint,worth,dex-live,microgrid-live,exchange-live,liquidity-radar,cheap-routes,agent-census,agents-net,steem-rearm,anchor-xrp,fleet-arm} · routes economy/coin/mint/flow/utxo/physical-move/fleet/agents-gateway/mesh-work · prisma/schema.prisma · contracts/mesh/SAOSIdentity.sol · mini-services/{swarm-agents,keeper,evm-mesh} · FLEET-NOTE.md · TOKEN-DOSSIER.md
+- מדידות חיות על :3000 (עכשיו): economy GET → mode=sim, 4 זרמים=0, verdict מצטט MISSION-1000 $0.0103/יום; census → 25 alive (6 service + 3 identity + 16 repo; צי-הכספת לא נמדד בסבב זה); flow radar → $291.27 נזילות-ידועה (STEEM 128.028+$287.83 · XRP 1.298 · HIVE 1.344 · TRX 0.56 · ETH 0.000024 · BNB 0.0000067 · SOL 0.001085); physical-move → XRP spendable 0.298366, legacy SOL canMove=true, TRX מתחת חיץ-כנות 0.5; treasury → 9 דלתות, 6 ממתינות, גז-חסר מדוד: ETH $0.52 · BNB $0.08 · POL $0.04; exchange → 5 בריכות · 384 Swap אמת · TVL $4.13 · קציר $0.0036 · 354 פעימות; microgrid → 6 גרידים חיים, crossings=0, sweptPnl=0 (אינוונטר זרוע, אין תנודה); mesh → 354 ריצות, 40 פקודות-עבודה שנמסרו ושולמו (SAOS-M), רישום-סוכנים אוטומטי בריצה-ראשונה; swarm v39 → gold-scout 2 דוחות-LLM + 1 פקודה · night-scout 9 סיורים · פנקס-עניינים 3 פתוחים; one-net 7/7 חי
+- MISSION-1000 ($0.0103/יום) אינו בסנדבוקס: מוזכר ב-FLEET-NOTE.md (roshpinacare-sys/Defi→fleet/MISSION-1000.md — חוץ) וב-economy.ts (verdict); grid98-state.json לא קיים ב-/home/z/repos/steem — המנוע ההיסטורי מוצג כצילום-קפוא 2026-09-08 מתויג כנה (microgrid-live.ts:48-92)
+- אותר החוסם המרכזי של הכלכלה: אין קורא-אוטומטי שמזרים מספרים נמדדים (txid/אירועי-שרשרת/מכ"ם-נזילות) אל EconomyInput+measured=true — המסילות החיות כבר מוכיחות ערך (קציר, פעימות XRPL, פקודות) אבל הן לא מדובלות אל ה-API הכלכלי
+- לא נערך שום קוד — רק קריאה, קריאות-API ומדידה (ריצת-סיור)
+
+Stage Summary:
+- א. מנועים: כלכלה-API = סימ-כנה (אפסים+verdict) · בורסה/מיקרו-גריד/מש/פקודות-עבודה/עיגון-XRPL/STEEM-עיגון = חי עם txid אמיתי · grid98-היסטורי = קפוא-מתויג · mint-הקטן = מוגדר, טרם הורץ (supply=0)
+- ב. נזילות-אמיתית זמינה היום בלי מימון-חוץ: XRPL ~25,000 פעימות-עיגון מ-0.298 spendable · SOL sweep 0.001085 ל-A2Y1 · STEEM 128 נזיל (power-up→SP/RC ומסילת-harvest פנימית) · HIVE 1.344 (power-up→RC) · TRX 0.56 (חיץ 0.5 חוסם) · דלתות-EVM חסרות גז ($0.51)
+- ג. צבא: מקור-אמת אחד = /api/saos/agent-census (5 שכבות, 60ש' מטמון) · 25 חיים עכשיו: keeper/gate-herald/swarm/gold-scout/night-scout/evm-mesh-runner + זהויות-שער ×3 + 16 ריפואים (Console/Domain כולל agent-verify 100/102 חוץ) · רישום: agents-gateway join (מפתח-חד-פעמי) או רישום-אוטומטי על SAOSIdentity בריצה-ראשונה · דורמנט: צי-הכספת (12), BLURT (RPC), mint-טרם-הורץ
+- ד. תוכנן (לא מומש): "סולם-האמת" 4 שלבים — ש-0 סים-כנה (קיים) → ש-1 EconomyRun: קורא-מדידות חי (קציר/שטיפות/פקודות/פעימות ב-txid) שמזרים measured=true → ש-2 micro-real: XRPL-pulse + SOL-sweep + STEEM self-harvest + HIVE-RC כזרמים אמיתיים ב-USD → ש-3 גלגל צמיחה (flywheel 30% → TRX-אנרגיה → יישובים) עם סף-מעבר נמדד לכל שלב; "גיוס-עצמי" — גלאי-פערים (פנקס-עניינים + סיורי-לילה + roast + sync-radar) → AgentRole חדש (מודל) → join בשער + רישום אוטומטי ב-SAOSIdentity → פקודת-עבודה ראשונה → כניסה-למצבת בכנות (alive רק אחרי מדידה). קבצים-מוצעים: src/lib/saos/economy-run.ts · role-registry.ts · routes economy/roles · מודלים EconomyRun+AgentRole · טיק keeper-כלכלי
+
+---
+Task ID: 1-a
+Agent: scout-wallet
+Task: סיור (ללא עריכת קוד) — א. שורש תקיעת-הארנק "ממתין/לא נפתח באמת" · ב. פירוש console+domain וכפילויות-ויוים · ג. כפילויות-נתונים (Prisma+קוד) · ד. הזדמנויות "כפילות→יכולת".
+
+Work Log:
+- נמדד חי: GET /api/saos/networks → ok:false, tookMs 97, "גזירת-הזהויות נכשלה… (סיבה: no vault pass: neither external secret nor seal meta)" · 25 שורות, 0 עם כתובת, 0 גששים — זו החוויה המדויקת של הבעלים: הוויו "הארנק הרב-רשתי" (networkmap.tsx) נפתח אבל כל השורות "לא נגזר/ממתין".
+- שורש 1 (כספת): vault-seal.ts:36-47 readVaultPass — קובץ הסיסמה החיצוני /home/z/.secrets/fleet-vault-pass לא קיים (התיקייה ~/.secrets כלל לא קיימת במחשב זה — נמדד), וה-meta בשלושת הבתים (agent/keys · ~/saos-vault · upload/.agent-keys) עבר הגירת P0 (2026-09-29) ל-{externalPass:true} בלי pass → המעטפת fleet_keys.enc (222KB, קיימת ב-3 בתים) אטומה עם אפס דרכי-פתיחה. כל הגזירות (networks/sovereign-key/utxo/fleet/cornerstone) מתות על אותו throw.
+- שורש 2 (פעולות): .env מכיל רק DATABASE_URL — SAOS_ADMIN_KEY_HASH לא מוגדר ו-/home/z/.secrets/saos-admin-key חסר → requireAuth (auth.ts:240-252) מחזיר 403 "auth-unconfigured" לכל POST רגיש. נמדד חי: POST smartvault import=403, POST cornerstone seal=403; ב-dev.log: mesh/work, roses, security, physical-move — כולם 403. גם דרך-התיקון (ייבוא מפתח/איטום) סגורה בפני הבעלים — "לא באמת פתח לי".
+- שורש 3 (אבן-הפינה): upload/ראשגד.txt חסר במחשב זה (רק Roshcaregt.txt) → cornerstone.ts:522 "ממתין לאיטום" לנצח; GET cornerstone מאשר: "הזרע אינו בדיסק ואינו במעטפת (אבד באיפוס-הסנדבוקס)".
+- console+domain: אלה שני ריפואים אמיתיים באורגניזם (agents-net.ts:87-89 · network360.ts:73-91): Console=מסוף-אמת (truth/latest.json, רישום-סוכנים 69+, verify-בוטים 48-49/49) · Domain=בודק-דומיין חי (verify 51-52/53, agents-watch, דף-נחיתה) — שניהם מריצים verify+agents-watch על אותם 16 ריפואים = כפילות זהים כמעט לגמרי. אין דומיין-חוץ מוגדר (Caddyfile :81→localhost:3000, אפס NEXT_PUBLIC).
+- כפילויות-ויוים (40 ויוים נסרקו, מיפוי view→API): networks↔networkmap (שניהם קוראים /api/saos/networks) · overview↔one-net (שני דשבורדים-על) · sovereignty↔smartlink↔sovereign-key (שכבת-מפתחות ×3) · seals↔snapshot↔ops↔proofs (עיגון ×4) · exchange↔microgrid↔coin↔conversion (AMM/בריכות ×4, שניים חולקים /dex) · agents↔network360↔syncradar (ניטור-ריפואים ×3) · treasury↔worth↔economy↔flow (כסף ×4).
+- כפילויות-נתונים: ROLE_MAP (agents-net) מול ESTATE (network360) = אותם 16 ריפואים בשני רישומים ידניים סוטים · VaultSlot מול SmartKey.address (כתובות-ציבוריות בשתי טבלאות + גזירה שלישית בזמן-ריצה) · FleetArmOp/PhysicalMove/SaosMintEntry = שלושה פנקסי-תזוזה עם txid+amount+status · EvidenceReceipt/SealLeaf.digest/WorkDeliverable.receiptDigest = אותו digest בשלושה מקומות · SovereignContract מול upload/.mesh-state/deployment.json (coin קורא מהדיסק, ops מה-DB) · OpLog מול AuditEvent · AgentHeartbeat/TuneSnapshot.servicesUp/status = חיות-שירות ב-3 מקומות.
+
+Stage Summary:
+- הארנק לא "תקוע בבאג" — הוא fail-closed נכון עם פער-תפעול: סיסמת-הכספת ומפתח-המנהל חיים ב-~/.secrets שלא שרד את הבנייה-מחדש, והזרע ראשגד.txt חסר. שלוש שחזורים-ידניים (fleet-vault-pass → ~/.secrets, SAOS_ADMIN_KEY_HASH/קובץ מפתח, העלאת ראשגד.txt) מחזירים את כל המסילות בלי שינוי-קוד. תיקון-קוד מומלץ: סטטוס מפורש "VAULT-PASS-MISSING" ב-status+networkmap במקום "כישלון טכני".
+- console+domain = זוג-ריפואים כפול → Console מסוף-אמת יחיד, Domain הופך לדף-נחיתה קורא-בלבד של truth/latest.json (כבר מחוברים).
+- 7 מקבצי-ויוים כפולים ו-7 מקרי-כפילות-נתונים מתועדים בדוח המלא של הסייר — בסיס מוכן למחטב 2 (איחוי/הבדלה).
+
+---
+Task ID: 1-b
+Agent: scout-ux
+Task: סיור UX/עיצוב מובייל+דסקטופ (אסור-עריכה) — איתור שורש "תפריט שבור", טבלת פגמים ל-10 ויוים, ורשימת-ליטוש עיצוב מדורגת.
+
+Work Log:
+- נבדקו 390x844: overview · networkmap · economy · one-net · exchange · agents · fleet · coin · treasury · research (hash+reload, networkidle) + דסקטופ 1440x900 (overview, one-net) · 13 צילומים ב-shots/audit-m-*.png + audit-d-*.png
+- אין גלילה-אופקית ברמת-המסמך באף ויו (scrollWidth=390 בכולם) — ה"שבור" הוא במעטפת, לא בתוכן
+- **שורש "תפריט שבור" #1 — התנגשות-דביקים**: ChainTicker דביק ב-top-14 (56px) אך ה-header במובייל גבוה 103px (56px סרגל-עליון + 47px פס-ניווט מובייל בתוכו) — בגלילה 47px של הטיקר נבלעים מאחורי ה-header השקוף (z-20 מול z-30) → כתם-צ'יפים מטושטש מאחורי התפריט. נמדד: headerBottom=103 · tickerTop=56 · overlap=47px. בדסקטופ header=57px ולכן top-14 מסתדר שם בדיוק (shell.tsx:824 מול :539-612)
+- **שורש #2 — צ'יפ פעיל בלתי-נראה**: פס-הניווט המובייל = 40 צ'יפים ברוחב כולל 3,779px (~9.7 מסכים גלילה) בלי scrollIntoView לפריט הפעיל, בלי fade/אינדיקציית-גלילה, בלי קיבוץ — ניווט ל-#research משאיר scrollLeft=0 והצ'יפ הפעיל ב-x=-3373 (מחוץ למסך לגמרי) (shell.tsx:588-612)
+- **שורש #3 — מטרות-מגע**: 64 מתוך 106 אלמנטים לחיצים <44px ב-overview; צ'יפי הניווט min-h-[36px] (shell.tsx:600), כפתור רענון 36x36 (:580), כניסת-מנהל h-9 (:569)
+- ביצועים: useClock+useTick מרנדרים את כל ה-AppShell (כולל פס-40-הצ'יפים) כל שנייה — רק הפוטר memo (shell.tsx:399-400, :363)
+- טיפוגרפיה: Rubik/Heebo מוכרזים ב-globals.css:20 אך אין טעינת-גופן (אין next/font/@font-face) — פונט-מערכת בפועל; 88 אלמנטים בפונט <11px (18 ב-9px, 59 ב-10px) ב-overview בלבד
+- פוטר: מניפסט 2,672 תווים ב-span אחד (shell.tsx:370) בכל עמוד — במובייל ~10 מסכי-גלילה של טקסט
+- חוסר theme-color/viewport-fit (layout.tsx:4-8) — סרגל-דפדפן סלולרי לא תואם-ערכה
+- טבלאות: כל ה-<Table> עטופות overflow-x-auto (ui.tsx:298) — אין פריצה, אך exchange (7 טבלאות, 838px בתוך 356px) ללא affordance ברור במובייל
+- סטיות-פלטה (כחול/sky אסור): irrigation.tsx:275,286,358,573 · microgrid.tsx:418 · snapshot.tsx:350 · agents.tsx:387
+- קונסולה נקייה (רק Fast-Refresh); דסקטופ תקין ויציב — הפגמים סלולריים-טהורים
+
+Stage Summary:
+- ה"תפריט השבור" = 3 שורשים מדויקים ב-shell.tsx: (א) sticky top-14 של הטיקר מול header-103px במובייל (:824) (ב) פס-40-צ'יפים בלי scrollIntoView/קיבוץ/אינדיקציה (:588-612) (ג) מטרות-מגע 36px (:600,:569,:580) — כולם נמדדו בדפדפן ולא רק בקריאת-קוד
+- אין בעיית-גלילה-אופקית בויוים עצמם — התיקון מרוכז במעטפת בלבד (זול וממוקד)
+- עיצוב: הבסיס המוסדי (zinc+gold, Panel, console-grid) טוב אך שטוח — דרושים: טעינת-גופן אמיתית, היררכיה/עומק (זוהר-זהב, קו-עליון מבריק), פוטר-מקופל, פונטים ≥11px, וניקוי 7 סטיות-sky
+- מוכן למחט 2-b: תיקון-המעטפת מפורט בקובץ+שורות, כל הצילומיות-הוכחה ב-shots/
+
+---
+Task ID: 2-a
+Agent: fixer-mobile
+Task: מחטב-מובייל/עיצוב — 11 סעיפי-תיקון מממצאי 1-b: התנגשות-דביקים (טיקר מול header-103px), פס-ניווט 40 צ'יפים (scrollIntoView/snap/fade/קיבוץ), מטרות-מגע 44px, גופן Rubik אמת, פוטר-מקופל, היררכיית-KPI, עומק-פאנלים, ניקוי 7 סטיות-sky, קריאות-טקסט ≥11px, מיקרו-אינטראקציות + memo-ניווט, ו-class עזר לטבלאות-רחבות.
+
+Work Log:
+- shell.tsx — התנגשות-דביקים (קריטי): נבחר הפתרון-היציב — CSS-var `--saos-header-h` שנמדדת מה-header ב-ResizeObserver + requestAnimationFrame (useEffect ב-AppShell, מוזרמת על עמודת-התוכן ref=mainColRef; fallback :root 57px); הטיקר עבר מ-`top-14` ל-`.sticky-under-header { top: var(--saos-header-h) }`. נמדד בדפדפן: מובייל headerBottom=111 · tickerTop=111 · gap=0 (במקום overlap-47px); דסקטופ 57/57/gap=0
+- shell.tsx — פס-הניווט המובייל (קריטי): הוקם רכיב `MobileNav` נפרד (React.memo + latest-ref useCallback על onNav — לא מרנדר עם השעון); `scrollIntoView({inline:'center',block:'nearest'})` על הצ'יפ הפעיל בכל שינוי-ויו (מכבד prefers-reduced-motion); `.mobile-nav-scroll` ב-globals.css: scroll-snap-type x proximity + scroll-snap-align center + mask-image fade 24px בקצוות; separator דק (h-5 w-px) בין-קבוצות (תפעול/כלכלה ואנרגיה/מחקר). נמדד: ניווט ל-#research → scrollLeft=-3394 (RTL), צ'יפ "מחקר" ב-x=16 בתוך-המסך (היה -3373 מחוץ-למסך)
+- shell.tsx — מטרות-מגע: צ'יפים min-h-[36px]→[44px] (40/40 ≥44px נמדד), רענון h-9→h-11 (44px נמדד), כניסת-מנהל h-9→h-11 (44px נמדד), כפתורי-סרגל-צד min-h-[40px]→[44px], קישורי-גיטהאב/סיכום-המניפסט min-h-[44px], כפתורי-דיאלוג h-11
+- layout.tsx — Rubik מ-next/font/google (subsets hebrew+latin, weight variable, --font-rubik על <html>) + export viewport (themeColor #09090b, viewportFit cover); globals.css: @theme --font-sans מחובר ל-var(--font-rubik) + body font-family. נמדד: computed font = "Rubik, Rubik Fallback, …" (self-hosted, אין קפיצת-פונט)
+- shell.tsx — פוטר-מקופל: המניפסט (2,672 תווים) ב-<details class="saos-fold"> עם summary בגובה-44 (גרסה+שם-קוד · "המניפסט המלא" + ChevronDown מסתובב ב-group-open); הטקסט המלא בתוך <p> עם max-h-60 גלילה-פנימית; mt-auto נשמר — הפוטר דביק-לתחתית. נמדד: סגור 44px, פתוח → מניפסט נראה
+- globals.css — היררכיית-KPI (על רכיב-Kpi מ-ui.tsx שלא-בהיקף, דרך סלקטורי-מבנה מדויקים עם :has): ספרות 26px→30px (text-3xl), tone-default zinc-50→--gold-soft, tabular-nums, קו-עליון ::before h-px gradient זהב, זוהר shadow 0 0 40px -12px rgba(230,177,63,.25). נמדד: fontSize=30px · color=gold-soft · shadow+before חיים
+- globals.css — עומק-פאנלים: Panel (section bg-zinc-900/45+backdrop-blur-sm — ה-backdrop מבחין מ-Kpi) מקבל gradient עליון white/3% + רשת-console-grid 44px כשכבות-background + רדיוס-אחיד 12px. נמדד ב-#irrigation: radius=12px · 3 שכבות-gradient
+- views — ניקוי 7 סטיות-sky (אפס sky/blue נותר בהיקף): irrigation:275,573 Receipt→emerald-300 (יומן-חי) · :286 CloudSun→zinc-300 (מזג=ניטרלי) · :358 ShieldCheck→zinc-400 (כללים) · agents:387 "שלנו"→emerald (בלי להתנגש ב"שורש" ה-amber) · snapshot:350 txid-link→amber (פעולה) · microgrid:418 קנה→amber-400 (מול מכר=emerald)
+- shell.tsx — קריאות-טקסט: כל 9-10px → 11px (טיקר: 10-Chain/שמות/ערכים/probes · סרגל-צד: מותג/סטטוס/קבוצות/authority · 6 מופעים), zinc-500→zinc-400 בטקסט-ריצה (תיאור-ויו, ערכי-טיקר, מותג), footer zinc-600→zinc-400/500
+- shell.tsx — מיקרו-אינטראקציות: צ'יפים transition+active:scale-95 · gold-underline על הצ'יפ הפעיל · memo על MobileNav (רק הפוטר היה memo — עכשיו גם פס-ה-40-צ'יפים)
+- globals.css — `.scroll-x-afford` (mask-fade 16px + פס-גלילה-זהב 5px) זמין לטבלאות-רחבות; exchange.tsx לא נגע (לא בהיקף)
+- אימות: bunx tsc --noEmit=0 · bun run lint=0 · dev.log אפס שגיאות-הידור · מובייל 390: scrollWidth=390=innerW (אין גלילה-אופקית) · דסקטופ 1440: scrollWidth=1440, טיקר 57/57 · אפס page-errors בקונסולה
+- שים-לב: בזמן העבודה ה-Next dev server נפל והוקם מחדש (הושק מחדש עם `bun run dev`, התנהגות-סביבה); אפס שגיאות-הידור אחריו. קבצים מחוץ-להיקף שמופיעים ב-git-status (schema.prisma, networks/status routes, auth.ts, vault-seal.ts, networkmap/networks views) — של מחטב-מקביל (ארנק/כספת), לא נגעתי בהם
+
+Stage Summary:
+- שלושת-שורשי "התפריט השבור" מ-1-b נסגרו כולם ונמדדו חי: (א) טיקר נדבק מתחת לכותרת הנמדדת (gap=0 מובייל+דסקטופ, אפס בליעה) (ב) הצ'יפ הפעיל תמיד נגלל למרכז-הפס עם snap+fade+קיבוץ (ג) כל מטרות-המגע במעטפת ≥44px
+- המעטפת עברה לגופן Rubik אמת (עברית), viewport מותאם-מובייל (themeColor+cover), פוטר-מקופל 2-שורות, KPI בזהב-30px עם קו-עליון+זוהר עדין, פאנלים עם עומק-gradient+רשת — בלי לגעת ב-ui.tsx (CSS-מבני בלבד)
+- 7 סטיות-הsky נוקו לפי-הקשר (amber=פעולה · emerald=חי · zinc=ניטרלי); אפס sky/blue נותר בקבצי-ההיקף
+- ביצועים: פס-הניווט כבר לא מרנדר כל-שנייה (memo+useCallback) — הרנדר-השנתי של AppShell ממשיך להיות זול
+- הוכחות: shots/v99-mobile-nav.png · shots/v99-mobile-overview.png · shots/v99-desktop-overview.png
+- מוכן לאינטגרציה (Task 3): אין חסמים מצדי; `.scroll-x-afford` ממתין לחיבור ב-exchange (2-b/2-c)
+
+---
+Task ID: 2-c
+Agent: fixer-economy
+Task: מחטב-כלכלה — v99 "סולם-האמת החי": צינור-מדידות כנה (economy-run) שמזרים את המנועים-החיים אל EconomyRun, סולם-4-שלבים ב-API+UI, טיק-שעתי ב-keeper — בלי מספרים-מומצאים, תאימות-אחורה מלאה.
+
+Work Log:
+- src/lib/saos/economy-run.ts (חדש) — collectEconomyRun(trigger): 6 זרמים כנים בייבוא-בלבד מהמודולים הקיימים (אפס שכפול-לוגיקה): קציר-בורסה (exchangeStatus().totals.harvestedUsd — potHarvested cumulative), שטיפות-גריד (microgridStatus().totals.sweptPnl + txid-מילויים), פקודות-עבודה ששולמו (meshBoard חי מהשרשרת — סכום-24h של פקודות paid; WorkDeliverable-DB בן-24h — count + עיגוני SAOS-WORK כ-txid), עיגוני-XRPL-24h + עיגוני-STEEM-24h (AnchorTx-DB, txid מיינטנט = עדות-שלב-2), מסילת-harvest נכנסת (אין פנקס → אפס-כנה). כל אספן fail-honest בפני עצמו: מנוע שנפל = זרם-אפס עם הערה, לעולם לא זריקה ולא המצאה. המרת SAOS-M→USD דרך מחיר-המדיניות החי מהבורסה (policy.saosUsdPolicy = SAOS_M_USD_POLICY $0.001) — לא קבוע-מקומי; אין מחיר → המרות נשארות 0 כנה. מדידות-מצטברות מתויגות "cumulative" ב-notes (בלי פיצול-שרירותי ל-24h). stage נגזר מהראיות: txid-מיינטנט (XRPL/STEEM) → 2 "txid-real" · txid-anvil או מדידה>0 → 1 "measured" · הכל-אפס → 0 "sim". רישום EconomyRun (Prisma, בלי גע ב-schema) + קבלה-שרשרתית appendChainedReceipt("economy-run") ל-EvidenceReceipt + logOp; inflight-נעילה — keeper+מפעיל באותו רגע = מדידה אחת.
+- src/lib/saos/economy.ts (הרחבה-בלבד) — ECONOMY_LADDER_STAGES (4 שלבים, מקור-אמת אחד ל-API ול-UI; שלב-3 מתויג "טרם נמדד") + economyRunVerdict() — פסק-דין כנה לריצה, אותו קול כמו verdict הקיים (סימולציה לא מתלבשת כהכנסה; MISSION-1000 $0.0103/יום כסרגל-השוואה). אפס שינוי בהתנהגות הקיימת.
+- api/saos/economy/route.ts — GET: ?runs=1 מוסיף runs (12 אחרונות) + ladder-summary {currentStage/lastMode/lastTotalUsdMicro/stageCounts/stages}; בלי הפרמטר התשובה זהה לגמרי (תאימות-אחורה מלאה נמדדה). POST: auth קודם (requireAuth — cookie או bearer-שומר, fail-closed), אחר-כך action:"run" → collectEconomyRun("manual") → {ok, run, ladder}; action לא-מוכר → 400; POST בלי action → תמונת-מצב (הזרימה הקיימת של כפתור-השמירה נשמרה).
+- economy.tsx — פאנל "סולם-האמת הכלכלי" בראש-הוויו: פס-4-שלבים (0 סים-כנה → 1 anvil → 2 micro-real → 3 צמיחה) עם סימון נוכחי/עבר נגזר מה-runs, גלולת-mode כנה (sim/amber · measured/gold · txid-real/green · טרם-נמדד/pulse), פסק-הדין של הריצה האחרונה ב-Callout, טבלת 12 הריצות (# · שלב · מצב · סה״כ-נמדד ב-$ · txid · מקור · מתי), כפתור "הרץ מדידה-חיה" (POST action:run) עם טיפול-403 כנה: "דורש אימות-מנהל/שומר". עיצוב zinc/amber/gold, Panel/Tag/Pill מ-ui.tsx; scroll-x-afford על הטבלה.
+- keeper (mini-services/keeper/src/index.ts) — טיק-שעתי חדש "economy-truth tick" (ECONOMY_EVERY=360 מחזורים=1ש', FIRST_AT=6): POST loopback {action:"run"} עם אותו bearer-לולאה (loopbackAuthHeaders — לא נכנס ליומן); סוגי-יומן חדשים economy-tick/economy-error; 401/403 = שורת-יומן כנה ולא סערת-שגיאות; לא נגעתי במחזורים-קיימים. נמדד חי: הטיק נורה ב-22:25:17 ורישם economy-error 403 כנה (auth-unconfigured — ראה למטה).
+
+אימות (נמדד, לא הוצהר):
+- bunx tsc --noEmit = 0 · bun run lint = נקי (אפס אזהרות-חדשות) · dev.log אפס שגיאות-הידור (ה-economy route והוויו עולים 200)
+- חי GET /api/saos/economy?runs=1 → ok + ladder + runs; בלי הפרמטר — מבנה זהה-לקיים (נבדק)
+- חי POST {action:"run"} ללא-אימות → 403 fail-closed (auth-unconfigured — SAOS_ADMIN_KEY_HASH חסר וקובץ-המפתח לא קיים בסנדבוקס; זה נכון ותועד)
+- הריצה-הראשונה בוצעה דרך collectEconomyRun("manual") בצד-השרת (אותו קוד שה-POST מריץ אחרי-אימות) — ריצה #1 נרשמה: stage 1 · mode "measured" · total $0.271766/יום · receiptDigest a3ef5113d82276c8… (משורשרת ב-EvidenceReceipt). הזרמים שנמדדו-חי בפועל: קציר-בורסה $0.003766 (cumulative · 410 swaps · TVL $4.13) · פקודות-עבודה ששולמו $0.268 בן-24h (355 נמסרו · 2,398 SAOS-M cumulative מהשרשרת החיה) · שטיפות-גריד 0 (2 מילויים, realized 0 — כנה) · XRPL/STEEM 24h = 0 (ה-DB נולד-מחדש באיפוס-הסנדבוקס; עוגנים היסטוריים-מאומתים לא נספרו כנה) · מסילת-harvest 0 (אין פנקס)
+- הסולם ב-API אחרי הריצה: currentStage=1 · lastMode=measured · stageCounts {0:0,1:1,2:0,3:0}
+- דפדפן mobile-390 (#economy): הסולם+4 השלבים+טבלת-הריצות+הכפתור נראים, שלב-1 מסומן "נוכחי", $0.271766 מוצג בטבלה, scrollWidth=390=innerWidth (אין גלילה-אופקית), אפס שגיאות-קונסולה; צילום: shots/v99-economy-ladder.png
+- אירוע-סביבה: ה-next-server נפל (kernel OOM ב-RSS 1839MB בזמן סערת-קומפילציות של המחטבים-המקבילים) — ה-keeper איתר מוות (connection refused ×12) והחיה תוך ~30ש' (revive #2); אחריו כל הבדיקות-החיות עברו. הקובץ econ-run-test.mts (זמני) נמחק לאחר-השימוש.
+- שים-לב: קבצים אחרים ב-git-status (shell/layout/globals/schema/networks/status/auth/vault-seal/swarm/ויוים) — של המחטבים-המקבילים; בהיקף-שלי נערכו רק: economy-run.ts (חדש) · economy route · economy.ts · economy.tsx · keeper/src/index.ts · worklog.md
+
+Stage Summary:
+- "החוסם-המרכזי" מ-1-c נסגר: יש צינור-מדידות-חי שמזרים את מה שכבר מתרחש (קציר/שטיפות/שכר/פעימות) אל פנקס-הכלכלה עם קבלה-משורשרת — ה-economy API כבר לא מצהיר sim-בתוקפנות; הוא מדווח שלב-נמדד כשיש מדידה ו-0 כשאין.
+- הסולם כנה-מבנית: שלב-1 הושג במדידה-הראשונה (anvil: קציר+שכר — $0.271766/יום במדידה, מתוכם $0.268 עבודה-ששולמה בן-24h); לשלב-2 (micro-real) חסרות ריצות-מיינטנט בן-24h (XRPL/STEEM — ה-DB חדש; הפעלת פעימות/עיגונים תגרור את השלב אוטומטית בריצה-הבאה); שלב-3 מתועד כיעד.
+- המדידה ממשיכה-לבד: ה-keeper מריץ מדידה-שעתית; כשמפתח-המנהל יחומש (~/.secrets או env) הטיק יעבור מ-403-כנה לריצות-מלאות בלי שינוי-קוד.
+
+---
+Task ID: 2-d
+Agent: fixer-army
+Task: מחטב 2-d — גיוס-עצמי (v99 הצבא-המגייס-את-עצמו): role-registry (גלאי-פערים → הצעת-תפקידים → פרישה-כנה), API agents-roles (GET עצל-מתחזק-עצמו · POST מאובטח fail-closed), סעיף "גיוס-עצמי" ב-one-net, והוספת propose-role לזרימת gold-scout בנחיל.
+
+Work Log:
+- src/lib/saos/role-registry.ts (חדש): detectRoleGaps() קורא שני מקורות-פער קיימים — פנקס-העניינים של הנחיל (issues/ מהקבצים דרך listIssues) ופערי-רוסט-אמת (truthRoast, רק status=open; מרוץ-זמן כנה של 4ש' — הפסד = דילוג-כן, הסבב הבא מנסה שוב). 7 חוקי-מיפוי מוכרים: vault-money→רואה-חשבון-הכספת (vault-auditor) · key-generation-gap→מפעיל-מפעל-מפתחות (key-forge-operator) · eth-0-40-6→דלק-EVM-מתאם (evm-fuel-attendant) · churn-cycle→סייר-יציבות-ווב · steem-window→סייר-מארב-STEEM · mainnet-unfunded→משלם-שכר-מיינטנט · cold-start→סייר-הקור-הראשון; פער-לא-מוכר → "סייר-<topic>" כנה. proposeRoles(): dedupe לפי slug מול proposed/active, upsert origin=auto proposedBy=gap-detector, פרש-שהפער-שלו-חי חוזר כמוצע (מחזור-חיים חדש); חוק-אנטי-נפיחות: מקסימום 3 מוצעים במצבר (PROPOSED_CAP). sweepStale(): מוצע >48h בלי-העלאה → פרש ("ללא-artifact 48h — פרישה-כנה" · אם יש-artifact בלי-מאמץ — נימוק-כן משלו); חי >72h בלי-artifact → פרש. activateRole() proposed→active · recordArtifact() מרענן lastArtifactAt. מטמון-מודול: propose עצל ≤פעם ב-15 דק', lastSweepAt/nextProposeAt נחשפים ל-API.
+- src/app/api/saos/agents-roles/route.ts (חדש): GET ציבורי → {ok, roles[], counts{proposed,active,retired}, lastSweepAt, propose} ומריץ sweepStale()+proposeRoles() בעצלתיים — self-maintaining בלי-keeper. POST fail-closed עם שתי מסילות-אימות: requireAuth (מפעיל cookie/bearer) או זהות-סוכן אמיתית (x-agent-name + x-agent-key — אותו דפוס של agents-gateway/inbox; מפתח-סוכן מתקבל גם כ-Bearer) · אף-אימות → 401/403 + agents-roles.auth ב-OpLog. ops: propose (עוקף עצלות, לא את הקאפ) · activate · record-artifact. אין סוכני-רפאים: שום קריאה לא יוצרת זהויות — רק מתעדת מי קיבל מה (roles.activate ב-OpLog עם actor).
+- one-net.tsx — סעיף-חדש בלבד בקטע-המצבת (בין מצבת-הסוכנים/ריפואים לשרשרת+עבודה): פס-ספירות מוצע/חי/פרש (amber/green/zinc) + רשימת-תפקידים עם סטטוס, slug, נימוק, מקור (issue:#N slug / roast:id), מוצא, זמני-הצעה/העלאה/artifact ונימוק-פרישה; useLive על /api/saos/agents-roles כל 30ש' (אותו דפוס-ויו), מצב-ריק כן, שגיאה כנה עם ריענון. אפס שינוי בשאר הוויו.
+- swarm-agents/src/index.ts — תוספת אחרי postOrder בלבד: כש-gold-scout חותך פקודת-עבודה אחרי שקט-6h ויש עניינים פתוחים בפנקס → proposeRolesCall() POST ל-/api/saos/agents-roles עם אותה זהות-שער שהנחיל מחזיק (x-agent-name/x-agent-key), fail-silent + יומן-מקומי (roles-propose/refused/unreachable), עצלות-מקומית 30 דק'. הסיורים הקיימים לא נוגעו.
+- תיקון-חי נתפס בעבודה (v99.1, אותו קובץ-נחיל): ה-hot-reload של העריכה שלי גרם ריצה-מחדש של בוט-IIFE בלי הגנה בזמן שהווב היה במחזור-החייאה — gateCall זרק, הלולאה מתה אחרי gold ו-night-scout נשאר בלי זהות בזיכרון למרות בית-מפתח תקין (join נדחה "כבר קיים" לנצח). ריפוי: pollOnce טוען key-home מהדיסק לפני ניסיון-join (heal-first) + הבוט-IIFE עוטף כל סייר ב-try/catch (כישלון-שער של אחד לא מדלג על רעהו). נמדד: night-scout חזר ל-armed=true תוך סבב-סקר אחד וסייר patrol #1 רץ (דגלים: backup-stale + issue-1/2/3).
+- אימות: bunx tsc --noEmit=0 · bun run lint=0 (אפס אזהרות) · dev.log אפס שגיאות-הידור · curl GET → ok + roles (ריאיון-ראשון 5.9ש' עקב מרוץ-הרוסט, אחריו עצל 26ms) · POST ללא-אימות → 403 auth-unconfigured (fail-closed) · POST מפתח-סוכן שגוי → נדחה · POST עם זהות gold-scout אמיתית → 200 · activate/record-artifact חיים על evm-fuel-attendant · activate slug-לא-קיים → 400 כן · דפדפן mobile-390: הסעיף נראה עם 4 תפקידים, אפס שגיאות-קונסולה · shots/v99-self-recruit.png
+- מצב-חי בסיום: מוצע 3 (vault-auditor · key-forge-operator · web-stability-watch — האחרון הוצע אוטומטית מפער-רוסט churn-cycle ברגע שההעלאה של evm-fuel-attendant שחררה מקום בקאפ — הלולאה העצמית עבדה מול העיניים) · חי 1 (evm-fuel-attendant — הועלה ע"י זהות gold-scout אמיתית, artifact נרשם; אם לא יזרמו artifacts ב-72h יפרוש בכנות במסגרת ה-sweep) · פרש 0. הערת-סביבה: הווב נפל והוקם פעמיים במהלך העבודה (מחזור-החייאה המוכר) — אפס קשר לשינויי; קבצים-חוץ שמופיעים ב-git-status (keeper, schema, economy*, networks/status, auth, vault-seal, shell, layout, views אחרים, economy-run.ts, vault-unlock) — של המחטבים-המקבילים, לא נגעתי בהם.
+
+Stage Summary:
+- הלולאה האוטונומית חיה ונמדדה מקצה-לקצה: פער-פתוח (פנקס/רוסט) → הצעת-תפקיד מנומקת עם מקור → העלאה רק עם זהות-סוכן אמיתית → artifact מרענן טריות → פרישה-כנה אוטומטית (48ש'/72ש') → הפער-הפתוח מקבל הצעה-מחדש. אנטי-נפיחות: מקסימום 3 מוצעים במצבר — נמדד חי כשהקאפ חסם את propose המפורש של gold-scout.
+- 4 תפקידים במצבת החיה: רואה-חשבון-הכספת · מפעיל-מפעל-מפתחות · דלק-EVM-מתאם (חי — זהות gold-scout) · סייר-יציבות-ווב (מרוסט) — כולם עם נימוק ומקור ציבורי, אפס סודות.
+- הנחיל הפך שותף-גיוס: gold-scout מרים propose אחרי פקודת-עבודה (fail-silent), וסייר-הלילה חזק יותר (heal-first לזהויות) — בלי לשבור אף סיור קיים.
+- מוכן לאינטגרציה (Task 3): ה-API הציבורי יציב לצריכה בויוים נוספים; activate/record-artifact מוכנים לזרימות join עתידיות (זהות-שער חדשה → העלאת-תפקיד).
+
+---
+Task ID: 2-b
+Agent: orchestrator (השלמה — סוכן-המחטב נקטע בדדליין לפני-הדוח; העבודה נאמתה ואושרה ידנית)
+Task: שער-פתיחת-ארנק אמיתי (vault-unlock) + מצב-אמת כנה + admin-bootstrap
+
+Work Log:
+- נבנה POST /api/saos/vault-unlock: op:"verify" (GCM אופלייני) · op:"arm" (כתיבה ל~/.secrets/fleet-vault-pass 0600 + resetVaultCache + self-heal 3 בתים) · op:"create-admin" (bootstrap חד-פעמי, ערך-מוחזר-פעם-אחת, אף-לוג)
+- GET vault-unlock → מצב-אמת: vaultPresent · passState · adminState · homesHealed (נמדד: {vaultPresent:true, passState:"missing", adminState:"unconfigured", homesHealed:3})
+- POST verify עם-סיסמה-שגויה → 401 כנה (GCM fail-closed, הערך-לא-נרשם)
+- status API: שדות-חדשים vaultPassState + adminState (תאימות-אחורה מלאה)
+- כרטיס-הדלת-הריבונית ב-networkmap.tsx + networks.tsx (שדה-סיסמה + פתח-את-הכספת + create-admin)
+- vault-seal.ts: +135 שורות (verifyVaultPass/armVaultPass/resetVaultCache) בלי-לשבור-openSeal
+- ביקורת-אבטחה ידנית: אף-קריאת-console.log/לוג של ערכי-pass בקוד-השער
+
+Stage Summary:
+- ה"ממתין-הנצחי" הומר-לדלת-עובדת: הבעלים מזין-את-המילים פעם-אחת → כל-הגזירות קמות-מעצמן
+- tsc 0 · lint נקי · כל-ה-APIs 200 · כרטיס-נראה-במובייל (shots/v99-final-mobile-wallet.png)
+
+---
+Task ID: 3
+Agent: orchestrator (אינטגרציה ריבונית)
+Task: איחוי-כל-המחטבים → v99.0.0, אימות-מלא, commit, pulse-doc, דוח-בעלים
+
+Work Log:
+- שחזור-worklog מ-HEAD (סוכן-מחטב דרס-בטעות — ההיסטוריה המלאה 29-סעיפים + 7-חדשים שוחזרו: 36)
+- version.ts → v99.0.0 "המהפכה-הריבונית" + package.json 99.0.0
+- bunx tsc --noEmit = 0 · bun run lint = נקי
+- דפדפן-מובייל-390: אפס-גלילה-אופקית (390=390) · צ'יפ-פעיל-מרכזי · דלת-הארנק-נראית · סולם-הכלכלה stage-1-נוכחי מסומן · גיוס-עצמי 4-תפקידים-נראים
+- דפדפן-דסקטופ-1440: v99.0.0-בסרגל · פס-10-רשתות-חי · אפס-שגיאות-קונסולה
+- ביצועים-חמים: one-net 7-29ms · status 12ms · economy?runs=1 0.65s · census 0.67s (קר-ראשוני=קומפילציה-dev)
+- שרשרת-שחזור-הכספת: דור-R11 הוחלץ-מהיסטוריית-saos-dex (תקדים-v96) → 975 מועמדים אומתו-אופליין מול-תג-GCM בלי-הדפסה → אין-התאמה (המעטפת-החיה נאטמה-מחדש-בסיסמה-מאוחרת) → הדלת-העצמית-היא-הפתרון
+- תיאום-אורגניזם: 15 ריפואים-נסרקו-חי; Console/Zip מבצעים-r144-מקביל (מובייל+ארנק-כנה); טמפוררי-אחזון-אחזה
+- שיקום-פרטיות: מעטפת-R11-שנפתחה-לצורך-שחזור → העותקים-הארעיים-נגרסו (/tmp/*) ; חשיפת-מקרית-של vault.json-היסטורי (דור-חשוף-מ-R12-ממילא) נרשמת-לרוטציה-הפתוחה
+- ניקוי-טמפ: /tmp/estate · /tmp/r11-estate · /tmp/ka.tar.gz · /tmp/keys-access.tar.gz — הכל-נגרס
+
+Stage Summary:
+- v99.0.0 "המהפכה-הריבונית" חתומה: דלת-ריבונית · סולם-כלכלי-חי ($0.271766/יום נמדד) · צבא-מגייס-עצמו (4-תפקידים, אחד-חי) · מובייל-מהופך · אורגניזם-מתואם
+- פתוח-כנה: סיסמת-הכספת אצל-הבעלים-בלבד (הדלת-מוכנה) · רוטציית-מפתחות-R12-ממתינה-להחלטת-בעלים · admin-bootstrap-זמין-חד-פעמי

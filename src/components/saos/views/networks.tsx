@@ -21,10 +21,12 @@ import {
   Layers3,
   Radio,
   RefreshCcw,
+  ShieldAlert,
   Zap
 } from "lucide-react";
 import {
   Btn,
+  Callout,
   CopyBtn,
   ErrorNotice,
   Kpi,
@@ -43,6 +45,7 @@ import { fmt, fmtInt, timeAgo, useLive, useTick } from "../lib";
 import type { LiveResult } from "../lib";
 import type { DexData, LiveProbesData, StatusData } from "../types";
 import type { NetworkCensus } from "@/lib/saos/multichain";
+import { VaultGateCard, type VaultUnlockState } from "./networkmap";
 import { PageHead } from "../shell";
 
 // ─── מפת האקוסיסטם — מסקנות סריקת 8 הריפואים ב-org (2026-09-07) ──────────────
@@ -131,6 +134,9 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
   const dex = useLive<DexData>("/api/saos/dex", 45000);
   // מקור-אמת ל-XRPL: מפקד מפת-הרשתות (מטמון 10 דק') — יתרה חיה + עוגן v96
   const census = useLive<NetworkCensus>("/api/saos/networks", 120_000);
+  // v99 — מצב-הדלת-הריבונית (כנה, בלי סודות) + רכיב-הפתיחה (מיובא מ-networkmap —
+  // שני הקבצים בהיקף, בלי קובץ-רכיב חדש)
+  const vault = useLive<VaultUnlockState>("/api/saos/vault-unlock", 30_000);
 
   const p = probes.data;
   const d = status.data;
@@ -356,6 +362,21 @@ export function ViewNetworks({ status }: { status: LiveResult<StatusData> }) {
           </Btn>
         }
       />
+
+      {/* v99 — הדלת-הריבונית: כרטיס-פתיחת הכספת כש-passState=missing;
+          על הצלחה — רענון המפקד הרב-רשתי (מקור ה-XRPL בכרטיס למטה) */}
+      <VaultGateCard vault={vault} onChanged={() => census.refresh()} />
+
+      {census.error && vault.data?.passState === "missing" && (
+        <Callout tone="rose" icon={<ShieldAlert size={14} />}>
+          <span>
+            <strong>סיבה-מובנית (לא "כישלון טכני"):</strong> מפקד-הזהויות שממנו ניזון כרטיס ה-XRPL הוא fail-closed —
+            סיסמת-איטום הכספת חסרה בשרת ({""}
+            <span dir="ltr" className="font-mono">vaultPassState: "missing"</span>
+            {" "}) · פתח את הכספת בכרטיס למעלה והגזירות יקומו מיד, בלי טעינת-עמוד.
+          </span>
+        </Callout>
+      )}
 
       {/* KPI שורה */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">

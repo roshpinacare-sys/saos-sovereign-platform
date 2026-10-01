@@ -415,7 +415,7 @@ export function MicrogridView() {
                         {f.isSell ? (
                           <span className="flex items-center gap-1 text-emerald-400"><ArrowUpRight size={12} /> מכר</span>
                         ) : (
-                          <span className="flex items-center gap-1 text-sky-400"><ArrowDownRight size={12} /> קנה</span>
+                          <span className="flex items-center gap-1 text-amber-400"><ArrowDownRight size={12} /> קנה</span>
                         )}
                       </Td>
                       <Td><span dir="ltr" className="font-mono">{f.amount}</span></Td>

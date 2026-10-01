@@ -74,9 +74,19 @@ export function adminKeyHash(): string | null {
  * בתוך-הפונקציה, הטקסט הגולמי לעולם לא יוצא, לא נרשם ולא נשמר.
  * כשל-קריאה שקט: קובץ חסר/בלתי-קריא → ה-hash פשוט לא בקבוצה (fail-closed).
  */
-const ADMIN_KEY_FILE_PATH = process.env.SAOS_ADMIN_KEY_FILE ?? "/home/z/.secrets/saos-admin-key";
+/** v99 — exported for the vault-unlock bootstrap (create-admin writes this file; the plaintext never crosses anywhere else). */
+export const ADMIN_KEY_FILE_PATH = process.env.SAOS_ADMIN_KEY_FILE ?? "/home/z/.secrets/saos-admin-key";
 const FILE_HASH_TTL_MS = 30_000;
 let fileHashCache: { hash: string | null; loadedAt: number } | null = null;
+
+/**
+ * v99 — bootstrap aid: drop the 30s file-hash cache so a key created through
+ * POST /api/saos/vault-unlock (create-admin) is valid IMMEDIATELY — no server
+ * restart, no 30s window where the owner's fresh key is rejected.
+ */
+export function bustAdminKeyCache(): void {
+  fileHashCache = null;
+}
 
 /** sha256 of the CURRENT key-file content — cached 30s, plaintext never leaves. */
 function currentFileKeyHash(): string | null {

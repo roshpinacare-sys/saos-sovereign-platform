@@ -5,10 +5,21 @@
    שפת עיצוב: מסוגרת, מדויקת, מוסדית. זהב ריבוני כקו-מאמץ בלבד.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* v99 — גופן-אמת: --font-rubik מגיע מ-next/font (על <html>) ונקשר כאן
+   ל--font-sans — כל ה-UI עובר על Rubik עברי אמיתי, ללא fallback שקרי. */
+@theme {
+  --font-sans: var(--font-rubik), "Rubik", "Assistant", "Heebo", "Segoe UI",
+    "Arial Hebrew", "Noto Sans Hebrew", system-ui, -apple-system, sans-serif;
+}
+
 :root {
   --gold: #e6b13f;
   --gold-soft: #f2cd6f;
   --base: #09090b;
+  /* גובה-הכותרת הדביקה — נמדד ב-JS (shell.tsx) עם ResizeObserver;
+     fallback 57px = דסקטופ (h-14 + קו-תוחם). במובייל הכותרת ~103px
+     (פס-הניווט בתוכה) והטיקר נדבק מתחתיה במקום להיבלע. */
+  --saos-header-h: 57px;
 }
 
 html {
@@ -18,7 +29,8 @@ html {
 
 body {
   font-family:
-    "Rubik", "Assistant", "Heebo", "Segoe UI", "Arial Hebrew", "Noto Sans Hebrew",
+    var(--font-sans, "Rubik"),
+    "Assistant", "Heebo", "Segoe UI", "Arial Hebrew", "Noto Sans Hebrew",
     system-ui, -apple-system, sans-serif;
   background:
     radial-gradient(1100px 480px at 100% -8%, rgba(230, 177, 63, 0.055), transparent 62%),
@@ -37,6 +49,80 @@ body {
   background-size: 44px 44px;
   mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 78%);
   -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 78%);
+}
+
+/* ─── v99 — עומק-פאנלים: gradient עליון עדין + הרחבת console-grid לפאנלים ──
+   Panel (ui.tsx) = section bg-zinc-900/45 + backdrop-blur-sm — ה-backdrop הוא
+   מבחין-בטוח מול כרטיסי-Kpi (ללא blur). רדיוס-אחיד rounded-xl. */
+[class*="bg-zinc-900/45"][class*="backdrop-blur"] {
+  background-image:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03), transparent),
+    linear-gradient(to right, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: auto, 44px 44px, 44px 44px;
+  border-radius: 0.75rem;
+}
+
+/* ─── v99 — היררכיית-KPI: קו-עליון זהב · זוהר רך · ספרות-גדולות ──────────
+   מופעל רק על כרטיסי-Kpi (מכילים ערך text-[26px]) — עדין, לא קרקס. */
+[class*="bg-zinc-900/45"]:not([class*="backdrop-blur"]):has(> p[class*="text-[26px]"]) {
+  box-shadow: 0 0 40px -12px rgba(230, 177, 63, 0.25);
+}
+[class*="bg-zinc-900/45"]:not([class*="backdrop-blur"]):has(> p[class*="text-[26px]"])::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(230, 177, 63, 0.4), transparent);
+  pointer-events: none;
+}
+p[class*="text-[26px]"] {
+  font-size: 1.875rem; /* text-3xl — הספרות הן ההיררכיה הראשונה */
+  line-height: 2.25rem;
+  font-variant-numeric: tabular-nums;
+}
+p[class*="text-[26px]"][class*="text-zinc-50"] {
+  color: var(--gold-soft); /* tone-default עולה מלבן לזהב-עדין; gold/green/rose נשמרים */
+}
+
+/* ─── v99 — דביק-תחת-כותרת: הטיקר נדבק מתחת לכותרת שנמדדה ─────────────── */
+.sticky-under-header {
+  top: var(--saos-header-h, 57px);
+}
+
+/* ─── v99 — פס-ניווט מובייל: snap + מסכות-fade בקצוות ──────────────────── */
+.mobile-nav-scroll {
+  scroll-snap-type: x proximity;
+  -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+}
+.mobile-nav-scroll > button {
+  scroll-snap-align: center;
+}
+
+/* ─── v99 — מחוון-גלילה-אופקית (טבלאות רחבות במובייל, לשימוש-עתידי) ────── */
+.scroll-x-afford {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+}
+.scroll-x-afford::-webkit-scrollbar {
+  height: 5px;
+}
+.scroll-x-afford::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-x-afford::-webkit-scrollbar-thumb {
+  background: rgba(230, 177, 63, 0.25);
+  border-radius: 8px;
+}
+
+/* ─── v99 — מקפל-מניפסט (details/summary) בלי סמן-ברירת-מחדל ──────────── */
+.saos-fold > summary {
+  list-style: none;
+}
+.saos-fold > summary::-webkit-details-marker {
+  display: none;
 }
 
 /* ─── פסי גלילה צרים ומדויקים ───────────────────────────────────────────── */
@@ -151,7 +237,7 @@ input[type="range"].sovereign-range::-moz-range-thumb {
   }
 }
 
-/* קו-זהב חי מתחת לאלמנט אקטיבי */
+/* קו-זהב חי מתחת לאלמנט אקטיבי (צ'יפ-ניווט פעיל) */
 .gold-underline::after {
   content: "";
   position: absolute;

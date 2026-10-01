@@ -491,3 +491,45 @@ model AgentHeartbeat {
 
   @@index([source, at])
 }
+
+// ─── v99 · סולם-האמת הכלכלי (THE ECONOMY TRUTH LADDER) ─────────────────────
+// כל ריצת-כלכלה נמדדת ומתועדת: שלב, מצב (sim/measured/txid-real), הזרמים
+// (JSON ממודד), סה"כ יומי ב-micro-USD, והוכחות-txid מהשרשרת. אין ערכים
+// מומצאים — מה שלא נמדד לא נכנס; קבלה-שרשרתית (receiptDigest) כמו EconomySnapshot.
+model EconomyRun {
+  id                  Int      @id @default(autoincrement())
+  stage               Int      @default(0) // 0 sim · 1 anvil-txid · 2 micro-real mainnet · 3 flywheel
+  mode                String   @default("sim") // sim | measured | txid-real
+  trigger             String   @default("manual") // manual | keeper-tick | realize-pulse
+  streams             String   // JSON: [{name, he, amountUsdMicro, txids[], source}]
+  totalPerDayUsdMicro Int      @default(0)
+  reinvestedUsdMicro  Int      @default(0)
+  retainedUsdMicro    Int      @default(0)
+  proofTxids          String   @default("[]") // JSON array of on-chain txids/anvil hashes
+  receiptDigest       String? // sha256 chain receipt (evidence.ts doctrine)
+  notes               String   @default("")
+  at                  DateTime @default(now())
+
+  @@index([stage, at])
+}
+
+// ─── v99 · גיוס-עצמי (SELF-RECRUITING ARMY) ────────────────────────────────
+// האוטונומיה מזהה פער (issue פתוח/סיור/roast) ומציע תפקיד-חדש עם נימוק.
+// תפקיד הופך active רק כשמתחברת זהות-סוכן אמיתית ומדידה-חיה; תפקיד בלי
+// artifact תוך 48h פורש אוטומטית (כנה — אין סוכני-רפאים במצבת).
+model AgentRole {
+  id            Int      @id @default(autoincrement())
+  slug          String   @unique
+  titleHe       String
+  justification String
+  origin        String   @default("auto") // auto | owner | swarm-agent
+  fromIssue     String? // issue id / scout report / roast finding
+  status        String   @default("proposed") // proposed | active | retired
+  proposedBy    String   @default("") // gold-scout | night-scout | owner | system
+  activatedAt   DateTime?
+  lastArtifactAt DateTime?
+  artifactNote  String   @default("")
+  at            DateTime @default(now())
+
+  @@index([status, at])
+}
