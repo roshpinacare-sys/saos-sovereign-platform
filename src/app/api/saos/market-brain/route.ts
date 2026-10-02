@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, audit } from "@/lib/saos/auth";
-import { marketBrainCycle, marketBrainPeek, proposeVenture, transitionVenture } from "@/lib/saos/market-brain";
+import {
+  marketBrainCycle,
+  marketBrainPeek,
+  proposeVenture,
+  transitionVenture,
+  loadComputeRatePolicy,
+  setComputeRatePolicy
+} from "@/lib/saos/market-brain";
 import { logOp } from "@/lib/saos/oplog";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +20,8 @@ export const dynamic = "force-dynamic";
  *   {action:"propose", slug, titleHe, thesis, killCriteria, ownerRoleSlug?,
  *    capitalAskUsdMicro?, expectedYieldUsdMicro?} → הצעת-מיזם (תקרה אנטי-נפיחות)
  *   {action:"transition", slug, to, by?}  → מעבר-שלב / הרגה-כנה
+ *   {action:"policy", usdMicroPerMs}      → v103 הצהרת-מדיניות-מחיר-מחשוב
+ *                                           (null = מחיקת-ההצהרה — כנות מחדש)
  *
  * כנות: GET לפני המחזור-הראשון מחזיר null כנה (לא שלד-מדומה).
  */
@@ -65,6 +74,22 @@ export async function POST(req: NextRequest) {
     if (!res.ok) return NextResponse.json({ ok: false, error: res.error }, { status: 400 });
     await audit({ kind: "market-brain", actor: auth.actorRef, action: "POST transition", allowed: true, req, detail: `${slug} → ${to} (${by})` });
     return NextResponse.json({ ok: true });
+  }
+
+  if (action === "policy") {
+    const raw = body.usdMicroPerMs;
+    if (raw != null && (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0))
+      return NextResponse.json({ ok: false, error: "usdMicroPerMs חייב להיות מספר לא-שלילי (או null למחיקה)" }, { status: 400 });
+    await setComputeRatePolicy(typeof raw === "number" ? raw : null);
+    await audit({
+      kind: "market-brain",
+      actor: auth.actorRef,
+      action: "POST policy",
+      allowed: true,
+      req,
+      detail: `compute-rate → ${typeof raw === "number" ? raw : "null (מחיקה)"}`
+    });
+    return NextResponse.json({ ok: true, computeRateUsdMicroPerMs: await loadComputeRatePolicy() });
   }
 
   await logOp("market-brain", `פעולה-לא-מוכרת נדחתה: ${action}`);
