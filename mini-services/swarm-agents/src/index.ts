@@ -564,6 +564,105 @@ async function crossAuditCall(): Promise<void> {
   }
 }
 
+// ─── v101 "ההגדלה" — תגובת-הצבא לשער-האיכות (AUDIT REACT) ──────────────────
+// פעם-ביום (סף-קובץ משלו — אותו דפוס של cross-audit.json): קריאת GET ציבורי
+// של /api/saos/cross-audit (קריאה-בלבד, אפס אימות) ובדיקת שער-האיכות של
+// סעיפי-הוורקלוג + קומיטי-השותפים. אם יש סעיפים נכשלים, או שיש קומיטי-שותפים
+// ב-24ש' בלי תפקיד estate-digest-scribe (מוצע/חי) במצבת — נרשמת הערת-הצעה
+// ביומן (הנחיל מרים את היד; ה-dedupe והקאפ נשארים בצד-הווב). Fail-silent:
+// כישלון-תגובה לעולם לא שובר את הסיור.
+const AUDIT_REACT_STATE = path.join(STATE_DIR, "audit-react.json");
+const AUDIT_REACT_EVERY_MS = 24 * 3_600_000;
+
+interface AuditQualitySection {
+  taskId?: string;
+  ok?: boolean;
+  missing?: string[];
+}
+
+interface AuditLivePayload {
+  ok?: boolean;
+  live?: {
+    partnerRepos?: Array<{ reachable?: boolean; commits24h?: number | null }>;
+    worklog?: {
+      quality?: { measured?: boolean; error?: string; pass?: number; total?: number; estateScore?: string; sections?: AuditQualitySection[] };
+    };
+  };
+}
+
+function auditReactLastRunAt(): number {
+  try {
+    const j = JSON.parse(fs.readFileSync(AUDIT_REACT_STATE, "utf8")) as { lastRunAt?: number };
+    return typeof j.lastRunAt === "number" && j.lastRunAt > 0 ? j.lastRunAt : 0;
+  } catch {
+    return 0; // אין קובץ — טרם רץ (כנה)
+  }
+}
+
+function markAuditReactRun(at: number): void {
+  try {
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    const tmp = `${AUDIT_REACT_STATE}.tmp`;
+    fs.writeFileSync(tmp, `${JSON.stringify({ lastRunAt: at }, null, 2)}\n`, { mode: 0o600 });
+    fs.renameSync(tmp, AUDIT_REACT_STATE); // atomic — קובץ-סף קרוע לא מטעה
+    try { fs.chmodSync(AUDIT_REACT_STATE, 0o600); } catch { /* best effort */ }
+  } catch {
+    /* קובץ-הסף לעולם לא שובר את הסיור */
+  }
+}
+
+async function crossAuditReact(): Promise<void> {
+  const now = Date.now();
+  if (now - auditReactLastRunAt() < AUDIT_REACT_EVERY_MS) return;
+  markAuditReactRun(now); // נעילה-כנה לפני הקריאה — לא יותר מ-GET אחד ליום
+  try {
+    const res = await fetch(CROSS_AUDIT_URL, { signal: AbortSignal.timeout(15_000) });
+    const body = (await res.json().catch(() => ({}))) as AuditLivePayload;
+    if (!res.ok || !body.ok) {
+      journal(NIGHT.name, "audit-react-refused", `cross-audit GET refused: ${res.status} — fail-silent, retry tomorrow`);
+      return;
+    }
+    const q = body.live?.worklog?.quality;
+    const failing = (q?.sections ?? []).filter((s) => s.ok === false).map((s) => s.taskId ?? "?");
+    if (q?.measured && failing.length > 0) {
+      journal(
+        NIGHT.name,
+        "audit-quality-proposal",
+        `quality gate: ${q.estateScore ?? `${q.pass ?? "?"}/${q.total ?? "?"}`} — ${failing.length} failing Task ID(s): ${failing.slice(0, 4).join(", ")}${failing.length > 4 ? ` +${failing.length - 4} more` : ""} — proposal note: those sections miss house style (Work Log ≥3 lines / Stage Summary / measured token) and need rework`
+      );
+    } else if (q?.measured) {
+      journal(NIGHT.name, "audit-quality-ok", `quality gate: ${q.estateScore ?? "all pass"} — every Task ID section passes (honest empty-state, nothing to propose)`);
+    } else {
+      journal(NIGHT.name, "audit-quality-unmeasured", `quality gate not measured (fail-honest): ${q?.error ?? "no quality payload"}`);
+    }
+    // קומיטי-שותפים בלי מעכל → הערת-הצעה ל-estate-digest-scribe (בלי לטעון
+    // שהתפקיד הוצע — רק אם המצבת נמדדה; מצבת-לא-נגישה = לא נמדד, כנה)
+    const partnerCommits = (body.live?.partnerRepos ?? []).reduce(
+      (s, r) => s + (r.reachable ? (r.commits24h ?? 0) : 0),
+      0
+    );
+    if (partnerCommits > 0) {
+      let digestExists: boolean | null = null;
+      try {
+        const rr = await fetch(ROLES_URL, { signal: AbortSignal.timeout(10_000) });
+        const rb = (await rr.json().catch(() => ({}))) as { roles?: Array<{ slug?: string; status?: string }> };
+        digestExists = (rb.roles ?? []).some((r) => r.slug === "estate-digest-scribe" && (r.status === "proposed" || r.status === "active"));
+      } catch {
+        digestExists = null; // המצבת לא נמדדה — לא טוענים כלום
+      }
+      if (digestExists === false) {
+        journal(
+          NIGHT.name,
+          "estate-digest-proposal",
+          `partner commits24h=${partnerCommits} and no estate-digest-scribe (proposed/active) in the registry — proposal note: propose estate-digest-scribe to digest partner commits into the worklog`
+        );
+      }
+    }
+  } catch (e) {
+    journal(NIGHT.name, "audit-react-unreachable", `cross-audit react fail-silent: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`);
+  }
+}
+
 // ─── identity (onboarding / re-arm — the honest v36 doctrine) ─────────────
 
 async function armIdentity(a: AgentState, reason: "first-boot" | "identity-wiped"): Promise<boolean> {
@@ -1009,6 +1108,13 @@ async function nightPatrol(): Promise<void> {
   // v100 ביקורת-עמיתים — פעם-ביום (סף-קובץ); כישלון לעולם לא שובר את הסיור
   try {
     await crossAuditCall();
+  } catch {
+    /* fail-silent — הסיור ממשיך */
+  }
+  // v101 "ההגדלה" — תגובת-הצבא לשער-האיכות (GET ציבורי, סף-קובץ משלו);
+  // הערת-הצעה ליומן כשיש סעיפים נכשלים / קומיטי-שותפים בלי מעכל. fail-silent.
+  try {
+    await crossAuditReact();
   } catch {
     /* fail-silent — הסיור ממשיך */
   }
