@@ -406,10 +406,48 @@
  *    אפס-גלילה, v105.1 בסרגל. צילומים: shots/wave17-*.png
  */
 
-export const SAOS_VERSION = "105.1.0";
+/**
+ * v106 המסגרת-החיה (THE LIVING HARNESS) — הוראת הבעלים: "תבחן את זה
+ * היטב ובוא נשתמש בזה כראוי" על walkinglabs/learn-harness-engineering
+ * — והבחינה-הנמדדת קודם-האימוץ: הכלי-שלהם (validate-harness.mjs) מדד
+ * את הריפו הזה 20/100 — חמשת תת-המערכות כולן 1/5 (הוראות · מצב · אימות ·
+ * תחום · מחזור-חיים); bottleneck=instructions. הפלטפורמה חיה-ועובדת אבל
+ * לא היתה ניתנת-להתחדשות-מובנית לסוכן-חדש — בדיוק הפער שסגרו איפוסי-
+ * הסנדבוקס (v100 P0, v105.1 חימוש-מחדש — ריפוי-ידני ארוך בכל פעם).
+ *
+ * 1. אימוץ-מלא של חמשת-התת-מערכות:
+ *    · Instructions → AGENTS.md (נתב-קצר + שש-חוקי-בית: אין-בוצע-בלי-ראיה
+ *      · פיצ'ר-אחד · כנות · אפס-המתנה · אפס-סודות · git=מקור-אמת)
+ *    · State → feature_list.json (11 פיצ'רים עם סטטוס+ראיה-רצה —
+ *      one-feature-at-a-time) + progress.md (מצב-המשך) + session-handoff.md
+ *    · Verification → scripts/verify.sh (7 שערים fails-fast: toolchain · deps
+ *      · tsc · lint · db-drift · harness-files · live-api — עדות JSON
+ *      אוטומטית תחת scripts/artifacts/)
+ *    · Scope → כלל-הפיצ'ר-הפעיל ב-feature_list.json
+ *    · Lifecycle → scripts/init.sh (הריפוי-הידני של v100/v105.1 הפך פקודה-
+ *      אחת-אידמפוטנטית, כולל חידוש-מפתח-מפעיל 0600 אפס-הדפסות)
+ * 2. השער-תפס-כבר-2-פגמי-אמת בריצה-הראשונה שלו: harness-files חסרים (נכון)
+ *    + db-sync היה עובר דרך fallback של migrate-status שמחזיר exit-0 על
+ *    "No migration found" — תוקן לדחיפה-אידמפוטנטית כנה.
+ * 3. הריצה-בתוך-הרשת: src/lib/saos/harness.ts + GET/POST /api/saos/harness
+ *    (peek ציבורי · verify fail-closed requireAuth+audit) +
+ *    harness-sentinel תפקיד-חדש במצבת (מקור-7 בגלאי-הפערים — הצבא
+ *    מגייס-את-ה-checker לבד) עם מבצע harness-audit — ה-checker של
+ *    maker-checker כעובד-אמת (קצב-6-שעות EXECUTOR_MIN_INTERVAL_MS).
+ * 4. הלולאה-העצמית: keeper v48.0.0 — טיק-harness כל-30דק' (peek זול) +
+ *    כשהראיה בת-6-שעות-ומעלה — הרצת-השער-האמתית (300ש' timeout כנה);
+ *    תוצאת-fail נרשמת כעדות (harness-verify-fail) לא כשגיאה. תקציר:
+ *    הפלטפורמה מאמתת-את-עצמה — אף-אחד לא סומך על טענות-של-אף-אחד.
+ * 5. ה-roast-הכנה של הקורס (docs/HARNESS-ENGINEERING-ADOPTION.md): הם
+ *    קורס-מצוין + מדד-שמות-קבצים (ה-20/100 שלהם לא ראה את ה-worklog-בן-
+ *    1261-השורות ואת-השומר-החי) — לקחנו את-השלד, הרכבנו-אותו על כלכלה-
+ *    נמדדת שמכריעה-בעצמה עם קול-ציבורי; מה שהם מכנים harness אצלנו רץ.
+ */
+
+export const SAOS_VERSION = "106.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "העובדים-החיים (THE LIVING WORKERS)";
+export const SAOS_CODENAME = "המסגרת-החיה (THE LIVING HARNESS)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

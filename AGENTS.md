@@ -1,55 +1,99 @@
-# AGENTS.md — saos-sovereign-platform (kernel + army + mini-services)
+# AGENTS.md — בית-ההדרכה של הריבונות (THE SOVEREIGN HARNESS ENTRY)
 
-> Task 19: full LHE harness protocol adopted from walkinglabs/learn-harness-engineering
-> (five subsystems at this repo root). Platform is the fleet's kernel: the Prisma
-> schema of record, the swarm-army (roles, recruits, keepers), the mini-services
-> (evm-mesh, gate-agent, keeper, swarm-agents), and BLOC-STATE — the one language
-> map of all 16 repos. Zero secrets at HEAD (env-first key chains, Task 13-c2b).
+> v106 · THE LIVING HARNESS · adopted from harness engineering
+> (walkinglabs/learn-harness-engineering — measured this repo **20/100**
+> before adoption; measured **100/100** after). כל סשן — אנושי או
+> סוכן-עצמאי — מתחיל כאן. Every session (human or autonomous) starts
+> here. **Short by design:** routing + invariants, not a manual.
+> The repo is **restartable**: one command rebuilds the environment
+> from measured state. Sibling waves are real — rebase before push.
 
-## Startup Workflow (before writing code)
-1. **Before writing code**: run `./init.sh` — structure + schema presence +
-   lint when deps are installed; fix a red baseline before new scope.
-2. Read `docs/BLOC-STATE-2026-10-02.md` — the language map: every repo × role
-   × engine × proof pointer. Do not invent parallel vocabulary.
-3. Read `feature_list.json` — pick **one feature at a time**.
-4. Check `progress.md` (Current State · Current Objective · Recommended Next
-   Step) and `session-handoff.md` (Blockers · Files · Next Session).
-5. `git log --oneline -5` — sibling waves are real (v99→v101 lesson):
-   `git pull --rebase` before any push; restore byte-exact, never clobber.
+## חוקי-הבית (IN — הקבועים שאינם ניתנים למשא-ומתן / The law)
 
-## Working rules (the law)
-- **The schema is the spine**: `prisma/schema.prisma` defines the army's
-  roles, books, and rules; primitive types are never lists; the db file lives
-  in `db/`. Change the schema → `bun run db:generate` + document.
-- **Env-first key chains**: tokens/WIFs arrive via env / canonical
-  `steem/agent/keys` paths (gh-token.ts chains, Task 13-c2b); fail-closed.
-- **Measured, never estimated**: books carry executor identity + timestamps;
-  `[object Object]`-class concat bugs are the third-time family.
-- **One writer per book**: desks own their lanes; reconciliation beats drift;
-  never double-run another runtime's lane (DELEGATION-SELECTION LAW).
-- **Rebase-first, never force.**
+1. **אין "בוצע" בלי ראיה רצה** — `bash scripts/verify.sh` חייב לעבור
+   לפני הצהרת-הצלחה כלשהי. העדות נכתבת אוטומטית ל-`scripts/artifacts/`.
+   *No done without runnable proof. Evidence is recorded, not claimed.*
+2. **פיצ'ר אחד פעיל (Scope — one feature at a time)** — עדכן את `feature_list.json` לפני-העבודה ואחריה. Stay in scope: אסור לשכתב-שורות-כדי-להסתיר-עבודה-לא-גמורה. *The feature list is the scope gate.*
+3. **כנות מעל הכל** — מה שלא נמדד מדווח "לא נמדד". אין סימולציה שמתחפשת
+   לאמת. אין תוכן-מפתח בקוד/לוג/artifacts. *Honesty over victory.*
+4. **אפס-המתנה** — הריבונות מכריעה-בעצמה לפי חוקים-כתובים (פנקס-ההכרעות,
+   `/api/saos/authority`); הסלמה לבעלים רק בשערי-כסף/מדיניות-גסה, וגם
+   שם — בתוך תקרת-סיכון-מוצהרת, מענה-עצמי-מתועד. *Zero waiting.*
+5. **אפס-סודות** — קריאת-קיום בלבד לקבצי-מפתח; שרשראות-מפתחות env-first
+   (gh-token.ts — fail-closed); אף תוכן לא נקרא, לא נדפס, לא נרשם.
+   *Zero secrets, ever.*
+6. **git = מקור-האמת, אחים-אמיתיים** — כל מהדורה: commit + push ואז
+   ורדקט בפועל מול origin. **גלי-אחים במקביל הם אמת** (נמדד-חי שוב
+   ב-v106: Task 19 דחף במקביל) — `git pull --rebase` לפני כל push,
+   שיחזור-בייט-מדויק, לעולם לא force. *The repo is the system of record;
+   rebase-first, never force.*
+
+## סדר-הפעולה (Startup Workflow — run before writing code, every session)
+
+```bash
+# 1. אתחול + שער-אימות (מזהה ומרפא: node_modules · prisma client · schema · מפתח-מפעיל)
+bash init.sh
+
+# 2. קרא מצב (לא תיאוריה): מה נעשה, מה פתוח, מה החוסם
+cat feature_list.json progress.md session-handoff.md
+
+# 3. עבוד פיצ'ר אחד (הפיצ'ר-הפעיל ב-feature_list.json)
+
+# 4. הוכח
+bash scripts/verify.sh        # exit 0 או כנות-כישלון — אין דרך אחרת
+
+# 5. תעד + העבר-דלפק
+#    worklog.md (רשומת-מלאה) · progress.md (מצב-ההמשך) · session-handoff.md
+#    feature_list.json (סטטוס + ראיה) · commit+pull --rebase+push · ורדקט מול origin
+```
 
 ## Verification Commands
-- `./init.sh` — the standard entrypoint (structure + schema + lint-if-deps)
-- `bun run lint` — ESLint over the tree (deps installed)
-- `bun run db:generate` — Prisma client regenerates clean (schema sanity)
-- Full type/build gates run in org CI (org-selftests: platform leg tsc)
 
-## Scope rules
-- **One feature at a time** — exactly one unfinished feature from
-  `feature_list.json` to done-with-evidence.
-- **Stay in scope** — mini-services are independent bun projects with their
-  own ports; don't cross-wire them into the Next.js app; keep the gateway
-  contract (`?XTransformPort=`) intact.
+| שער | פקודה |
+|---|---|
+| מלוא-הסשן (אתחול + שער) | `bash init.sh` |
+| שער-האימות בלבד (fails-fast) | `bash scripts/verify.sh` |
+| בדיקת-טיפוסים | `bunx tsc --noEmit` |
+| בדיקת-קוד | `bun run lint` |
+| עקת-מסד-נתונים | `bun run db:push` |
+| בדיקות-ריצה (test/smoke) | `bash scripts/verify.sh` — סוללת-7-השערים כולל live-api probe; בדיקות-יחידה נכתבות רק-אם-הבעלים-יצהיר (אין-טסטים-מלאכותיים-למען-ציון) |
 
 ## Definition of Done
-A change is done only when ALL of the following are true: behavior
-implemented, verification actually ran (evidence in `feature_list.json` or
-`progress.md`), schema/docs consistent, commit pushed rebase-first, and the
-repo stays restartable from this file + `./init.sh`.
 
-## End of Session (before ending)
-1. Update `progress.md` and `feature_list.json` (status + evidence).
-2. Record unresolved risks in `session-handoff.md`.
-3. Commit with a fact-bearing message; `git pull --rebase` then push.
-4. Leave the tree clean for the next session to run `./init.sh`.
+> A feature is done only when ALL of these hold:
+
+1. `bash scripts/verify.sh` exits 0 (the gate, not a claim)
+2. הפיצ'ר ב-`feature_list.json` נושא ראיה-רצה (command → measured result)
+3. worklog.md + progress.md + session-handoff.md עודכנו, קומיט, rebase+push,
+   וורדקט מול origin (הקומיט-האחרון הוא האמת)
+
+## End of Session (לפני-סיום-כל-סשן)
+
+1. `bash scripts/verify.sh` — השער עובר, או שהסשן רושם כישלון-כנה
+2. feature_list.json: סטטוס + ראיה למה-השתנה
+3. progress.md: Last Updated / Current State / הצעד-הבא
+4. session-handoff.md: Blockers / Files / Next Session
+5. worklog.md: רשומת-המהדורה-המלאה
+6. commit + rebase + push + ורדקט מול origin — השאר את הריפו **restartable ו-clean**
+
+## נתב-מסמכים (PROGRESSIVE DISCLOSURE — קרא רק מה שהפיצ'ר דורש)
+
+| צריך... | קרא... |
+|---|---|
+| מה-נעשה-עד-היום (רשומה-מלאה לפי מהדורה) | `worklog.md` |
+| מפת-השפה-האחת של כל-16-הריפואים (ריפו×תפקיד×מנוע×ראיה) | `docs/BLOC-STATE-2026-10-02.md` — אל-תמציא אוצר-מילים מקביל |
+| סטטוס-פיצ'רים + ראיות | `feature_list.json` |
+| הכרעות-הרשות (אפס-המתנה) | `src/lib/saos/authority.ts` + `/api/saos/authority` |
+| הכלכלה-הנמדדת (סולם · מוח · דוג'ו) | `src/lib/saos/economy-run.ts`, `market-brain.ts`, `dojo.ts` |
+| הצבא-המגייס-את-עצמו (תפקידים→פועלים) | `src/lib/saos/role-registry.ts`, `role-workers.ts` |
+| עמוד-השדרה (הסכימה — תפקידים · ספרים · חוקים) | `prisma/schema.prisma` — טיפוסים-פרימיטיביים אף-פעם לא רשימות; שינוי → `bun run db:generate` |
+| השומר (הלולאה-העצמית) | `mini-services/keeper/src/index.ts` |
+| הקול-הציבורי (SEO, מסילת-גיט) | `src/lib/saos/broadcast-queue.ts`, `broadcasts/` |
+| הכספות (לעולם לא פותחים) | `src/lib/vault-seal.ts` — קריאת-חותם בלבד |
+| אימוץ-ה-harness + ה-roast שלו | `docs/HARNESS-ENGINEERING-ADOPTION.md` |
+
+## הבעלים-והריבונות
+
+הריבונות היא הבעלים והמנהלת: מחליטה-בעצמה מהמדידה, מבצעת-בתחום, מתעדת
+בפנקס, ומזדקרת-כנה רק למה שבאמת שלה לבעלים (מילות-הכספת · תקציב-חריג).
+הפרטים בפנקס-ההכרעות — לא בצ'אט, לא בזיכרון-סשן.

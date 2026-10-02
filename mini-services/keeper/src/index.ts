@@ -168,7 +168,7 @@ const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
 const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "47.0.0";
+const KEEPER_VERSION = "48.0.0";
 const SOVEREIGNTY_EVERY = 90; // v93 — sovereignty census tick every 90th cycle (≈15min)
 const SOVEREIGNTY_FIRST_AT = 6; // first census 60s after boot
 // v95 — the unified agent census tick (מצבת-האמת): every 30th cycle (≈5min)
@@ -290,6 +290,18 @@ const AUTHORITY_FIRST_AT = 17; // first sweep ~5 min after the brain cycle
 const PUBLISH_URL = "http://127.0.0.1:3000/api/saos/broadcast/queue";
 const PUBLISH_EVERY = 360; // hourly
 const PUBLISH_FIRST_AT = 21; // first publish ~7 min after boot
+
+// v106 — the harness tick (המסגרת-החיה, THE LIVING HARNESS). The maker-checker
+// loop as a timer loop: every 30 min ONE cheap GET /api/saos/harness (peek:
+// five subsystems presence · feature-list summary · last verify evidence age);
+// when the last verify evidence is missing or older than 6h, ONE signed POST
+// {action:"verify"} runs scripts/verify.sh for real (fails-fast, evidence JSON
+// written by the gate itself). verdict:fail = an honest journal row — evidence,
+// not an error. The gate owns the truth; the keeper owns the cadence.
+const HARNESS_URL = "http://127.0.0.1:3000/api/saos/harness";
+const HARNESS_EVERY = 180; // every 180th cycle = 30 min (peek)
+const HARNESS_FIRST_AT = 26; // first peek ~4.3 min after boot
+const HARNESS_VERIFY_MAX_AGE_H = 6; // the army's own checker cadence (matches EXECUTOR_MIN_INTERVAL_MS)
 
 // v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
 // weave + the signing hand (vault gates · fail-closed self-verify · the
@@ -1679,7 +1691,7 @@ async function checkAgentsRoles(): Promise<void> {
       method: "POST",
       headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
       body: JSON.stringify({ op: "run-workers" }),
-      signal: AbortSignal.timeout(120_000) // executors read public RPC + the estate — measured, not instant
+      signal: AbortSignal.timeout(300_000) // executors read public RPC + the estate; v106: the harness-audit checker runs the full verify gate (tsc+lint ≈ 45s measured) — generous, honest timeout
     });
     if (!wres.ok) {
       journal(
@@ -1802,6 +1814,81 @@ async function checkAuthority(): Promise<void> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     journal("authority-error", `authority sweep fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
+  }
+}
+
+/** v106 — the harness tick (המסגרת-החיה · THE LIVING HARNESS). The
+ *  maker-checker loop as a timer loop. Two honest call chains:
+ *  (1) every 30 min: ONE GET /api/saos/harness — five-subsystem presence,
+ *      feature-list summary, last verify evidence age (journal: harness-peek);
+ *  (2) when the last verify evidence is missing or older than 6h: ONE signed
+ *      POST {action:"verify"} — scripts/verify.sh runs for real (fails-fast,
+ *      evidence JSON by the gate itself). verdict:fail = an honest journal row
+ *      (harness-verify with ok:false — evidence, not an error). The gate owns
+ *      the truth; the keeper owns the cadence; the web tier owns every gate.
+ *      Web down = honest wait (the web revive owns recovery). */
+async function checkHarness(): Promise<void> {
+  try {
+    // (1) the cheap peek — presence + freshness
+    const res = await fetch(HARNESS_URL, { signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) {
+      journal("harness-error", `harness peek non-OK HTTP ${res.status} — honest wait, next window in 30 min`);
+      return;
+    }
+    const out = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      harness?: {
+        version?: string;
+        subsystems?: Record<string, { present?: boolean }>;
+        features?: { total?: number; inProgress?: number; activeFeature?: string | null };
+        lastVerify?: { verdict?: string; ageHours?: number | null; file?: string } | null;
+      };
+    } | null;
+    if (!out || out.ok !== true || !out.harness) {
+      journal("harness-error", "harness peek failed honestly: non-JSON/unparseable — next window in 30 min");
+      return;
+    }
+    const h = out.harness;
+    const subText = Object.entries(h.subsystems ?? {})
+      .map(([k, v]) => `${k}:${v?.present ? "✓" : "✗"}`)
+      .join(" ");
+    const lv = h.lastVerify ?? null;
+    const ageH = lv?.ageHours ?? null;
+    journal(
+      "harness-peek",
+      `harness v${h.version ?? "?"} — ${subText} · features ${h.features?.total ?? 0} (${h.features?.inProgress ?? 0} in-progress, active=${h.features?.activeFeature ?? "none"}) · last-verify ${lv ? `${lv.verdict} ${ageH !== null && ageH !== undefined ? `${ageH}h ago` : ""}` : "none"}`
+    );
+
+    // (2) the real gate — only when the evidence is stale (≥6h) or missing
+    const stale = !lv || ageH === null || ageH === undefined || ageH >= HARNESS_VERIFY_MAX_AGE_H;
+    if (!stale) return;
+    const vres = await fetch(HARNESS_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ action: "verify" }),
+      signal: AbortSignal.timeout(300_000) // the gate is heavy on purpose (tsc+lint measured ≈45s)
+    });
+    if (!vres.ok) {
+      journal("harness-error", `harness verify non-OK HTTP ${vres.status}${vres.status === 401 || vres.status === 403 ? " (auth-required — honest wait)" : ""} — next window in 30 min`);
+      return;
+    }
+    const vout = (await vres.json().catch(() => null)) as {
+      ok?: boolean;
+      verify?: { verdict?: string; pass?: number; fail?: number; ms?: number; evidenceFile?: string | null };
+      error?: string;
+    } | null;
+    if (!vout || !vout.verify) {
+      journal("harness-error", `harness verify failed honestly: ${vout?.error ?? "non-JSON"} — next window in 30 min`);
+      return;
+    }
+    const v = vout.verify;
+    journal(
+      v.verdict === "pass" ? "harness-verify" : "harness-verify-fail",
+      `harness verify ${v.verdict} — pass=${v.pass} fail=${v.fail} (${((v.ms ?? 0) / 1000).toFixed(1)}s) · evidence=${v.evidenceFile ?? "none"}${v.verdict !== "pass" ? " — the gate is the truth, fix before declaring anything" : ""}`
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    journal("harness-error", `harness fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
   }
 }
 
@@ -2567,6 +2654,15 @@ async function cycle(): Promise<void> {
   //      the steem rail stays fail-closed vault-sealed. Web down = wait.
   if (RT.cycle === PUBLISH_FIRST_AT || (RT.cycle > PUBLISH_FIRST_AT && (RT.cycle - PUBLISH_FIRST_AT) % PUBLISH_EVERY === 0)) {
     await checkGitPublish();
+  }
+
+  // 12.11 v106 — the harness tick (המסגרת-החיה). Every 30 min: peek (five
+  //      subsystems + feature summary + last verify age); when the verify
+  //      evidence is ≥6h old or missing — the REAL gate runs (fails-fast,
+  //      evidence JSON). The maker-checker loop as a timer loop: the platform
+  //      verifies itself, nobody trusts anybody's claims. Web down = wait.
+  if (RT.cycle === HARNESS_FIRST_AT || (RT.cycle > HARNESS_FIRST_AT && (RT.cycle - HARNESS_FIRST_AT) % HARNESS_EVERY === 0)) {
+    await checkHarness();
   }
 
   // 10.5. v74 — the sync-radar scout (מכ"ם-הסנכרון). Every 10 min: read the
