@@ -62,8 +62,6 @@ interface EconomyRunRow {
   notes: string;
   verdict: string;
   at: string;
-  /** v101 — זרמי-הריצה מה-API (נגזר, לא מוצהר): רק-לתצוגת-הריצה-האחרונה */
-  streams?: Array<{ name: string; he: string; amountUsdMicro: number }>;
 }
 
 interface LadderStageDef {
@@ -518,27 +516,6 @@ function TruthLadder({
           <p className="text-[10px] text-zinc-600">
             מציג 12 מתוך {ladder.totalRuns} ריצות שנרשמו · ספירת-שלבים: 0={ladder.stageCounts["0"] ?? 0} · 1={ladder.stageCounts["1"] ?? 0} · 2={ladder.stageCounts["2"] ?? 0}
           </p>
-        )}
-
-        {/* v101 — זרמי-הריצה-האחרונה: נגזר-מה-API, כנה כשאין */}
-        {runs[0]?.streams && runs[0].streams.length > 0 && (
-          <div className="rounded-lg border border-white/[0.06] bg-white/[0.015] p-3">
-            <p className="text-[10px] font-semibold text-zinc-400 mb-2">
-              זרמי-הריצה האחרונה (#{runs[0].id}) · {runs[0].streams.length} זרמים נמדדו
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {runs[0].streams.map((s) => (
-                <span
-                  key={s.name}
-                  title={s.he}
-                  className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-[10px] text-zinc-400"
-                >
-                  <span dir="ltr" className="font-mono text-[9px] text-zinc-500">{s.name}</span>
-                  <span className="font-bold text-amber-300/90 tabular-nums" dir="ltr">{fmtUsdMicro(s.amountUsdMicro)}</span>
-                </span>
-              ))}
-            </div>
-          </div>
         )}
       </PanelBody>
     </Panel>

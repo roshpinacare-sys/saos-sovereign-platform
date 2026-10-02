@@ -71,7 +71,7 @@ const ESTATE: EstateRepo[] = [
   },
   {
     name: "Console",
-    role: "הקונסולה — זרוע-הפעולות של המפעיל (רישום-סוכנים · דופק-אמת) — מרנדרת מהפנקס הקנוני של הריפו-המוח, לא מחשבת מחדש (דוקטרינת הפרדת-הכפילויות · ESTATE-CONSOLE-DOMAIN-ROLES)",
+    role: "קונסולת-הרשת — רישום-סוכנים 69+ · דופק-אמת ציבורי (truth/latest.json) · שני-לבבות ללא תלות חוץ",
     status: "חי",
     note: "verify-בוטים פעילים (48-49/49 Console) · agents-watch 70 סוכנים/16 ריפואים · truth-gate-v1 ALL-GREEN",
     connections: ["Domain (verify)", "platform (census)", "כל הריפואים (רישום)"]
@@ -85,7 +85,7 @@ const ESTATE: EstateRepo[] = [
   },
   {
     name: "Domain",
-    role: "הפנים-הציבוריות של האחוזה — נקודת-הכניסה ל-SEO וערוץ-השידורים; מציג את האמת, לא משכפל אותה (דוקטרינת הפרדת-הכפילויות · ESTATE-CONSOLE-DOMAIN-ROLES)",
+    role: "בודק-הדומיין החי — verify-אורגניזם (51-52/53) · agents-watch · סף-איכות לפרונט",
     status: "חי",
     note: "verify רץ מול הפרונט החי · כשלים מדווחים בהודעות-קומיט (A14/A43 תועדו)",
     connections: ["Console (verify)", "platform (בדיקה חיה)"]

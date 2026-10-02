@@ -7,7 +7,6 @@ import {
   recordArtifact,
   lastSweepAt,
   nextProposeAllowedAt,
-  mobilizationBlock,
   type ProposeOutcome
 } from "@/lib/saos/role-registry";
 import { requireAuth } from "@/lib/saos/auth";
@@ -19,9 +18,7 @@ export const dynamic = "force-dynamic";
 /**
  * /api/saos/agents-roles — v99 גיוס-עצמי (THE SELF-RECRUITING ARMY).
  * =====================================================================
- * GET  — ציבורי: {ok, roles[], counts{proposed,active,retired},
- *        mobilization{censusAgents,activeRoles,proposedRoles,retiredRoles,capHeld},
- *        lastSweepAt}
+ * GET  — ציבורי: {ok, roles[], counts{proposed,active,retired}, lastSweepAt}
  *        וגם מריץ בעצלתיים sweepStale() (זול, כל-GET) + proposeRoles()
  *        (לכל היותר פעם ב-15 דק' — מטמון-מודול) — self-maintaining
  *        בלי-keeper. ערכים כנים: הצעה = נימוק, חי = זהות-אמת, פרש = כנה.
@@ -65,13 +62,10 @@ export async function GET() {
       active: roles.filter((r) => r.status === "active").length,
       retired: roles.filter((r) => r.status === "retired").length
     };
-    // 4) v101 גיוס-מהמצאי — המצבת מול המצאי (מדידת-מצבת קיימת, fail-honest zeros)
-    const mobilization = await mobilizationBlock(counts);
     return NextResponse.json({
       ok: true,
       roles,
       counts,
-      mobilization,
       lastSweepAt: lastSweepAt(),
       nextProposeAt: nextProposeAllowedAt(),
       sweep: { ok: sweep.ok, retiredProposed: sweep.retiredProposed.length, retiredActive: sweep.retiredActive.length, error: sweep.error },
