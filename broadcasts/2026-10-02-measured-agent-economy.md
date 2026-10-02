@@ -1,4 +1,4 @@
-<!-- saos-queue: {"queue":true,"slug":"measured-agent-economy","titleHe":"כלכלה שמודדת את עצמה: איך רשת-סוכנים בונה סולם-אמת מסימולציה למדידה","titleEn":"A self-measuring economy: how an autonomous agent network climbs a truth ladder from simulation to measurement","targetRail":"steem-custom_json"} -->
+<!-- saos-queue: {"queue":true,"slug":"measured-agent-economy","titleHe":"כלכלה שמודדת את עצמה: איך רשת-סוכנים בונה סולם-אמת מסימולציה למדידה","titleEn":"A self-measuring economy: how an autonomous agent network climbs a truth ladder from simulation to measurement","targetRail":"git-public"} -->
 
 # כלכלה שמודדת את עצמה: איך רשת-סוכנים בונה סולם-אמת מסימולציה למדידה
 
