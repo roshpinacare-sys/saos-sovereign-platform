@@ -15,7 +15,7 @@
  */
 
 import {
-  Activity, AlertTriangle, Bot, Clock, GitBranch, HeartPulse, Layers,
+  Activity, AlertTriangle, Bot, Clock, GitBranch, GitCompare, HeartPulse, Layers,
   ListChecks, Network, Radio, Server, ShieldCheck, UserPlus
 } from "lucide-react";
 import { useLive, timeAgo, fmtInt } from "../lib";
@@ -42,6 +42,40 @@ interface RolesSnapshot {
 type ServiceRow = OneNetSnapshot["services"][number];
 type SupRow = OneNetSnapshot["chain"]["supervision"][number];
 type BeatRow = OneNetSnapshot["beats"][number];
+
+// ─── v100 ביקורת-עמיתים (Peer Cross-Audit) — טיפוסי-תגובה כנים ─────────────
+
+interface AuditRepoRow {
+  name: string;
+  /** null = לא נגיש/לא נמדד — כנה, לעולם לא "0 כביכול" */
+  commits: number | null;
+  latest: string | null;
+  unreachable: boolean;
+  isThis: boolean;
+}
+
+interface CrossAuditRowDetail {
+  totals?: { reposScanned?: number; commits24h?: number; workRecords?: number };
+  this?: { name?: string; reachable?: boolean; commits24h?: number; subjects?: string[] };
+  repos?: Array<{ name?: string; c?: number; s?: string; u?: boolean }>;
+  work?: { records?: number; sections?: Array<{ id?: string; t?: string }> };
+  trimmed?: boolean;
+}
+
+interface CrossAuditSnapshot {
+  ok: boolean;
+  live: {
+    at: string;
+    windowHours: number;
+    thisRepo: { name: string; reachable: boolean; commits24h: number; subjects: string[] };
+    partnerRepos: Array<{ name: string; reachable: boolean; commits24h: number | null; latestSubject: string | null }>;
+    partnerReachable: number;
+    worklog: { records: Array<{ taskId: string; agent: string; title: string }>; sectionsScanned: number };
+    totals: { reposScanned: number; commits24h: number; workRecords: number };
+  };
+  rows: Array<{ id: string; at: string; detail: CrossAuditRowDetail | null }>;
+  error?: string;
+}
 
 // ─── שמות ותפקידים בעברית ────────────────────────────────────────────────────
 
@@ -192,7 +226,153 @@ function SelfRecruitPanel() {
   );
 }
 
-// ─── הוויו ──────────────────────────────────────────────────────────────────
+/**
+ * ביקורת-עמיתים (v100) — הסעיף ליד הגיוס-העצמי: הוראת הבעלים "בדקו מה כל
+ * אחד עשה בגיט" — הצלבת-ביקורת של עבודת-הגיט באחוזה כולה (הריפו-הזה +
+ * ריפואי-השותפים מהמניפסט) מול רישומי-העבודה בוורקלוג. ספירות חיות
+ * (מטמון-45ש' בצד-השרת) + 12 שורות-האחסון האחרונות מה-OpLog. ריפו-שלא-
+ * נגיש מוצג "unreachable" כנה — לעולם לא "0 קומיטים כביכול".
+ */
+function CrossAuditPanel() {
+  const live = useLive<CrossAuditSnapshot>("/api/saos/cross-audit", 30000);
+  const d = live.data;
+
+  if (!d) {
+    return (
+      <Panel>
+        <PanelHeader
+          icon={<GitCompare size={15} />}
+          title="ביקורת-עמיתים (Peer Cross-Audit) — מה כולם עשו בגיט"
+          sub="הצלבת-ביקורת של עבודת-הגיט באחוזה מול רישומי-העבודה"
+        />
+        <PanelBody>
+          {live.error ? (
+            <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />
+          ) : (
+            <p className="text-[12px] text-zinc-500 py-4 text-center">סריקת-האחוזה נמדדת…</p>
+          )}
+        </PanelBody>
+      </Panel>
+    );
+  }
+
+  const liveRows: AuditRepoRow[] = [
+    {
+      name: d.live.thisRepo.name,
+      commits: d.live.thisRepo.reachable ? d.live.thisRepo.commits24h : null,
+      latest: d.live.thisRepo.subjects[0] ?? null,
+      unreachable: !d.live.thisRepo.reachable,
+      isThis: true
+    },
+    ...d.live.partnerRepos.map((r) => ({
+      name: r.name,
+      commits: r.reachable ? r.commits24h : null,
+      latest: r.latestSubject,
+      unreachable: !r.reachable,
+      isThis: false
+    }))
+  ];
+
+  // הסריקה השמורה האחרונה מה-OpLog (מקור-האמת של ההיסטוריה) — אם יש
+  const lastStored = d.rows[0] ?? null;
+  const storedRows: AuditRepoRow[] | null = lastStored?.detail
+    ? [
+        {
+          name: lastStored.detail.this?.name ?? d.live.thisRepo.name,
+          commits: lastStored.detail.this?.reachable === false ? null : (lastStored.detail.this?.commits24h ?? null),
+          latest: (lastStored.detail.this?.subjects ?? [])[0] ?? null,
+          unreachable: lastStored.detail.this?.reachable === false,
+          isThis: true
+        },
+        ...(lastStored.detail.repos ?? [])
+          .filter((r): r is { name: string; c?: number; s?: string; u?: boolean } => typeof r.name === "string")
+          .map((r) => ({ name: r.name, commits: r.u ? null : (r.c ?? 0), latest: r.s ?? null, unreachable: !!r.u, isThis: false }))
+      ]
+    : null;
+
+  const rows = (storedRows ?? liveRows).slice(0, 12);
+  const totals = lastStored?.detail?.totals ?? d.live.totals;
+  const scanSource = lastStored ? `אחסון אחרון ${timeAgo(lastStored.at)} · ${d.rows.length} מדידות שמורות` : "טרם נשמרה מדידה — התצוגה מסריקה-חיה";
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<GitCompare size={15} />}
+        title="ביקורת-עמיתים (Peer Cross-Audit) — מה כולם עשו בגיט"
+        sub='הוראת הבעלים "בדקו מה כל אחד עשה בגיט" — הריפו-הזה + ריפואי-השותפים (מניפסט-הדוחות) מול רישומי-הוורקלוג · קריאה-בלבד, נושאי-קומיטים ציבוריים בלבד · ריפו-לא-נגיש = "unreachable" כנה'
+      />
+      <PanelBody>
+        <div className="space-y-3">
+          {/* פס-ספירות: ריפואים נסרקו / קומיטים 24ש' / רישומי-עבודה */}
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {[
+              { label: "ריפואים נסרקו", v: totals.reposScanned },
+              { label: "קומיטים 24ש׳", v: totals.commits24h },
+              { label: "רישומי-עבודה", v: totals.workRecords }
+            ].map((x) => (
+              <div key={x.label} className="rounded-lg border border-white/[0.06] bg-white/[0.02] py-2">
+                <p className="text-lg font-bold tabular-nums text-zinc-100" dir="ltr">
+                  {fmtInt(x.v ?? 0)}
+                </p>
+                <p className="text-[10px] text-zinc-500">{x.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-zinc-500">
+            <span>
+              חלון-מדידה: {d.live.windowHours} שעות · {scanSource}
+            </span>
+            <span>
+              נגישים עכשיו: {fmtInt(d.live.partnerReachable)}/{fmtInt(d.live.partnerRepos.length)} שותפים
+            </span>
+          </div>
+
+          {/* טבלת-האחוזה — ריפו · קומיטים · נושא אחרון (מקוצר) */}
+          <div className="scroll-x-afford">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>ריפו</Th>
+                  <Th>קומיטים 24ש׳</Th>
+                  <Th>נושא אחרון (מקוצר)</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.name}>
+                    <Td dir="ltr" className={`font-mono text-[11px] ${r.isThis ? "text-amber-200/90" : ""}`}>
+                      {r.isThis ? "★ " : ""}
+                      {r.name}
+                    </Td>
+                    <Td>
+                      {r.unreachable ? (
+                        <span className="text-[11px] text-zinc-500" dir="ltr">unreachable</span>
+                      ) : (
+                        <span className={`font-mono tabular-nums ${(r.commits ?? 0) > 0 ? "text-emerald-300" : "text-zinc-500"}`} dir="ltr">
+                          {fmtInt(r.commits ?? 0)}
+                        </span>
+                      )}
+                    </Td>
+                    <Td dir="auto" className="text-zinc-400 max-w-[280px]">
+                      {r.unreachable || !r.latest ? <span className="text-zinc-600">—</span> : <span className="line-clamp-1">{r.latest}</span>}
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+          {rows.every((r) => r.unreachable) && (
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              אף ריפו-שותף לא נגיש מהדיסק בסבב זה — כנה ומתועד; הסריקה של הריפו-הזה ממשיכה למדוד.
+            </p>
+          )}
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+// ─── הוויו ────────────────────────────────────────────────────────────────
 
 export function OneNetView() {
   const live = useLive<OneNetSnapshot>("/api/saos/one-net", 15000);
@@ -442,6 +622,9 @@ export function OneNetView() {
 
       {/* ─── v99 גיוס-עצמי — מצבת-התפקידים ───────────────────────────────── */}
       <SelfRecruitPanel />
+
+      {/* ─── v100 ביקורת-עמיתים — הצלבת-ביקורת של עבודת-הגיט באחוזה ─────── */}
+      <CrossAuditPanel />
 
       {/* ─── שרשרת + עבודה ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

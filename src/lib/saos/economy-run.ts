@@ -16,8 +16,15 @@
  *     שנקרא חי מ-exchangeStatus().policy.saosUsdPolicy — לא קבוע-מקומי.
  *   - stage נגזר מהראיות: txid מיינטנט (XRPL/STEEM) → 2 "txid-real" ·
  *     txid-anvil או מדידה>0 → 1 "measured" · הכל-אפס → 0 "sim" (כנה).
+ *
+ * v100 (הריצה-העצמית): זרם-שביעי "נזילות-נכנסת" (liquidity-inflow) —
+ * הפרש-24h נמדד של (TVL הבורסה + הפקדות wSAOS מחוץ-לבריכות) דרך מחיר-המדיניות
+ * החי; אין בסיס-השוואה → אפס-כנה; שלילי = נזילות יצאה (רשום בסימן שלו).
+ * הזרמים הקיימים לא שונו — הסולם נגזר כמו קודם.
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import { db } from "@/lib/db";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
 import { logOp } from "./oplog";
@@ -300,6 +307,104 @@ function collectInboundRail(): EconomyRunStream {
   };
 }
 
+// ─── v100 — זרם-נזילות-נכנסת (LIQUIDITY-INFLOW, הפרש-24h נמדד) ──────────────
+//
+// הזרם השביעי: "כמה נזילות נכנסה בפועל לבורסה בחלון-ה-24h". מדידה כנה:
+//   נוכחי = (TVL הבורסה) + (הפקדות wSAOS מחוץ-לבריכות × מחיר-המדיניות)
+//   והזרם = נוכחי − תמונת-הבסיס הישנה-ביותר בתוך החלון (24h).
+//   - cumulative/24h-delta as measured — אין פיצול/המצאה; הפרש שלילי
+//     (נזילות יצאה) נרשם בסימן שלו.
+//   - מקורות: exchange-live.exchangeStatus() (SAOSExchange על SAOS-EVM) —
+//     totals.tvlUsd + assets[WSAOS].totalMinted − poolBal.
+//   - הפקדות-מחוץ-לבריכות כדי לא לספור-כפול: ה-wSAOS שבבריכות כבר בתוך ה-TVL.
+//   - אין תמונת-בסיס (הזרם נולד) → אפס-כנה; המדידה הבאה תדווח הפרש אמיתי.
+//   - תמונות-מצב נשמרות בקובץ-מדינה קטן (48h, מקס 200) — fail-honest.
+
+const LIQ_STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "economy-liquidity-state.json");
+const LIQ_WINDOW_MS = WINDOW_24H_MS;
+const LIQ_RETAIN_MS = 48 * 3_600_000;
+const LIQ_MAX_ENTRIES = 200;
+
+interface LiqSnapshot {
+  at: number; // epoch ms
+  tvlUsd: number | null;
+  depositsSaos: number | null; // wSAOS מחוץ-לבריכות (SAOS-M)
+  currentUsd: number; // הסכום הנמדד (חלקי אם רכיב חסר — מתועד)
+  partial: boolean;
+}
+
+function readLiqSnapshots(): LiqSnapshot[] {
+  try {
+    const v = JSON.parse(fs.readFileSync(LIQ_STATE_PATH, "utf8")) as unknown;
+    return Array.isArray(v) ? (v as LiqSnapshot[]).filter((e) => e && typeof e.at === "number" && typeof e.currentUsd === "number") : [];
+  } catch {
+    return []; // קובץ חסר — הפנקס נולד (כנה)
+  }
+}
+
+function writeLiqSnapshots(entries: LiqSnapshot[]): void {
+  try {
+    const cutoff = Date.now() - LIQ_RETAIN_MS;
+    const kept = entries.filter((e) => e.at >= cutoff).slice(-LIQ_MAX_ENTRIES);
+    const tmp = `${LIQ_STATE_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(kept), "utf8");
+    fs.renameSync(tmp, LIQ_STATE_PATH);
+  } catch {
+    /* best-effort — הזרם ימדוד שוב בריצה הבאה */
+  }
+}
+
+async function collectLiquidityInflow(policyPrice: number | null): Promise<EconomyRunStream> {
+  const name = "liquidity-inflow";
+  const he = "נזילות-נכנסת (הפרש-24h: TVL בורסה + הפקדות wSAOS, מחיר-מדיניות)";
+  const source = "exchange-live.exchangeStatus() (SAOSExchange · SAOS-EVM): totals.tvlUsd + assets[WSAOS].totalMinted − poolBal";
+  try {
+    const st = await exchangeStatus();
+    if (!st.ok) {
+      return {
+        name, he, amountUsdMicro: 0, txids: [], source,
+        note: `הבורסה לא זמינה כרגע (${(st.error ?? "not deployed").slice(0, 90)}) — אפס-כנה (cumulative/24h-delta as measured)`
+      };
+    }
+    const wsaos = st.assets.find((a) => a.symbol === "WSAOS");
+    const tvlUsd = st.totals.tvlUsd; // null כנה כשאורקל חסר לנכס-אחד
+    let depositsSaos: number | null = null;
+    if (wsaos) {
+      const minted = Number(wsaos.totalMinted);
+      const poolBal = Number(wsaos.poolBal);
+      if (Number.isFinite(minted) && Number.isFinite(poolBal)) depositsSaos = minted - poolBal;
+    }
+    const depositsUsd = depositsSaos != null && policyPrice != null ? depositsSaos * policyPrice : null;
+    const partial = tvlUsd == null || depositsUsd == null;
+    const currentUsd = (tvlUsd ?? 0) + (depositsUsd ?? 0);
+
+    // פנקס-תמונות-המצב: הבסיס = הישנה-ביותר בתוך חלון-ה-24h
+    const entries = readLiqSnapshots();
+    const now = Date.now();
+    const baseline = [...entries].filter((e) => e.at >= now - LIQ_WINDOW_MS).sort((a, b) => a.at - b.at)[0] ?? null;
+    entries.push({ at: now, tvlUsd, depositsSaos, currentUsd, partial });
+    writeLiqSnapshots(entries);
+
+    const deltaUsd = baseline ? currentUsd - baseline.currentUsd : null;
+    const parts = [
+      `TVL $${tvlUsd != null ? tvlUsd.toFixed(4) : "— (אורקל חסר)"}`,
+      `הפקדות-wSAOS-מחוץ-לבריכות ${depositsSaos != null && policyPrice != null ? `${Number(depositsSaos.toPrecision(8))} SAOS-M = $${depositsUsd!.toFixed(4)}` : "—"}`
+    ].join(" + ");
+    const note = baseline && deltaUsd != null
+      ? `cumulative/24h-delta as measured · נוכחי: ${parts} · בסיס-השוואה ${new Date(baseline.at).toISOString()} (הישנה בחלון-24h) · הפרש נמדד ${deltaUsd >= 0 ? "+" : ""}$${deltaUsd.toFixed(6)}${deltaUsd < 0 ? " (שלילי = נזילות יצאה)" : ""}${partial ? " · מדידה-חלקית (רכיב חסר נחשב 0 — מתועד)" : ""} · אין txid — זהו הפרש-מצב, לא עסקה`
+      : `cumulative/24h-delta as measured · נוכחי: ${parts} · אין תמונת-בסיס בתוך החלון (הזרם נולד ב-v100) — אפס-כנה; המדידות הבאות ידווחו את ההפרש האמיתי`;
+    return {
+      name, he, txids: [], source, note,
+      amountUsdMicro: deltaUsd != null ? Math.round(deltaUsd * 1_000_000) : 0
+    };
+  } catch (e) {
+    return {
+      name, he, amountUsdMicro: 0, txids: [], source,
+      note: `מדידה נכשלה (${e instanceof Error ? e.message.slice(0, 80) : "error"}) — אפס-כנה (cumulative/24h-delta as measured)`
+    };
+  }
+}
+
 // ─── הצינור הראשי ───────────────────────────────────────────────────────────
 
 let inflight: Promise<EconomyRunView> | null = null;
@@ -324,14 +429,15 @@ async function runOnce(trigger: string): Promise<EconomyRunView> {
   const policyNote = policyPrice != null ? `מחיר-SAOS-M $${policyPrice} (SAOS_M_USD_POLICY מהבורסה החיה)` : "מחיר-SAOS-M לא זמין (הבורסה לא חיה) — המרות SAOS-M נשארות 0 כנה";
 
   // 2. שאר הזרמים — במקביל, כל אחד fail-honest
-  const [grid, work, xrp, steem] = await Promise.all([
+  const [grid, work, xrp, steem, liq] = await Promise.all([
     collectGridSweeps(policyPrice),
     collectWorkOrders(policyPrice),
     collectXrpAnchors(),
-    collectSteemAnchors()
+    collectSteemAnchors(),
+    collectLiquidityInflow(policyPrice)
   ]);
   const rail = collectInboundRail();
-  const streams: EconomyRunStream[] = [ex.stream, grid, work, xrp, steem, rail];
+  const streams: EconomyRunStream[] = [ex.stream, grid, work, xrp, steem, rail, liq];
 
   // 3. סה"כ יומי — סכום-ישר של מה שנמדד (המצטברים מתויגים cumulative ב-notes)
   const totalPerDayUsdMicro = streams.reduce((s, x) => s + x.amountUsdMicro, 0);

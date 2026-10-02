@@ -88,6 +88,21 @@ import { NETWORKS, RELEASE, RailPanel, STATUS_TONE, addressError, selectCls } fr
 import { EnvelopeCard, MiniStat, SealStat, Toggle } from "./ops-parts";
 import { useRailPulse } from "./use-rail-pulse";
 
+/** תג-תור-פרסום (v100) — קריאה בלבד ל-/api/saos/broadcast/queue; השער נמדד חי ואינו נגיע */
+function BroadcastQueueTag() {
+  const q = useLive<{ gate: string; armed: boolean; counts: { queued: number; armed: number } }>(
+    "/api/saos/broadcast/queue",
+    45000
+  );
+  const n = q.data ? q.data.counts.queued + q.data.counts.armed : 0;
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400" title="תור-פרסום: queue → armed → published">
+      <ScrollText size={11} /> תור-פרסום: {q.data ? `${n} ממתינים` : "\u2026"}
+      {q.data && !q.data.armed && <Lock size={11} className="text-amber-400" aria-label="gate: vault-sealed" />}
+    </span>
+  );
+}
+
 export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
   useTick(10000);
   const toast = useToast();
@@ -2625,6 +2640,7 @@ export function ViewOps({ status }: { status: LiveResult<StatusData> }) {
         <PanelHeader
           icon={<Send size={15} />}
           title="מעטפות שידור (dry-run)"
+          tag={<BroadcastQueueTag />}
           sub="הפעולה המדויקת שתיחתם לכל רשת עבור החותם — מוכנה לרגע שבו הכספת חוזרת"
           actions={
             seals.length > 0 ? (

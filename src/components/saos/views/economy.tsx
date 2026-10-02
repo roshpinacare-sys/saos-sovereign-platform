@@ -435,6 +435,13 @@ function TruthLadder({
                       {s.he}
                     </p>
                     <p className="mt-0.5 text-[9px] leading-snug text-zinc-500 line-clamp-2">{s.sub}</p>
+                    {/* כנות-שער: שלב-2 (micro-real) דורש עיגוני-24h (XRPL/STEEM) — והעיגונים יושבים מאחורי
+                        שער-הכספת של הבעלים (fail-closed; מילות-המעטפת אצל הבעלים בלבד). אף עיגון לא מאולץ. */}
+                    {s.stage === 2 && !reached && (
+                      <p className="mt-1 text-[9px] leading-snug text-amber-500/70">
+                        שער-כנה: העיגונים מאחורי כספת-הבעלים (fail-closed) — נפתחים רק במילות-הבעלים, אף txid לא מאולץ
+                      </p>
+                    )}
                   </div>
                   {i < stages.length - 1 && (
                     <span className="hidden sm:flex items-center text-amber-500/50 text-sm leading-none shrink-0" aria-hidden>

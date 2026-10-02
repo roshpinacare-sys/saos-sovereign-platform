@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { listIssues } from "./agents-issues";
 import { truthRoast, type RoastGap } from "./roast";
 import { logOp } from "./oplog";
+import { readLatestCrossAudit } from "./cross-audit";
 
 /**
  * lib/saos/role-registry.ts — v99 גיוס-עצמי (THE SELF-RECRUITING ARMY).
@@ -57,6 +58,9 @@ export interface GapSources {
   issuesOpen: number;
   roastOpen: number;
   roastMeasured: boolean;
+  /** v100 ביקורת-עמיתים — הסריקה השמורה האחרונה + כמה ריפואי-שותפים חייבים-קומיטים בלי רישום-עבודה */
+  crossAuditMeasured: boolean;
+  crossAuditUncoveredRepos: number;
 }
 
 export interface GapDetection {
@@ -185,6 +189,9 @@ export function candidateForRoast(gap: RoastGap): RoleCandidate | null {
  * קורא מקורות-פער קיימים ומפיק מועמדי-תפקיד. מקורות:
  *  · פנקס-העניינים של הנחיל (issues/ — עניין פתוח = פער-עבודה)
  *  · פערי-רוסט-אמת (רק status=open — fixed כבר נסגר, honest כבר מתויג)
+ *  · ביקורת-עמיתים (v100 — הסריקה השמורה האחרונה: ריפו-שותף עם קומיטים
+ *    ב-24ש' בלי רישום-עבודה תואם → סוקר-אחוזה; הצבא קורא מה כולם עשו
+ *    בגיט ומגייס בהתאם)
  * מרוץ-זמן על הרוסט: הוא מדידה כבדה — מי שלא ענה תוך 4ש' מדולג בכנות,
  * הסבב הבא (≤15 דק') מנסה שוב. לעולם לא נופל.
  */
@@ -192,6 +199,8 @@ export async function detectRoleGaps(): Promise<GapDetection> {
   const candidates: RoleCandidate[] = [];
   let roastOpen = 0;
   let roastMeasured = false;
+  let crossAuditMeasured = false;
+  let crossAuditUncoveredRepos = 0;
 
   // מקור 1 — פנקס-העניינים (מהקבצים — מהיר, אמין, נקרא גם כשהשער סגור)
   const ledger = listIssues();
@@ -221,10 +230,48 @@ export async function detectRoleGaps(): Promise<GapDetection> {
     /* כנה — הרוסט לא זמין הסבב הזה; הפנקס כבר סיפק מועמדים */
   }
 
+  // מקור 3 — ביקורת-עמיתים (v100, הוראת הבעלים "בדקו מה כל אחד עשה בגיט"):
+  // הסריקה השמורה האחרונה של cross-audit (רק שורות שכבר נאספו — אפס סריקה
+  // כבדה כאן) — ריפו-שותף שיש לו קומיטים ב-24ש' ואין רישום-עבודה תואם
+  // בסעיפי-הוורקלוג האחרונים = פער-עבודה אמיתי → סוקר-אחוזה (estate-scout)
+  // עם נימוק שמצטט את הריפו ומספר-הקומיטים (מטא-דאטה ציבורי בלבד).
+  // ה-dedupe וה-PROPOSED_CAP נאכפים ב-proposeRoles כמו כל מועמד.
+  try {
+    const audit = await readLatestCrossAudit();
+    if (audit?.detail) {
+      crossAuditMeasured = true;
+      const titles = (audit.detail.work?.sections ?? []).map((s) => `${s.id ?? ""} ${s.t ?? ""}`.toLowerCase());
+      const uncovered = (audit.detail.repos ?? []).filter(
+        (r) => r.name && !r.u && typeof r.c === "number" && r.c > 0 && !titles.some((t) => t.includes(r.name!.toLowerCase()))
+      );
+      crossAuditUncoveredRepos = uncovered.length;
+      const top = uncovered[0];
+      if (top?.name && typeof top.c === "number") {
+        candidates.push({
+          slug: "estate-scout",
+          titleHe: "סוקר-אחוזה",
+          justification: `פער-ביקורת-עמיתים: הריפו השותף "${top.name}" מחזיק ${top.c} קומיטים ב-24ש' ואין רישום-עבודה תואם בסעיפי-הוורקלוג האחרונים — סוקר-האחוזה יקרא את הגיט של כולם וידווח מה נעשה (מטא-דאטה ציבורי בלבד)`,
+          fromIssue: `cross-audit:${top.name}`
+        });
+      }
+    }
+  } catch {
+    /* כנה — אין סריקה שמורה הסבב הזה; שני המקורות האחרים כבר סיפקו מועמדים */
+  }
+
   // dedupe לפי slug (אותו תפקיד משני-מקורות — הקודם זוכה)
   const seen = new Set<string>();
   const unique = candidates.filter((c) => (seen.has(c.slug) ? false : (seen.add(c.slug), true)));
-  return { candidates: unique, sources: { issuesOpen: ledger.counts.open, roastOpen, roastMeasured } };
+  return {
+    candidates: unique,
+    sources: {
+      issuesOpen: ledger.counts.open,
+      roastOpen,
+      roastMeasured,
+      crossAuditMeasured,
+      crossAuditUncoveredRepos
+    }
+  };
 }
 
 // ─── הצעת-תפקידים ───────────────────────────────────────────────────────────
