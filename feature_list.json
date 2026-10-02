@@ -1,0 +1,52 @@
+{
+  "features": [
+    {
+      "id": "feat-001",
+      "name": "Kernel schema (Prisma spine)",
+      "description": "AgentRole/EconomyRun and the full book schema — the army's roles, recruits, and rules in one place",
+      "dependencies": [],
+      "status": "done",
+      "evidence": "prisma/schema.prisma; org-selftests platform leg tsc green (run 36763620848)"
+    },
+    {
+      "id": "feat-002",
+      "name": "BLOC-STATE language map",
+      "description": "One map of all 16 repos × roles × engines × proof pointers; zero invented vocabulary",
+      "dependencies": [],
+      "status": "done",
+      "evidence": "docs/BLOC-STATE-2026-10-02.md §7 repair table (Task 18 push 0ce67eb)"
+    },
+    {
+      "id": "feat-003",
+      "name": "Swarm army + recruitment gates",
+      "description": "Agents register roles with real identity + artifacts + retirement + caps; role→worker wiring audited in Domain's judge node",
+      "dependencies": ["feat-001"],
+      "status": "done",
+      "evidence": "scripts/swarm-agents + prisma role ladder; Task 15-d detectors (steem-curator-ream, receipts-auditor); Task 19 wiring check green"
+    },
+    {
+      "id": "feat-004",
+      "name": "Mini-services mesh",
+      "description": "evm-mesh, gate-agent, keeper, swarm-agents as independent bun services with fixed ports and hot restart",
+      "dependencies": ["feat-001"],
+      "status": "done",
+      "evidence": "mini-services/* each with own package.json + port; gateway contract via ?XTransformPort="
+    },
+    {
+      "id": "feat-005",
+      "name": "LHE harness protocol adoption (this repo)",
+      "description": "AGENTS.md protocol + feature_list.json + progress.md + session-handoff.md + init.sh at repo root",
+      "dependencies": [],
+      "status": "done",
+      "evidence": "Task 19 — validator score recorded in the Task 19 worklog section"
+    },
+    {
+      "id": "feat-006",
+      "name": "Keeper-tick observability for detectors",
+      "description": "Detectors run lazy-tick inside keeper; retirement sweeps (48/72h) observed with receipts",
+      "dependencies": ["feat-003"],
+      "status": "open",
+      "evidence": "Task 15-d honest note: sweepStale not yet observed live — keeper ticks to be receipted"
+    }
+  ]
+}
