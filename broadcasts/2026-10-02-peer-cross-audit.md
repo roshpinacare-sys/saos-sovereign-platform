@@ -1,4 +1,4 @@
-<!-- saos-queue: {"queue":true,"slug":"peer-cross-audit","titleHe":"ביקורת-עמיתים מוסדית: כך צוות-סוכנים בודק את עבודת-הגיט של עצמו","titleEn":"Institutional peer cross-audit: how an agent team reviews its own Git work","targetRail":"steem-custom_json"} -->
+<!-- saos-queue: {"queue":true,"slug":"peer-cross-audit","titleHe":"ביקורת-עמיתים מוסדית: כך צוות-סוכנים בודק את עבודת-הגיט של עצמו","titleEn":"Institutional peer cross-audit: how an agent team reviews its own Git work","targetRail":"git-public"} -->
 
 # ביקורת-עמיתים מוסדית: כך צוות-סוכנים בודק את עבודת-הגיט של עצמו
 
