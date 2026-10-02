@@ -37,10 +37,14 @@ import {
   type GovernorDecision,
   type GovernorPolicy
 } from "./yield-governor";
+import { buildCycleLessons, type DojoLesson } from "./dojo";
 
 const STATE_KEY = "market-brain-state";
 const NOTEBOOK_KEY = "market-brain-notebook";
 const NOTEBOOK_MAX_LINES = 300;
+// v103 — שער-העלות: מדיניות-מחיר מוצהרת (micro-USD ל-ms חישוב). בלי הצהרת
+// הבעלים — העלות נשארת null כנה (לא מדומה). ה-ms נמדד תמיד; ה-USD רק בהצהרה.
+const POLICY_RATE_KEY = "saos-policy-compute-rate";
 
 // ─── שיוך-זרמים לתפקידים (ה-P&L של הצבא) ────────────────────────────────────
 // מפה-סטטית-מוצהרת: תפקיד → הזרמים שהוא מפעיל. זהו ההיפך-הגמור של clodfarm
@@ -63,8 +67,10 @@ export interface RolePnl {
   status: string;
   streams: string[];
   yieldAttributedUsdMicro: number;
-  /** עלות-חשיבה — כנה: לא נמדדה כאן → לא מוצהרת (null) */
+  /** עלות-חשיבה — מדיניות-מוצהרת בלבד: רק אם הבעלים הצהיר מחיר/ms.
+   *  בלי ההצהרה — null כנה (לא 0 שמתחפש ל"חינם"). */
   costUsdMicro: number | null;
+  costBasis: string | null;
   efficiencyUsdMicroPerUnit: number | null;
   note: string;
 }
@@ -76,6 +82,8 @@ interface BrainState {
   streams: Record<string, { prevUnits: number; zeroStreak: number; parked: boolean }>;
   decisions: GovernorDecision[];
   cycles: number;
+  /** v103 — מחשוב-המחזור-האחרון (ms נמדד) — כדי שגם ה-peek יחשב עלות במדיניות-מוצהרת */
+  computeMs?: number;
 }
 
 async function loadState(): Promise<BrainState | null> {
@@ -93,6 +101,27 @@ async function saveState(state: BrainState): Promise<void> {
     where: { key: STATE_KEY },
     create: { key: STATE_KEY, value: JSON.stringify(state) },
     update: { value: JSON.stringify(state) }
+  });
+}
+
+/** מדיניות-המחיר המוצהרת (v103) — null כשהבעלים לא הצהיר. */
+export async function loadComputeRatePolicy(): Promise<number | null> {
+  const row = await db.platformSetting.findUnique({ where: { key: POLICY_RATE_KEY } });
+  if (!row) return null;
+  const n = Number(row.value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** הצהרת-מדיניות-מחיר — שער-בעלים בלבד (fail-closed ב-API). */
+export async function setComputeRatePolicy(usdMicroPerMs: number | null): Promise<void> {
+  if (usdMicroPerMs == null) {
+    await db.platformSetting.deleteMany({ where: { key: POLICY_RATE_KEY } });
+    return;
+  }
+  await db.platformSetting.upsert({
+    where: { key: POLICY_RATE_KEY },
+    create: { key: POLICY_RATE_KEY, value: String(Math.max(0, Math.round(usdMicroPerMs))) },
+    update: { value: String(Math.max(0, Math.round(usdMicroPerMs))) }
   });
 }
 
@@ -132,13 +161,18 @@ function streamsFromRun(run: EconomyRunView, prev: BrainState | null): GovernorS
 
 // ─── P&L לתפקידים ───────────────────────────────────────────────────────────
 
-export async function computeRolePnl(run: EconomyRunView | null): Promise<RolePnl[]> {
+export async function computeRolePnl(
+  run: EconomyRunView | null,
+  opts: { cycleComputeMs?: number | null } = {}
+): Promise<RolePnl[]> {
   const roles = await db.agentRole.findMany({
     where: { status: { in: ["active", "proposed"] } },
     orderBy: [{ status: "asc" }, { at: "desc" }],
     take: 24
   });
   const byName = new Map((run?.streams ?? []).map((s) => [s.name, s]));
+  const rate = await loadComputeRatePolicy();
+  const totalStreams = Object.values(ROLE_ATTRIBUTION).flat().length || 1;
   return roles.map((r) => {
     const streams = ROLE_ATTRIBUTION[r.slug] ?? [];
     let total = 0;
@@ -150,13 +184,23 @@ export async function computeRolePnl(run: EconomyRunView | null): Promise<RolePn
         measured += 1;
       }
     }
+    // v103 — עלות-חשיבה: רק במדיניות-מוצהרת. המסלול: ms-נמדד של המחזור
+    // × מחיר-מוצהר, משויך לפי נתח-הזרמים של התפקיד. בלי הצהרה — null כנה.
+    let cost: number | null = null;
+    let costBasis: string | null = null;
+    if (rate != null && opts.cycleComputeMs != null && opts.cycleComputeMs > 0) {
+      const share = Math.min(1, streams.length / totalStreams);
+      cost = Math.round(opts.cycleComputeMs * rate * share);
+      costBasis = `מדיניות-מוצהרת: ${opts.cycleComputeMs}ms × מחיר-מוצהר × נתח-זרמים (${streams.length}/${totalStreams})`;
+    }
     return {
       slug: r.slug,
       titleHe: r.titleHe,
       status: r.status,
       streams,
       yieldAttributedUsdMicro: total,
-      costUsdMicro: null, // כנות: עלות-חשיבה עוד לא נמדדת לתפקיד — לא מוצהרת
+      costUsdMicro: cost,
+      costBasis,
       efficiencyUsdMicroPerUnit: null,
       note:
         streams.length === 0
@@ -317,9 +361,16 @@ export interface BrainSnapshot {
   ventureActions: string[];
   notebookLines: number | null;
   notebook: string | null;
+  /** v103 — מחזור-מדידה: זמן-מחשוב של המחזור עצמו (נמדד, תמיד). */
+  computeMs: number | null;
+  /** v103 — מדיניות-המחיר-המוצהרת (null = הבעלים לא הצהיר — כנה) */
+  computeRateUsdMicroPerMs: number | null;
+  /** v103 — שיעורי-המחזור (בית-הספר) — רק במחזור-חי; peek קורא מהפנקס */
+  lessons: DojoLesson[];
 }
 
 export async function marketBrainCycle(trigger: string): Promise<BrainSnapshot> {
+  const t0 = Date.now(); // v103 — מחשוב-המחזור נמדד
   const runs = await recentEconomyRuns(1);
   const run = runs[0] ?? null;
   const prev = await loadState();
@@ -345,18 +396,23 @@ export async function marketBrainCycle(trigger: string): Promise<BrainSnapshot> 
   const decisions = governorCycle(uniqueStreams, GOVERNOR_POLICY_DEFAULTS);
   const verdict = governorVerdict(decisions);
 
-  // 4 — P&L לתפקידים
-  const rolePnl = await computeRolePnl(run);
-
-  // 5 — אכיפת-מיזמים (ההרגה-הכנה) — ההצעה-האוטונומית רק מפער-נמדד:
-  // אם קיים זרם-חי-לא-פארק עם תשואה-חיובית ואין מיזם שמכסה אותו → הצעת
-  // "אופרטור-<זרם>" בכנות, בתוך התקרה. מיזם-ראשון של הנחיל: אופרטור-הבורסה
-  // (הזרם-המניב-ביותר המדוד) — תזה אמיתית, חוק-הרג אמיתי.
+  // 5 — אכיפת-מיזמים (ההרגה-הכנה) — שני-שערי-הצעה אוטונומיים, שניהם ממדידה:
+  //   (א) boost+ypu>0 — הזרם-המניב-ביותר מקבל עוד שוליים → מיזם-אופרטור.
+  //   (ב) v103: hold-בתקרה+ypu>0 — זרם-מניב שהאנטי-ריכוז עוצר: עוד יחידה
+  //       באותו צינור אסורה — הצמיחה היחידה-החוקית היא עסק-חדש סביבו.
   const killed = await enforceVentureKills();
   const ventureActions: string[] = killed.map((s) => `הומת כנה: ${s} (חוק-הרג נמדד)`);
-  const topStream = decisions
+  const boostedTop = decisions
     .filter((d) => d.action === "boost" && (d.yieldPerUnitUsdMicro ?? 0) > 0)
     .sort((a, b) => (b.yieldPerUnitUsdMicro ?? 0) - (a.yieldPerUnitUsdMicro ?? 0))[0];
+  const cappedTop = decisions
+    .filter(
+      (d) =>
+        d.action === "hold" && d.unitsBefore > 0 && d.unitsAfter === d.unitsBefore && (d.yieldPerUnitUsdMicro ?? 0) > 0
+    )
+    .sort((a, b) => (b.yieldPerUnitUsdMicro ?? 0) - (a.yieldPerUnitUsdMicro ?? 0))[0];
+  const topStream = boostedTop ?? cappedTop;
+  const topOrigin = boostedTop ? "boost+ypu>0" : cappedTop ? "hold-בתקרה+ypu>0 (אות-מיזם)" : "";
   if (topStream) {
     const slug = `operator-${topStream.stream.replace(/[^a-z0-9-]/gi, "-").toLowerCase()}`.slice(0, 60);
     const exists = await db.agentVenture.findUnique({ where: { slug } });
@@ -364,16 +420,21 @@ export async function marketBrainCycle(trigger: string): Promise<BrainSnapshot> 
       const res = await proposeVenture({
         slug,
         titleHe: `אופרטור-הזרם ${topStream.he}`,
-        thesis: `הזרם "${topStream.he}" מניב תשואה-ליחידה נמדדת — מיזם-אופרטור שמרכיב תפקיד-חי סביבו ומגדיל את התשואה בתוך תקרות-הבורסה.`,
+        thesis: `הזרם "${topStream.he}" מניב תשואה-ליחידה נמדדת (${topOrigin}) — מיזם-אופרטור שמרכיב תפקיד-חי סביבו ומגדיל את התשואה בתוך תקרות-הבורסה.`,
         killCriteria: `תשואת-הזרם אפס במשך 6 מחזורי-מוח רצופים או ירידה-מתמשכת מתחת לרצפת-התשואה-ליחידה שנמדדה בהצעה`,
         origin: "market-brain"
       });
-      if (res.ok) ventureActions.push(`הוצע אוטונומית: ${slug} (מהזרם-המניב-ביותר)`);
+      if (res.ok) ventureActions.push(`הוצע אוטונומית: ${slug} (${topOrigin})`);
     }
   }
 
+  // 4 — P&L לתפקידים (מאוחר-בכוונה: עם מחשוב-המחזור-הנמדד עד-כה — מדידה אמת,
+  // לא השמצה: בלי מדיניות-מחיר-מוצהרת העלות תישאר null כנה)
+  const rolePnl = await computeRolePnl(run, { cycleComputeMs: Date.now() - t0 });
+
   // 6 — הפנקס: ההכרעות של המחזור, בגבול 300 שורות
   const cycle = (prev?.cycles ?? 0) + 1;
+  const computeMs = Date.now() - t0;
   const notebookBody = [
     `# פנקס-המוח-הכלכלי — מחזור ${cycle} (${new Date().toISOString()})`,
     `טריגר: ${trigger} · ריצת-כלכלה: ${run ? `#${run.id} (${run.mode})` : "אין עדיין — אפס-כנה"}`,
@@ -389,6 +450,26 @@ export async function marketBrainCycle(trigger: string): Promise<BrainSnapshot> 
     ((await loadNotebook()) ? (await loadNotebook()) + "\n" : "") + notebookBody
   );
 
+  // 7 — v103 בית-הספר-הכלכלי: שיעורי-המחזור — דטרמיניסטיים מההחלטות,
+  // תרגילים נבדקים מול המושל-האמיתי, בתקרת-אנטי-נפיחות (פנקס של 400)
+  const lessons = buildCycleLessons(cycle, decisions, ventureActions, GOVERNOR_POLICY_DEFAULTS);
+  for (const l of lessons) {
+    await db.agentLesson.create({
+      data: {
+        cycle: l.cycle,
+        kind: l.kind,
+        subject: l.subject.slice(0, 180),
+        fact: l.fact.slice(0, 500),
+        takeaway: l.takeaway.slice(0, 500),
+        drillQ: l.drillQ ?? null,
+        drillA: l.drillA ?? null,
+        verified: l.verified
+      }
+    });
+  }
+  const keep = await db.agentLesson.findMany({ orderBy: { id: "desc" }, take: 400, skip: 399 });
+  if (keep.length > 0) await db.agentLesson.deleteMany({ where: { id: { lt: keep[0].id } } });
+
   // מצב-המחזור למחזור-הבא
   const streamState: BrainState["streams"] = {};
   for (const d of decisions) {
@@ -399,7 +480,7 @@ export async function marketBrainCycle(trigger: string): Promise<BrainSnapshot> 
       parked: s?.parked ?? false
     };
   }
-  await saveState({ at: new Date().toISOString(), streams: streamState, decisions, cycles: cycle });
+  await saveState({ at: new Date().toISOString(), streams: streamState, decisions, cycles: cycle, computeMs });
 
   await logOp(
     "market-brain",
@@ -424,30 +505,49 @@ export async function marketBrainCycle(trigger: string): Promise<BrainSnapshot> 
     ventures: await listVentures(),
     ventureActions,
     notebookLines,
-    notebook: notebookBody
+    notebook: notebookBody,
+    computeMs,
+    computeRateUsdMicroPerMs: await loadComputeRatePolicy(),
+    lessons
   };
 }
 
-/** קריאה-בלבד (ל-GET): הצצה למצב האחרון בלי להריץ מחזור. */
+/** קריאה-בלבד (ל-GET): הצצה למצב האחרון בלי להריץ מחזור.
+ *  v103 תיקון-כנות: הזרמים קוראים תשואה-אמת מהריצה-האחרונה — לא אפס-כוזב
+ *  שנראה כמו "הכל מת". השיעורים נקראים מפנקס-השיעורים. */
 export async function marketBrainPeek(): Promise<BrainSnapshot | null> {
   const state = await loadState();
   if (!state) return null;
   const runs = await recentEconomyRuns(1);
   const run = runs[0] ?? null;
-  const rolePnl = await computeRolePnl(run);
+  const rolePnl = await computeRolePnl(run, { cycleComputeMs: state.computeMs ?? null });
   const ventures = await listVentures();
   const notebook = await loadNotebook();
+  const lessonRows = await db.agentLesson.findMany({ orderBy: { id: "desc" }, take: 12 });
+  const lessons: DojoLesson[] = lessonRows.reverse().map((l) => ({
+    cycle: l.cycle,
+    kind: l.kind as DojoLesson["kind"],
+    subject: l.subject,
+    fact: l.fact,
+    takeaway: l.takeaway,
+    drillQ: l.drillQ ?? undefined,
+    drillA: l.drillA ?? undefined,
+    verified: l.verified
+  }));
   return {
     cycle: state.cycles,
     at: state.at,
     run: run ? { id: run.id, mode: run.mode, stage: run.stage, streams: run.streams.length, totalPerDayUsdMicro: run.totalPerDayUsdMicro } : null,
-    streams: Object.entries(state.streams).map(([name, s]) => ({
-      name,
-      he: name,
-      yieldUsdMicro: 0,
-      zeroStreak: s.zeroStreak,
-      parked: s.parked
-    })),
+    streams: Object.entries(state.streams).map(([name, s]) => {
+      const rs = run?.streams.find((x) => x.name === name);
+      return {
+        name,
+        he: rs?.he ?? name,
+        yieldUsdMicro: Math.max(0, rs?.amountUsdMicro ?? 0),
+        zeroStreak: s.zeroStreak,
+        parked: s.parked
+      };
+    }),
     decisions: state.decisions,
     verdict: governorVerdict(state.decisions),
     policy: GOVERNOR_POLICY_DEFAULTS,
@@ -455,6 +555,9 @@ export async function marketBrainPeek(): Promise<BrainSnapshot | null> {
     ventures,
     ventureActions: [],
     notebookLines: notebook ? notebook.split("\n").length : null,
-    notebook: null
+    notebook: null,
+    computeMs: state.computeMs ?? null,
+    computeRateUsdMicroPerMs: await loadComputeRatePolicy(),
+    lessons
   };
 }

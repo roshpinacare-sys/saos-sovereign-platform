@@ -13,6 +13,7 @@ import {
   Brain,
   Coins,
   Database,
+  GraduationCap,
   Landmark,
   Recycle,
   RotateCcw,
@@ -119,6 +120,8 @@ interface BrainRole {
   status: string;
   streams: string[];
   yieldAttributedUsdMicro: number;
+  costUsdMicro: number | null;
+  costBasis: string | null;
   note: string;
 }
 interface BrainVenture {
@@ -130,6 +133,16 @@ interface BrainVenture {
   receiptsUsdMicro: number;
   ownerRoleSlug: string;
 }
+interface DojoLessonView {
+  cycle: number;
+  kind: "allocation" | "zero-watch" | "venture" | "kill" | "drill" | string;
+  subject: string;
+  fact: string;
+  takeaway: string;
+  drillQ?: string;
+  drillA?: string;
+  verified: boolean;
+}
 interface BrainSnap {
   cycle: number;
   at: string;
@@ -140,6 +153,9 @@ interface BrainSnap {
   ventures: BrainVenture[];
   ventureActions: string[];
   notebookLines: number | null;
+  computeMs: number | null;
+  computeRateUsdMicroPerMs: number | null;
+  lessons: DojoLessonView[];
 }
 
 function actionPill(action: BrainDecision["action"]) {
@@ -293,6 +309,113 @@ function MarketBrainPanel() {
   );
 }
 
+// ─── v103 — בית-הספר-הכלכלי (THE ECONOMIC DOJO) ────────────────────────
+// ההיפך של clodfarm (שם הסוכנים מקבלים פרומפטים ומקווים): ההכשרה כאן נגזרת
+// מהחלטות-אמת, וכל תרגיל נבדק מול אותן פונקציות-טהורות שמריצות את הכלכלה.
+// הכרטיס: שיעורי-המחזורים · תרגילים עם חשיפת-תשובה · שער-העלות-הכנה.
+
+function lessonPill(kind: DojoLessonView["kind"]) {
+  if (kind === "drill") return <Pill tone="amber">תרגיל</Pill>;
+  if (kind === "venture") return <Pill tone="green">מיזם</Pill>;
+  if (kind === "kill") return <Pill tone="rose">הרגה</Pill>;
+  if (kind === "zero-watch") return <Pill tone="rose">ניטור-אפס</Pill>;
+  return <Pill tone="zinc">הקצאה</Pill>;
+}
+
+function DojoPanel() {
+  const live = useLive<{ ok: boolean; brain: BrainSnap | null }>("/api/saos/market-brain?dojo=1", 60000);
+  const brain = live.data?.brain ?? null;
+  const [open, setOpen] = useState<number | null>(null);
+  const drills = (brain?.lessons ?? []).filter((l) => l.kind === "drill");
+  const lessons = (brain?.lessons ?? []).filter((l) => l.kind !== "drill");
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<GraduationCap size={15} />}
+        title="בית-הספר-הכלכלי — ההכשרה שמייצרת את עצמה"
+        sub="כל מחזור-מוח מליד שיעורים מההחלטות-הנמדדות, ותרגילים שנבדקים מול המושל-האמיתי — ההיפך מסוכנים שמקבלים פרומפטים ומקווים."
+        actions={
+          brain ? (
+            <div className="flex items-center gap-2">
+              <Pill tone="zinc">{brain.lessons.length} שיעורים</Pill>
+              {brain.computeMs != null && <Pill tone="green">מחזור אחרון {brain.computeMs}ms</Pill>}
+            </div>
+          ) : (
+            <Pill tone="amber">טרם-רץ — כנה</Pill>
+          )
+        }
+      />
+      <PanelBody className="space-y-4">
+        {!brain && !live.error ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (brain?.lessons ?? []).length === 0 ? (
+          <Callout tone="gold">
+            אין עדיין שיעורים — כנה. השיעור הראשון ייולד במחזור-המוח הבא (השומר מריץ שעתית, או הרץ ידנית בכרטיס-המוח).
+          </Callout>
+        ) : (
+          <>
+            <div className="max-h-72 overflow-y-auto">
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>מחזור</Th>
+                    <Th>סוג</Th>
+                    <Th>עובדה-נמדדת</Th>
+                    <Th>השיעור</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lessons.map((l, i) => (
+                    <tr key={`${l.cycle}-${i}`}>
+                      <Td className="tabular-nums">#{l.cycle}</Td>
+                      <Td>{lessonPill(l.kind)}</Td>
+                      <Td className="text-[12px]">{l.fact}</Td>
+                      <Td className="text-[12px] text-zinc-300">{l.takeaway}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+
+            {drills.length > 0 && (
+              <div className="space-y-2">
+                {drills.map((d, i) => (
+                  <div key={`drill-${d.cycle}-${i}`} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Pill tone="amber">תרגיל מאומת</Pill>
+                      <span className="text-[11px] text-zinc-500">מחזור #{d.cycle} · נבדק מול allocateEffort בפועל</span>
+                    </div>
+                    <p className="text-[13px]">{d.drillQ}</p>
+                    {open === i ? (
+                      <div className="flex items-start gap-2">
+                        <Pill tone="green">תשובה</Pill>
+                        <p className="text-[13px] text-zinc-200">{d.drillA}</p>
+                      </div>
+                    ) : (
+                      <Btn size="sm" variant="secondary" onClick={() => setOpen(i)}>
+                        חשוף-תשובה
+                      </Btn>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Callout tone="zinc">
+              שער-העלות-הכנה: מחשוב-המחזור {brain?.computeMs != null ? `נמדד (${brain.computeMs}ms)` : "ימדד במחזור-הבא"} ·
+              המרה ל-USD נעולה עד הצהרת-מדיניות של הבעלים (POST action:policy) —
+              {brain?.computeRateUsdMicroPerMs != null
+                ? ` הוצהר: ${brain.computeRateUsdMicroPerMs} micro$/ms — העלות מחושבת ומסומנת "מדיניות-מוצהרת"`
+                : " בלי ההצהרה העלות נשארת null כנה — לא 0 שמתחפש לחינם"}.
+            </Callout>
+          </>
+        )}
+      </PanelBody>
+    </Panel>
+  );
+}
+
 export function ViewEconomy() {
   useTick(15000);
   const toast = useToast();
@@ -384,6 +507,8 @@ export function ViewEconomy() {
       />
 
       <MarketBrainPanel />
+
+      <DojoPanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
         {/* פרמטרים */}

@@ -541,6 +541,25 @@ model AgentVenture {
   @@index([stage, at])
 }
 
+// v103 "בית-הספר-הכלכלי" — פנקס-השיעורים: כל מחזור-מוח מליד שיעורים
+// דטרמיניסטיים מההחלטות-הנמדדות, ותרגילים (drills) שנבדקים מול אותן
+// פונקציות-טהורות של המושל — הכשרה שניתנת-לאימות, לא סיפור.
+model AgentLesson {
+  id       Int      @id @default(autoincrement())
+  cycle    Int // מחזור-המוח שילד את השיעור
+  kind     String // allocation | zero-watch | venture | kill | drill
+  subject  String // זרם / מיזם / נושא
+  fact     String // העובדה-הנמדדת (מה שקרה באמת)
+  takeaway String // השיעור (החוק-הכתוב)
+  drillQ   String? // שאלת-תרגיל (kind=drill בלבד)
+  drillA   String? // תשובת-התרגיל — נבדקת מול הפונקציה-הטהורה
+  verified Boolean  @default(true) // תרגיל שנבדק מול allocateEffort בפועל
+  at       DateTime @default(now())
+
+  @@index([kind, at])
+  @@index([cycle])
+}
+
 model AgentRole {
   id            Int      @id @default(autoincrement())
   slug          String   @unique
