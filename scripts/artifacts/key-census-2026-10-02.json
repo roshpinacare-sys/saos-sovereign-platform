@@ -1,0 +1,119 @@
+{
+  "kind": "key-report",
+  "role": "key-forge-operator",
+  "executor": "key-census",
+  "measuredAt": "2026-10-02T22:54:43.653Z",
+  "measured": true,
+  "sitesScanned": 4,
+  "keyFiles": 11,
+  "sealedEnvelopes": 2,
+  "passArmed": false,
+  "adminKeyFilePresent": true,
+  "envPresent": {
+    "SAOS_ADMIN_KEY_HASH": false,
+    "SAOS_VAULT_PASS": false,
+    "GITHUB_TOKEN": false,
+    "SAOS_GH_TOKEN_FILE": false
+  },
+  "rows": [
+    {
+      "location": "home-secrets",
+      "file": "github-token",
+      "present": true,
+      "bytes": 93,
+      "mode": "600",
+      "ageHours": 0,
+      "shaPrefix": "c029b0b76b18bd15"
+    },
+    {
+      "location": "home-secrets",
+      "file": "saos-admin-key",
+      "present": true,
+      "bytes": 65,
+      "mode": "600",
+      "ageHours": 1,
+      "shaPrefix": "e771df6ac5d4e8eb"
+    },
+    {
+      "location": "home-secrets",
+      "file": "saos-git-askpass.sh",
+      "present": true,
+      "bytes": 622,
+      "mode": "700",
+      "ageHours": 0,
+      "shaPrefix": "94e7f81fb555e12f"
+    },
+    {
+      "location": "home-secrets",
+      "file": "saos-git-cred.sh",
+      "present": true,
+      "bytes": 1753,
+      "mode": "700",
+      "ageHours": 0,
+      "shaPrefix": "772ba2dc7857f898"
+    },
+    {
+      "location": "saos-vault-agent-keys",
+      "file": "fleet_keys.enc",
+      "present": true,
+      "bytes": 222356,
+      "mode": "600",
+      "ageHours": 1,
+      "shaPrefix": "1f5084c99dd37726"
+    },
+    {
+      "location": "saos-vault-agent-keys",
+      "file": "fleet_keys.meta.json",
+      "present": true,
+      "bytes": 70,
+      "mode": "600",
+      "ageHours": 1,
+      "shaPrefix": "161102a33c5bcca8"
+    },
+    {
+      "location": "upload-agent-keys",
+      "file": "fleet_keys.enc",
+      "present": true,
+      "bytes": 222356,
+      "mode": "777",
+      "ageHours": 54,
+      "shaPrefix": "1f5084c99dd37726"
+    },
+    {
+      "location": "upload-agent-keys",
+      "file": "fleet_keys.meta.json",
+      "present": true,
+      "bytes": 70,
+      "mode": "777",
+      "ageHours": 54,
+      "shaPrefix": "161102a33c5bcca8"
+    },
+    {
+      "location": "upload-gate-agents",
+      "file": "gate-herald.json",
+      "present": true,
+      "bytes": 206,
+      "mode": "777",
+      "ageHours": 1,
+      "shaPrefix": "b3378916a9d55831"
+    },
+    {
+      "location": "upload-gate-agents",
+      "file": "gold-scout.json",
+      "present": true,
+      "bytes": 226,
+      "mode": "777",
+      "ageHours": 1,
+      "shaPrefix": "05963ab5e38aca6c"
+    },
+    {
+      "location": "upload-gate-agents",
+      "file": "night-scout.json",
+      "present": true,
+      "bytes": 228,
+      "mode": "777",
+      "ageHours": 1,
+      "shaPrefix": "172a9c86d7e997d0"
+    }
+  ]
+}

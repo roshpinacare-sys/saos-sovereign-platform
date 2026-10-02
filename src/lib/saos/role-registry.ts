@@ -427,12 +427,32 @@ export async function detectRoleGaps(): Promise<GapDetection> {
       candidates.push({
         slug: "harness-sentinel",
         titleHe: "זקיף-המסגרת",
-        justification: `פער-מסגרת (v106): אין-תפקיד-חי שמריץ את שער-האימות — scripts/verify.sh (fails-fast: tsc · lint · db-drift · harness-files · live-api) קיים (${Math.round(harnessStat.bytes)} בתים) ומחכה לזקיף שיריץ אותו ויכתוב עדות JSON; ה-checker של maker-checker — אין 'בוצע' בלי ראיה רצה`,
+        justification: `פער-מסגרת (v106): אין-תפקיד-חי שמריץ את שער-האימות — scripts/verify.sh (fails-fast: tsc · lint · db-drift · harness-files · live-api · guard) קיים (${Math.round(harnessStat.bytes)} בתים) ומחכה לזקיף שיריץ אותו ויכתוב עדות JSON; ה-checker של maker-checker — אין 'בוצע' בלי ראיה רצה`,
         fromIssue: "harness-engineering-adoption:verify-gate-unmanned"
       });
     }
   } catch {
     /* כנה — השער לא נמדד הסבב הזה */
+  }
+
+  // מקור 8 — פער-רוטציה (v107 · r12-key-rotation-watch): חומר-מפתח קיים
+  // (נמדד-חי ב-key-census: אתרי ~/.secrets · הכספת · upload) אבל אף תפקיד-חי
+  // לא צופה בגיל-המדוד מול חלונות-הרוטציה. החוק הדטרמיניסטי: קובץ-מפתח
+  // קיים בכספת (stat נמדד) && אין key-rotation-watch חי/מוצע → פער פתוח.
+  // הצופה מדווח בלבד — הרוטציה עצמה חומר-בעלים (owner-gated בעיצוב).
+  try {
+    const vaultKeys = statFileSafe("/home/z/saos-vault/agent-keys");
+    const secretsDir = statFileSafe(path.join(process.env.HOME ?? "/home/z", ".secrets"));
+    if (vaultKeys || secretsDir) {
+      candidates.push({
+        slug: "key-rotation-watch",
+        titleHe: "צופה-הרוטציה",
+        justification: `פער-רוטציה (v107): חומר-מפתח קיים באתרים-מדודים (כספת ${vaultKeys ? "✓" : "✗"} · home-secrets ${secretsDir ? "✓" : "✗"}) ואף-תפקיד-חי לא קורא גיל-מדוד מול חלונות-רוטציה (צפייה 30-יום · פריצה 90-יום) + סטיות-הרשאות (0600 מצופה) — צופה-הרוטציה מדווח ולעולם לא מסובב (רוטציה = חומר-בעלים)`,
+        fromIssue: "r12-key-rotation-watch:measured-age-unwatched"
+      });
+    }
+  } catch {
+    /* כנה — הגלאי לא זמין הסבב הזה */
   }
 
   // dedupe לפי slug (אותו תפקיד משני-מקורות — הקודם זוכה)

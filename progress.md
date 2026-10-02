@@ -6,54 +6,58 @@
 
 ## Last Updated
 
-2026-10-02T23:59Z · **גרסה**: 106.0.0 (THE LIVING HARNESS — merged lineage) · **git**: rebased onto origin/main (0ce67eb Task-18 + 01a144e Task-19) ← נקודת-הפתיחה של הגל-הזה (v105.1.0 3e3b55d)
+2026-10-03T00:05Z · **גרסה**: 107.0.0 (THE INVISIBLE GUARD) · **git**: rebased onto origin/main (a2cda0c Task-20) ← נקודת-הפתיחה של הגל-הזה (v106.0.0 add6d3d)
 
 ## Current Objective
 
-**harness-engineering-adoption** (v106) — אימוץ harness engineering
-(בחינה נמדדה: validator 20/100 לפני; המשמעות: הפלטפורמה החיה עבדה אבל
-לא היתה ניתנת-להתחדשות-מובנית לסוכן חדש — בדיוק הפער מאחורי הריפוי-הידני
-של v100/v105.1). **הגל מוזג עם הגל-המקביל**: Task 19 דחף את פרוטוקול-
-הנחיתה (AGENTS+state-files+init) במקביל — v106 מרכיב את אותו-שלד כקוד-רץ
-(שער-7-שערים · API · זקיף-בצבא · טיק-שומר) ומקפל את הערך-הייחודי שלהם
-(BLOC-STATE · בדיקות-מבנה · כלל-אחים-אמיתיים).
+**invisible-guard** (v107) — הוראת הבעלים: "בחן כיצד ניתן לייעל את הריבונות
+והאוטונומיה של הסוכנים בעזרת זה" (destructive_command_guard). התשובה-הנמדדת:
+ריבונות מתרחבת רק כשטווח-הפיצוץ מוגבל — dcg הוא האסם-המכני; הצבא מקבל יותר
+אוטונומיה בגלל שהפקודות-הקטסטרופיות בלתי-אפשריות.
 
 ## Current State
 
 ### What is done (with evidence)
 
-- [x] `scripts/verify.sh` — שער-האימות (7 שלבים, fails-fast, עדות JSON אוטומטית) — **נמדד 7/7 pass**
-- [x] `scripts/init.sh` + `init.sh` (שורש, set -e) — מחזור-חיים + בדיקות-מבנה (package.json · schema-spine · mini-services · BLOC-STATE): הריפוי-הידני של v100/v105.1 הפך פקודה-אחת
-- [x] `AGENTS.md` — Startup Workflow · Verification Commands · Definition of Done · End of Session · 6-חוקי-בית · נתב-BLOC-STATE
-- [x] `feature_list.json` — 12 פיצ'רים עם סטטוס+ראיה+תלויות (כולל 2 שורות-מורשת-מיובאות-בכנות)
-- [x] `progress.md` + `session-handoff.md` — מצב-ההמשך
-- [x] `src/lib/saos/harness.ts` + `/api/saos/harness` — עין-ה-harness (peek ציבורי + verify fail-closed) — **נמדד חי 200**
-- [x] `harness-sentinel` תפקיד מוצע אוטונומית (מקור-7 בגלאי-הפערים) + מבצע `harness-audit` ב-role-workers (קצב-6-שעות)
-- [x] keeper v48.0.0: טיק-harness (peek כל-30דק' + הרצת-שער כשהראיה בת-6-שעות)
-- [x] `docs/HARNESS-ENGINEERING-ADOPTION.md` — הראיה + ה-roast של הקורס
-- [x] `broadcasts/2026-10-02-the-living-harness.md` — פיסת-SEO בתור (git-public)
-- [x] מיזוג-אחים נמדד-חי: push נדחה (origin 2-קדימה: Task-18+Task-19) → rebase-כירורגי, שני-הקווים-שרדו
+- [x] dcg v0.15.2 מותקן+מאומת (checksum, selftest) · `.dcg.toml` בתוך-הגיט
+      (enforcement-only: filesystem·git·disk·sqlite·secret_disclosure) ·
+      strict_git נדחה-מדידה (חוסם חוק-בית `pull --rebase`)
+- [x] `src/lib/saos/guard.ts` — guardTest/guardedBash/guardStatus; חוזה-נמדד-חי:
+      שדה-decision ב-JSON הוא האמת (warn = exit-0 בברירת-מחדל — נתפס-חי)
+- [x] `scripts/guard-selftest.ts` — 13/13 (deny·allow·warn·הקשר·פטור-tmp), artifact
+- [x] `verify.sh` שער-10: +gate-clear(park) · +web-resume · +guard — **VERDICT=pass 10/10**
+- [x] שיעור-ה-OOM (×6 נתפסו-חי): sentinel מנותק · gate-park/resume (keeper
+      v48.2.0, loopback) · tsc --incremental (32→5ש') · eslint --cache (36→3ש') ·
+      NODE_OPTIONS cap 768MB · turbopackMemoryLimit 640MB · קווי-מיחזור 1250/1350
+- [x] הצבא: keeper+gate-agent משמרים את spawn-יהם; מקור-8 מגייס בעצמו את
+      צופה-הרוטציה; harness-sentinel + key-rotation-watch **active** בזהות-אמת
+      (run-worker → detached → artifact pass 10/10)
+- [x] **r12-key-rotation-watch נסגר**: rotation-watch-2026-10-02.json — 11 קבצים,
+      maxAge 54ש' (ok), 5 סטיות-FUSE (סביבה, לא פרצה — תועד); חלונות 720/2160ש'
+- [x] AGENTS.md חוק-7 · docs/DCG-ADOPTION.md (הבחינה+ה-roast) · broadcast בתור
 
 ### What is left
 
-- [ ] ורדקט-מלא: validator ≥90/100 · verify.sh pass · tsc/lint · E2E
-- [ ] push + ורדקט origin (הקומיט-האחרון של הריבונות עצמה)
+- [ ] E2E-דפדפן של הגל (desktop+mobile, v107 בסרגל, אפס-שגיאות)
+- [ ] push + ורדקט origin (0/0)
 
 ## Recommended Next Step
 
-1. הרץ `bash scripts/verify.sh` → צפה verdict=pass (7/7)
-2. הרץ את ה-validator שלהם מול הריפו → תעד את הציון-אחרי-המיזוג
-3. push → ורדקט `git log origin/main -1` — 0/0
+1. E2E: דפדפן → `/` → v107 בסרגל · אפס-שגיאות · פוטר-נדחף
+2. `git pull --rebase` → commit → push → ורדקט `git log origin/main -1`
+3. סבב-השומר הבא יריץ את סבב-הפועלים עם 6 תפקידים-חיים (5 הקיימים + key-rotation-watch)
 
 ## Blockers (כנים)
 
-- אין חוסמים טכניים. `vault-passphrase-arm` הוא owner-gated **בעיצוב** —
-  הדבר-היחיד שיכול לחכות, והוא לא חוסם כלום (דוקטרינת אפס-המתנה v105).
-- מהמורשת-המקבילה (Task-19, כנה): פריטים-owner-only של-חומר-מפתח שייכים
-  לאחוזת-steem, לא לכאן.
+- אין חוסמים טכניים. `vault-passphrase-arm` — owner-gated בעיצוב (לא חוסם כלום).
+- FUSE-מאונט `upload/` מתעלם מ-chmod (נמדד-חי) — העתקי-staging יישארו 777;
+  ההגנה האמיתית: בתי-הכספת הקנוניים + מעטפת-הצפה. דורש-תשומת-לב-בעלים בלבד
+  אם ירצה להזיז את נקודת-העגינה.
 
 ## Next Session (הצעד-החיצוני אחרי-הגל-הזה)
 
-`r12-key-rotation-watch` + `keeper-feat-006-observation` (todo) — גלאי-סף-רוטציה
-שקורא גיל-מדוד מ-key-census וחלונות-תצפית-שומר (זמן, לא קוד); ואז הפעלת
-harness-sentinel בזהות-אמת בסבב-השומר.
+- allowlist-ממושטר: אם פועל נתקל ב-deny-חוזה-שקרי — התיקון הוא קומיט-קונפיג
+  (לעולם לא הרחבה-שקטה) + עדכון סוללת-האמת.
+- dcg `allow-once`-מבוקר לשעות-חירום (מתועד ב-OpLog) — טרם-מווסת.
+- חבילות-הגנה לפי-התפשטות: אם האחוזה תצמיח aws/k8s — מפעילים את החבילות
+  ב-.dcg.toml (זה בדיוק הערוץ-המתוכנן).

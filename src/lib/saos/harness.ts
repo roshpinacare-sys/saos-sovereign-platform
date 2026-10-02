@@ -22,7 +22,9 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { spawn } from "node:child_process";
 import { SAOS_VERSION } from "./version";
+import { guardStatus, type GuardStatus } from "./guard";
 
 /** קבצי-השלד — המצב שהסשן-הבא תלוי בו (5 תת-המערכות) */
 export const HARNESS_FILES: Array<{ path: string; subsystem: "instructions" | "state" | "verification" | "scope" | "lifecycle"; he: string }> = [
@@ -62,6 +64,8 @@ export interface HarnessPeek {
   subsystems: Record<string, { present: boolean; files: string[] }>;
   features: FeatureSummary;
   lastVerify: { file: string; verdict: string; measuredAt: string; pass: number; fail: number; ageHours: number | null } | null;
+  /** v107 · המשמר-הבלתי-נראה — מצב-הגנת-הריצה של הצבא (קריאה-בלבד, אפס-תוכן) */
+  guard: GuardStatus;
   measuredAt: string;
 }
 
@@ -151,6 +155,7 @@ export function harnessPeek(): HarnessPeek {
     subsystems,
     features: readFeatureList(),
     lastVerify: latestVerifyEvidence(),
+    guard: guardStatus(),
     measuredAt: new Date().toISOString()
   };
 }
@@ -163,6 +168,59 @@ export interface HarnessVerifyResult {
   ms: number;
   evidenceFile: string | null;
   tail: string;
+}
+
+/** v107 · שיעור-ה-OOM (נתפס-חי 2026-10-02): השער-הכבד רץ בתהליך-עצמאי —
+ *  next-server רק מצית ומציץ ב-artifact. דפוס-ההישרדות: setsid/spawn-detached
+ *  שורד גם-מוות של ההורה; ההוכחה נשארת בקובץ, לא בזיכרון-תהליך. */
+export function triggerHarnessVerifyDetached(): { triggered: boolean; pid: number | null } {
+  try {
+    const zdir = path.join(process.cwd(), ".zscripts");
+    fs.mkdirSync(zdir, { recursive: true });
+    const out = fs.openSync(path.join(zdir, "harness-sentinel.log"), "a");
+    const child = spawn("bun", ["scripts/role-worker-run.ts", "harness-sentinel"], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: ["ignore", out, out]
+    });
+    child.unref();
+    fs.closeSync(out);
+    return { triggered: true, pid: child.pid ?? null };
+  } catch {
+    return { triggered: false, pid: null };
+  }
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+export interface DetachedVerifyPoll {
+  state: "pass" | "fail" | "running";
+  pass: number;
+  fail: number;
+  measuredAt: string | null;
+  evidenceFile: string | null;
+  waitedMs: number;
+}
+
+/** הצתה-מנותקת + תצפית-חסומה: מחכים עד ~110ש' לעדות-טרייה (השער נמדד 40-60ש');
+ *  אם לא הגיעה — "running" כנה, העדות תגיע כקובץ (לעולם לא שקר-ירוק). */
+export async function verifyDetachedWithPoll(pollBudgetMs = 110_000): Promise<DetachedVerifyPoll> {
+  const before = latestVerifyEvidence();
+  const t0 = Date.now();
+  const trig = triggerHarnessVerifyDetached();
+  if (!trig.triggered) {
+    return { state: "running", pass: 0, fail: 0, measuredAt: null, evidenceFile: null, waitedMs: 0 };
+  }
+  const deadline = t0 + pollBudgetMs;
+  while (Date.now() < deadline) {
+    await sleep(5_000);
+    const now = latestVerifyEvidence();
+    const fresh = now && (!before || now.file !== before.file || now.measuredAt !== before.measuredAt);
+    if (fresh) {
+      return { state: now!.verdict === "pass" ? "pass" : "fail", pass: now!.pass, fail: now!.fail, measuredAt: now!.measuredAt, evidenceFile: now!.file, waitedMs: Date.now() - t0 };
+    }
+  }
+  return { state: "running", pass: 0, fail: 0, measuredAt: before?.measuredAt ?? null, evidenceFile: before?.file ?? null, waitedMs: Date.now() - t0 };
 }
 
 /** הרצת-שער-האימות בפועל — bash scripts/verify.sh (fails-fast, עדות JSON אוטומטית) */

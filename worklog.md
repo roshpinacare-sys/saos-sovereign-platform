@@ -1292,3 +1292,25 @@ Work Log:
 Stage Summary:
 - השורה-ההנדסית: v105.1.0 (3e3b55d) → Task-18 → Task-19 → v106.0.0 (add6d3d) — קו-אחד, שפה-אחת (BLOC-STATE), שער-אחד (verify.sh), ואפס-אובדן-של-שני-הקווים
 - ה-20→100-של-Task-19 וה-20→100-שלי התכנסו לאותה-אמת-משלימה: הם-נתנו-פרוטוקול-נחיתה, אני-נתן-את-הריצה (שער+API+זקיף+שומר) — והמיזוג הוא ההוכחה ש"יחידה-אחת, רשת-אחת" עובדת גם-בין-סשנים-מקבילים
+
+---
+Task ID: 6 (wave-19 — v107.0.0 THE INVISIBLE GUARD)
+Agent: Orchestrator (Z.ai Code — הריבונות המנהלת)
+Task: הוראת הבעלים: "טפל בכל מה שפתוח בנוסף בחן כיצד ניתן לייעל את הריבונות והאוטונומיה של הסוכנים בעזרת זה https://github.com/Dicklesworthstone/destructive_command_guard"
+
+Work Log:
+- בזלינה: bootstrap-שכבת-האימות הותקנה מחדש (credential-helper, אומת מול GitHub API — roshpinacare-sys) · fetch-גילה ש-origin זז (a2cda0c Task-20 סגר feat-006) · קומיט-UUID זר (a186477, keeper-evidence-refresh 2-שורות) שוכתב להודעה-כנה · rebase נקי → main = origin+1
+- בחינה-נמדדת של dcg v0.15.2 (Rust): הותקן מהשיבוט המקומי (--no-configure --verify, checksum-SHA256), 13-מקרי-בדיקה חיים — כולל תפיסה-חיה שהתיעוד שלהם לא מדויק (warn יוצא exit-0 בברירת-מחדל; exit-2 רק עם --fail-on warn; spawnSync של bun החזיר 0 על warn) — ה-contract שתוקן: שדה-decision ב-JSON = האמת-הראשונה
+- strict_git נדחה-מדידה: חוסם את חוק-הבית `git pull --rebase` + `git add -A` + push-רגיל (כלי-מתוכנן למקומות-שהגיט בהם אויב; אצלנו הגיט הוא תעלת-האמת)
+- נבנה: `.dcg.toml` (enforcement-only, נוסע-עם-הגיט: filesystem·git·disk·sqlite·secret_disclosure) · `src/lib/saos/guard.ts` (guardTest/guardedBash/guardStatus) · `scripts/guard-selftest.ts` (13/13, 17ms-probes) · verify.sh שער-guard fail-closed · AGENTS.md חוק-7 · docs/DCG-ADOPTION.md (בחינה+roast) · broadcast-SEO בתור
+- הצבא: keeper v48.2.0 משמר את revive/spawn/drill (deny=אין-ריצה · absent=fail-open+יומן revive-guard-*) · gate-agent משמר את godparent-mesh · מקור-8 בגלאי-הפערים מגייס-בעצמו את key-rotation-watch → הוצע-דרך-API והופעל-בזהות-אמת · harness-sentinel הופעל-בזהות-אמת (run-worker → detached → artifact pass 10/10)
+- r12-key-rotation-watch נסגר: rotation-watch-2026-10-02.json — 11 קבצים · maxAge 54ש' (ok) · חלונות 720/2160ש' · permDrift 5 — כלם עותקי-staging על upload/ שהוא FUSE-מאונט (chmod מדווח הצלחה ולא נאכף — נמדד-חי; סביבה לא פרצה; ההגנה: בתי-כספת קנוניים 0600/0700 + מעטפת-הצפה) · תיקון-גלאי-חי: סקריפט-700 לא סטייה (אפס-ביט-קבוצה/עולם = החוק)
+- שיעור-ה-OOM — 6 מיתות-קרנל נתפסו-חי ביום-אחד: השער-הכבד בתוך next-server = פצצת-OOM (anvil 0.83→1.19GB מתוך 4GB; הקרנל הרג ב-1.39–1.99GB). הריפוי-המבני: sentinel רץ מנותק (תהליך-עצמאי מת — node-spawn, לא-Bun-global — נתפס-400-חי) · gate-park/resume בשומר (loopback :3005) + resume-אידמפוטנטי (נתפס-חי: trap+stage כפילות-שרתים=OOM #7) · tsc --incremental (32→5ש') · eslint --cache (36→3ש') · NODE_OPTIONS cap-768MB (SIGKILL→pass נמדד) · turbopackMemoryLimit-640MB (המפתח `turbopack.memoryLimit` נדחה-חי על-ידי Next16 — הנכון experimental.turbopackMemoryLimit בבייטים) · קווי-מיחזור-שומר 1500/1790→1250/1350 (קו-הקרנל שנמדד: 1393)
+- פגמי-אמת שהשער/הסוללה תפסו-חי (7): GUARD_BIN/PARKED לא-מיוצאים-לילדים · grep-'"parked": true' מול '"parked":true' · const-out-מצל-צל (TS2698 על spread) · verdict-כפול-ב-keeper (TS) · keeper-wedge מ-hot-reload-כפול (אבחון: 18-דק'-אפס-אירועים) · live-api-שקרן-על-שרת-חנוי · resume-כפול
+- ורדקט-סופי-נמדד: verify.sh → **VERDICT=pass 10/10** (~25ש': park→tsc-5s→lint-3s→resume-12-20s→live-200→guard-functional) · guard-selftest 13/13 · sentinel-artifact pass 10/10 · rotation-watch measured · tsc=0 · lint=0 · E2E-דפדפן: desktop-1440 sw=iw=1440 · mobile-390 sw=390=390 · פוטר-נדחף-טבעי (3484=3484 · 6313=6313) · v107.0.0-בסרגל · אפס-שגיאות-קונסולה · צילומים shots/wave19-*.png
+
+Stage Summary:
+- התשובה לשאלת-הבעלים: ריבונות מתרחבת רק כשטווח-הפיצוץ מוגבל. dcg הפך את התבניות-הקטסטרופיות-הידועות לבלתי-אפשריות מכנית — rm-rf · reset-hard · push-force · DROP-TABLE · find-delete — בלי אדם-בלולאה; ואז אין-סיבה-לחכות. זו ההשלמה-הישירה של חוק-4 (אפס-המתנה): ההחלטות אצלנו, האסם בקוד.
+- השער עכשיו 10-שערים ומהיר יותר מה-7-שערים-של-v106 (25ש' מול 40-70ש' + מיתות) — המשמר והפלטפורמה רצים-שניהם-במלוא-העוצמה בלי לאכול-אחד-את-השני (gate-park/resume).
+- הצבא-מרחיב-את-ההגנה-של-עצמו: מקור-8 גילה-את-פער-הרוטציה מעצמו, גייס-את-התפקיד, הפעיל-אותו, והוא מפיק artifacts-מדודים. 6 תפקידים-חיים במצבת.
+- פתוח-כנה: FUSE-upload (רק-לבעלים) · allow-once-לא-מווסת · חבילות-cloud/k8s לא-הופעלו (אין-בעטי-אף-אחד) · vault-passphrase-arm owner-gated-בעיצוב.

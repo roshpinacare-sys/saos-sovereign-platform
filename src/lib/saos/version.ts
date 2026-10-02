@@ -444,10 +444,51 @@
  *    נמדדת שמכריעה-בעצמה עם קול-ציבורי; מה שהם מכנים harness אצלנו רץ.
  */
 
-export const SAOS_VERSION = "106.0.0";
+/**
+ * v107 המשמר-הבלתי-נראה (THE INVISIBLE GUARD) — הוראת הבעלים: "בחן כיצד
+ * ניתן לייעל את הריבונות והאוטונומיה של הסוכנים בעזרת זה" על
+ * Dicklesworthstone/destructive_command_guard (dcg v0.15.2 — Rust,
+ * PreToolUse-hook, 50+ חבילות-אבטחה, robot-mode JSON). התשובה-הנמדדת:
+ * ריבונות מתרחבת רק כשטווח-הפיצוץ מוגבל — צבא אוטונומי שלא יכול להרוס,
+ * לא צריך לחכות לאישור. האסם-המכני: rm -rf · git reset --hard · push --force
+ * · DROP TABLE · find -delete — נעצרים לפני-ריצה, בלי אדם בלולאה.
+ *
+ * 1. האימוץ: dcg v0.15.2 מותקן (~/.local/bin/dcg, checksum אומת, selftest
+ *    עבר) + קונפיג-פרויקט .dcg.toml בתוך-הגיט (enforcement-only: packs
+ *    filesystem·git·disk·sqlite·secret_disclosure — כל-שיבוט מקבל את
+ *    אותה-תבנית-הגנה) + קונפיג-משתמש מראה. strict_git נדחה-מדידה: הוא
+ *    חוסם את חוק-הבית `git pull --rebase` ואת זרימת-הפרסום שלנו.
+ * 2. הפרימיטיב: src/lib/saos/guard.ts — guardTest/guardedBash/guardStatus;
+ *    החוזה-נמדד-חי: שדה-ה-decision ב-JSON הוא האמת (warn יוצא exit-0
+ *    כברירת-מחדל — spawnSync של bun תפס את הפער וסוללת-האמת תיקנה את
+ *    מיפוי-הקודים); צנזורת-סודות מובנית בפלט (secret_disclosure).
+ * 3. סוללת-האמת: scripts/guard-selftest.ts — 13 מקרים (deny·allow·warn·
+ *    זיהוי-הקשר·פטור-tmp) מול dcg-אמיתי → artifact; נמדד 13/13, 17ms.
+ * 4. השער: verify.sh שער-10 — toolchain · gate-clear · deps · tsc · lint ·
+ *    db-sync · harness-files · web-resume · live-api · guard (fail-closed:
+ *    אין "בוצע" בלי הוכחה שהמשמר חי).
+ * 5. הצבא: השומר (keeper v48.2.0) משמר כל-פקודת-shell שלו דרך המשמר
+ *    (revive/drill — deny=אין-ריצה, absent=fail-open כנה + יומן); ההרל
+ *    (gate-agent) משמר את spawn-ה-runner שלו; מקור-8 בגלאי-הפערים מגייס
+ *    בעצמו את צופה-הרוטציה — הצבא מרחיב-את-ההגנה של עצמו.
+ * 6. שיעור-ה-OOM (נתפס-חי ×6 באותו-יום): השער-הכבד בתוך next-server =
+ *    פצצת-OOM על מכונת-4GB (anvil מחזיק 0.83GB; הקרנל הרג את השרת ב-
+ *    1.39–1.99GB). הפתרון-המבני: sentinel רץ מנותק (תהליך-עצמאי מת) +
+ *    gate-park/resume (השער חונה את השרת לשלבים-הכבדים ומחזיר אותו חם
+ *    ל-live-api) + tsc --incremental + eslint --cache (36ש'→2ש') +
+ *    turbopackMemoryLimit 640MB + קווי-המיחזור של השומר מכווננים לקו-הקרנל
+ *    שנמדד מחדש (1250/1350). השער: 10/10 ב-~25ש' — מהיר ובטוח יותר.
+ * 7. r12-key-rotation-watch נסגר: גלאי-סף קורא גיל-מדוד מ-key-census מול
+ *    חלונות (צפייה 30-יום · פריצה 90-יום) + סטיות-הרשאות (0600); נמדד-חי:
+ *    11 קבצים, max-age 54ש', 5 סטיות-על-FUSE-מאונט (chmod לא נאכף שם —
+ *    סביבה, לא פרצה; ההגנה האמיתית: בתי-הכספת הקנוניים 0600/0700 + מעטפת-
+ *    הצפה). הרוטציה עצמה — חומר-בעלים; הצופה מדווח, לעולם לא מסובב.
+ */
+
+export const SAOS_VERSION = "107.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "המסגרת-החיה (THE LIVING HARNESS)";
+export const SAOS_CODENAME = "המשמר-הבלתי-נראה (THE INVISIBLE GUARD)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

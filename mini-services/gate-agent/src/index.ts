@@ -554,8 +554,26 @@ function godparentMesh(): void {
     // hardcoded absolute layout; the log lands in the repo's .zscripts dir.
     const meshDir = path.resolve(import.meta.dir, "..", "..", "evm-mesh");
     const zscriptsDir = path.resolve(import.meta.dir, "..", "..", "..", ".zscripts");
+    // v107 · THE INVISIBLE GUARD: every shell-string passes dcg before it runs.
+    // Contract measured: JSON decision is the truth (warn exits 0 by default).
+    // Fail-open on absent/error: godparent revival is life-critical; the gate
+    // (verify.sh stage 8) owns guard health fail-closed.
+    const meshCmd = `cd ${meshDir} && exec bun run dev >> ${zscriptsDir}/mini-service-evm-mesh.log 2>&1`;
+    let guardBlocked = false;
+    try {
+      const gp = Bun.spawnSync([GUARD_BIN_GA, "--robot", "test", meshCmd], { timeout: 5_000 });
+      const gout = gp.stdout ? new TextDecoder().decode(gp.stdout) : "";
+      const gd = (() => { try { return (JSON.parse(gout) as { decision?: string }).decision ?? "error"; } catch { return gp.exitCode === 1 ? "deny" : "error"; } })();
+      if (gd === "deny") {
+        journal("godparent", `guard DENIED mesh spawn — no execution (cmd-head: ${meshCmd.slice(0, 60)})`);
+        guardBlocked = true;
+      } else if (gd === "warn") journal("godparent", `guard warned (graduated) — proceeding with mesh spawn`);
+    } catch {
+      journal("godparent", `guard absent/error — proceeding fail-open (godparent is life-critical)`);
+    }
+    if (guardBlocked) return;
     Bun.spawn(
-      ["bash", "-c", `cd ${meshDir} && exec bun run dev >> ${zscriptsDir}/mini-service-evm-mesh.log 2>&1`],
+      ["bash", "-c", meshCmd],
       { detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }
     );
     journal("godparent", `mesh runner seat empty (pid ${ownerPid || "none"} dead) — spawned detached from the herald (a long-running parent survives the session reaper); the runner takes the seat and drives the chain (v36)`);
@@ -564,6 +582,9 @@ function godparentMesh(): void {
   }
 }
 RT.timers.push(setInterval(() => godparentMesh(), 45_000));
+
+// v107 · THE INVISIBLE GUARD — dcg binary (same resolution as the keeper)
+const GUARD_BIN_GA = process.env.DCG_BIN ?? `${process.env.HOME ?? "/home/z"}/.local/bin/dcg`;
 
 Bun.serve({
   port: PORT,

@@ -5,11 +5,14 @@
  * את ה-artifacts תחת scripts/artifacts/ — העדות-הכתובה שנשארת בגיט:
  *   bun scripts/role-worker-run.ts fuel    → fuel-report-<YYYY-MM-DD>.json
  *   bun scripts/role-worker-run.ts estate  → estate-census-<YYYY-MM-DD>.json
+ *   bun scripts/role-worker-run.ts r12     → rotation-watch-<YYYY-MM-DD>.json
+ *   bun scripts/role-worker-run.ts harness-sentinel → harness-audit-<date>.json
  *   bun scripts/role-worker-run.ts all
  * כנות: מסילה לא-נגישה/אין-טוקן = לא-נמדד בתוך ה-artifact (לעולם לא מדומה).
  */
 
-import { runFuelCensus, runEstateCensus, writeArtifactFile, isWired, WORKER_BINDINGS } from "@/lib/saos/role-workers";
+import { runFuelCensus, runEstateCensus, runRotationWatch, writeArtifactFile, isWired, WORKER_BINDINGS } from "@/lib/saos/role-workers";
+import { runHarnessVerify } from "@/lib/saos/harness";
 
 async function main(): Promise<number> {
   const op = process.argv[2] ?? "all";
@@ -46,8 +49,44 @@ async function main(): Promise<number> {
     if (!report.measured) failures += 1;
   };
 
+  // r12-key-rotation-watch — הפריט-הפתוק (progress.md): גלאי-סף על גיל מדוד.
+  const runR12 = async (): Promise<void> => {
+    const report = await runRotationWatch();
+    const meta = writeArtifactFile("rotation-watch", report);
+    results.push({
+      executor: "rotation-watch",
+      role: "key-rotation-watch",
+      measured: report.measured,
+      file: meta.file,
+      bytes: meta.bytes,
+      digest: meta.digest.slice(0, 16),
+      extra: { worst: report.worst, maxAgeHours: report.maxAgeHours, keyFilesConsidered: report.keyFilesConsidered, permDriftCount: report.permDriftCount, windows: report.windows }
+    });
+    if (!report.measured) failures += 1;
+  };
+
+  // v107 — זקיף-המסגרת בזהות-אמת: מריץ את השער מתוך תהליך-עצמאי (דפוס-הישרדות:
+  // השער הכבד לעולם לא בתוך next-server — שיעור-ה-OOM שנתפס-חי 2026-10-02:
+  // global_oom הרג את next-server ב-RSS 1.99GB כש-tsc רץ כילד של ה-API).
+  const runHarnessSentinel = async (): Promise<void> => {
+    const report = await runHarnessVerify();
+    const meta = writeArtifactFile("harness-audit", report);
+    results.push({
+      executor: "harness-audit",
+      role: "harness-sentinel",
+      measured: report.ok,
+      file: meta.file,
+      bytes: meta.bytes,
+      digest: meta.digest.slice(0, 16),
+      extra: { verdict: report.verdict, pass: report.pass, fail: report.fail, ms: report.ms }
+    });
+    if (!report.ok) failures += 1;
+  };
+
   if (op === "fuel" || op === "all") await runFuel();
   if (op === "estate" || op === "all") await runEstate();
+  if (op === "r12" || op === "all") await runR12();
+  if (op === "harness-sentinel") await runHarnessSentinel();
 
   const wiredSlugs = Object.keys(WORKER_BINDINGS).filter((s) => isWired(s));
   console.log(JSON.stringify({ ok: failures === 0, op, wiredSlugs, results, failures }, null, 2));
