@@ -1,0 +1,68 @@
+{
+  "format": "saos-state-snapshot",
+  "version": 1,
+  "exportedAt": "2026-10-02T13:32:25.986Z",
+  "source": "bootstrap:nowipe",
+  "counts": {
+    "agentRole": 2,
+    "opLog": 1,
+    "economyRun": 1
+  },
+  "digest": "7a5eb9dfc3b124258b8563e2acbd04abddf2e8871ea3b9d37987ede630eab276",
+  "tables": {
+    "agentRole": [
+      {
+        "id": 1,
+        "slug": "evm-fuel-attendant",
+        "titleHe": "דלק-EVM-מתאם",
+        "justification": "seed: fuel census role",
+        "origin": "auto",
+        "fromIssue": null,
+        "status": "active",
+        "proposedBy": "gap-detector",
+        "activatedAt": "2026-10-01T10:00:00.000Z",
+        "lastArtifactAt": "2026-10-02T13:30:00.000Z",
+        "artifactNote": "fuel-census → fuel-census-2026-10-02.json (d1f2449c)",
+        "at": "2026-10-02T13:32:05.482Z"
+      },
+      {
+        "id": 2,
+        "slug": "estate-scout",
+        "titleHe": "סוקר-אחוזה",
+        "justification": "seed: estate census role",
+        "origin": "auto",
+        "fromIssue": null,
+        "status": "proposed",
+        "proposedBy": "gap-detector",
+        "activatedAt": null,
+        "lastArtifactAt": null,
+        "artifactNote": "",
+        "at": "2026-10-02T13:32:05.483Z"
+      }
+    ],
+    "opLog": [
+      {
+        "id": "opseed0000000000000000001",
+        "op": "workers.run",
+        "detail": "{\"slug\":\"evm-fuel-attendant\",\"executor\":\"fuel-census\",\"digest\":\"d1f2449c\"}",
+        "createdAt": "2026-10-02T13:32:05.483Z"
+      }
+    ],
+    "economyRun": [
+      {
+        "id": 1,
+        "stage": 1,
+        "mode": "measured",
+        "trigger": "keeper-tick",
+        "streams": "[{\"name\":\"work-orders-paid\",\"amountUsdMicro\":268}]",
+        "totalPerDayUsdMicro": 276,
+        "reinvestedUsdMicro": 0,
+        "retainedUsdMicro": 0,
+        "proofTxids": "[]",
+        "receiptDigest": null,
+        "notes": "wave-16 roundtrip seed",
+        "at": "2026-10-02T13:32:05.480Z"
+      }
+    ]
+  }
+}

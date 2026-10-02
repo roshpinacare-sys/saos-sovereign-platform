@@ -1,0 +1,253 @@
+{
+  "kind": "estate-census",
+  "role": "estate-scout",
+  "executor": "estate-census",
+  "measuredAt": "2026-10-02T13:31:35.533Z",
+  "root": "/home/z/git-audit",
+  "measured": true,
+  "localRepos": 16,
+  "githubMeasured": true,
+  "githubRepos": 2,
+  "rows": [
+    {
+      "name": "Adsmarket",
+      "local": true,
+      "branch": "main",
+      "headSha": "11c73c1da736804dcb4367e0ffd2ccbc78747b99",
+      "headSubject": "claims-guard: PASS at 2026-10-02T06:30:59Z",
+      "headAt": "2026-10-02T06:30:59Z",
+      "ageHours": 7,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "anchor-baseline",
+      "local": true,
+      "branch": "main",
+      "headSha": "85d8edfc85930f72723be9aa850753e1f4323079",
+      "headSubject": "baseline-integrity: PASS at 2026-10-02T07:28:12Z",
+      "headAt": "2026-10-02T07:28:13Z",
+      "ageHours": 6,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "Console",
+      "local": true,
+      "branch": "main",
+      "headSha": "35fb83b5d1b41b7070d50a34eb141f9964881cf5",
+      "headSubject": "15-b: integration integrity after r147-b — wallet shared mobile layer re-wired, rejected/stale honest states restored on top of the measured no-relay machine (b",
+      "headAt": "2026-10-02T11:59:58Z",
+      "ageHours": 1,
+      "github": {
+        "measured": true,
+        "pushedAt": "2026-10-02T13:26:52Z",
+        "defaultBranch": "main",
+        "archived": false
+      }
+    },
+    {
+      "name": "Defi",
+      "local": true,
+      "branch": "main",
+      "headSha": "2b56ec676cffe539fd439839a1e1f4623124b4a7",
+      "headSubject": "money-mover: reprice receipt 2026-10-02T11:04:19.256Z",
+      "headAt": "2026-10-02T14:04:20+03:00",
+      "ageHours": 2,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "Domain",
+      "local": true,
+      "branch": "main",
+      "headSha": "8d4e3785e992cd071327d944dcade0af103c36bb",
+      "headSubject": "treasury-route: capital book + router mirror · 2026-10-02T13:14:54Z",
+      "headAt": "2026-10-02T13:14:54Z",
+      "ageHours": 0,
+      "github": {
+        "measured": true,
+        "pushedAt": "2026-10-02T13:26:22Z",
+        "defaultBranch": "main",
+        "archived": false
+      }
+    },
+    {
+      "name": "Project-files",
+      "local": true,
+      "branch": "main",
+      "headSha": "8d61f0dcba89183c23d26f9bd23ea981496612a2",
+      "headSubject": "archive-keeper: PASS at 2026-10-01T19:51:32Z",
+      "headAt": "2026-10-01T19:51:32Z",
+      "ageHours": 17,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "roshpina",
+      "local": true,
+      "branch": "main",
+      "headSha": "6c4a7260245331c2386cd1abe72affea867a0c84",
+      "headSubject": "controls-audit: PASS at 2026-10-02T08:34:26Z",
+      "headAt": "2026-10-02T08:34:26Z",
+      "ageHours": 4,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "saos-control-center",
+      "local": true,
+      "branch": "main",
+      "headSha": "6fac9e6b1ebba3fbd68c4c4ab650e10fd784f8fb",
+      "headSubject": "control-center-build: PASS at 2026-10-01T19:49:40Z",
+      "headAt": "2026-10-01T19:49:40Z",
+      "ageHours": 17,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "saos-dex",
+      "local": true,
+      "branch": "main",
+      "headSha": "5bdcec78c44a11e07cd2a05307719c14d4d44626",
+      "headSubject": "grid-heartbeat(twin): tick 2026-10-02T11:22:55Z [skip ci]",
+      "headAt": "2026-10-02T11:22:55Z",
+      "ageHours": 2,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "saos-jummper",
+      "local": true,
+      "branch": "main",
+      "headSha": "fd15905d5d4e036831917ea6987c0cc11a61dfe1",
+      "headSubject": "jumpper-tests: PASS at 2026-10-02T10:40:03Z",
+      "headAt": "2026-10-02T10:40:09Z",
+      "ageHours": 2,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "saos-sovereign-foundry",
+      "local": true,
+      "branch": "main",
+      "headSha": "935176a7c6c9f2f0d91a67dbff5ccb63eba269e0",
+      "headSubject": "foundry-selftest: PASS at 2026-10-01T19:53:38Z",
+      "headAt": "2026-10-01T19:53:38Z",
+      "ageHours": 17,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "saos-sovereign-platform",
+      "local": true,
+      "branch": "main",
+      "headSha": "4519eed5dbea810f03bc625f3d9f7f40074761f6",
+      "headSubject": "v102.0.0 — המוח-הכלכלי (THE ECONOMIC MIND): clodfarm postmortem roast (docs/CLODFARM-POSTMORTEM-ROAST.md — 7 measured findings: excellent ops layer, zero econom",
+      "headAt": "2026-10-02T12:34:16Z",
+      "ageHours": 0,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "Saosmartwallet",
+      "local": true,
+      "branch": "main",
+      "headSha": "4ac7ef2101f12d7de863272142939c280d47be89",
+      "headSubject": "wallet-verify: PASS at 2026-10-01T19:45:51Z",
+      "headAt": "2026-10-01T19:45:52Z",
+      "ageHours": 17,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "Sdk",
+      "local": true,
+      "branch": "main",
+      "headSha": "122676dbfbaba9b651f06525891a4ff6b252da4a",
+      "headSubject": "sdk-verify: PASS at 2026-10-02T09:37:58Z",
+      "headAt": "2026-10-02T09:37:58Z",
+      "ageHours": 3,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "steem",
+      "local": true,
+      "branch": "main",
+      "headSha": "5fad60a5aef5ded778b1de961d396e4f4e138d5b",
+      "headSubject": "economy-engine first-light: real 100% curation votes on HIVE + BLURT from @lsa — txids + 2/3-node read-backs inside (Task 16-a)",
+      "headAt": "2026-10-02T13:28:47Z",
+      "ageHours": 0,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    },
+    {
+      "name": "Zip",
+      "local": true,
+      "branch": "main",
+      "headSha": "46b44503375025cb2a83ca53108795ad3e2cc92d",
+      "headSubject": "security: gitleaks triage Task 15 — 8 findings all public-replay-book GCM envelope FP; narrow rule-level .gitleaks.toml (mirror of Console 14-a), negative-teste",
+      "headAt": "2026-10-02T13:02:34Z",
+      "ageHours": 0,
+      "github": {
+        "measured": false,
+        "pushedAt": null,
+        "defaultBranch": null,
+        "archived": null
+      }
+    }
+  ]
+}
