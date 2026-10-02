@@ -64,8 +64,11 @@ const AGENT = "headcorner";
  * (headcorner-seed identities.evm, vault-registry headcorner, the
  * address holding the network's real ETH). The derived key must
  * reproduce this address or NOTHING is signed.
+ * wave-16: the value lives in ./anchored-identity (dependency-free leaf
+ * module) — re-exported here unchanged for every existing importer.
  */
-export const ANCHORED_EVM_ADDRESS = "0x01Bd2879Cd9990Cb4B25cD6DE47f378Dc5D18B37";
+export { ANCHORED_EVM_ADDRESS } from "./anchored-identity";
+import { ANCHORED_EVM_ADDRESS } from "./anchored-identity";
 
 /** Public path of the sovereign key — documentation value, not a secret. */
 export const EVM_DERIVATION = "cornerstone-24words → BIP39 → m/44'/60'/0'/0/0 (בית-האוצר)";
