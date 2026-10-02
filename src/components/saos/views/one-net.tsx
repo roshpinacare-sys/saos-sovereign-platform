@@ -70,10 +70,36 @@ interface CrossAuditSnapshot {
     thisRepo: { name: string; reachable: boolean; commits24h: number; subjects: string[] };
     partnerRepos: Array<{ name: string; reachable: boolean; commits24h: number | null; latestSubject: string | null }>;
     partnerReachable: number;
-    worklog: { records: Array<{ taskId: string; agent: string; title: string }>; sectionsScanned: number };
+    worklog: {
+      records: Array<{ taskId: string; agent: string; title: string }>;
+      sectionsScanned: number;
+      /** v101 שער-איכות — fail-honest: measured=false כשהוורקלוג לא נקרא */
+      quality?: {
+        measured: boolean;
+        error?: string;
+        sections: Array<{ taskId: string; ok: boolean; missing: string[] }>;
+        pass: number;
+        total: number;
+        estateScore: string;
+      };
+    };
     totals: { reposScanned: number; commits24h: number; workRecords: number };
   };
   rows: Array<{ id: string; at: string; detail: CrossAuditRowDetail | null }>;
+  error?: string;
+}
+
+// ─── v101 גיוס-מהמצאי — טיפוס-התגובה של חסימת-ה-mobilization ───────────────
+
+interface MobilizationSnapshot {
+  ok: boolean;
+  mobilization?: {
+    censusAgents: number;
+    activeRoles: number;
+    proposedRoles: number;
+    retiredRoles: number;
+    capHeld: boolean;
+  };
   error?: string;
 }
 
@@ -235,7 +261,10 @@ function SelfRecruitPanel() {
  */
 function CrossAuditPanel() {
   const live = useLive<CrossAuditSnapshot>("/api/saos/cross-audit", 30000);
+  // v101 גיוס-מהמצאי — המצבת מול המצאי (אותו-GET של הגיוס-העצמי; עצל בצד-השרת)
+  const roles = useLive<MobilizationSnapshot>("/api/saos/agents-roles", 30000);
   const d = live.data;
+  const mob = roles.data?.mobilization ?? null;
 
   if (!d) {
     return (
@@ -299,7 +328,7 @@ function CrossAuditPanel() {
       <PanelHeader
         icon={<GitCompare size={15} />}
         title="ביקורת-עמיתים (Peer Cross-Audit) — מה כולם עשו בגיט"
-        sub='הוראת הבעלים "בדקו מה כל אחד עשה בגיט" — הריפו-הזה + ריפואי-השותפים (מניפסט-הדוחות) מול רישומי-הוורקלוג · קריאה-בלבד, נושאי-קומיטים ציבוריים בלבד · ריפו-לא-נגיש = "unreachable" כנה'
+        sub='הוראת הבעלים "בדקו מה כל אחד עשה בגיט" — הריפו-הזה + ריפואי-השותפים (מניפסט-הדוחות) מול רישומי-הוורקלוג · שער-איכות לכל סעיף Task ID · גיוס-מהמצאי · קריאה-בלבד, נושאי-קומיטים ציבוריים בלבד · ריפו-לא-נגיש = "unreachable" כנה'
       />
       <PanelBody>
         <div className="space-y-3">
@@ -326,6 +355,88 @@ function CrossAuditPanel() {
               נגישים עכשיו: {fmtInt(d.live.partnerReachable)}/{fmtInt(d.live.partnerRepos.length)} שותפים
             </span>
           </div>
+
+          {/* v101 שער-איכות סעיפי-הוורקלוג — estateScore + רשימת-נכשלים כנה */}
+          {(() => {
+            const q = d.live.worklog.quality;
+            if (!q || !q.measured) {
+              return (
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11.5px] text-zinc-400" dir="auto">
+                    שער-איכות סעיפי-הוורקלוג לא נמדד — כנה (אין ירוק בלי מדידה){q?.error ? `: ${q.error}` : ""}
+                  </p>
+                </div>
+              );
+            }
+            const failing = q.sections.filter((s) => !s.ok).map((s) => s.taskId);
+            return (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11.5px] text-zinc-300">שער-איכות סעיפי-הוורקלוג (Task ID)</span>
+                  <Tag tone={failing.length === 0 ? "green" : "gold"} dir="ltr">{q.estateScore}</Tag>
+                </div>
+                {failing.length === 0 ? (
+                  <p className="text-[10.5px] text-zinc-500 leading-relaxed" dir="auto">
+                    כל {fmtInt(q.total)} הסעיפים עוברים: Work-Log ≥3 שורות · Stage Summary · טוקן-מדידה אחד לפחות — אין סעיפים נכשלים (מצב-ריק כן).
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10.5px] text-zinc-500" dir="auto">סעיפים נכשלים ({fmtInt(failing.length)}):</span>
+                    {failing.slice(0, 6).map((id) => (
+                      <span
+                        key={id}
+                        className="rounded-md border border-amber-300/20 bg-amber-300/[0.06] px-1.5 py-0.5 text-[10px] font-mono text-amber-200/90"
+                        dir="ltr"
+                      >
+                        {id}
+                      </span>
+                    ))}
+                    {failing.length > 6 ? <span className="text-[10px] text-zinc-500" dir="ltr">+{fmtInt(failing.length - 6)} more</span> : null}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* v101 גיוס-מהמצאי — המצבת (census) מול המצבת-הרישומית (תפקידים) */}
+          {(() => {
+            if (!mob) {
+              return (
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11.5px] text-zinc-400" dir="auto">
+                    חסימת-הגיוס מהמצאי לא נמדדה — כנה{roles.error ? `: ${String(roles.error)}` : ""}
+                  </p>
+                </div>
+              );
+            }
+            return (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11.5px] text-zinc-300">גיוס-מהמצאי — המצבת מול רישום-התפקידים</span>
+                  <Tag tone={mob.capHeld ? "green" : "gold"}>{mob.capHeld ? "קאפ מוחזק (≤3 מוצעים)" : "קאפ נפרץ — כנה"}</Tag>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  {[
+                    { label: "סוכנים במצבת", v: mob.censusAgents, cls: "text-zinc-100" },
+                    { label: "תפקידים חיים", v: mob.activeRoles, cls: "text-emerald-300" },
+                    { label: "מוצעים", v: mob.proposedRoles, cls: "text-amber-300" },
+                    { label: "פרשים", v: mob.retiredRoles, cls: "text-zinc-400" }
+                  ].map((x) => (
+                    <div key={x.label} className="rounded-lg border border-white/[0.06] bg-white/[0.02] py-1.5">
+                      <p className={`text-base font-bold tabular-nums ${x.cls}`} dir="ltr">
+                        {fmtInt(x.v)}
+                      </p>
+                      <p className="text-[10px] text-zinc-500">{x.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10.5px] text-zinc-500 leading-relaxed" dir="auto">
+                  {fmtInt(mob.censusAgents)} ידיים אמת במדידת-המצבת מול {fmtInt(mob.activeRoles)} תפקידים חיים ברישום — הפער הזה הוא
+                  מה שגלאי-הפערים מגייס (סוכני-דופק בלי תפקיד מכסה → קצין-תהודת-מצבת · קומיטי-שותפים בלי מעכל → סופר-עיכול-האחוזה).
+                </p>
+              </div>
+            );
+          })()}
 
           {/* טבלת-האחוזה — ריפו · קומיטים · נושא אחרון (מקוצר) */}
           <div className="scroll-x-afford">

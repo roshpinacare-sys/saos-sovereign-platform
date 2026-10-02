@@ -8,8 +8,8 @@
  *   exchangeStatus() — האמת המלאה מהשרשרת: נכסים עטופים (עם הגיבוי
  *   האמיתי ממכ"ם-הנזילות — headcorner), בריכות x·y=k (רזרבות · מחיר
  *   בורסה · אורקל חי · סטייה · קופת-קציר · צמיחה אוטונומית), הסוחרים
- *   (HQ · אוצר-הבורסה · 8 חיילים), יומן Swap אמיתי (סריקת בלוקים,
- *   כמו ה-GridFill של המיקרו-גריד), האוצר הפנימי, וההוכחה שהשרת יושב
+ *   (HQ · אוצר-הבורסה · 8 חיילים · מנוע-היפוך-הממוצע v100 · סוחר-הרשת
+ *   v101), יומן Swap אמיתי (סריקת בלוקים, כמו ה-GridFill של המיקרו-גריד), האוצר הפנימי, וההוכחה שהשרת יושב
  *   על הרשת שלנו (eth_blockNumber/eth_chainId ישירות מבפנים — הבדיקה
  *   מהדפדפן דרך הפתח הציבורי היא הסמכות).
  *   exchangeQuote() — שער חי מהבריכה (quote של החוזה, ללא עלות).
@@ -176,6 +176,24 @@ export interface ExchangeMeanReversionView {
   recentTrades: Array<{ at: string; symbol: string; dir: string; amountIn: string; txid: string; devPct: number }>;
 }
 
+/** v101 — תצוגת סוחר-הרשת (GRID ROTATION): מראת של המנוע-השלישי, כמו ההיפוך */
+export interface ExchangeGridView {
+  enabled: boolean;
+  tickMs: number;
+  stepPct: number;          // מרווח בין-מדרגות (%)
+  levels: number;           // מספר מדרגות סביב ה-EMA (כולל-עוגן-האמצע)
+  capBps: number;           // גודל-מילוי כ-bps מרזרבת צד-הכניסה (≤400 — מתחת ל-500 של החוזה)
+  minGapPct: number;        // רצפת-מרווח מיזערית בין מדרגות (%)
+  maxFillsPerPool: number;  // תקרת-מילויים לכל בריכה בפעמה
+  emaAlpha: number;
+  warmup: number;
+  invocations: number;
+  fills: number;            // מילויי-רשת חיים (tx אמיתי) מאז-ומתמיד
+  pools: Array<{ symbol: string; ema: number | null; samples: number; levels: number[] | null }>;
+  lastFillAt: string | null;
+  recentFills: Array<{ at: string; symbol: string; dir: string; levelPct: number; amountIn: string; txid: string }>;
+}
+
 export interface ExchangeStatus {
   ok: boolean;
   error?: string;
@@ -199,6 +217,8 @@ export interface ExchangeStatus {
   recentSwaps: ExchangeSwapRow[];
   /** v100 — מנוע-היפוך-הממוצע (זרם-2): נצפה ומדיד כמו כל מספר אחר */
   meanReversion: ExchangeMeanReversionView;
+  /** v101 — סוחר-הרשת (GRID ROTATION, הסוחר-השלישי): נצפה ומדיד כמו כל מספר אחר */
+  grid: ExchangeGridView;
   treasury: {
     address: string;
     label: string;
@@ -555,6 +575,7 @@ async function buildStatus(): Promise<ExchangeStatus> {
       traders,
       recentSwaps,
       meanReversion: mrStatusView(),
+      grid: gridStatusView(),
       treasury: {
         address: treasury,
         label: "אוצר-הבורסה",
@@ -585,6 +606,7 @@ async function buildStatus(): Promise<ExchangeStatus> {
       traders: [],
       recentSwaps: [],
       meanReversion: mrStatusView(),
+      grid: gridStatusView(),
       treasury: { address: "—", label: "אוצר-הבורסה", balances: {}, harvested: {}, sweptToPayrollSaos: "0" },
       server: { gatewayOk: null, blockNumber: null, chainId: null, note: "SAOS-EVM לא ענתה מבפנים (honest)" },
       error: e instanceof Error ? e.message.slice(0, 160) : "קריאת בורסה נכשלה"
@@ -606,6 +628,7 @@ function notDeployed(artifactVersion: string, reason: string): ExchangeStatus {
     traders: [],
     recentSwaps: [],
     meanReversion: mrStatusView(),
+    grid: gridStatusView(),
     treasury: { address: "—", label: "אוצר-הבורסה", balances: {}, harvested: {}, sweptToPayrollSaos: "0" },
     server: { gatewayOk: null, blockNumber: null, chainId: null, note: reason },
     error: reason
@@ -1291,6 +1314,347 @@ export async function exchangeMeanReversionSweep(trigger: string): Promise<MrSwe
   }
 }
 
+// ─── v101 — זרם-3: סוחר-הרשת (GRID ROTATION) ───────────────────────────────
+//
+// הסוחר-השלישי לצד בוט-הארב' (אוצר) וסוחר-ההיפוך (mr): סביב אותו אמצע-EMA
+// נבנות מדרגות-רשת קבועות (ברירת-מחדל: 5 מדרגות במרווח ±0.4% — עוגן-אמצע
+// + 2 מדרגות-קנייה מתחת + 2 מדרגות-מכירה מעל). כשמחיר-הבריכה חוצה מדרגה
+// בין-פעמתיים (lastPrice → price) — מילוי אחד קטן אל-עבר-האיזון:
+// חציית-מדרגה-מתחת-לאמצע = קנייה · חציית-מדרגה-מעל-לאמצע = מכירה.
+//
+// גבולות-האמת (זהים לדוקטרינה של ה-hr/mr):
+//   - כל המספרים מקריאות-שרשרת חיות — אפס מחירים-סינתטיים.
+//   - גודל-מילוי: CAP_BPS (100 ברירת-מחדל, קשיח ≤400) מרזרבת צד-הכניסה —
+//     בתוך תקרת-החוזה swapCapBps 500; אבק נדחה בכנות (סף MIN_IN_WSAOS).
+//   - מקסימום 2 מילויים לכל בריכה בפעמה (MAX_FILLS_PER_POOL) · פעמה-אחת
+//     ב-60ש' מתואמת-מקום עם פעמת-ההיפוך (אותו-לב-מנוע, אותו single-flight).
+//   - רצפת-מרווח (MIN_GAP_PCT): מרווח-בין-מדרגות לא יורד מתחתיה — לעולם
+//     לא רשת-צפופה-מדי.
+//   - הכל fail-honest ועטוף: סוחר-רשת שנכשל לא יפיל את exchangeStatus()
+//     (זרם-קציר-הכלכלה תלוי בה) ולא יזרוק לעולם.
+//   - EMA עצמאי לכל-בריכה (אותה-נוסחה ואותם פרמטרים כמו ההיפוך —
+//     alpha 0.25 · warmup 3) — אין-תלות-בין-מנועים; הרשת נבנית מהמדידות
+//     שלה-עצמה.
+
+const GRID_STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "exchange-grid-state.json");
+
+interface GridConfig {
+  enabled: boolean;
+  tickMs: number;
+  stepPct: number;         // מרווח בין-מדרגות (%)
+  levels: number;          // מדרגות סביב ה-EMA (חייב אי-זוגי — עוגן-אמצע)
+  capBps: number;          // גודל-מילוי כ-bps מרזרבת צד-הכניסה (קשיח ≤400)
+  minInWsaos: number;      // סף-אבק: מילוי קטן מזה נדחה
+  minGapPct: number;       // רצפת-מרווח בין-מדרגות (%)
+  maxFillsPerPool: number; // תקרת-מילויים לכל בריכה בפעמה
+  emaAlpha: number;
+  warmup: number;
+}
+
+function gridConfig(): GridConfig {
+  const num = (v: string | undefined, d: number): number => {
+    const n = v == null ? NaN : Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
+  const env = process.env as Record<string, string | undefined>;
+  // קשיח: אף קונפיגורציה לא חורגת מתקרת-החוזה (swapCapBps 500)
+  const levels = Math.min(9, Math.max(3, Math.round(num(env.EXCHANGE_GRID_LEVELS, 5))));
+  return {
+    enabled: env.EXCHANGE_GRID_ENABLED !== "0",
+    tickMs: Math.min(3_600_000, Math.max(15_000, num(env.EXCHANGE_GRID_TICK_MS, 60_000))),
+    stepPct: Math.min(5, Math.max(0.05, num(env.EXCHANGE_GRID_STEP_PCT, 0.4))),
+    levels,
+    capBps: Math.min(400, Math.max(10, num(env.EXCHANGE_GRID_CAP_BPS, 100))),
+    minInWsaos: Math.max(0.01, num(env.EXCHANGE_GRID_MIN_IN_WSAOS, 0.05)),
+    minGapPct: Math.min(5, Math.max(0.05, num(env.EXCHANGE_GRID_MIN_GAP_PCT, 0.1))),
+    maxFillsPerPool: Math.min(5, Math.max(1, Math.round(num(env.EXCHANGE_GRID_MAX_FILLS_PER_POOL, 2)))),
+    emaAlpha: Math.min(0.95, Math.max(0.05, num(env.EXCHANGE_GRID_EMA_ALPHA, 0.25))),
+    warmup: Math.min(50, Math.max(1, Math.round(num(env.EXCHANGE_GRID_WARMUP, 3))))
+  };
+}
+
+interface GridState {
+  ema: Record<string, number>;       // סמל → EMA של מחיר-הבריכה (SAOS ליחידת-נכס)
+  samples: Record<string, number>;   // סמל → מספר-תצפיות
+  lastPrice: Record<string, number>; // סמל → מחיר-הפעמה-הקודמת (גלאי-חציית-מדרגה)
+  fills: number;                     // מילויים חיים (tx אמיתי) מאז-ומתמיד
+  invocations: number;
+  recent: Array<{ at: string; symbol: string; dir: string; levelPct: number; amountIn: string; txid: string }>;
+  updatedAt: string;
+}
+
+function gridEmptyState(): GridState {
+  return { ema: {}, samples: {}, lastPrice: {}, fills: 0, invocations: 0, recent: [], updatedAt: new Date().toISOString() };
+}
+
+function readGridState(): GridState {
+  try {
+    const s = JSON.parse(fs.readFileSync(GRID_STATE_PATH, "utf8")) as Partial<GridState>;
+    if (!s || typeof s !== "object") return gridEmptyState();
+    return {
+      ema: s.ema && typeof s.ema === "object" ? s.ema : {},
+      samples: s.samples && typeof s.samples === "object" ? s.samples : {},
+      lastPrice: s.lastPrice && typeof s.lastPrice === "object" ? s.lastPrice : {},
+      fills: typeof s.fills === "number" ? s.fills : 0,
+      invocations: typeof s.invocations === "number" ? s.invocations : 0,
+      recent: Array.isArray(s.recent) ? s.recent.slice(-20) : [],
+      updatedAt: typeof s.updatedAt === "string" ? s.updatedAt : new Date().toISOString()
+    };
+  } catch {
+    return gridEmptyState(); // קובץ חסר/פגום — התחלה-כנה (ה-EMA נבנה מחדש מהשרשרת)
+  }
+}
+
+function writeGridState(st: GridState): void {
+  try {
+    st.recent = st.recent.slice(-20);
+    st.updatedAt = new Date().toISOString();
+    const tmp = `${GRID_STATE_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(st), "utf8");
+    fs.renameSync(tmp, GRID_STATE_PATH);
+  } catch {
+    /* כתיבת-מצב best-effort — המדידות הקשות חיות בשרשרת עצמה */
+  }
+}
+
+/** היסט-המדרגות מהאמצע — מרווח-אחיד עם רצפת-מרווח (0 = עוגן-האמצע, לא-נסחר). */
+function gridOffsets(cfg: GridConfig): number[] {
+  const gap = Math.max(cfg.stepPct, cfg.minGapPct);
+  const arms = Math.floor(cfg.levels / 2);
+  const out: number[] = [0];
+  for (let i = 1; i <= arms; i++) {
+    out.unshift(-(gap * i)); // מדרגות-קנייה מתחת-לאמצע
+    out.push(gap * i);       // מדרגות-מכירה מעל-לאמצע
+  }
+  return out;
+}
+
+/** מדרגות-הרשת החיות סביב ה-EMA (כולל-עוגן); אין EMA = null כנה. */
+function gridLevelsFor(ema: number | null, cfg: GridConfig): number[] | null {
+  if (ema == null || !Number.isFinite(ema) || ema <= 0) return null;
+  return gridOffsets(cfg).map((o) => ema * (1 + o / 100));
+}
+
+/** תצוגת סוחר-הרשת לסטטוס (מקובץ-המצב בלבד — אפס קריאות-שרשרת נוספות). */
+function gridStatusView(): ExchangeGridView {
+  const cfg = gridConfig();
+  const st = readGridState();
+  const pools = Object.keys(st.ema).map((symbol) => {
+    const ema = typeof st.ema[symbol] === "number" ? st.ema[symbol] : null;
+    return {
+      symbol,
+      ema,
+      samples: typeof st.samples[symbol] === "number" ? st.samples[symbol] : 0,
+      levels: gridLevelsFor(ema, cfg)
+    };
+  });
+  const last = st.recent[st.recent.length - 1];
+  return {
+    enabled: cfg.enabled,
+    tickMs: cfg.tickMs,
+    stepPct: cfg.stepPct,
+    levels: cfg.levels,
+    capBps: cfg.capBps,
+    minGapPct: cfg.minGapPct,
+    maxFillsPerPool: cfg.maxFillsPerPool,
+    emaAlpha: cfg.emaAlpha,
+    warmup: cfg.warmup,
+    invocations: st.invocations,
+    fills: st.fills,
+    pools,
+    lastFillAt: last ? last.at : null,
+    recentFills: st.recent.slice(-5)
+  };
+}
+
+export interface GridSweepResult {
+  ok: boolean;
+  tickedAt: string;
+  decided: boolean;      // אמת אם בוצע מילוי אחד לפחות
+  fills: number;         // מילויים חיים בפעמה זו
+  skipped: number;       // חציות שדולגו כנה (אבק/אין-מלאי/נדחה)
+  note: string;
+  error?: string;
+  details?: Array<{ symbol: string; dir: "buy" | "sell"; levelPct: number; amountIn?: string; txid?: string | null; error?: string }>;
+}
+
+/**
+ * פעמה אחת של סוחר-הרשת: קריאת בריכות חיה → עדכון-EMA → בניית-מדרגות סביב
+ * האמצע → גילוי-חציות מאז-הפעמה-הקודמת → מילויים (עד 2 לכל בריכה) דרך
+ * exchangeAction (הנתיב המגודר הקיים). מוחזרת תוצאה כנה — גם דילוג הוא נתון.
+ */
+export async function exchangeGridSweep(trigger: string): Promise<GridSweepResult> {
+  const cfg = gridConfig();
+  const tickedAt = new Date().toISOString();
+  if (!cfg.enabled) {
+    return { ok: true, tickedAt, decided: false, fills: 0, skipped: 0, note: "סוחר-הרשת כבוי במפורש (EXCHANGE_GRID_ENABLED=0)" };
+  }
+  const state = readState();
+  if (!state) return { ok: false, tickedAt, decided: false, fills: 0, skipped: 0, note: "אין פריסה — דילוג כנה", error: notLiveError() };
+  const xc = exchangeContract(state);
+  if (!xc) return { ok: false, tickedAt, decided: false, fills: 0, skipped: 0, note: "ארטיפקט לא תואם — דילוג כנה", error: notLiveError() };
+
+  try {
+    const provider = getProvider();
+    const poolCount = Number(await xc.poolCount());
+    const symbols: string[] = [];
+    const prices: number[] = [];
+    const reservesA: bigint[] = [];
+    const reservesB: bigint[] = [];
+    for (let i = 0; i < poolCount; i++) {
+      try {
+        const p = (await xc.pools(BigInt(i))) as unknown as { aId: bigint; rA: bigint; rB: bigint };
+        const rA = bg(p.rA);
+        const rB = bg(p.rB);
+        if (rA <= 0n || rB <= 0n) continue; // בריכה ריקה — דילוג כנה
+        const sym = await symbolById(xc, Number(p.aId));
+        if (sym === "?" || sym === "wSAOS") continue;
+        symbols.push(sym);
+        reservesA.push(rA);
+        reservesB.push(rB);
+        prices.push(Number(ethers.formatEther(rB)) / Number(ethers.formatEther(rA)));
+      } catch {
+        /* בריכה בודדת נכשלה — השאר ממשיכים (כנה) */
+      }
+    }
+    if (symbols.length === 0) {
+      return { ok: true, tickedAt, decided: false, fills: 0, skipped: 0, note: "אין בריכות קריאות — דילוג כנה" };
+    }
+
+    // 1. עדכון-EMA וגילוי-חציות (כל הפעמה מעדכנת — מילויים או לא)
+    const st = readGridState();
+    st.invocations += 1;
+    const offsets = gridOffsets(cfg);
+    type Candidate = { sym: string; idx: number; dir: "buy" | "sell"; levelPct: number; level: number };
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < symbols.length; i++) {
+      const sym = symbols[i]!;
+      const price = prices[i]!;
+      const prev = typeof st.ema[sym] === "number" ? st.ema[sym] : null;
+      if (prev == null || !Number.isFinite(prev)) {
+        st.ema[sym] = price; // תצפית-ראשונה = העוגן
+        st.samples[sym] = 1;
+        st.lastPrice[sym] = price;
+        continue; // אין אמצע → אין מדרגות → אין חציות (כנה)
+      }
+      st.ema[sym] = cfg.emaAlpha * price + (1 - cfg.emaAlpha) * prev;
+      st.samples[sym] = (typeof st.samples[sym] === "number" ? st.samples[sym] : 0) + 1;
+      const lastPrice = typeof st.lastPrice[sym] === "number" ? st.lastPrice[sym] : null;
+      st.lastPrice[sym] = price;
+      if (st.samples[sym] < cfg.warmup || lastPrice == null) continue; // חימום — כנה
+      const levels = gridLevelsFor(st.ema[sym], cfg);
+      if (!levels) continue;
+      for (let li = 0; li < levels.length; li++) {
+        const off = offsets[li]!;
+        if (off === 0) continue; // עוגן-האמצע — הפניה, לא מדרגת-מסחר
+        const level = levels[li]!;
+        if (off < 0 && lastPrice > level && price <= level) {
+          candidates.push({ sym, idx: i, dir: "buy", levelPct: off, level }); // חציית-מדרגה-מטה → קנייה
+        }
+        if (off > 0 && lastPrice < level && price >= level) {
+          candidates.push({ sym, idx: i, dir: "sell", levelPct: off, level }); // חציית-מדרגה-מעלה → מכירה
+        }
+      }
+    }
+    writeGridState(st);
+
+    if (candidates.length === 0) {
+      return { ok: true, tickedAt, decided: false, fills: 0, skipped: 0, note: `אין חציות-מדרגה (רשת ±${cfg.stepPct}% סביב EMA חי, ${symbols.length} בריכות נצפות)` };
+    }
+    // המדרגות הקרובות לאמצע קודמות — הרשת נסחרת מבפנים-החוצה
+    candidates.sort((a, b) => Math.abs(a.levelPct) - Math.abs(b.levelPct));
+
+    // 2. מילויים — עד maxFillsPerPool לכל בריכה, דרך הנתיב המגודר הקיים בלבד
+    const perPool = new Map<number, number>();
+    const hq = await provider.getSigner(0);
+    const hqAddr = ethers.getAddress(await hq.getAddress());
+    const details: NonNullable<GridSweepResult["details"]> = [];
+    let fills = 0;
+    let skipped = 0;
+    let stopAll = false;
+    for (const cand of candidates) {
+      if (stopAll) break;
+      const used = perPool.get(cand.idx) ?? 0;
+      if (used >= cfg.maxFillsPerPool) continue; // תקרת-הבריכה — דילוג כנה
+      const dir: "buy" | "sell" = cand.dir;
+      let amount: number;
+      if (dir === "buy") {
+        amount = Number(ethers.formatEther(reservesB[cand.idx]!)) * (cfg.capBps / 10_000);
+        if (amount < cfg.minInWsaos) {
+          skipped += 1;
+          details.push({ symbol: cand.sym, dir, levelPct: cand.levelPct, error: `סחר-אבק (${amount.toFixed(4)} wSAOS < ${cfg.minInWsaos})` });
+          continue;
+        }
+      } else {
+        // מכירה — ה-HQ מוכר רק ממה שבידיו (אין המצאה), כמו בהיפוך
+        const assetId = Number(await xc.assetIdOf(cand.sym));
+        const held = Number(ethers.formatEther((await xc.balanceOf(assetId, hqAddr)) as bigint));
+        amount = Math.min(Number(ethers.formatEther(reservesA[cand.idx]!)) * (cfg.capBps / 10_000), held);
+        if (amount <= 0) {
+          skipped += 1;
+          details.push({ symbol: cand.sym, dir, levelPct: cand.levelPct, error: `אין מלאי ${cand.sym} בידי ה-HQ (הקניות של הרשת בונות את המלאי)` });
+          continue;
+        }
+        const q = (await xc.quote(BigInt(cand.idx), true, toWei(amount))) as bigint;
+        if (q <= 0n || Number(ethers.formatEther(q)) < cfg.minInWsaos) {
+          skipped += 1;
+          details.push({ symbol: cand.sym, dir, levelPct: cand.levelPct, error: `מכירת-אבק (החזר ${q > 0n ? fmtAmt(q) : "0"} wSAOS < ${cfg.minInWsaos})` });
+          continue;
+        }
+      }
+      const out = await exchangeAction({ action: "swap", asset: cand.sym, dir, amount });
+      if (!out.ok) {
+        skipped += 1;
+        details.push({ symbol: cand.sym, dir, levelPct: cand.levelPct, error: `נדחה ע"י הנתיב המגודר (${(out.error ?? "").slice(0, 80)})` });
+        stopAll = true; // כישלון-נתיב → אין-המשך-הכאה בפעמה זו (כנה)
+        continue;
+      }
+      // מילוי חי — tx אמיתי על השרשרת
+      const amountIn = `${out.amountIn ?? "?"}`;
+      fills += 1;
+      perPool.set(cand.idx, used + 1);
+      st.fills += 1;
+      st.recent.push({ at: tickedAt, symbol: cand.sym, dir, levelPct: Number(cand.levelPct.toFixed(2)), amountIn, txid: out.txid ?? "" });
+      writeGridState(st);
+      details.push({ symbol: cand.sym, dir, levelPct: cand.levelPct, amountIn, txid: out.txid ?? null });
+      void logOp("exchange.grid-sweep", {
+        actor: trigger === "engine-tick" ? "hq" : trigger,
+        symbol: cand.sym,
+        dir,
+        levelPct: Number(cand.levelPct.toFixed(2)),
+        level: Number(cand.level.toPrecision(6)),
+        ema: Number((st.ema[cand.sym] ?? 0).toPrecision(6)),
+        amountIn,
+        txid: out.txid ?? null,
+        trigger
+      });
+    }
+
+    return {
+      ok: true,
+      tickedAt,
+      decided: fills > 0,
+      fills,
+      skipped,
+      note:
+        fills > 0
+          ? `רשת: ${fills} מילויים חיים (${skipped} דילוגים כנים) — מדרגות ±${cfg.stepPct}% סביב EMA חי`
+          : `חציות זוהו אך לא בוצעו מילויים (${skipped} דילוגים כנים) — כנה`,
+      details
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      tickedAt,
+      decided: false,
+      fills: 0,
+      skipped: 0,
+      note: `פעמת-רשת נכשלה (${e instanceof Error ? e.message.slice(0, 90) : "error"}) — כנה`,
+      error: e instanceof Error ? e.message.slice(0, 160) : "grid sweep failed"
+    };
+  }
+}
+
 // ─── v100 — פעמת-המנוע (ENGINE HEARTBEAT): קצב-קבוע בתוך-התהליך ────────────
 //
 // הארב' והחיילים רצים ב-120ש' של הראנר; הסוחר-הזה פועל כל TICK_MS (60ש'
@@ -1325,17 +1689,30 @@ function mrRenewLock(): void {
 
 export function ensureMrHeartbeat(): void {
   if (MR_G.__exchangeMrTimer) return; // כבר חמוש בתהליך זה (חסין hot-reload)
-  const cfg = mrConfig();
-  if (!cfg.enabled) return;
+  const mrc = mrConfig();
+  const gc = gridConfig();
+  if (!mrc.enabled && !gc.enabled) return; // שני הסוחרים כבויים במפורש — אין פעמה (כנה)
+  const tickMs = Math.min(mrc.tickMs, gc.tickMs); // פעמה-משותפת — הקצב המהיר מבין השניים
   const t = setInterval(() => {
     if (MR_G.__exchangeMrInflight) return; // single-flight — פעמה לא על-גבי פעמה
     MR_G.__exchangeMrInflight = true;
     (async () => {
       if (mrLockHeldByOther()) return; // תהליך-ווב אחר מחזיק את הפעמה — כנה
       mrRenewLock();
-      const r = await exchangeMeanReversionSweep("engine-tick");
-      if (r.decided) {
-        console.log(`[exchange-live] v100 mr-sweep: ${r.symbol} ${r.dir} dev=${r.devPct?.toFixed(2)}% → ${r.ok ? `txid ${r.txid?.slice(0, 18)}…` : `נדחה כנה (${(r.error ?? r.note).slice(0, 80)})`}`);
+      // v100 — סוחר-ההיפוך (זרם-2)
+      if (mrc.enabled) {
+        const r = await exchangeMeanReversionSweep("engine-tick");
+        if (r.decided) {
+          console.log(`[exchange-live] v100 mr-sweep: ${r.symbol} ${r.dir} dev=${r.devPct?.toFixed(2)}% → ${r.ok ? `txid ${r.txid?.slice(0, 18)}…` : `נדחה כנה (${(r.error ?? r.note).slice(0, 80)})`}`);
+        }
+      }
+      // v101 — סוחר-הרשת (GRID ROTATION), מתואם-מקום עם פעמת-ההיפוך; כישלונו
+      // נבלע כאן — לעולם לא מפיל את הפעמה, את ההיפוך ואת exchangeStatus()
+      if (gc.enabled) {
+        const g = await exchangeGridSweep("engine-tick");
+        if (g.decided) {
+          console.log(`[exchange-live] v101 grid-sweep: ${g.fills} fills (${g.skipped} skipped) → ${g.details?.map((d) => `${d.symbol}:${d.dir}@${d.levelPct}%`).join(" ") || ""}`);
+        }
       }
     })()
       .catch(() => {
@@ -1344,7 +1721,7 @@ export function ensureMrHeartbeat(): void {
       .finally(() => {
         MR_G.__exchangeMrInflight = false;
       });
-  }, cfg.tickMs);
+  }, tickMs);
   t.unref?.(); // לא מחזיק את ה-loop — השרת זה שמחזיק
   MR_G.__exchangeMrTimer = t;
 }

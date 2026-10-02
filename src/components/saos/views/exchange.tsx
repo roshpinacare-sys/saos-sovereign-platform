@@ -106,6 +106,36 @@ interface ExQuote {
   error?: string;
 }
 
+// ─── v100/v101 — סוחרים אוטונומיים (DTOs; אופציונליים — תאימות-אחורה מלאה) ──
+
+interface ExMrView {
+  enabled: boolean;
+  tickMs: number;
+  devPct: number;
+  capBps: number;
+  emaAlpha: number;
+  warmup: number;
+  invocations: number;
+  pools: Array<{ symbol: string; ema: number | null; samples: number }>;
+  lastTradeAt: string | null;
+  recentTrades: Array<{ at: string; symbol: string; dir: string; amountIn: string; txid: string; devPct: number }>;
+}
+
+interface ExGridView {
+  enabled: boolean;
+  tickMs: number;
+  stepPct: number;
+  levels: number;
+  capBps: number;
+  minGapPct: number;
+  maxFillsPerPool: number;
+  invocations: number;
+  fills: number;
+  pools: Array<{ symbol: string; ema: number | null; samples: number; levels: number[] | null }>;
+  lastFillAt: string | null;
+  recentFills: Array<{ at: string; symbol: string; dir: string; levelPct: number; amountIn: string; txid: string }>;
+}
+
 // ─── v30 תזוזה — DTO של /api/saos/physical-move ─────────────────────────────
 
 interface PmEvm {
@@ -204,6 +234,9 @@ interface ExchangeData {
   };
   traders: ExTrader[];
   recentSwaps: ExSwapRow[];
+  /** v100/v101 — מנועי-המסחר החיים (חסר בתשובות-ישנות — אופציונליים כנה) */
+  meanReversion?: ExMrView;
+  grid?: ExGridView;
   treasury: {
     address: string;
     label: string;
@@ -384,6 +417,67 @@ function DevChip({ dev }: { dev: number | null }) {
       {tight ? "עוקב" : "אות ארביטראז'"}
       <span dir="ltr">{dev.toFixed(2)}%</span>
     </Tag>
+  );
+}
+
+/** v101 — כרטיס-סוחר-אוטונומי קומפקטי (היפוך/רשת) — אותם טוקנים, כל המספרים מה-API */
+function TraderMiniCard({
+  title,
+  sub,
+  enabled,
+  stats,
+  recent,
+  recentEmptyNote
+}: {
+  title: string;
+  sub: string;
+  enabled: boolean;
+  stats: Array<{ label: string; value: string }>;
+  recent: Array<{ key: string; line: string; at: string; dir: string }>;
+  recentEmptyNote: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3 space-y-2.5 min-w-0",
+        enabled ? "border-emerald-400/20 bg-emerald-400/[0.03]" : "border-white/[0.06] bg-white/[0.015]"
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[12px] font-bold text-zinc-100 truncate">{title}</p>
+          <p className="text-[9.5px] text-zinc-500 leading-snug">{sub}</p>
+        </div>
+        <Pill tone={enabled ? "green" : "zinc"}>{enabled ? "חי" : "כבוי"}</Pill>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+            <p className="text-[9px] text-zinc-500 truncate">{s.label}</p>
+            <p dir="ltr" className="font-mono text-[12px] font-semibold text-zinc-100 mt-0.5 text-right">
+              {s.value}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div>
+        <p className="text-[9px] text-zinc-500 mb-1">מילויים/מסחרים אחרונים (מהשרשרת)</p>
+        {recent.length === 0 ? (
+          <p className="text-[10px] text-zinc-600">{recentEmptyNote}</p>
+        ) : (
+          <div className="space-y-1">
+            {recent.map((r) => (
+              <div key={r.key} className="flex items-center justify-between gap-2 text-[10px] min-w-0">
+                <span dir="ltr" className="font-mono text-zinc-300 truncate">
+                  {r.dir === "buy" ? "▲" : "▼"} {r.line}
+                </span>
+                <span className="text-zinc-600 shrink-0">{timeAgo(r.at)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1101,6 +1195,60 @@ export function ExchangeView() {
           )}
         </PanelBody>
       </Panel>
+
+      {/* ─── הסוחרים האוטונומיים (v100 היפוך-ממוצע · v101 סוחר-רשת) ──────── */}
+      {(d.meanReversion || d.grid) && (
+        <Panel>
+          <PanelHeader
+            icon={<ArrowLeftRight size={15} />}
+            title="הסוחרים האוטונומיים — מנועי-מסחר חיים בתוך הווב"
+            sub="פעמה בתוך תהליך הווב (60ש'): היפוך-הממוצע סוחר אל-עבר-האיזון מה-EMA החי · סוחר-הרשת ממלא מדרגות ±0.4% סביב האמצע — הכל דרך שער-הרשות ותקרות-החוזה, אפס מחירים-סינתטיים"
+            actions={<Pill tone="zinc">{[d.meanReversion, d.grid].filter(Boolean).length} סוחרים אוטונומיים</Pill>}
+          />
+          <PanelBody className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {d.meanReversion && (
+              <TraderMiniCard
+                title="מנוע-היפוך-הממוצע (MR)"
+                sub={`EMA α${d.meanReversion.emaAlpha ?? "—"} · סף-סטייה ${d.meanReversion.devPct ?? "—"}% · תקרה-עצמית ${d.meanReversion.capBps ?? "—"}bps (בתוך swapCap 500)`}
+                enabled={!!d.meanReversion.enabled}
+                stats={[
+                  { label: "פעמות", value: fmtInt(d.meanReversion.invocations ?? 0) },
+                  { label: "EMAs חיים", value: fmtInt(d.meanReversion.pools?.length ?? 0) },
+                  { label: "תיקון-אחרון", value: d.meanReversion.lastTradeAt ? timeAgo(d.meanReversion.lastTradeAt) : "—" },
+                  { label: "קצב-פעמה", value: `${Math.round((d.meanReversion.tickMs ?? 0) / 1000)}ש'` }
+                ]}
+                recent={(d.meanReversion.recentTrades ?? []).slice(-3).map((t) => ({
+                  key: `${t.at}-${t.symbol}-${t.txid}`,
+                  line: `${t.symbol} ${t.dir === "buy" ? "קנה" : "מכר"} ${t.amountIn} (dev ${t.devPct}%)`,
+                  at: t.at,
+                  dir: t.dir
+                }))}
+                recentEmptyNote="אין מסחרים עדיין — הפעמה חיה ומחכה לסטייה ≥סף (כנה)"
+              />
+            )}
+            {d.grid && (
+              <TraderMiniCard
+                title="סוחר-רשת (GRID)"
+                sub={`${d.grid.levels ?? "—"} מדרגות ±${d.grid.stepPct ?? "—"}% סביב EMA · תקרה-עצמית ${d.grid.capBps ?? "—"}bps · עד ${d.grid.maxFillsPerPool ?? "—"} מילויים/בריכה/פעמה`}
+                enabled={!!d.grid.enabled}
+                stats={[
+                  { label: "פעמות", value: fmtInt(d.grid.invocations ?? 0) },
+                  { label: "מילויי-רשת (tx)", value: fmtInt(d.grid.fills ?? 0) },
+                  { label: "מילוי-אחרון", value: d.grid.lastFillAt ? timeAgo(d.grid.lastFillAt) : "—" },
+                  { label: "EMAs חיים", value: fmtInt(d.grid.pools?.length ?? 0) }
+                ]}
+                recent={(d.grid.recentFills ?? []).slice(-3).map((f) => ({
+                  key: `${f.at}-${f.symbol}-${f.txid}`,
+                  line: `${f.symbol} ${f.dir === "buy" ? "קנה" : "מכר"} @${f.levelPct}% ${f.amountIn}`,
+                  at: f.at,
+                  dir: f.dir
+                }))}
+                recentEmptyNote="אין מילויים עדיין — הרשת חיה ומחכה לחציית-מדרגה (כנה)"
+              />
+            )}
+          </PanelBody>
+        </Panel>
+      )}
 
       {/* ─── החיילים הסוחרים ─────────────────────────────────────────────── */}
       <Panel>
