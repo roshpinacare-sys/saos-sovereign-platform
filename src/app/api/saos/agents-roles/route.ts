@@ -10,6 +10,13 @@ import {
   mobilizationBlock,
   type ProposeOutcome
 } from "@/lib/saos/role-registry";
+import {
+  runWorker,
+  runWorkerSweep,
+  wiringBlock,
+  WORKER_BINDINGS,
+  WORKER_MIN_INTERVAL_MS
+} from "@/lib/saos/role-workers";
 import { requireAuth } from "@/lib/saos/auth";
 import { authAgent } from "@/lib/saos/smartvault";
 import { logOp } from "@/lib/saos/oplog";
@@ -34,6 +41,13 @@ export const dynamic = "force-dynamic";
  *        {op:"activate", slug, artifactNote?} — proposed→active (זהות-
  *                                  סוכן אמיתית מקבלת-את-התפקיד)
  *        {op:"record-artifact", slug, note?}  — רענון lastArtifactAt
+ *        {op:"run-worker", slug, force?}      — wave-16 חיבור-הפועלים:
+ *                                  מריץ את מבצע-האמת של התפקיד (אם מחובר)
+ *                                  → קובץ-artifact תחת scripts/artifacts/
+ *                                  + רשומת OpLog; תפקיד-לא-מחובר מוצהר
+ *                                  "unwired" (כנה) — לא מדומה כחי
+ *        {op:"run-workers", force?}           — סבב-פועלים: כל תפקיד-פעיל
+ *                                  (הקריאה שה-keeper עושה שעתית)
  *
  * אין סוכני-רפאים: שום קריאה לא יוצרת זהויות — רק מתעדת מי קיבל מה.
  */
@@ -67,11 +81,18 @@ export async function GET() {
     };
     // 4) v101 גיוס-מהמצאי — המצבת מול המצאי (מדידת-מצבת קיימת, fail-honest zeros)
     const mobilization = await mobilizationBlock(counts);
+    // 5) wave-16 חיבור-הפועלים — לכל תפקיד: מחובר למבצע-אמת או מוצהר unwired
+    const wiring = wiringBlock(roles);
     return NextResponse.json({
       ok: true,
       roles,
       counts,
       mobilization,
+      wiring,
+      workers: {
+        bindings: Object.entries(WORKER_BINDINGS).map(([slug, b]) => ({ slug, executor: b.executor, artifactKind: b.artifactKind, he: b.he })),
+        minIntervalMinutes: Math.round(WORKER_MIN_INTERVAL_MS / 60_000)
+      },
       lastSweepAt: lastSweepAt(),
       nextProposeAt: nextProposeAllowedAt(),
       sweep: { ok: sweep.ok, retiredProposed: sweep.retiredProposed.length, retiredActive: sweep.retiredActive.length, error: sweep.error },
@@ -112,7 +133,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: admin.error ?? "אימות נדרש (fail-closed)" }, { status: admin.status });
   }
 
-  let body: { op?: string; slug?: string; note?: string; artifactNote?: string };
+  let body: { op?: string; slug?: string; note?: string; artifactNote?: string; force?: boolean };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -135,8 +156,19 @@ export async function POST(req: Request) {
         const res = await recordArtifact(body.slug, body.note ?? body.artifactNote, actor);
         return NextResponse.json(res, { status: res.ok ? 200 : 400 });
       }
+      case "run-worker": {
+        // wave-16 חיבור-הפועלים — ריצה אחת לתפקיד אחד (כנה: לא-מחובר = unwired)
+        if (!body.slug) return NextResponse.json({ ok: false, error: "slug נדרש" }, { status: 400 });
+        const res = await runWorker(body.slug, actor, { force: body.force === true });
+        return NextResponse.json(res, { status: res.ok ? 200 : 400 });
+      }
+      case "run-workers": {
+        // סבב-הפועלים — כל תפקיד-פעיל; ה-keeper קורא את זה שעתית (fail-closed)
+        const res = await runWorkerSweep(actor, { force: body.force === true });
+        return NextResponse.json(res, { status: res.ok ? 200 : 500 });
+      }
       default:
-        return NextResponse.json({ ok: false, error: "op לא מוכר (propose|activate|record-artifact)" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "op לא מוכר (propose|activate|record-artifact|run-worker|run-workers)" }, { status: 400 });
     }
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "שגיאת תפקידים" }, { status: 500 });

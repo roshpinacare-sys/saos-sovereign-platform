@@ -168,7 +168,7 @@ const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
 const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "45.3.0";
+const KEEPER_VERSION = "46.0.0";
 const SOVEREIGNTY_EVERY = 90; // v93 — sovereignty census tick every 90th cycle (≈15min)
 const SOVEREIGNTY_FIRST_AT = 6; // first census 60s after boot
 // v95 — the unified agent census tick (מצבת-האמת): every 30th cycle (≈5min)
@@ -240,6 +240,33 @@ const ECONOMY_FIRST_AT = 6; // first measurement 60s after boot
 const BRAIN_URL = "http://127.0.0.1:3000/api/saos/market-brain";
 const BRAIN_EVERY = 360; // hourly
 const BRAIN_FIRST_AT = 12; // first cycle 2 min after boot (economy first at 60s)
+
+// wave-16 — the agents-roles tick (המצבת-העצמית + סבב-הפועלים). Born from the
+// 15-d finding: the army's detectors (sweepStale + proposeRoles) were
+// LAZY-TICKED only (on every GET), with NO keeper cadence — and the roles had
+// NO workers behind them (evm-fuel-attendant activated by real identity yet
+// produced ZERO work artifacts). The web tier now owns the machinery
+// (role-registry detectors + role-workers executors writing artifact JSON
+// under scripts/artifacts/ + OpLog rows); the keeper owns the cadence: every
+// hour ONE honest call chain — (1) GET (public; fires the detectors' sweep +
+// lazy propose), then (2) POST {op:"run-workers"} signed with the SAME
+// loopback bearer (runs every ACTIVE role's wired executor; roles without an
+// executor are declared "unwired" in the response — honesty by construction).
+// Non-OK / unreachable = an HONEST journal row, never fabricated (fail-closed).
+const ROLES_URL = "http://127.0.0.1:3000/api/saos/agents-roles";
+const ROLES_EVERY = 360; // hourly
+const ROLES_FIRST_AT = 10; // first tick 100s after boot
+
+// wave-16 — the state-snapshot tick (קיום-המצבת). Born from the 15-d
+// residual: DB rows died with the sandbox reset (AgentRole of v99/v100 lost).
+// Once a DAY the keeper fires POST {op:"export"} (same signed bearer): the
+// web tier snapshots AgentRole+OpLog+EconomyRun into a committed-able JSON
+// (scripts/artifacts/state-snapshot-<YYYY-MM-DD>.json, sha256-digested);
+// on an empty DB (post-reset) POST {op:"bootstrap"} restores if-empty only.
+// The file in git is the source that does not die with the machine.
+const STATE_URL = "http://127.0.0.1:3000/api/saos/state-snapshot";
+const STATE_EVERY = 8640; // daily (8640 × 10s)
+const STATE_FIRST_AT = 18; // first export 3 min after boot
 
 // v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
 // weave + the signing hand (vault gates · fail-closed self-verify · the
@@ -403,6 +430,8 @@ function keeperBeatPayload(): Record<string, unknown> {
     },
     memory: { availableMb: S.mem.availableMb, nextRssMb: S.mem.nextRssMb },
     backups: { ok: S.backups.ok, miss: S.backups.miss, lastAt: S.backups.lastAt },
+    roles: { state: S.roles.state, lastTickAt: S.roles.lastTickAt, active: S.roles.active, proposed: S.roles.proposed, retired: S.roles.retired, unwiredActive: S.roles.unwiredActive, artifacts: S.roles.artifacts },
+    stateSnap: { state: S.stateSnap.state, lastRunAt: S.stateSnap.lastRunAt, file: S.stateSnap.lastFile, digest: S.stateSnap.digest, exports: S.stateSnap.exports },
     uptimeSec: Math.round((Date.now() - Date.parse(S.startedAt)) / 1000)
   };
 }
@@ -486,7 +515,15 @@ interface KeeperEvent {
     | "sovereignty-miss"
     // v99 — the economy-truth tick (מדידת-הסולם הכלכלי החי — EconomyRun שעתי)
     | "economy-tick"
-    | "economy-error";
+    | "economy-error"
+    // wave-16 — the agents-roles tick (המצבת-העצמית + סבב-הפועלים שעתי)
+    | "roles-tick"
+    | "roles-error"
+    | "workers-tick"
+    | "workers-error"
+    // wave-16 — the state-snapshot tick (קיום-המצבת יומי)
+    | "state-snap-tick"
+    | "state-snap-error";
   detail: string;
 }
 
@@ -641,6 +678,27 @@ const S = {
     openRoutes: 0 as number,
     jupiterUsdc: null as number | null,
     openedAt: null as string | null
+  },
+  // wave-16 — the agents-roles tick (המצבת-העצמית): web owns the registry
+  // detectors + the worker executors; keeper owns the cadence + the journal.
+  roles: {
+    lastCheckAt: null as string | null,
+    state: "boot" as "boot" | "ok" | "stale",
+    active: null as number | null,
+    proposed: null as number | null,
+    retired: null as number | null,
+    unwiredActive: null as number | null,
+    artifacts: 0 as number,
+    lastTickAt: null as string | null
+  },
+  // wave-16 — the state-snapshot tick (קיום-המצבת): daily export of
+  // AgentRole+OpLog+EconomyRun to a committed-able JSON snapshot.
+  stateSnap: {
+    lastRunAt: null as string | null,
+    state: "boot" as "boot" | "ok" | "stale",
+    lastFile: null as string | null,
+    digest: null as string | null,
+    exports: 0 as number
   },
   events: [] as KeeperEvent[]
 };
@@ -1552,6 +1610,139 @@ async function checkMarketBrain(): Promise<void> {
   }
 }
 
+/** wave-16 — the agents-roles tick (המצבת-העצמית + סבב-הפועלים). ONE honest
+ *  call chain every hour: (1) GET the registry — the public GET fires the
+ *  detectors' sweepStale + lazy proposeRoles (the 15-d finding: detectors
+ *  were lazy-only, never keeper-ticked); (2) POST {op:"run-workers"} signed
+ *  with the same loopback bearer — the web tier runs every ACTIVE role's
+ *  wired executor and writes artifact JSON + OpLog rows; roles without an
+ *  executor come back declared "unwired" (honest, never fake-active).
+ *  Non-OK / unreachable = honest journal row (fail-closed), never fabricated.
+ *  The keeper NEVER touches key material and NEVER invents an artifact. */
+async function checkAgentsRoles(): Promise<void> {
+  S.roles.lastCheckAt = new Date().toISOString();
+  try {
+    // (1) the detectors chain — public GET: sweep + lazy propose fire inside
+    const res = await fetch(ROLES_URL, { signal: AbortSignal.timeout(90_000) });
+    if (!res.ok) {
+      S.roles.state = "stale";
+      journal("roles-error", `agents-roles tick non-OK HTTP ${res.status} — honest wait, next window in 1 hour`);
+      return;
+    }
+    const reg = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      counts?: { proposed?: number; active?: number; retired?: number };
+      wiring?: { unwiredActive?: number };
+      error?: string;
+    } | null;
+    if (!reg || reg.ok !== true) {
+      S.roles.state = "stale";
+      journal("roles-error", `agents-roles tick failed honestly: ${reg?.error ?? "non-JSON/unparseable"} — next window in 1 hour`);
+      return;
+    }
+    S.roles.state = "ok";
+    S.roles.active = reg.counts?.active ?? null;
+    S.roles.proposed = reg.counts?.proposed ?? null;
+    S.roles.retired = reg.counts?.retired ?? null;
+    S.roles.unwiredActive = reg.wiring?.unwiredActive ?? null;
+    S.roles.lastTickAt = new Date().toISOString();
+    journal(
+      "roles-tick",
+      `agents-registry ticked — ${S.roles.active ?? "?"} active · ${S.roles.proposed ?? "?"} proposed · ${S.roles.retired ?? "?"} retired${S.roles.unwiredActive ? ` · ${S.roles.unwiredActive} active-unwired (declared honestly)` : ""} — detectors swept+proposed by the keeper's own GET`
+    );
+
+    // (2) the workers chain — signed POST: run every ACTIVE role's executor
+    const wres = await fetch(ROLES_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ op: "run-workers" }),
+      signal: AbortSignal.timeout(120_000) // executors read public RPC + the estate — measured, not instant
+    });
+    if (!wres.ok) {
+      journal(
+        "workers-error",
+        `workers sweep non-OK HTTP ${wres.status}${wres.status === 401 || wres.status === 403 ? " (auth-required — honest wait until the operator key is armed)" : ""} — next window in 1 hour`
+      );
+      return;
+    }
+    const wout = (await wres.json().catch(() => null)) as {
+      ok?: boolean;
+      ran?: number;
+      artifacts?: number;
+      unwiredActive?: string[];
+      runs?: Array<{ slug?: string; ran?: boolean; skipped?: string; error?: string }>;
+      error?: string;
+    } | null;
+    if (!wout || wout.ok !== true) {
+      journal("workers-error", `workers sweep failed honestly: ${wout?.error ?? "non-JSON/unparseable"} — next window in 1 hour`);
+      return;
+    }
+    S.roles.artifacts += wout.artifacts ?? 0;
+    const ranSlugs = (wout.runs ?? []).filter((r) => r.ran).map((r) => r.slug ?? "?").join(", ");
+    const unwired = (wout.unwiredActive ?? []).join(", ");
+    journal(
+      "workers-tick",
+      `workers sweep — ${wout.ran ?? 0} run(s), ${wout.artifacts ?? 0} artifact(s) written${ranSlugs ? ` [${ranSlugs}]` : ""}${unwired ? ` · active-unwired declared: [${unwired}]` : ""}`
+    );
+  } catch (e) {
+    S.roles.state = "stale";
+    const msg = e instanceof Error ? e.message : String(e);
+    journal("roles-error", `agents-roles fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
+  }
+}
+
+/** wave-16 — the state-snapshot tick (קיום-המצבת). Once a DAY: ONE signed
+ *  POST {op:"export"} — the web tier snapshots AgentRole+OpLog+EconomyRun
+ *  into scripts/artifacts/state-snapshot-<YYYY-MM-DD>.json (sha256-digested,
+ *  commit-able; the file in git survives the machine). Post-reset revival is
+ *  POST {op:"bootstrap"} — restores ONLY if-empty (never clobbers a live
+ *  registry). Non-OK = honest journal row; the ladder of exports is the
+ *  army's durable memory. */
+async function checkStateSnapshot(): Promise<void> {
+  try {
+    const res = await fetch(STATE_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ op: "export" }),
+      signal: AbortSignal.timeout(60_000)
+    });
+    if (!res.ok) {
+      S.stateSnap.state = "stale";
+      journal(
+        "state-snap-error",
+        `state-snapshot tick non-OK HTTP ${res.status}${res.status === 401 || res.status === 403 ? " (auth-required — honest wait until the operator key is armed)" : ""} — next window in 24h`
+      );
+      return;
+    }
+    const out = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      file?: string;
+      bytes?: number;
+      digest?: string;
+      counts?: { agentRole?: number; opLog?: number; economyRun?: number };
+      error?: string;
+    } | null;
+    if (!out || out.ok !== true || !out.file) {
+      S.stateSnap.state = "stale";
+      journal("state-snap-error", `state-snapshot tick failed honestly: ${out?.error ?? "non-JSON/unparseable"} — next window in 24h`);
+      return;
+    }
+    S.stateSnap.state = "ok";
+    S.stateSnap.lastRunAt = new Date().toISOString();
+    S.stateSnap.lastFile = out.file;
+    S.stateSnap.digest = out.digest?.slice(0, 16) ?? null;
+    S.stateSnap.exports += 1;
+    journal(
+      "state-snap-tick",
+      `state snapshot #${S.stateSnap.exports} written — roles ${out.counts?.agentRole ?? "?"} · oplog ${out.counts?.opLog ?? "?"} · economy ${out.counts?.economyRun ?? "?"} rows → ${String(out.file).split("/").pop()} (${out.bytes ?? 0}B, digest ${out.digest?.slice(0, 8) ?? "?"}) — the army's memory now outlives the sandbox`
+    );
+  } catch (e) {
+    S.stateSnap.state = "stale";
+    const msg = e instanceof Error ? e.message : String(e);
+    journal("state-snap-error", `state-snapshot fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
+  }
+}
+
 /** v73 — the outer-anchor scout (עוגן-החוץ). Reads the snapshot board,
  *  and every hour asks the engine to anchor the current state digest
  *  (source=auto). The engine dedupes UNCHANGED digests (a still state
@@ -2232,6 +2423,25 @@ async function cycle(): Promise<void> {
     await checkMarketBrain();
   }
 
+  // 12.7 wave-16 — the agents-roles tick (המצבת-העצמית + סבב-הפועלים).
+  //      Every hour: ONE honest call chain — GET fires the detectors
+  //      (sweep + propose), then the signed POST {op:"run-workers"} runs
+  //      every ACTIVE role's executor (artifact JSON + OpLog). The 15-d
+  //      lazy-tick gap is closed; roles without executors are DECLARED
+  //      unwired, never fake-active. Web down = honest wait.
+  if (RT.cycle === ROLES_FIRST_AT || (RT.cycle > ROLES_FIRST_AT && (RT.cycle - ROLES_FIRST_AT) % ROLES_EVERY === 0)) {
+    await checkAgentsRoles();
+  }
+
+  // 12.8 wave-16 — the state-snapshot tick (קיום-המצבת). Daily: ONE signed
+  //      POST {op:"export"} — AgentRole+OpLog+EconomyRun → committed-able
+  //      JSON (scripts/artifacts/state-snapshot-*.json). The 15-d residual
+  //      (DB rows died with the sandbox) is closed: the file in git is the
+  //      memory that outlives the machine. Web down = honest wait.
+  if (RT.cycle === STATE_FIRST_AT || (RT.cycle > STATE_FIRST_AT && (RT.cycle - STATE_FIRST_AT) % STATE_EVERY === 0)) {
+    await checkStateSnapshot();
+  }
+
   // 10.5. v74 — the sync-radar scout (מכ"ם-הסנכרון). Every 10 min: read the
   //      live drift board; when the full gate stack is open (clean · behind ·
   //      ff-only) fire the heal through the web engine (source=auto). Dirty
@@ -2400,7 +2610,7 @@ try {
   /* no journal yet — fresh start */
 }
 
-journal("boot", `SHOMER v${KEEPER_VERSION} (ביקורת-הפריוויו — חלונות-תחייה נפרדים לכל איבר + קו-ההרג המיידי) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · never touches key material`);
+journal("boot", `SHOMER v${KEEPER_VERSION} (ביקורת-הפריוויו — חלונות-תחייה נפרדים לכל איבר + קו-ההרג המיידי) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · agents-roles hourly (wave-16: detectors + workers sweep) · state-snapshot daily (wave-16: the army's memory outlives the sandbox) · never touches key material`);
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
 console.log(`[keeper] SHOMER v${KEEPER_VERSION} LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 10min (v36) · single-seat lock v36 · revive only on confirmed death (documented exceptions, all objective-evidence · v43: per-member windows, never cross-blocking)`);
