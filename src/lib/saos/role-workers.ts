@@ -18,6 +18,17 @@
  *      הראש של כל אחד. מקומי: גיט מתוך שורש-האחוזה (אותו שרשרת env-first
  *      של receipts-watch 13-c). עשירות-GitHub: רשימת-הריפואים של הארגון
  *      דרך gh-token.ts (13-c) — אין-טוקן/רשת-סגורה = לא-נמדד כנה.
+ *   3. key-census    (key-forge-operator) — מפקד-מצבת-מפתחות: סריקת-קריאה
+ *      בלבד של אתרי-המפתחות הידועים (~/.secrets · בית-הכספת · upload/.agent-keys
+ *      · upload/.gate-agents · נוכחות-env) — מטא-דאטה בלבד: קיום, גודל, הרשאות,
+ *      גיל, טביעת-אצבע sha256-תחילית של קובץ (שלמות, לא תוכן). רוטציית-R12
+ *      מקבלת לראשונה נתוני-גיל מדודים במקום שאלה-פתוחה. אף תוכן-מפתח לא נקרא,
+ *      לא נחזר, לא נרשם — אפילו sha-מלא לא נשמר (תחילית 16-hex בלבד).
+ *   4. vault-census  (vault-auditor) — ביקורת-כספת: קריאת-מצב-חותם בלבד
+ *      (sealAvailability/vaultPassState/vaultHomesHealth — אותן פונקציות
+ *      שה-API כבר מציג) + מטא-דאטה של המעטפת (גודל/הרשאות/גיל/תחילית-sha)
+ *      + שדות-המטא הציבוריים (externalPass/migratedAt). לעולם לא פותחים
+ *      את החותם ולא נוגעים בחומר-מפתח — רואה-חשבון לא צולל לכספת, הוא קורא את חותמתה.
  *
  * כנות-המצבת: runWorker מרענן lastArtifactAt/artifactNote רק אחרי
  * artifact אמת כתוב, logOp מרשים כל-ריצה (מטמון-אנטי-נפיחות: ריצה לכל-
@@ -32,6 +43,7 @@ import * as path from "path";
 import { ANCHORED_EVM_ADDRESS } from "./anchored-identity";
 import { ghToken } from "./gh-token";
 import { resolveEstateRoot } from "./receipts-watch";
+import { sealAvailability, vaultHomesHealth, vaultPassState } from "../vault-seal";
 
 // ─── גבולות-כנות ────────────────────────────────────────────────────────────
 
@@ -390,15 +402,239 @@ export async function runEstateCensus(now = Date.now()): Promise<EstateCensus> {
   };
 }
 
+// ─── מבצע 3 — מפקד-מצבת-מפתחות (key-forge-operator) ─────────────────────────
+
+/** אתרי-המפתחות הידועים — אותם מקומות שה-13-c/auth/vault-unlock כבר מתעדים.
+ *  שמות-קבצים הם מטא-דאטה ציבורית (מתועדים בקוד המחויב) — אף תוכן לא נקרא. */
+const KEY_SITES: Array<{ location: string; dir: string }> = [
+  { location: "home-secrets", dir: path.join(process.env.HOME ?? "/home/z", ".secrets") },
+  { location: "saos-vault-agent-keys", dir: "/home/z/saos-vault/agent-keys" },
+  { location: "upload-agent-keys", dir: path.join(process.cwd(), "upload", ".agent-keys") },
+  { location: "upload-gate-agents", dir: path.join(process.cwd(), "upload", ".gate-agents") }
+];
+
+/** טביעת-אצבע לשלמות-קובץ בלבד — תחילית 16-hex של sha256 הקובץ (לא של התוכן-המפוענח).
+ *  קובץ גדול-מ-4MB = כנה בלי-sha (לא שווה קריאה). */
+function fileFingerprint(p: string): string | null {
+  try {
+    const st = fs.statSync(p);
+    if (st.size > 4 * 1024 * 1024) return null;
+    return createHash("sha256").update(fs.readFileSync(p)).digest("hex").slice(0, 16);
+  } catch {
+    return null;
+  }
+}
+
+export interface KeyFileRow {
+  location: string;
+  file: string;
+  present: boolean;
+  bytes: number;
+  mode: string | null;
+  ageHours: number | null;
+  shaPrefix: string | null;
+  error?: string;
+}
+
+export interface KeyCensus {
+  kind: "key-report";
+  role: "key-forge-operator";
+  executor: "key-census";
+  measuredAt: string;
+  /** true = לפחות אתר-אחד נסרק בפועל; false = אין-גישה לאף אתר (כנה) */
+  measured: boolean;
+  sitesScanned: number;
+  keyFiles: number;
+  sealedEnvelopes: number;
+  /** מצב-הדלת (v99) ברמת-בוליאן בלבד — אף תוכן-סיסמה לא נוגע */
+  passArmed: boolean;
+  /** קובץ-מפתח-המנהל נוכח (בוליאן בלבד) */
+  adminKeyFilePresent: boolean;
+  /** נוכחות-env בלבד (set/unset) — הערכים לעולם לא נקראים */
+  envPresent: Record<string, boolean>;
+  rows: KeyFileRow[];
+  error?: string;
+}
+
+export async function runKeyCensus(now = Date.now()): Promise<KeyCensus> {
+  const measuredAt = new Date().toISOString();
+  const rows: KeyFileRow[] = [];
+  let sitesScanned = 0;
+
+  for (const site of KEY_SITES) {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(site.dir, { withFileTypes: true }).filter((e) => e.isFile());
+      sitesScanned += 1;
+    } catch (e) {
+      rows.push({
+        location: site.location,
+        file: "(dir)",
+        present: false,
+        bytes: 0,
+        mode: null,
+        ageHours: null,
+        shaPrefix: null,
+        error: e instanceof Error ? (e as NodeJS.ErrnoException).code ?? e.message.slice(0, 60) : "scan-failed"
+      });
+      continue;
+    }
+    for (const ent of entries.slice(0, 24)) {
+      const p = path.join(site.dir, ent.name);
+      try {
+        const st = fs.statSync(p);
+        rows.push({
+          location: site.location,
+          file: ent.name,
+          present: true,
+          bytes: st.size,
+          mode: (st.mode & 0o777).toString(8),
+          ageHours: Math.floor((now - st.mtimeMs) / 3_600_000),
+          shaPrefix: fileFingerprint(p)
+        });
+      } catch (e) {
+        rows.push({
+          location: site.location,
+          file: ent.name,
+          present: false,
+          bytes: 0,
+          mode: null,
+          ageHours: null,
+          shaPrefix: null,
+          error: e instanceof Error ? e.message.slice(0, 60) : "stat-failed"
+        });
+      }
+    }
+  }
+
+  // נוכחות-env בלבד — set/unset, אף ערך לא נקרא/נשמר
+  const envPresent: Record<string, boolean> = {};
+  for (const k of ["SAOS_ADMIN_KEY_HASH", "SAOS_VAULT_PASS", "GITHUB_TOKEN", "SAOS_GH_TOKEN_FILE"]) {
+    envPresent[k] = (process.env[k] ?? "").length > 0;
+  }
+
+  const present = rows.filter((r) => r.present);
+  const envelopeRows = present.filter((r) => r.file.endsWith(".enc"));
+  const adminKeyFilePresent = present.some((r) => r.location === "home-secrets" && r.file.startsWith("saos-admin-key"));
+  const passArmed = present.some((r) => r.location === "home-secrets" && r.file.startsWith("fleet-vault-pass")) || envPresent.SAOS_VAULT_PASS;
+  const measured = sitesScanned > 0;
+  return {
+    kind: "key-report",
+    role: "key-forge-operator",
+    executor: "key-census",
+    measuredAt,
+    measured,
+    sitesScanned,
+    keyFiles: present.length,
+    sealedEnvelopes: envelopeRows.length,
+    passArmed,
+    adminKeyFilePresent,
+    envPresent,
+    rows,
+    ...(measured ? {} : { error: "אף אתר-מפתחות לא היה נסרק (הרשאות/היעדר) — לא נמדד כנה" })
+  };
+}
+
+// ─── מבצע 4 — ביקורת-הכספת (vault-auditor) ─────────────────────────────────
+
+export interface VaultCensus {
+  kind: "vault-report";
+  role: "vault-auditor";
+  executor: "vault-census";
+  measuredAt: string;
+  /** true = מצב-החותם נקרא בפועל (בלי לפתוח אותו) */
+  measured: boolean;
+  vaultPresent: boolean;
+  sealState: "sealed" | "absent";
+  sealNote: string;
+  passState: "armed" | "missing";
+  homes: Array<{ home: string; kind: string; present: boolean; bytes: number; mode: string | null }>;
+  envelopeBytes: number | null;
+  envelopeShaPrefix: string | null;
+  envelopeAgeHours: number | null;
+  /** שדות-המטא הציבוריים של המעטפת (מתועדים כבר ב-meta.json) */
+  metaExternalPass: boolean | null;
+  metaMigratedAt: string | null;
+  error?: string;
+}
+
+export async function runVaultCensus(now = Date.now()): Promise<VaultCensus> {
+  const measuredAt = new Date().toISOString();
+  const seal = await sealAvailability();
+  let passState: "armed" | "missing" = "missing";
+  try {
+    passState = await vaultPassState();
+  } catch {
+    passState = "missing"; // כנה — הפרובה לא נפתחה
+  }
+  let homes: VaultCensus["homes"] = [];
+  try {
+    homes = await vaultHomesHealth();
+  } catch {
+    homes = []; // כנה
+  }
+
+  // המעטפת הפריימרית = הבית-החי הראשון מתוך homes (אותה החלטת-בית של vault-seal עצמה)
+  const primary = homes.find((h) => h.present);
+  let envelopeBytes: number | null = null;
+  let envelopeShaPrefix: string | null = null;
+  let envelopeAgeHours: number | null = null;
+  let metaExternalPass: boolean | null = null;
+  let metaMigratedAt: string | null = null;
+  let error: string | undefined;
+  if (primary) {
+    const enc = path.join(primary.home, "fleet_keys.enc");
+    const meta = path.join(primary.home, "fleet_keys.meta.json");
+    try {
+      const st = fs.statSync(enc);
+      envelopeBytes = st.size;
+      envelopeAgeHours = Math.floor((now - st.mtimeMs) / 3_600_000);
+      envelopeShaPrefix = fileFingerprint(enc);
+    } catch {
+      error = "המעטפת לא נמצאה בבית-הכספת הפריימרי (כנה)";
+    }
+    try {
+      const raw = JSON.parse(fs.readFileSync(meta, "utf8")) as { externalPass?: boolean; migratedAt?: string };
+      metaExternalPass = typeof raw.externalPass === "boolean" ? raw.externalPass : null;
+      metaMigratedAt = typeof raw.migratedAt === "string" ? raw.migratedAt : null;
+    } catch {
+      // מטא-חסר = שורה-כנה בלבד (P0: הסיסמה כבר לא יושבת במטא — זה תקין)
+    }
+  } else if (seal.state === "absent") {
+    error = seal.note.slice(0, 120); // הכספת נשרפה/נעדרת — המצב עצמו הדיווח
+  } else {
+    error = "אף בית-כספת לא דווח נוכח (כנה)";
+  }
+
+  return {
+    kind: "vault-report",
+    role: "vault-auditor",
+    executor: "vault-census",
+    measuredAt,
+    measured: true, // sealAvailability לעולם לא זורק — המצב עצמו המדידה
+    vaultPresent: seal.present,
+    sealState: seal.state,
+    sealNote: seal.note,
+    passState,
+    homes,
+    envelopeBytes,
+    envelopeShaPrefix,
+    envelopeAgeHours,
+    metaExternalPass,
+    metaMigratedAt,
+    ...(error ? { error } : {})
+  };
+}
+
 // ─── חיבור-התפקידים (המצבת הכנה) ────────────────────────────────────────────
 
-export type RoleExecutor = "fuel-census" | "estate-census";
+export type RoleExecutor = "fuel-census" | "estate-census" | "key-census" | "vault-census";
 
 export interface WorkerBinding {
   executor: RoleExecutor;
   artifactKind: string;
   he: string;
-  run: () => Promise<FuelCensus | EstateCensus>;
+  run: () => Promise<FuelCensus | EstateCensus | KeyCensus | VaultCensus>;
 }
 
 /** החיבורים שקיימים היום — כל תפקיד אחר מוצהר "unwired" (כנה, לא מדומה) */
@@ -414,6 +650,18 @@ export const WORKER_BINDINGS: Record<string, WorkerBinding> = {
     artifactKind: "estate-census",
     he: "סוקר-אחוזה: רשימת-הריפואים + קומיט-ראש לכל אחד (גיט מקומי + gh-token) — מפקד-אחוזה כתוב לכל ריצה",
     run: () => runEstateCensus()
+  },
+  "key-forge-operator": {
+    executor: "key-census",
+    artifactKind: "key-report",
+    he: "מפעיל-מפעל-מפתחות: מפקד-מצבת-מפתחות קריאה-בלבד (קיום/גודל/הרשאות/גיל/תחילית-sha) — נתוני-רוטציה מדודים, אף תוכן-מפתח לא נוגע",
+    run: () => runKeyCensus()
+  },
+  "vault-auditor": {
+    executor: "vault-census",
+    artifactKind: "vault-report",
+    he: "רואה-חשבון-הכספת: ביקורת-חותם קריאה-בלבד (מצב/דלת/בתים/מעטפת-מטא) — בלי לפתוח את החותם ובלי לגעת בחומר-מפתח",
+    run: () => runVaultCensus()
   }
 };
 
@@ -512,7 +760,7 @@ export async function runWorker(slug: string, actor: string, opts?: { force?: bo
   try {
     const result = await binding.run();
     artifact = writeArtifactFile(binding.executor, result);
-    measured = (result as FuelCensus | EstateCensus).measured === true;
+    measured = (result as { measured?: boolean }).measured === true;
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 160) : "executor-failed";
     await logOp("workers.run", { ok: false, slug: clean, executor: binding.executor, error: msg, by: actor });
