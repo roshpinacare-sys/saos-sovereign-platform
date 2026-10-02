@@ -267,6 +267,17 @@ const ROLES_FIRST_AT = 10; // first tick 100s after boot
 const STATE_URL = "http://127.0.0.1:3000/api/saos/state-snapshot";
 const STATE_EVERY = 8640; // daily (8640 × 10s)
 const STATE_FIRST_AT = 18; // first export 3 min after boot
+// v104 — the sovereign-authority tick (הרשות-הריבונית). The owner's directive:
+// the SOVEREIGN itself is the owner of decisions and must autonomously know
+// how to ANSWER and MANAGE them. The sweep gathers live questions (venture
+// gates · role identity gates · parked-stream revival windows · owner-edge
+// escalations) and answers each from the ordered deterministic rules with a
+// written reason and measured basis. ONE POST {action:"sweep"} every hour,
+// 5 min AFTER the brain tick (always reads a fresh brain state). Same
+// fail-silent journaled discipline — the keeper owns only the cadence.
+const AUTHORITY_URL = "http://127.0.0.1:3000/api/saos/authority";
+const AUTHORITY_EVERY = 360; // hourly
+const AUTHORITY_FIRST_AT = 17; // first sweep ~5 min after the brain cycle
 
 // v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
 // weave + the signing hand (vault gates · fail-closed self-verify · the
@@ -1743,6 +1754,46 @@ async function checkStateSnapshot(): Promise<void> {
   }
 }
 
+/** v104 — the sovereign-authority sweep (הרשות-הריבונית). ONE POST
+ *  {action:"sweep"} every hour, 5 min after the brain tick so the ledger
+ *  always answers a FRESH brain state. The authority owns the answers
+ *  (kill/mvp/scaled gates · revival windows · owner-edge escalations);
+ *  the keeper owns only the cadence. Fail-silent, journaled honestly. */
+async function checkAuthority(): Promise<void> {
+  try {
+    const res = await fetch(AUTHORITY_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ action: "sweep", trigger: "keeper-tick" }),
+      signal: AbortSignal.timeout(60_000)
+    });
+    if (!res.ok) {
+      journal(
+        "authority-error",
+        `authority sweep non-OK HTTP ${res.status}${res.status === 401 || res.status === 403 ? " (auth-required — honest wait until the operator key is armed)" : ""} — next window in 1 hour`
+      );
+      return;
+    }
+    const out = (await res.json().catch(() => null)) as {
+      authority?: { sweep?: number; summary?: string; executedActions?: string[]; escalationsOpen?: unknown[] };
+      error?: string;
+    } | null;
+    if (!out || out.ok !== true || !out.authority) {
+      journal("authority-error", `authority sweep failed honestly: ${out?.error ?? "non-JSON/unparseable response"} — next window in 1 hour`);
+      return;
+    }
+    const a = out.authority;
+    journal(
+      "authority-sweep",
+      `authority sweep #${a.sweep ?? "?"} — ${a.summary ?? "no summary"}${a.executedActions?.length ? ` · ${a.executedActions.length} executed action(s)` : ""}${a.escalationsOpen?.length ? ` · ${a.escalationsOpen.length} open escalation(s) to the owner` : ""}`
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    journal("authority-error", `authority sweep fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
+  }
+}
+
+
 /** v73 — the outer-anchor scout (עוגן-החוץ). Reads the snapshot board,
  *  and every hour asks the engine to anchor the current state digest
  *  (source=auto). The engine dedupes UNCHANGED digests (a still state
@@ -2440,6 +2491,14 @@ async function cycle(): Promise<void> {
   //      memory that outlives the machine. Web down = honest wait.
   if (RT.cycle === STATE_FIRST_AT || (RT.cycle > STATE_FIRST_AT && (RT.cycle - STATE_FIRST_AT) % STATE_EVERY === 0)) {
     await checkStateSnapshot();
+  }
+
+  // 12.9 v104 — the sovereign-authority sweep (הרשות-הריבונית). Every hour,
+  //      offset AFTER the brain tick: the ledger answers a FRESH brain state
+  //      — venture gates, role identity gates, revival windows, owner-edge
+  //      escalations. Web down = honest wait.
+  if (RT.cycle === AUTHORITY_FIRST_AT || (RT.cycle > AUTHORITY_FIRST_AT && (RT.cycle - AUTHORITY_FIRST_AT) % AUTHORITY_EVERY === 0)) {
+    await checkAuthority();
   }
 
   // 10.5. v74 — the sync-radar scout (מכ"ם-הסנכרון). Every 10 min: read the

@@ -118,6 +118,13 @@ export async function postJson<T>(
       }
       return { ok: true, data: json as T, error: null };
     }
+    // v104 honesty fix: sensitive routes answer 401/403 with {error:"auth-required:…"}
+    // and NO `ok` key — that must surface as the real error (so the cards' honest
+    // "requires auth" toast fires), never as a generic "unexpected response".
+    if (typeof json === "object" && json !== null && "error" in json) {
+      const obj = json as { error?: unknown };
+      if (typeof obj.error === "string") return { ok: false, data: null, error: obj.error };
+    }
     return { ok: false, data: null, error: "תגובה לא צפויה" };
   } catch (e) {
     return { ok: false, data: null, error: e instanceof Error ? e.message : "כשל רשת" };

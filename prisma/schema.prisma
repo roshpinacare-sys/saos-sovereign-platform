@@ -576,3 +576,32 @@ model AgentRole {
 
   @@index([status, at])
 }
+
+// ─── v104 · הרשות-הריבונית (THE SOVEREIGN AUTHORITY) — פנקס-ההכרעות ─────────
+// הבעלים-הריבוני של ההחלטות: כל שאלה-פעילה (מיזם/תפקיד/זרם/מדיניות) נכנסת
+// לפנקס, נענית מהחוקים-הדטרמיניסטיים עם סיבה-כתובה ובסיס-מדוד, ומנוהלת
+// לאורך-החיים (answered→executed→measured→closed). שער-הבעלים בלבד (owner-
+// edge): תקציב-אוצר והצהרות-מדיניות = escalated כנה, fail-closed, מזודק
+// (ref-ייחודי למניעת-הצפה). אפס החלטות-רפאים: מה שלא נשאל מהמדידה — לא
+// נכנס לפנקס.
+model SovereignDecision {
+  id       Int      @id @default(autoincrement())
+  ref      String   @unique // מפתח-דטרמיניסטי לדדופ: "venture-kill:<slug>" · "policy-compute-rate:open" ...
+  domain   String // venture-mvp | venture-scaled | venture-kill | venture-capital | role-activation | stream-revival | policy-compute-rate | allocation-record
+  subject  String // הזרם / המיזם / התפקיד / המדיניות
+  question String // השאלה-בכתב (עברית) — מה הרשות נשאלת
+  verdict  String // executed | approved | rejected | deferred | escalated
+  basis    String // measured | doctrine | policy | owner-edge
+  rule     String // החוק-שענה — "kill-rule:14d-zero-receipts" · "mvp-gate:role-active" ...
+  reason   String // התשובה-הכתובה (עברית) — כמו סיבת-המושל
+  evidence String   @default("[]") // JSON [{label, value}] — העובדות-הנמדדות-ששימשו
+  status   String   @default("answered") // answered | executed | measured | closed | escalated
+  outcome  String? // מה-קרה-אחרי-הביצוע (נמדד)
+  sweep    Int // מספר-הסריקה-שענתה/עדכנה
+  at       DateTime @default(now())
+  closedAt DateTime?
+
+  @@index([verdict, at])
+  @@index([domain, at])
+  @@index([sweep])
+}

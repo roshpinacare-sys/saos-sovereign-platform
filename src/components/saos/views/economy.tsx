@@ -18,6 +18,7 @@ import {
   Recycle,
   RotateCcw,
   Save,
+  Scale,
   ShieldCheck,
   Zap
 } from "lucide-react";
@@ -416,6 +417,181 @@ function DojoPanel() {
   );
 }
 
+// ─── v104 — הרשות-הריבונית (THE SOVEREIGN AUTHORITY) ──────────────────
+// הוראת הבעלים: "הריבונות היא הבעלים וצריכה אוטונומית לדעת לענות ולנהל"
+// — פנקס-ההכרעות החי: כל שאלה-פעילה נענית מחוק-מסודר עם סיבה-כתובה
+// ובסיס-מדוד, מבוצעת בתחום-ההכרעה-העצמית, ומוסלמת-כנה לבעלים רק בשער-
+// הכסף-והמדיניות (owner-edge, fail-closed).
+
+interface AuthorityDecisionView {
+  id: number;
+  ref: string;
+  domain: string;
+  subject: string;
+  question: string;
+  verdict: string;
+  basis: string;
+  rule: string;
+  reason: string;
+  evidence: Array<{ label: string; value: string }>;
+  status: string;
+  outcome: string | null;
+  sweep: number;
+  at: string;
+  closedAt: string | null;
+}
+
+interface AuthoritySnap {
+  sweep: number;
+  at: string;
+  trigger: string;
+  summary: string;
+  counts: { executed: number; approved: number; rejected: number; deferred: number; escalated: number };
+  executedActions: string[];
+  escalationsOpen: AuthorityDecisionView[];
+  decisions: AuthorityDecisionView[];
+  hadBrainState: boolean;
+}
+
+function verdictPill(v: string) {
+  if (v === "executed") return <Pill tone="green">בוצע</Pill>;
+  if (v === "approved") return <Pill tone="green">מאושר</Pill>;
+  if (v === "rejected") return <Pill tone="rose">נדחה</Pill>;
+  if (v === "escalated") return <Pill tone="amber">לבעלים</Pill>;
+  return <Pill tone="zinc">בצפייה</Pill>;
+}
+
+function domainLabel(d: string): string {
+  if (d === "venture-kill") return "חוק-הרג-מיזם";
+  if (d === "venture-mvp") return "שער-mvp";
+  if (d === "venture-scaled") return "שער-הסדרה";
+  if (d === "venture-capital") return "תקציב-אוצר";
+  if (d === "role-activation") return "שער-זהות-תפקיד";
+  if (d === "stream-revival") return "תחיית-זרם";
+  if (d === "policy-compute-rate") return "מדיניות-עלות";
+  return "רישום-הקצאה";
+}
+
+function basisLabel(b: string): string {
+  if (b === "measured") return "נמדד";
+  if (b === "doctrine") return "דוקטרינה";
+  if (b === "policy") return "מדיניות";
+  return "שער-בעלים";
+}
+
+function AuthorityPanel() {
+  const toast = useToast();
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepV, setSweepV] = useState(0);
+  const live = useLive<{ ok: boolean; authority: AuthoritySnap | null }>(`/api/saos/authority?v=${sweepV}`, 60000);
+  const auth = live.data?.authority ?? null;
+
+  const runSweep = async () => {
+    setSweeping(true);
+    const res = await postJson<{ authority?: AuthoritySnap }>('/api/saos/authority', { action: "sweep", trigger: "manual" });
+    setSweeping(false);
+    if (res.ok) {
+      toast.push({
+        tone: "green",
+        title: "סריקת-הכרעות הושלמה",
+        desc: res.data?.authority ? `#${res.data.authority.sweep} · ${res.data.authority.summary.slice(0, 80)}` : "הפנקס עודכן"
+      });
+      setSweepV((v) => v + 1);
+    } else if (/auth|401|403/i.test(res.error ?? "")) {
+      toast.push({
+        tone: "rose",
+        title: "הסריקה נדחה — כנות",
+        desc: "סריקה כותבת פנקס-הכרעות — דורשת אימות-מנהל/שומר. התצוגה נשארת קריאה-בלבד עד האימות."
+      });
+    } else {
+      toast.push({ tone: "rose", title: "הסריקה נכשלה", desc: res.error ?? "שגיאה" });
+    }
+  };
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<Scale size={15} />}
+        title="הרשות-הריבונית — פנקס-ההכרעות"
+        sub="הריבונות היא הבעלים: כל שאלה-פעילה נענית מחוק-מסודר עם סיבה-כתובה ובסיס-מדוד, מבוצעת בתחומה — ומוסלמת-כנה לבעלים רק בשער-הכסף-והמדיניות."
+        actions={
+          <div className="flex items-center gap-2">
+            {auth && auth.sweep > 0 ? <Pill tone="green">סריקה #{auth.sweep}</Pill> : <Pill tone="amber">טרם-רצה — כנה</Pill>}
+            <Btn size="sm" variant="secondary" onClick={runSweep} disabled={sweeping} title="הרץ סריקת-הכרעות (דורש אימות)">
+              <Scale size={12} /> {sweeping ? "סורק..." : "הרץ סריקת-הכרעות"}
+            </Btn>
+          </div>
+        }
+      />
+      <PanelBody className="space-y-4">
+        {!auth && !live.error ? (
+          <Skeleton className="h-24 w-full" />
+        ) : auth && auth.sweep === 0 && auth.decisions.length === 0 ? (
+          <Callout tone="gold">
+            אין עדיין הכרעות — כנה. הסריקה-הראשונה תרוץ מהשומר בתוך-שעה (אחרי-טיק-המוח), או הרץ ידנית עם אימות. מה שלא נשאל מהמדידה — לא נכנס לפנקס.
+          </Callout>
+        ) : (
+          auth && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Kpi label="סריקה" value={`#${auth.sweep}`} hint={auth.hadBrainState ? "על מצב-מוח חי" : "בלי מצב-מוח — כנה"} />
+                <Kpi label="מבוצעות" value={String(auth.counts.executed)} hint="בוצעו בתחום-ההכרעה-העצמית" />
+                <Kpi label="בצפייה" value={String(auth.counts.deferred)} hint="ממתינות לבסיס-מדוד" />
+                <Kpi label="הסלמות-פתוחות" value={String(auth.escalationsOpen.length)} hint="שער-הבעלים — fail-closed" />
+              </div>
+
+              {auth.escalationsOpen.length > 0 && (
+                <div className="space-y-2">
+                  {auth.escalationsOpen.map((e) => (
+                    <Callout key={e.id} tone="gold">
+                      <span className="font-semibold">{domainLabel(e.domain)} — {e.question}</span>
+                      <span className="block text-[12px] text-zinc-400 mt-1">{e.reason}</span>
+                    </Callout>
+                  ))}
+                </div>
+              )}
+
+              <div className="max-h-96 overflow-y-auto">
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>תחום</Th>
+                      <Th>נושא</Th>
+                      <Th>השאלה</Th>
+                      <Th>פסק</Th>
+                      <Th>בסיס · חוק</Th>
+                      <Th>התשובה</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auth.decisions.map((d) => (
+                      <tr key={d.id}>
+                        <Td><Pill tone="zinc">{domainLabel(d.domain)}</Pill></Td>
+                        <Td className="text-[12px]" dir="ltr">{d.subject}</Td>
+                        <Td className="text-[12px] max-w-56">{d.question}</Td>
+                        <Td>{verdictPill(d.verdict)}</Td>
+                        <Td className="text-[11px] text-zinc-500">{basisLabel(d.basis)} · <span dir="ltr">{d.rule}</span></Td>
+                        <Td className="text-[12px] text-zinc-300 max-w-72">
+                          {d.reason}
+                          {d.outcome && <span className="block text-[11px] text-zinc-500 mt-1">{d.outcome}</span>}
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+
+              <Callout tone="zinc">
+                דוקטרינת-ההכרעה: חוק-ההרג מדבר לבדו כשנמדד-ונכשל · אין מיזם-יתום (שער-mvp דורש תפקיד-אחראי-חי) · הקבלות פוגשות-את-התזה לפני הסדרה · זרם-פארק מקבל חלון-הוכחה-שני אחד · תפקיד אינו מפעיל-את-עצמו (שער-הזהות) · תקציב-אוצר והצהרות-מחיר — שער-הבעלים בלבד.
+              </Callout>
+            </>
+          )
+        )}
+      </PanelBody>
+    </Panel>
+  );
+}
+
 export function ViewEconomy() {
   useTick(15000);
   const toast = useToast();
@@ -509,6 +685,8 @@ export function ViewEconomy() {
       <MarketBrainPanel />
 
       <DojoPanel />
+
+      <AuthorityPanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
         {/* פרמטרים */}
