@@ -1,0 +1,12 @@
+{
+  "kind": "harness-verify",
+  "date": "2026-10-02",
+  "measuredAt": "2026-10-02T22:22:16Z",
+  "verdict": "pass",
+  "pass": 7,
+  "fail": 0,
+  "failFast": false,
+  "gates": ["toolchain","deps","tsc","lint","db-sync","harness-files","live-api"],
+  "stages": [{"stage":"toolchain","status":"pass","detail":"bun+node present","ms":6},{"stage":"deps","status":"pass","detail":"node_modules present","ms":3},{"stage":"tsc","status":"pass","detail":"","ms":4652},{"stage":"lint","status":"pass","detail":"$ eslint .","ms":30625},{"stage":"db-sync","status":"pass","detail":" The database is already in sync with the Prisma schema.","ms":1646},{"stage":"harness-files","status":"pass","detail":"6/6 harness files present","ms":2},{"stage":"live-api","status":"pass","detail":"status API live (200)","ms":4151}],
+  "doctrine": "no done without runnable proof (harness engineering, adopted v106)"
+}

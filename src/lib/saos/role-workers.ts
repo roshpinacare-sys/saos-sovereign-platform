@@ -44,6 +44,8 @@ import { ANCHORED_EVM_ADDRESS } from "./anchored-identity";
 import { ghToken } from "./gh-token";
 import { resolveEstateRoot } from "./receipts-watch";
 import { sealAvailability, vaultHomesHealth, vaultPassState } from "../vault-seal";
+import { runHarnessVerify } from "./harness";
+import type { HarnessVerifyResult } from "./harness";
 
 // ─── גבולות-כנות ────────────────────────────────────────────────────────────
 
@@ -628,13 +630,16 @@ export async function runVaultCensus(now = Date.now()): Promise<VaultCensus> {
 
 // ─── חיבור-התפקידים (המצבת הכנה) ────────────────────────────────────────────
 
-export type RoleExecutor = "fuel-census" | "estate-census" | "key-census" | "vault-census";
+// v106 (THE LIVING HARNESS): "harness-audit" — ה-checker של maker-checker.
+// המבצע מריץ את שער-האימות (scripts/verify.sh — fails-fast, עדות JSON)
+// וכותב artifact: הפלטפורמה מאמתת את עצמה בפועל, לא מצהירה.
+export type RoleExecutor = "fuel-census" | "estate-census" | "key-census" | "vault-census" | "harness-audit";
 
 export interface WorkerBinding {
   executor: RoleExecutor;
   artifactKind: string;
   he: string;
-  run: () => Promise<FuelCensus | EstateCensus | KeyCensus | VaultCensus>;
+  run: () => Promise<FuelCensus | EstateCensus | KeyCensus | VaultCensus | HarnessVerifyResult>;
 }
 
 /** החיבורים שקיימים היום — כל תפקיד אחר מוצהר "unwired" (כנה, לא מדומה) */
@@ -662,7 +667,22 @@ export const WORKER_BINDINGS: Record<string, WorkerBinding> = {
     artifactKind: "vault-report",
     he: "רואה-חשבון-הכספת: ביקורת-חותם קריאה-בלבד (מצב/דלת/בתים/מעטפת-מטא) — בלי לפתוח את החותם ובלי לגעת בחומר-מפתח",
     run: () => runVaultCensus()
+  },
+  // v106 — ה-checker של maker-checker: מריץ את שער-האימות המלא (tsc · lint ·
+  // db-drift · harness-files · live-api) וכותב עדות JSON. זהו התפקיד שהופך
+  // "אל תסמוך על הטענות" (הוראת הבעלים) ללולאה-רצה.
+  "harness-sentinel": {
+    executor: "harness-audit",
+    artifactKind: "harness-verify",
+    he: "זקיף-המסגרת: מריץ את שער-האימות (verify.sh — fails-fast) וכותב עדות JSON — ה-checker של maker-checker; אין 'בוצע' בלי ראיה רצה",
+    run: () => runHarnessVerify()
   }
+};
+
+/** קצב-מבצע-ספציפי — עוקף את WORKER_MIN_INTERVAL_MS (השער כבד: lint נמדד ~35ש').
+ *  זקיף-המסגרת רץ לכל היותר אחת ל-6 שעות; שאר המבצעים נשארים בשעה. */
+export const EXECUTOR_MIN_INTERVAL_MS: Partial<Record<RoleExecutor, number>> = {
+  "harness-audit": 6 * 60 * 60_000
 };
 
 export function isWired(slug: string): boolean {
@@ -751,7 +771,8 @@ export async function runWorker(slug: string, actor: string, opts?: { force?: bo
   }
   if (role.status === "retired") return { ...out, ran: false, skipped: "retired" };
   if (role.status !== "active") return { ...out, ran: false, skipped: "not-active" };
-  if (!opts?.force && role.lastArtifactAt && Date.now() - role.lastArtifactAt.getTime() < WORKER_MIN_INTERVAL_MS) {
+  const minIntervalMs = EXECUTOR_MIN_INTERVAL_MS[binding.executor] ?? WORKER_MIN_INTERVAL_MS;
+  if (!opts?.force && role.lastArtifactAt && Date.now() - role.lastArtifactAt.getTime() < minIntervalMs) {
     return { ...out, ran: false, skipped: "throttled" };
   }
 

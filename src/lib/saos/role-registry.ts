@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import * as path from "path";
+import * as fs from "fs";
 import { listIssues } from "./agents-issues";
 import { truthRoast, type RoastGap } from "./roast";
 import { logOp } from "./oplog";
@@ -10,6 +12,16 @@ import {
   type SteemCadenceRow,
   type ReceiptsChainRow
 } from "./receipts-watch";
+
+/** קריאת-קיום בטוחה (v106 — מקור-7, פער-המסגרת): presence/גודל בלבד, null = לא קיים */
+function statFileSafe(p: string): { bytes: number } | null {
+  try {
+    const st = fs.statSync(p);
+    return { bytes: st.size };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * lib/saos/role-registry.ts — v99 גיוס-עצמי (THE SELF-RECRUITING ARMY).
@@ -403,6 +415,24 @@ export async function detectRoleGaps(): Promise<GapDetection> {
     }
   } catch {
     /* כנה — הגלאי לא זמין הסבב הזה */
+  }
+
+  // מקור 7 — פער-המסגרת (v106 THE LIVING HARNESS): ה-checker של maker-checker
+  // חייב להיות מגויס-תמיד. החוק הדטרמיניסטי: אין-תפקיד-חי שמריץ את שער-האימות
+  // (harness-sentinel) → פער פתוח → הוצע עם הראיה (verify.sh קיים ומדידות-הגל).
+  // זהו תפקיד-אמת שלא מפסיק להיות רלוונטי — כשהוא חי, ה-dedupe-למעלה מדלג עליו.
+  try {
+    const harnessStat = statFileSafe(path.join(process.cwd(), "scripts", "verify.sh"));
+    if (harnessStat) {
+      candidates.push({
+        slug: "harness-sentinel",
+        titleHe: "זקיף-המסגרת",
+        justification: `פער-מסגרת (v106): אין-תפקיד-חי שמריץ את שער-האימות — scripts/verify.sh (fails-fast: tsc · lint · db-drift · harness-files · live-api) קיים (${Math.round(harnessStat.bytes)} בתים) ומחכה לזקיף שיריץ אותו ויכתוב עדות JSON; ה-checker של maker-checker — אין 'בוצע' בלי ראיה רצה`,
+        fromIssue: "harness-engineering-adoption:verify-gate-unmanned"
+      });
+    }
+  } catch {
+    /* כנה — השער לא נמדד הסבב הזה */
   }
 
   // dedupe לפי slug (אותו תפקיד משני-מקורות — הקודם זוכה)
