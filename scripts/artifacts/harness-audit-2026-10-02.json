@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "verdict": "pass",
+  "pass": 10,
+  "fail": 0,
+  "ms": 21329,
+  "evidenceFile": "harness-verify-2026-10-02.json",
+  "tail": "[verify] toolchain    pass (2ms) bun+node present | [verify] gate-clear   pass (9ms) web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap) | [verify] deps         pass (25ms) node_modules present | [verify] tsc          pass (5219ms)  | [verify] lint         pass (3021ms) $ eslint . --cache --cache-location .cache/eslint --cache-strategy content | [verify] db-sync      pass (1556ms)  The database is already in sync with the Prisma schema. | [verify] harness-file"
+}

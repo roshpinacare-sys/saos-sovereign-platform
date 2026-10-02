@@ -1,14 +1,14 @@
 {
   "format": "saos-state-snapshot",
   "version": 1,
-  "exportedAt": "2026-10-02T22:11:13.312Z",
+  "exportedAt": "2026-10-02T23:30:02.056Z",
   "source": "keeper-tick",
   "counts": {
-    "agentRole": 5,
-    "opLog": 255,
-    "economyRun": 1
+    "agentRole": 8,
+    "opLog": 540,
+    "economyRun": 2
   },
-  "digest": "32eb7ef3110c87950ce877d2a4cbd097c065b44562dbcadde2f071ccaadc55b5",
+  "digest": "4af5def74111c882f3982a98ffec5d15d431fb7c5cb09e3d3fdf3dd402a67f93",
   "tables": {
     "agentRole": [
       {
@@ -21,8 +21,8 @@
         "status": "active",
         "proposedBy": "gap-detector",
         "activatedAt": "2026-10-02T21:36:03.546Z",
-        "lastArtifactAt": "2026-10-02T21:36:03.546Z",
-        "artifactNote": "wave-17: הפעלה בזהות gold-scout אמיתית — מבצע מחובר (key-census/vault-census/fuel-census)",
+        "lastArtifactAt": "2026-10-02T22:54:43.623Z",
+        "artifactNote": "vault-census → vault-census-2026-10-02.json (a2bf345e)",
         "at": "2026-10-02T21:24:50.527Z"
       },
       {
@@ -35,8 +35,8 @@
         "status": "active",
         "proposedBy": "gap-detector",
         "activatedAt": "2026-10-02T21:36:03.533Z",
-        "lastArtifactAt": "2026-10-02T21:36:03.533Z",
-        "artifactNote": "wave-17: הפעלה בזהות gold-scout אמיתית — מבצע מחובר (key-census/vault-census/fuel-census)",
+        "lastArtifactAt": "2026-10-02T22:54:43.817Z",
+        "artifactNote": "key-census → key-census-2026-10-02.json (8a6b525f)",
         "at": "2026-10-02T21:24:50.707Z"
       },
       {
@@ -49,8 +49,8 @@
         "status": "active",
         "proposedBy": "gap-detector",
         "activatedAt": "2026-10-02T21:36:03.515Z",
-        "lastArtifactAt": "2026-10-02T21:36:03.515Z",
-        "artifactNote": "wave-17: הפעלה בזהות gold-scout אמיתית — מבצע מחובר (key-census/vault-census/fuel-census)",
+        "lastArtifactAt": "2026-10-02T22:54:45.305Z",
+        "artifactNote": "fuel-census → fuel-census-2026-10-02.json (ba119849)",
         "at": "2026-10-02T21:24:50.711Z"
       },
       {
@@ -74,15 +74,1767 @@
         "justification": "פער-מסגרת (v106): אין-תפקיד-חי שמריץ את שער-האימות — scripts/verify.sh (fails-fast: tsc · lint · db-drift · harness-files · live-api) קיים (4855 בתים) ומחכה לזקיף שיריץ אותו ויכתוב עדות JSON; ה-checker של maker-checker — אין 'בוצע' בלי ראיה רצה",
         "origin": "auto",
         "fromIssue": "harness-engineering-adoption:verify-gate-unmanned",
+        "status": "active",
+        "proposedBy": "gap-detector",
+        "activatedAt": "2026-10-02T22:58:39.756Z",
+        "lastArtifactAt": "2026-10-02T22:58:39.756Z",
+        "artifactNote": "v107 activation — wired executor proven (role-worker-run measured)",
+        "at": "2026-10-02T22:10:02.285Z"
+      },
+      {
+        "id": 6,
+        "slug": "key-rotation-watch",
+        "titleHe": "צופה-הרוטציה",
+        "justification": "פער-רוטציה (v107): חומר-מפתח קיים באתרים-מדודים (כספת ✓ · home-secrets ✓) ואף-תפקיד-חי לא קורא גיל-מדוד מול חלונות-רוטציה (צפייה 30-יום · פריצה 90-יום) + סטיות-הרשאות (0600 מצופה) — צופה-הרוטציה מדווח ולעולם לא מסובב (רוטציה = חומר-בעלים)",
+        "origin": "auto",
+        "fromIssue": "r12-key-rotation-watch:measured-age-unwatched",
+        "status": "active",
+        "proposedBy": "gap-detector",
+        "activatedAt": "2026-10-02T22:58:39.356Z",
+        "lastArtifactAt": "2026-10-02T22:58:39.356Z",
+        "artifactNote": "v107 activation — wired executor proven (role-worker-run measured)",
+        "at": "2026-10-02T22:58:39.005Z"
+      },
+      {
+        "id": 7,
+        "slug": "web-stability-watch",
+        "titleHe": "סייר-יציבות-ווב",
+        "justification": "פער-רוסט (מחזור המוות-והחיים): סופר ריסוקים, החייאות וחימום-קר של שכבת-הווב — מדידת-יציבות כנה במקום הצהרות",
+        "origin": "auto",
+        "fromIssue": "roast:churn-cycle",
         "status": "proposed",
         "proposedBy": "gap-detector",
         "activatedAt": null,
         "lastArtifactAt": null,
         "artifactNote": "",
-        "at": "2026-10-02T22:10:02.285Z"
+        "at": "2026-10-02T23:28:46.966Z"
+      },
+      {
+        "id": 8,
+        "slug": "steem-ambush-watch",
+        "titleHe": "סייר-מארב-STEEM",
+        "justification": "פער-רוסט (מארב headcorner): מצייר את שעון-המארב האמיתי — מתי השער נפתח ומתי העוגן יכול לחתום, במקום לחכות בשקט",
+        "origin": "auto",
+        "fromIssue": "roast:steem-window",
+        "status": "proposed",
+        "proposedBy": "gap-detector",
+        "activatedAt": null,
+        "lastArtifactAt": null,
+        "artifactNote": "",
+        "at": "2026-10-02T23:28:46.968Z"
       }
     ],
     "opLog": [
+      {
+        "id": "cmurli9d00016ob17myrtfvik",
+        "op": "authority",
+        "detail": "סריקה 4 (keeper-tick): 6 שאלות · 1 מבוצעות · 0 מאושרות · 5 בצפייה · 0 נדחות · 0 ישנות-פתוחות — כל תשובה עם חוק ובסיס · חדשות 4 · מתעדכנות 2 · לבעלים 0 · 23ms",
+        "createdAt": "2026-10-02T23:29:50.821Z"
+      },
+      {
+        "id": "cmurlhzwg0014ob17yld3hu5v",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"buy\",\"amount\":20.86160077414412,\"ok\":true,\"txid\":\"0x5af7612b4dc5c03163ac27ad1d624ad0bbc7f7ca60a47a46eefb8abde7625ff0\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"0.007551 WRXP\"}",
+        "createdAt": "2026-10-02T23:29:38.561Z"
+      },
+      {
+        "id": "cmurlhzwg0015ob17d6v3lx99",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":2744.42,\"ema\":2766.55,\"amountIn\":\"20.8616 wSAOS\",\"txid\":\"0x5af7612b4dc5c03163ac27ad1d624ad0bbc7f7ca60a47a46eefb8abde7625ff0\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:38.561Z"
+      },
+      {
+        "id": "cmurlhzm10011ob179l2b74bs",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"buy\",\"amount\":0.15130454725068776,\"ok\":true,\"txid\":\"0x173491c4aef4702d105173d65e54d923b9364c01a1c121eb219412ce9f588476\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"1.434e-8 WBNB\"}",
+        "createdAt": "2026-10-02T23:29:38.186Z"
+      },
+      {
+        "id": "cmurlhzm20013ob179he1ee2r",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:38.186Z"
+      },
+      {
+        "id": "cmurlhzm20012ob17hik1io6x",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":10843500,\"ema\":10930900,\"amountIn\":\"0.1513 wSAOS\",\"txid\":\"0x173491c4aef4702d105173d65e54d923b9364c01a1c121eb219412ce9f588476\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:38.186Z"
+      },
+      {
+        "id": "cmurlhzc9000zob17mm7s7dd6",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":11907700,\"ema\":11813200,\"amountIn\":\"3.378e-7 WETH\",\"txid\":\"0xd84b0b1f173d563d0ff9cb238d08cb9fa59e80caa8bb9eb48875c50d2a6d7ee6\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:37.834Z"
+      },
+      {
+        "id": "cmurlhzc90010ob17yh8gd05t",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:37.834Z"
+      },
+      {
+        "id": "cmurlhzc9000yob176ki5agix",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.3778072849026e-7,\"ok\":true,\"txid\":\"0xd84b0b1f173d563d0ff9cb238d08cb9fa59e80caa8bb9eb48875c50d2a6d7ee6\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.1689 wSAOS\"}",
+        "createdAt": "2026-10-02T23:29:37.833Z"
+      },
+      {
+        "id": "cmurlhz34000xob17gegasyz0",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:37.505Z"
+      },
+      {
+        "id": "cmurlhz1a000vob17x8oeqnnc",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.00000474365769198169,\"ok\":true,\"txid\":\"0x55d284d9189ac320be18aa6b3142064ce79a9f59fa440a1eeb5f8c6c1703e69f\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8395 wSAOS\"}",
+        "createdAt": "2026-10-02T23:29:37.439Z"
+      },
+      {
+        "id": "cmurlhz1b000wob173y5hf1w1",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":382715,\"ema\":379677,\"amountIn\":\"0.000004744 WSOL\",\"txid\":\"0x55d284d9189ac320be18aa6b3142064ce79a9f59fa440a1eeb5f8c6c1703e69f\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:37.439Z"
+      },
+      {
+        "id": "cmurlhysr000uob17zuvag2mp",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:37.131Z"
+      },
+      {
+        "id": "cmurlhyqx000sob17r0kxqhm1",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007885134431192927,\"ok\":true,\"txid\":\"0x2e0fd8b45bcf1fd15455c845aeaf378f98e1e0d3c1d93b5aec3281e694f72be4\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.9946 wSAOS\"}",
+        "createdAt": "2026-10-02T23:29:37.066Z"
+      },
+      {
+        "id": "cmurlhyqx000tob17bwh2aqid",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":1252.08,\"ema\":1242.15,\"amountIn\":\"0.0007885 WTRX\",\"txid\":\"0x2e0fd8b45bcf1fd15455c845aeaf378f98e1e0d3c1d93b5aec3281e694f72be4\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:37.066Z"
+      },
+      {
+        "id": "cmurlhyiv000rob17ql13lr1o",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:36.776Z"
+      },
+      {
+        "id": "cmurlhyh0000pob17oqa529q0",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"buy\",\"amount\":20.86160077414412,\"ok\":true,\"txid\":\"0xfd015b8cc0743ddb33909ca177c85bd439c26afdc213f500658f602d27a3bc65\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"0.007702 WRXP\"}",
+        "createdAt": "2026-10-02T23:29:36.709Z"
+      },
+      {
+        "id": "cmurlhyh0000qob17e29pooi8",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":2755.48,\"ema\":2766.55,\"amountIn\":\"20.8616 wSAOS\",\"txid\":\"0xfd015b8cc0743ddb33909ca177c85bd439c26afdc213f500658f602d27a3bc65\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:36.709Z"
+      },
+      {
+        "id": "cmurlhy6i000mob17cp4rql63",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"buy\",\"amount\":0.15130454725068776,\"ok\":true,\"txid\":\"0xc2141a4878aa71438cfba9e27684b0437942cd400f40b258792c9e2d5fd9a606\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"1.463e-8 WBNB\"}",
+        "createdAt": "2026-10-02T23:29:36.331Z"
+      },
+      {
+        "id": "cmurlhy6i000nob17knip63a3",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":10887200,\"ema\":10930900,\"amountIn\":\"0.1513 wSAOS\",\"txid\":\"0xc2141a4878aa71438cfba9e27684b0437942cd400f40b258792c9e2d5fd9a606\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:36.331Z"
+      },
+      {
+        "id": "cmurlhy6j000oob17g5c2eqnb",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:36.331Z"
+      },
+      {
+        "id": "cmurlhxwk000lob17hzfn1chz",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.3778072849026e-7,\"ok\":true,\"txid\":\"0x8a29cb8f2db514bd18ddad2af5695d3b446bd235446620f800f5c89c5c604836\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.2521 wSAOS\"}",
+        "createdAt": "2026-10-02T23:29:35.973Z"
+      },
+      {
+        "id": "cmurlhxwk000job17f7xsg87j",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11860400,\"ema\":11813200,\"amountIn\":\"3.378e-7 WETH\",\"txid\":\"0x8a29cb8f2db514bd18ddad2af5695d3b446bd235446620f800f5c89c5c604836\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:35.972Z"
+      },
+      {
+        "id": "cmurlhxwk000kob17dxa5oots",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:35.972Z"
+      },
+      {
+        "id": "cmurlhxne000iob17chopzg8o",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:35.642Z"
+      },
+      {
+        "id": "cmurlhxli000gob17rw85s0ay",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.00000474365769198169,\"ok\":true,\"txid\":\"0xade60f5135ea10b583afc361fe7eed36bc327816163c9ab7685516a2ab7318ca\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8763 wSAOS\"}",
+        "createdAt": "2026-10-02T23:29:35.575Z"
+      },
+      {
+        "id": "cmurlhxli000hob17jcvehn5y",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":381196,\"ema\":379677,\"amountIn\":\"0.000004744 WSOL\",\"txid\":\"0xade60f5135ea10b583afc361fe7eed36bc327816163c9ab7685516a2ab7318ca\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:35.575Z"
+      },
+      {
+        "id": "cmurlhxci000fob17ykn4tumf",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:35.251Z"
+      },
+      {
+        "id": "cmurlhxak000dob17lswmpbsx",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007885134431192927,\"ok\":true,\"txid\":\"0x4643f0247a7f381eee6b836869d557d9ad2f6a3eee33231d1324f953c6a3aef6\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0144 wSAOS\"}",
+        "createdAt": "2026-10-02T23:29:35.180Z"
+      },
+      {
+        "id": "cmurlhxak000eob17wn3uzbx4",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":1247.11,\"ema\":1242.15,\"amountIn\":\"0.0007885 WTRX\",\"txid\":\"0x4643f0247a7f381eee6b836869d557d9ad2f6a3eee33231d1324f953c6a3aef6\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:35.180Z"
+      },
+      {
+        "id": "cmurlhx2g000cob17wzgrjrbo",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:34.889Z"
+      },
+      {
+        "id": "cmurlhwt6000bob17ecz1j5sw",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"devPct\":10.728,\"ema\":11969300,\"amountIn\":\"6.623e-7 WETH\",\"txid\":\"0x1e8917798f283207e643e9751d03c712759f329ce3bdd36843c1eca79a54b1ba\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:29:34.554Z"
+      },
+      {
+        "id": "cmurlhwt6000aob171g6nbamb",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":6.623281435405201e-7,\"ok\":true,\"txid\":\"0x1e8917798f283207e643e9751d03c712759f329ce3bdd36843c1eca79a54b1ba\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"8.5891 wSAOS\"}",
+        "createdAt": "2026-10-02T23:29:34.554Z"
+      },
+      {
+        "id": "cmurlhv0a0009ob17o77439x5",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:29:32.218Z"
+      },
+      {
+        "id": "cmurlh7vf0007ob17q93zbvs6",
+        "op": "market-brain",
+        "detail": "מחזור 3 (keeper-tick): 8 זרמים · 2 מוגדלים · 0 רצפה · 0 בפארק-תשואה — כל החלטה עם סיבה נמדדת · ריצה #2",
+        "createdAt": "2026-10-02T23:29:02.235Z"
+      },
+      {
+        "id": "cmurlh7uz0006ob17gcp768pd",
+        "op": "market-brain",
+        "detail": "מיזם-חדש הוצע: operator-liquidity-inflow (proposed) — תשואת-הזרם אפס במשך 6 מחזורי-מוח רצופים או ירידה-מתמשכת מתחת לרצפת-התשואה-ליחידה",
+        "createdAt": "2026-10-02T23:29:02.220Z"
+      },
+      {
+        "id": "cmurlgw3p0005ob175fx7spki",
+        "op": "workers.sweep",
+        "detail": "{\"ok\":true,\"active\":5,\"ran\":0,\"artifacts\":0,\"unwiredActive\":[],\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T23:28:46.982Z"
+      },
+      {
+        "id": "cmurlgw3c0004ob177uti4um8",
+        "op": "roles.propose",
+        "detail": "{\"ok\":true,\"proposed\":[\"web-stability-watch\",\"steem-ambush-watch\"],\"skippedCovered\":3,\"capReached\":true,\"proposedCount\":3,\"by\":\"gap-detector\"}",
+        "createdAt": "2026-10-02T23:28:46.969Z"
+      },
+      {
+        "id": "cmurl77lj0002obm2hbb6puon",
+        "op": "economy-run",
+        "detail": "{\"actor\":\"hq\",\"runId\":2,\"stage\":1,\"mode\":\"measured\",\"totalPerDayUsdMicro\":324421,\"txids\":0}",
+        "createdAt": "2026-10-02T23:21:15.320Z"
+      },
+      {
+        "id": "cmurkmvaj000robxt4vrmieuk",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":11257100,\"ema\":11167700,\"amountIn\":\"1.396e-8 WBNB\",\"txid\":\"0x1a11c8d9861ab3456e75848111f52281947e4533f7f85d88ed0a1c306705e9a6\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:05:26.251Z"
+      },
+      {
+        "id": "cmurkmvaj000sobxtazaq44xq",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"sell\",\"amount\":1.3956230534480001e-8,\"ok\":true,\"txid\":\"0x1a11c8d9861ab3456e75848111f52281947e4533f7f85d88ed0a1c306705e9a6\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"0.1555 wSAOS\"}",
+        "createdAt": "2026-10-02T23:05:26.251Z"
+      },
+      {
+        "id": "cmurkmv0n000qobxtv8vqhpk4",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:05:25.895Z"
+      },
+      {
+        "id": "cmurkmuyq000oobxt6y3s0iqy",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9678403784076207,\"ok\":true,\"txid\":\"0xd123f68144750abc70194afc2c4fe22c6271c39e0a0562bba15e5becdff7146e\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0008103 WTRX\"}",
+        "createdAt": "2026-10-02T23:05:25.827Z"
+      },
+      {
+        "id": "cmurkmuyr000pobxtz9y7qn40",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":1212.42,\"ema\":1222.2,\"amountIn\":\"0.9678 wSAOS\",\"txid\":\"0xd123f68144750abc70194afc2c4fe22c6271c39e0a0562bba15e5becdff7146e\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:05:25.827Z"
+      },
+      {
+        "id": "cmurkmuqh000lobxt46bzxx2k",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"sell\",\"amount\":1.3956230534480001e-8,\"ok\":true,\"txid\":\"0x5821c4e8609d00e2fed58e604c990734ac1469d9faa39c80a896e2d61cbcb824\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"0.1586 wSAOS\"}",
+        "createdAt": "2026-10-02T23:05:25.530Z"
+      },
+      {
+        "id": "cmurkmuqh000mobxtj401e4wf",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11212400,\"ema\":11167700,\"amountIn\":\"1.396e-8 WBNB\",\"txid\":\"0x5821c4e8609d00e2fed58e604c990734ac1469d9faa39c80a896e2d61cbcb824\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:05:25.530Z"
+      },
+      {
+        "id": "cmurkmuqi000nobxt0i33iy5e",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:05:25.530Z"
+      },
+      {
+        "id": "cmurkmugl000kobxtp3hy7kna",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:05:25.173Z"
+      },
+      {
+        "id": "cmurkmuer000jobxtky7ciwvr",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11550400,\"ema\":11504400,\"amountIn\":\"3.546e-7 WETH\",\"txid\":\"0x85c0ab192fe9dd652f8d46764071584eed8478608bad185ea1a7079d8cc906de\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:05:25.108Z"
+      },
+      {
+        "id": "cmurkmuer000iobxtkceks4hr",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.5458960234461e-7,\"ok\":true,\"txid\":\"0x85c0ab192fe9dd652f8d46764071584eed8478608bad185ea1a7079d8cc906de\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0501 wSAOS\"}",
+        "createdAt": "2026-10-02T23:05:25.107Z"
+      },
+      {
+        "id": "cmurkmu5k000hobxtly9o99td",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:05:24.777Z"
+      },
+      {
+        "id": "cmurkmu3h000fobxtbr8rjjms",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9678403784076207,\"ok\":true,\"txid\":\"0x06baefc2819e2b28ce65989f944b1576311e5609d161109659f79b8dfc2f5806\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0008264 WTRX\"}",
+        "createdAt": "2026-10-02T23:05:24.701Z"
+      },
+      {
+        "id": "cmurkmu3h000gobxt81ubyq6y",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":1217.31,\"ema\":1222.2,\"amountIn\":\"0.9678 wSAOS\",\"txid\":\"0x06baefc2819e2b28ce65989f944b1576311e5609d161109659f79b8dfc2f5806\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:05:24.701Z"
+      },
+      {
+        "id": "cmurkmtts000eobxtsmxwlzkv",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:05:24.352Z"
+      },
+      {
+        "id": "cmurkmtls000cobxt51nlepzo",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"sell\",\"amount\":2.736568838896e-8,\"ok\":true,\"txid\":\"0xa717964f7478b69f76b36c9909afb7783729d0e9512b7c72535069b13912d6ca\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"0.3203 wSAOS\"}",
+        "createdAt": "2026-10-02T23:05:24.065Z"
+      },
+      {
+        "id": "cmurkmtlt000dobxta5a9a1sf",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"sell\",\"devPct\":6.032,\"ema\":11282400,\"amountIn\":\"2.737e-8 WBNB\",\"txid\":\"0xa717964f7478b69f76b36c9909afb7783729d0e9512b7c72535069b13912d6ca\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:05:24.065Z"
+      },
+      {
+        "id": "cmurkmruw000aobxtrwf6uhba",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:05:21.800Z"
+      },
+      {
+        "id": "cmurkk6qf0004obxten2zhshc",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":753664,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 736KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-02T23:03:21.111Z"
+      },
+      {
+        "id": "cmurkk6pt0003obxtfgal0a0k",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:03:21.090Z"
+      },
+      {
+        "id": "cmurke5o00004obadsq712zf9",
+        "op": "roles.activate",
+        "detail": "{\"ok\":true,\"slug\":\"harness-sentinel\",\"by\":\"bearer:c0cc48d6\",\"alreadyActive\":false}",
+        "createdAt": "2026-10-02T22:58:39.793Z"
+      },
+      {
+        "id": "cmurke5c00003obadpqw09tjr",
+        "op": "roles.activate",
+        "detail": "{\"ok\":true,\"slug\":\"key-rotation-watch\",\"by\":\"bearer:c0cc48d6\",\"alreadyActive\":false}",
+        "createdAt": "2026-10-02T22:58:39.360Z"
+      },
+      {
+        "id": "cmurke52i0002obad0w3dgl8u",
+        "op": "roles.propose",
+        "detail": "{\"ok\":true,\"proposed\":[\"key-rotation-watch\"],\"skippedCovered\":5,\"capReached\":false,\"proposedCount\":3,\"by\":\"gap-detector\"}",
+        "createdAt": "2026-10-02T22:58:39.019Z"
+      },
+      {
+        "id": "cmurkb8mj001jobxt85bx0nwc",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:56:23.660Z"
+      },
+      {
+        "id": "cmurkb8mh001hobxt80swtumo",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"buy\",\"amount\":4.0582025490513205,\"ok\":true,\"txid\":\"0xeacb6f25efa60bdd61617a11e0d684cf7e737577f6e1597bbdd24fb161834dcb\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"3.539e-7 WETH\"}",
+        "createdAt": "2026-10-02T22:56:23.657Z"
+      },
+      {
+        "id": "cmurkb8mh001iobxtmmaxgbyy",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":11440200,\"ema\":11486200,\"amountIn\":\"4.0582 wSAOS\",\"txid\":\"0xeacb6f25efa60bdd61617a11e0d684cf7e737577f6e1597bbdd24fb161834dcb\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:56:23.657Z"
+      },
+      {
+        "id": "cmurkb89i001gobxtzhge4y4z",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"yield-governor-economics\",\"rail\":\"git-public\",\"error\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (fetch first)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the remote contains work that you do not\\nhint: h\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:56:23.189Z\"}",
+        "createdAt": "2026-10-02T22:56:23.190Z"
+      },
+      {
+        "id": "cmurkb89h001fobxt9frey9ck",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:56:23.189Z"
+      },
+      {
+        "id": "cmurkb89g001dobxtjdx7gxmx",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":1238.89,\"ema\":1243.87,\"amountIn\":\"0.9950 wSAOS\",\"txid\":\"0xfa9c7c0f9f94c8701b288fd4c75e10e79c37cbd877b82fb00e9c33ff836c6a72\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:56:23.188Z"
+      },
+      {
+        "id": "cmurkb89g001eobxtpkcastkb",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9950104033598538,\"ok\":true,\"txid\":\"0xfa9c7c0f9f94c8701b288fd4c75e10e79c37cbd877b82fb00e9c33ff836c6a72\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0008038 WTRX\"}",
+        "createdAt": "2026-10-02T22:56:23.188Z"
+      },
+      {
+        "id": "cmurkb7r5001cobxtino145yi",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:56:22.530Z"
+      },
+      {
+        "id": "cmurkb6z2001aobxtcqef1yob",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"yield-governor-economics\",\"titleHe\":\"המוח-הכלכלי: איך רשת-סוכנים מקצה מאמץ לפי תשואה נמדדת — ולא לפי תקציב\",\"titleEn\":\"The yield governor: how an autonomous agent network allocates effort by measured yield — not by budget\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-yield-governor-economics.md\",\"sha\":\"1ec564b70f3abe4eb44afcb0efa06ae195597b1e4c240ccf1950edc16b3e9b54\",\"bytes\":6943,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:56:21.517Z\"}",
+        "createdAt": "2026-10-02T22:56:21.518Z"
+      },
+      {
+        "id": "cmurkb6yu0019obxt8ecxmlm9",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"the-living-harness\",\"titleHe\":\"המסגרת-החיה: איך רשת-סוכנים מאמתת את עצמה — בלי לסמוך על אף אחד\",\"titleEn\":\"The living harness: how an autonomous agent network verifies itself — trusting nobody's claims\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-the-living-harness.md\",\"sha\":\"4f616400f16b12bd30d374d6a901674f6144e938b7690474ef95eeaf7dd83672\",\"bytes\":4901,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:56:21.510Z\"}",
+        "createdAt": "2026-10-02T22:56:21.511Z"
+      },
+      {
+        "id": "cmurkb6yq0018obxttsra0qrx",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-network-ladder\",\"titleHe\":\"ריבונות דיגיטלית בפועל: רשת סוכנים אוטונומית שמודדת את עצמה ומעגנת אמת על הבלוקצ'יין\",\"titleEn\":\"Sovereignty in practice: an autonomous agent network that measures itself and anchors truth on-chain\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-network-ladder.md\",\"sha\":\"cbb4124de7e0452527c32a13c71fc2fa0fd7cfb2b8291ddb4db840855cc76817\",\"bytes\":8549,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:56:21.505Z\"}",
+        "createdAt": "2026-10-02T22:56:21.506Z"
+      },
+      {
+        "id": "cmurkb6yc0017obxt8eyfqv2e",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-manager-zero-wait\",\"titleHe\":\"הריבונות מנהלת: כך רשת-סוכנים מפסיקה לחכות — אפס-המתנה כעקרון-הנדסי\",\"titleEn\":\"The sovereign manages: zero-waiting as an engineering principle in an autonomous agent network\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-manager-zero-wait.md\",\"sha\":\"f86d8a0abaf62ca25abe58b4fe89ad75e80b12d62f8847dbc4ccc3a31dd121d5\",\"bytes\":3637,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:56:21.491Z\"}",
+        "createdAt": "2026-10-02T22:56:21.493Z"
+      },
+      {
+        "id": "cmurkb6u90016obxthbngzw5r",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-decision-authority\",\"titleHe\":\"הרשות-הריבונית: איך רשת-סוכנים מכריעה בעצמה — ומנהלת בלי להמתין\",\"titleEn\":\"The sovereign authority: how an agent network decides for itself — and manages without waiting\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-decision-authority.md\",\"sha\":\"798099066350407a529c9cfde91d74f72ae1de5a0e6267221960d6c34f1119a7\",\"bytes\":4897,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:56:21.344Z\"}",
+        "createdAt": "2026-10-02T22:56:21.346Z"
+      },
+      {
+        "id": "cmurkb6u20015obxt7b3sx45l",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"peer-cross-audit\",\"titleHe\":\"ביקורת-עמיתים מוסדית: כך צוות-סוכנים בודק את עבודת-הגיט של עצמו\",\"titleEn\":\"Institutional peer cross-audit: how an agent team reviews its own Git work\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-peer-cross-audit.md\",\"sha\":\"7409a765e4a3c7670e9791a793aac44e3a04e3f609565deec70495d8ba9bced8\",\"bytes\":6588,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:56:21.338Z\"}",
+        "createdAt": "2026-10-02T22:56:21.339Z"
+      },
+      {
+        "id": "cmurkb6tq0014obxtqeubs0m6",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"measured-agent-economy\",\"titleHe\":\"כלכלה שמודדת את עצמה: איך רשת-סוכנים בונה סולם-אמת מסימולציה למדידה\",\"titleEn\":\"A self-measuring economy: how an autonomous agent network climbs a truth ladder from simulation to measurement\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-measured-agent-economy.md\",\"sha\":\"dc09296a9ed78e149392f13e7d1cb888fa9632b7d08d42cda05ebab1b93e33e7\",\"bytes\":7131,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:56:21.325Z\"}",
+        "createdAt": "2026-10-02T22:56:21.326Z"
+      },
+      {
+        "id": "cmurkak8l0010obxtb1lw3785",
+        "op": "state-snapshot.export",
+        "detail": "{\"ok\":true,\"file\":\"state-snapshot-2026-10-02.json\",\"bytes\":178793,\"counts\":{\"agentRole\":5,\"opLog\":462,\"economyRun\":1},\"digest\":\"a2af5eb96225b698\"}",
+        "createdAt": "2026-10-02T22:55:52.053Z"
+      },
+      {
+        "id": "cmurkabo3000yobxtjzqqj2gt",
+        "op": "authority",
+        "detail": "סריקה 3 (keeper-tick): 3 שאלות · 0 מבוצעות · 0 מאושרות · 3 בצפייה · 0 נדחות · 0 ישנות-פתוחות — כל תשובה עם חוק ובסיס · חדשות 1 · מתעדכנות 2 · לבעלים 0 · 22ms",
+        "createdAt": "2026-10-02T22:55:40.947Z"
+      },
+      {
+        "id": "cmurka0u2000wobxtw2puug7e",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"sell\",\"amount\":0.0075242230063192715,\"ok\":true,\"txid\":\"0x9362beb448281a5850a5c02cde33b4e4df76613e43b25f8edcb6a4fd91b901b7\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"20.9350 wSAOS\"}",
+        "createdAt": "2026-10-02T22:55:26.907Z"
+      },
+      {
+        "id": "cmurka0u3000xobxtx55sreen",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":2847.16,\"ema\":2824.57,\"amountIn\":\"0.007524 WRXP\",\"txid\":\"0x9362beb448281a5850a5c02cde33b4e4df76613e43b25f8edcb6a4fd91b901b7\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:55:26.907Z"
+      },
+      {
+        "id": "cmurka0je000vobxtpr6sgq1o",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:55:26.522Z"
+      },
+      {
+        "id": "cmurka0hf000tobxtu53fs3tj",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":11629900,\"ema\":11537600,\"amountIn\":\"3.511e-7 WETH\",\"txid\":\"0x4323246c05f8e903a7f7bec1c9bd51ada12fefe1f0e6430b0f4c5552077be41f\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:55:26.452Z"
+      },
+      {
+        "id": "cmurka0hg000uobxtp2e0t1rc",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.51113168836e-7,\"ok\":true,\"txid\":\"0x4323246c05f8e903a7f7bec1c9bd51ada12fefe1f0e6430b0f4c5552077be41f\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0100 wSAOS\"}",
+        "createdAt": "2026-10-02T22:55:26.452Z"
+      },
+      {
+        "id": "cmurka07y000sobxth321pkq7",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:55:26.110Z"
+      },
+      {
+        "id": "cmurka062000robxtbvb54ll8",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007975468809555061,\"ok\":true,\"txid\":\"0x775bfa5f34d2f14370b2d1ce4c8c1ac134143566a7b6bd9b846c65db7f10aaf9\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.9832 wSAOS\"}",
+        "createdAt": "2026-10-02T22:55:26.043Z"
+      },
+      {
+        "id": "cmurka062000qobxt12wl9qm2",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":1260.78,\"ema\":1250.77,\"amountIn\":\"0.0007975 WTRX\",\"txid\":\"0x775bfa5f34d2f14370b2d1ce4c8c1ac134143566a7b6bd9b846c65db7f10aaf9\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:55:26.042Z"
+      },
+      {
+        "id": "cmurk9zy1000pobxtq145z2rc",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:55:25.754Z"
+      },
+      {
+        "id": "cmurk9zw2000nobxtzbc7rtv0",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"sell\",\"amount\":0.0075242230063192715,\"ok\":true,\"txid\":\"0x4267222b6db17b00bba1d7f34db7cfbff0d0b50f4945c7ec0ef1c1c598a59e58\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"21.3531 wSAOS\"}",
+        "createdAt": "2026-10-02T22:55:25.682Z"
+      },
+      {
+        "id": "cmurk9zw2000oobxtqqf1fcyh",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":2835.87,\"ema\":2824.57,\"amountIn\":\"0.007524 WRXP\",\"txid\":\"0x4267222b6db17b00bba1d7f34db7cfbff0d0b50f4945c7ec0ef1c1c598a59e58\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:55:25.682Z"
+      },
+      {
+        "id": "cmurk9zlg000mobxt0bhdwqku",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:55:25.300Z"
+      },
+      {
+        "id": "cmurk9zjg000kobxtpv85jsr9",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.51113168836e-7,\"ok\":true,\"txid\":\"0x57601bb9161dae156a3e28b838749a52c7da437033029741e73f12d2b98ff9eb\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0901 wSAOS\"}",
+        "createdAt": "2026-10-02T22:55:25.228Z"
+      },
+      {
+        "id": "cmurk9zjg000lobxtsn5a2mne",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11583800,\"ema\":11537600,\"amountIn\":\"3.511e-7 WETH\",\"txid\":\"0x57601bb9161dae156a3e28b838749a52c7da437033029741e73f12d2b98ff9eb\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:55:25.228Z"
+      },
+      {
+        "id": "cmurk9za2000jobxtmj0ladap",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:55:24.891Z"
+      },
+      {
+        "id": "cmurk9z7c000iobxt6j6tqd9e",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007975468809555061,\"ok\":true,\"txid\":\"0x01b8d8d85c8842fa6cfb3322a53d3221058149c3cd6c69d06f28e7ff717b8820\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0028 wSAOS\"}",
+        "createdAt": "2026-10-02T22:55:24.793Z"
+      },
+      {
+        "id": "cmurk9z7c000hobxtdbo279pr",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":1255.77,\"ema\":1250.77,\"amountIn\":\"0.0007975 WTRX\",\"txid\":\"0x01b8d8d85c8842fa6cfb3322a53d3221058149c3cd6c69d06f28e7ff717b8820\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:55:24.792Z"
+      },
+      {
+        "id": "cmurk9ywz000gobxti568sk7c",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:55:24.419Z"
+      },
+      {
+        "id": "cmurk9yiq000dobxtp1uuejed",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":3.5801567848675457,\"ok\":true,\"txid\":\"0x0533b4d17059b083e1007ede0517edc68ebe147aa4bf9c2c75f1d083556b4669\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000009846 WSOL\"}",
+        "createdAt": "2026-10-02T22:55:23.907Z"
+      },
+      {
+        "id": "cmurk9yir000eobxt05y6la5q",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"devPct\":-4.144,\"ema\":371155,\"amountIn\":\"3.5802 wSAOS\",\"txid\":\"0x0533b4d17059b083e1007ede0517edc68ebe147aa4bf9c2c75f1d083556b4669\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:55:23.907Z"
+      },
+      {
+        "id": "cmurk9wp3000cobxt2t3er1b6",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:55:21.543Z"
+      },
+      {
+        "id": "cmurk9a41000aobxth4wmatau",
+        "op": "market-brain",
+        "detail": "מחזור 2 (keeper-tick): 8 זרמים · 0 מוגדלים · 0 רצפה · 0 בפארק-תשואה — כל החלטה עם סיבה נמדדת · ריצה #1",
+        "createdAt": "2026-10-02T22:54:52.274Z"
+      },
+      {
+        "id": "cmurk9a3h0009obxtrkxu448x",
+        "op": "market-brain",
+        "detail": "מיזם-חדש הוצע: operator-work-orders-paid (proposed) — תשואת-הזרם אפס במשך 6 מחזורי-מוח רצופים או ירידה-מתמשכת מתחת לרצפת-התשואה-ליחידה",
+        "createdAt": "2026-10-02T22:54:52.254Z"
+      },
+      {
+        "id": "cmurk94qz0006obxt2nzx2j8e",
+        "op": "workers.sweep",
+        "detail": "{\"ok\":true,\"active\":3,\"ran\":3,\"artifacts\":3,\"unwiredActive\":[],\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T22:54:45.323Z"
+      },
+      {
+        "id": "cmurk94qo0005obxt4fan3xtb",
+        "op": "workers.run",
+        "detail": "{\"ok\":true,\"slug\":\"evm-fuel-attendant\",\"executor\":\"fuel-census\",\"file\":\"fuel-census-2026-10-02.json\",\"bytes\":894,\"digest\":\"ba119849\",\"measured\":true,\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T22:54:45.312Z"
+      },
+      {
+        "id": "cmurk93ma0004obxtm4r0rooo",
+        "op": "workers.run",
+        "detail": "{\"ok\":true,\"slug\":\"key-forge-operator\",\"executor\":\"key-census\",\"file\":\"key-census-2026-10-02.json\",\"bytes\":2724,\"digest\":\"8a6b525f\",\"measured\":true,\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T22:54:43.858Z"
+      },
+      {
+        "id": "cmurk93g50003obxtrvd9aouz",
+        "op": "workers.run",
+        "detail": "{\"ok\":true,\"slug\":\"vault-auditor\",\"executor\":\"vault-census\",\"file\":\"vault-census-2026-10-02.json\",\"bytes\":920,\"digest\":\"a2bf345e\",\"measured\":true,\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T22:54:43.638Z"
+      },
+      {
+        "id": "cmurk93ab0002obxtd6qm4h0b",
+        "op": "roles.propose",
+        "detail": "{\"ok\":true,\"proposed\":[],\"skippedCovered\":5,\"capReached\":false,\"proposedCount\":2,\"by\":\"gap-detector\"}",
+        "createdAt": "2026-10-02T22:54:43.427Z"
+      },
+      {
+        "id": "cmurk7bne000cobkp25ceq6nm",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":729088,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 712KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-02T22:53:20.955Z"
+      },
+      {
+        "id": "cmurk7bmx000bobkp9pomyrtp",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:53:20.937Z"
+      },
+      {
+        "id": "cmurk6zlr0008obkp06zqgabu",
+        "op": "agents.inbox.order",
+        "detail": "{\"ok\":true,\"agent\":\"night-scout\",\"difficulty\":3,\"reward\":9}",
+        "createdAt": "2026-10-02T22:53:05.343Z"
+      },
+      {
+        "id": "cmurk6z9j0006obkpjv1n54cm",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:53:04.904Z"
+      },
+      {
+        "id": "cmurk48d3001fob9zooj3vrvu",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":2786.29,\"ema\":2808.76,\"amountIn\":\"21.1861 wSAOS\",\"txid\":\"0xaac05e7cdf04d20798c8123e0b607b9bf98877c8a0ba46500c4af016f334fc65\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:50:56.728Z"
+      },
+      {
+        "id": "cmurk48d3001eob9z7xburyrg",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"buy\",\"amount\":21.186122077505214,\"ok\":true,\"txid\":\"0xaac05e7cdf04d20798c8123e0b607b9bf98877c8a0ba46500c4af016f334fc65\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"0.007435 WRXP\"}",
+        "createdAt": "2026-10-02T22:50:56.727Z"
+      },
+      {
+        "id": "cmurk482m001dob9zmx1qrmmw",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:50:56.351Z"
+      },
+      {
+        "id": "cmurk482m001bob9zn9k80a4q",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"buy\",\"amount\":4.058122543557476,\"ok\":true,\"txid\":\"0xbc2a1a31ebe802c60f2fde447d456ef46f86ed862dbb6161029b7a693d2f97d8\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"3.469e-7 WETH\"}",
+        "createdAt": "2026-10-02T22:50:56.350Z"
+      },
+      {
+        "id": "cmurk482m001cob9zzfqi1po8",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":11362300,\"ema\":11453900,\"amountIn\":\"4.0581 wSAOS\",\"txid\":\"0xbc2a1a31ebe802c60f2fde447d456ef46f86ed862dbb6161029b7a693d2f97d8\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:50:56.350Z"
+      },
+      {
+        "id": "cmurk47t6001aob9zth4wxesm",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:50:56.010Z"
+      },
+      {
+        "id": "cmurk47t30018ob9zjfrnuk9y",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8250733562027948,\"ok\":true,\"txid\":\"0x0dd62551c0fbc3db5a337e6824c5b76b3faaafd734c9b8a85c3cb0868ff4626d\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004781 WSOL\"}",
+        "createdAt": "2026-10-02T22:50:56.008Z"
+      },
+      {
+        "id": "cmurk47t30019ob9zvn8uaaud",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":373472,\"ema\":376484,\"amountIn\":\"1.8251 wSAOS\",\"txid\":\"0x0dd62551c0fbc3db5a337e6824c5b76b3faaafd734c9b8a85c3cb0868ff4626d\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:50:56.008Z"
+      },
+      {
+        "id": "cmurk47jo0015ob9z3pt440jn",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9954849458791896,\"ok\":true,\"txid\":\"0x2c4ec6ed47811a1d9a339a5098779af0f00cd1366954b126bdaf53450d3c7055\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0007877 WTRX\"}",
+        "createdAt": "2026-10-02T22:50:55.669Z"
+      },
+      {
+        "id": "cmurk47jp0017ob9zgvxdtum3",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:50:55.669Z"
+      },
+      {
+        "id": "cmurk47jo0016ob9z9d6tkhfh",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":1233.58,\"ema\":1243.53,\"amountIn\":\"0.9955 wSAOS\",\"txid\":\"0x2c4ec6ed47811a1d9a339a5098779af0f00cd1366954b126bdaf53450d3c7055\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:50:55.669Z"
+      },
+      {
+        "id": "cmurk47bn0014ob9zhdlsu35t",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":2797.53,\"ema\":2808.76,\"amountIn\":\"21.1861 wSAOS\",\"txid\":\"0xcd049f534f6c48b5f735685602f0d90451f69772e67e71416796b3690c4c1d3c\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:50:55.380Z"
+      },
+      {
+        "id": "cmurk47bn0012ob9zo97ca5fo",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"buy\",\"amount\":21.186122077505214,\"ok\":true,\"txid\":\"0xcd049f534f6c48b5f735685602f0d90451f69772e67e71416796b3690c4c1d3c\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"0.007583 WRXP\"}",
+        "createdAt": "2026-10-02T22:50:55.379Z"
+      },
+      {
+        "id": "cmurk47bn0013ob9z6xbgspqr",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:50:55.379Z"
+      },
+      {
+        "id": "cmurk470s0011ob9zkprjc372",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:50:54.989Z"
+      },
+      {
+        "id": "cmurk470s000zob9zpqwcc1jl",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"buy\",\"amount\":4.058122543557476,\"ok\":true,\"txid\":\"0x030474a6c301d3a23c63b61d29ab3616429955e2b22dabe6a649b821979b7d5e\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"3.539e-7 WETH\"}",
+        "createdAt": "2026-10-02T22:50:54.988Z"
+      },
+      {
+        "id": "cmurk470s0010ob9zlgw0d70r",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":11408100,\"ema\":11453900,\"amountIn\":\"4.0581 wSAOS\",\"txid\":\"0x030474a6c301d3a23c63b61d29ab3616429955e2b22dabe6a649b821979b7d5e\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:50:54.988Z"
+      },
+      {
+        "id": "cmurk46rm000wob9zg4t97lx8",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8250733562027948,\"ok\":true,\"txid\":\"0xac21ef4ad7b312a30896b071e2f4aee1b6372712bd4110429091289e59e31999\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004876 WSOL\"}",
+        "createdAt": "2026-10-02T22:50:54.659Z"
+      },
+      {
+        "id": "cmurk46rn000xob9z8pfkdt16",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":374978,\"ema\":376484,\"amountIn\":\"1.8251 wSAOS\",\"txid\":\"0xac21ef4ad7b312a30896b071e2f4aee1b6372712bd4110429091289e59e31999\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:50:54.659Z"
+      },
+      {
+        "id": "cmurk46rn000yob9zbruz7rre",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:50:54.659Z"
+      },
+      {
+        "id": "cmurk46f0000vob9zga9af1zk",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:50:54.205Z"
+      },
+      {
+        "id": "cmurk46f0000uob9ztcvt58f9",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":1238.56,\"ema\":1243.53,\"amountIn\":\"0.9955 wSAOS\",\"txid\":\"0xe0d0eaa7dd8387de77705d1f3a9d5539fc3190bf53952951dace8d0e6cebf82e\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:50:54.204Z"
+      },
+      {
+        "id": "cmurk46ez000tob9zjw0lf6qm",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9954849458791896,\"ok\":true,\"txid\":\"0xe0d0eaa7dd8387de77705d1f3a9d5539fc3190bf53952951dace8d0e6cebf82e\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0008034 WTRX\"}",
+        "createdAt": "2026-10-02T22:50:54.203Z"
+      },
+      {
+        "id": "cmurk44lf000sob9zkmcq13uo",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:50:51.843Z"
+      },
+      {
+        "id": "cmurk2y72000kob9z0umlqjqn",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":11586600,\"ema\":11494700,\"amountIn\":\"3.511e-7 WETH\",\"txid\":\"0x0bd6f0ba5493422800ec378ece656e19ff885cabd4cb04759a7e128cda2799ef\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:49:56.895Z"
+      },
+      {
+        "id": "cmurk2y72000job9zt4j2mmwf",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.5110625511146e-7,\"ok\":true,\"txid\":\"0x0bd6f0ba5493422800ec378ece656e19ff885cabd4cb04759a7e128cda2799ef\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0099 wSAOS\"}",
+        "createdAt": "2026-10-02T22:49:56.894Z"
+      },
+      {
+        "id": "cmurk2xxx000iob9zw9uyfvfn",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:49:56.566Z"
+      },
+      {
+        "id": "cmurk2xw1000gob9zwyvcb7zm",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.000004838059659288021,\"ok\":true,\"txid\":\"0x2f2a823470bf4e301658b2ed57d5de34f7286c89d3f73b5739d5e3120945d2a9\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8034 wSAOS\"}",
+        "createdAt": "2026-10-02T22:49:56.498Z"
+      },
+      {
+        "id": "cmurk2xw2000hob9z67yvpjjj",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":381728,\"ema\":378698,\"amountIn\":\"0.000004838 WSOL\",\"txid\":\"0x2f2a823470bf4e301658b2ed57d5de34f7286c89d3f73b5739d5e3120945d2a9\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:49:56.498Z"
+      },
+      {
+        "id": "cmurk2xnn000fob9z6qdzykq3",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:49:56.195Z"
+      },
+      {
+        "id": "cmurk2xls000eob9zdt4n7s66",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":1259.92,\"ema\":1249.92,\"amountIn\":\"0.0007971 WTRX\",\"txid\":\"0x2775e4a7ae3eab5bb1462e42ae40538ff6104fac877c70d60896ceb3eacb0d0c\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:49:56.129Z"
+      },
+      {
+        "id": "cmurk2xls000dob9ze8btl3s2",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007971348818036097,\"ok\":true,\"txid\":\"0x2775e4a7ae3eab5bb1462e42ae40538ff6104fac877c70d60896ceb3eacb0d0c\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.9837 wSAOS\"}",
+        "createdAt": "2026-10-02T22:49:56.128Z"
+      },
+      {
+        "id": "cmurk2xdy000cob9z79r857y8",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:49:55.847Z"
+      },
+      {
+        "id": "cmurk2xc4000aob9zxoi37o5i",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.5110625511146e-7,\"ok\":true,\"txid\":\"0x2977d454d3f2c4c202427bf34e609d5f9222fb4fbe989171e0f4a08187422ae1\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0900 wSAOS\"}",
+        "createdAt": "2026-10-02T22:49:55.781Z"
+      },
+      {
+        "id": "cmurk2xc5000bob9zurvei285",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11540600,\"ema\":11494700,\"amountIn\":\"3.511e-7 WETH\",\"txid\":\"0x2977d454d3f2c4c202427bf34e609d5f9222fb4fbe989171e0f4a08187422ae1\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:49:55.781Z"
+      },
+      {
+        "id": "cmurk2x2z0009ob9zzqy6bxet",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:49:55.451Z"
+      },
+      {
+        "id": "cmurk2x030007ob9zyy977tq2",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.000004838059659288021,\"ok\":true,\"txid\":\"0xe31ea498d6b117db471f522e6bd91eec2b7c1e7de2eccec3e0041bb9a5cc2e53\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8394 wSAOS\"}",
+        "createdAt": "2026-10-02T22:49:55.348Z"
+      },
+      {
+        "id": "cmurk2x040008ob9zdmujm9cv",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":380213,\"ema\":378698,\"amountIn\":\"0.000004838 WSOL\",\"txid\":\"0xe31ea498d6b117db471f522e6bd91eec2b7c1e7de2eccec3e0041bb9a5cc2e53\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:49:55.348Z"
+      },
+      {
+        "id": "cmurk2wr20006ob9zx68nt9qr",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:49:55.022Z"
+      },
+      {
+        "id": "cmurk2wp60004ob9zpijbhv6z",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007971348818036097,\"ok\":true,\"txid\":\"0x0d49937bcd6030099da3c5ca31a3822072c1560b6f29db50dbd515f28c98cee5\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0033 wSAOS\"}",
+        "createdAt": "2026-10-02T22:49:54.955Z"
+      },
+      {
+        "id": "cmurk2wp60005ob9zzrwo9fp3",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":1254.92,\"ema\":1249.92,\"amountIn\":\"0.0007971 WTRX\",\"txid\":\"0x0d49937bcd6030099da3c5ca31a3822072c1560b6f29db50dbd515f28c98cee5\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:49:54.955Z"
+      },
+      {
+        "id": "cmurk2w9a0003ob9z4y836uoy",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:49:54.383Z"
+      },
+      {
+        "id": "cmurk2w010001ob9z43i6vsu4",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":6.8845713936292e-7,\"ok\":true,\"txid\":\"0x0fb5eb027c7635faab6654edeedc6027a484929a66ffe72eda8bcfa04ee36fd7\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"8.2617 wSAOS\"}",
+        "createdAt": "2026-10-02T22:49:54.050Z"
+      },
+      {
+        "id": "cmurk2w010002ob9z6qtxd64x",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"devPct\":5.624,\"ema\":11611300,\"amountIn\":\"6.885e-7 WETH\",\"txid\":\"0x0fb5eb027c7635faab6654edeedc6027a484929a66ffe72eda8bcfa04ee36fd7\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:49:54.050Z"
+      },
+      {
+        "id": "cmurk2u6g0000ob9zvphy0x1w",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:49:51.688Z"
+      },
+      {
+        "id": "cmurk058k0006obs80rq6s1w4",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":720896,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 704KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-02T22:47:46.052Z"
+      },
+      {
+        "id": "cmurk05800005obs8cerxduxi",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:47:46.032Z"
+      },
+      {
+        "id": "cmurjv11z001qob8arht4xodu",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":373663,\"ema\":376677,\"amountIn\":\"1.8250 wSAOS\",\"txid\":\"0xf4efb5e5da04dad870582090a52c1599fd572856f80f9a41e8198901835436ff\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:43:47.352Z"
+      },
+      {
+        "id": "cmurjv11z001pob8asr62rxh0",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8250373954560608,\"ok\":true,\"txid\":\"0xf4efb5e5da04dad870582090a52c1599fd572856f80f9a41e8198901835436ff\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004781 WSOL\"}",
+        "createdAt": "2026-10-02T22:43:47.351Z"
+      },
+      {
+        "id": "cmurjv0tg001oob8aiykwj6m0",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9954653297487344,\"ok\":true,\"txid\":\"0x2de83f930c687ae81a3038678e69856ba16279541743b5d056fc6455f214c8f8\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0007877 WTRX\"}",
+        "createdAt": "2026-10-02T22:43:47.045Z"
+      },
+      {
+        "id": "cmurjv0tg001mob8agsp84sy7",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":1232.04,\"ema\":1241.97,\"amountIn\":\"0.9955 wSAOS\",\"txid\":\"0x2de83f930c687ae81a3038678e69856ba16279541743b5d056fc6455f214c8f8\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:43:47.044Z"
+      },
+      {
+        "id": "cmurjv0tg001nob8aq89u9q8q",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:43:47.044Z"
+      },
+      {
+        "id": "cmurjv0kg001kob8a1oaxbco5",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":375170,\"ema\":376677,\"amountIn\":\"1.8250 wSAOS\",\"txid\":\"0xf0af4904980050e56893476ee0e35357916cd0bb4c44692826878fcdfc63b7b5\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:43:46.721Z"
+      },
+      {
+        "id": "cmurjv0kg001lob8aynl1omvu",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:43:46.721Z"
+      },
+      {
+        "id": "cmurjv0kf001job8au6yp6qpw",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8250373954560608,\"ok\":true,\"txid\":\"0xf0af4904980050e56893476ee0e35357916cd0bb4c44692826878fcdfc63b7b5\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004876 WSOL\"}",
+        "createdAt": "2026-10-02T22:43:46.720Z"
+      },
+      {
+        "id": "cmurjv0bm001hob8as2e0i1b5",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":1237.01,\"ema\":1241.97,\"amountIn\":\"0.9955 wSAOS\",\"txid\":\"0x4fe2b6c55e2b2034767263e7f408995f2678cf772d7d7359067e0c2a8cf87af1\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:43:46.402Z"
+      },
+      {
+        "id": "cmurjv0bm001iob8a6hrnq44i",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:43:46.402Z"
+      },
+      {
+        "id": "cmurjv0bl001gob8ap3zmr8o2",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9954653297487344,\"ok\":true,\"txid\":\"0x4fe2b6c55e2b2034767263e7f408995f2678cf772d7d7359067e0c2a8cf87af1\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0008034 WTRX\"}",
+        "createdAt": "2026-10-02T22:43:46.401Z"
+      },
+      {
+        "id": "cmurjuz9v001fob8a1pgjf8bv",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:43:45.043Z"
+      },
+      {
+        "id": "cmurjts2e001dob8a64u81zij",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.00000483796433130489,\"ok\":true,\"txid\":\"0x39e1a6208c5f9b07127737f0bbc070eef6b6ac243da54ca034e1f78b3682548b\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8034 wSAOS\"}",
+        "createdAt": "2026-10-02T22:42:49.046Z"
+      },
+      {
+        "id": "cmurjts2e001eob8ak3alctf2",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":381986,\"ema\":378954,\"amountIn\":\"0.000004838 WSOL\",\"txid\":\"0x39e1a6208c5f9b07127737f0bbc070eef6b6ac243da54ca034e1f78b3682548b\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:42:49.046Z"
+      },
+      {
+        "id": "cmurjtrtt001cob8asfxhh30e",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:42:48.737Z"
+      },
+      {
+        "id": "cmurjtrru001aob8a5w848dt4",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007971191741807168,\"ok\":true,\"txid\":\"0x9e773ff93dae253a4b5cfed7ae4c74f82e78dee41bd9acb0610b5adc4fba2f5b\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.9836 wSAOS\"}",
+        "createdAt": "2026-10-02T22:42:48.667Z"
+      },
+      {
+        "id": "cmurjtrru001bob8a7t6qe1zl",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":1257.83,\"ema\":1247.84,\"amountIn\":\"0.0007971 WTRX\",\"txid\":\"0x9e773ff93dae253a4b5cfed7ae4c74f82e78dee41bd9acb0610b5adc4fba2f5b\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:42:48.667Z"
+      },
+      {
+        "id": "cmurjtrjy0019ob8adfmgciu0",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:42:48.383Z"
+      },
+      {
+        "id": "cmurjtrgy0017ob8a73s12mbs",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.00000483796433130489,\"ok\":true,\"txid\":\"0xeec402689bf7708aaa6a3bdb9b66b17557825b061c3ba1e8ea76e518a418c1e8\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8394 wSAOS\"}",
+        "createdAt": "2026-10-02T22:42:48.275Z"
+      },
+      {
+        "id": "cmurjtrgz0018ob8axze1nra9",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":380470,\"ema\":378954,\"amountIn\":\"0.000004838 WSOL\",\"txid\":\"0xeec402689bf7708aaa6a3bdb9b66b17557825b061c3ba1e8ea76e518a418c1e8\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:42:48.275Z"
+      },
+      {
+        "id": "cmurjtr830016ob8au93eh3e3",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:42:47.955Z"
+      },
+      {
+        "id": "cmurjtr680014ob8a3qdd16q8",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007971191741807168,\"ok\":true,\"txid\":\"0x08ab0519f6df0b8c5bdcf14618c76ea773e8f86e14d98b06edd9f60d240b439f\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0033 wSAOS\"}",
+        "createdAt": "2026-10-02T22:42:47.888Z"
+      },
+      {
+        "id": "cmurjtr680015ob8ajyeoavp9",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":1252.84,\"ema\":1247.84,\"amountIn\":\"0.0007971 WTRX\",\"txid\":\"0x08ab0519f6df0b8c5bdcf14618c76ea773e8f86e14d98b06edd9f60d240b439f\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:42:47.888Z"
+      },
+      {
+        "id": "cmurjtqy40013ob8ah2n8a7co",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:42:47.597Z"
+      },
+      {
+        "id": "cmurjtqoq0012ob8ajmqjgds1",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"devPct\":5.295,\"ema\":1258.5,\"amountIn\":\"0.001563 WTRX\",\"txid\":\"0x671cb9760ba8b2bf66e881bdab2dd4a4ca868b3336bf6b3e075b25deb1c825c6\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:42:47.258Z"
+      },
+      {
+        "id": "cmurjtqop0011ob8a22yv7jpk",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0015630094201498337,\"ok\":true,\"txid\":\"0x671cb9760ba8b2bf66e881bdab2dd4a4ca868b3336bf6b3e075b25deb1c825c6\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"2.0266 wSAOS\"}",
+        "createdAt": "2026-10-02T22:42:47.258Z"
+      },
+      {
+        "id": "cmurjtour0010ob8an6xtstof",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:42:44.883Z"
+      },
+      {
+        "id": "cmurjsgok000uob8a4fbx1qne",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8250014304571134,\"ok\":true,\"txid\":\"0x53ec1c07f3d071ebf194d7d737216ac4e736cdb3d92230ef92d59f95454db70b\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004781 WSOL\"}",
+        "createdAt": "2026-10-02T22:41:47.637Z"
+      },
+      {
+        "id": "cmurjsgok000vob8a6hbqyqec",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":374002,\"ema\":377019,\"amountIn\":\"1.8250 wSAOS\",\"txid\":\"0x53ec1c07f3d071ebf194d7d737216ac4e736cdb3d92230ef92d59f95454db70b\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:41:47.637Z"
+      },
+      {
+        "id": "cmurjsgfj000rob8a011ub2as",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8250014304571134,\"ok\":true,\"txid\":\"0xe5e049b0e85c7ca95a64f93f725e7a20482c2578895caa1941b447c607ba08c3\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004876 WSOL\"}",
+        "createdAt": "2026-10-02T22:41:47.312Z"
+      },
+      {
+        "id": "cmurjsgfj000sob8a6yv20arl",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":375511,\"ema\":377019,\"amountIn\":\"1.8250 wSAOS\",\"txid\":\"0xe5e049b0e85c7ca95a64f93f725e7a20482c2578895caa1941b447c607ba08c3\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:41:47.312Z"
+      },
+      {
+        "id": "cmurjsgfk000tob8a29520xor",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:41:47.312Z"
+      },
+      {
+        "id": "cmurjseow000qob8aglp901ai",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:41:45.056Z"
+      },
+      {
+        "id": "cmurjr4zx000oob8ad2j57qt6",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.00000483786899868463,\"ok\":true,\"txid\":\"0xbdeef0ab3c9b4bd74963c07cf2a5d2fca8ad1fc56b0f995259403a768c2efdad\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8033 wSAOS\"}",
+        "createdAt": "2026-10-02T22:40:45.838Z"
+      },
+      {
+        "id": "cmurjr4zx000pob8adbbhwj92",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":382446,\"ema\":379410,\"amountIn\":\"0.000004838 WSOL\",\"txid\":\"0xbdeef0ab3c9b4bd74963c07cf2a5d2fca8ad1fc56b0f995259403a768c2efdad\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:40:45.838Z"
+      },
+      {
+        "id": "cmurjr4r7000nob8ai0yw93ad",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:40:45.524Z"
+      },
+      {
+        "id": "cmurjr4pb000lob8ak7zuzkip",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.00000483786899868463,\"ok\":true,\"txid\":\"0x43d6404a09cdf13805c22fb30980c60b4499a517dcfaa043eaef47d1474f023e\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8393 wSAOS\"}",
+        "createdAt": "2026-10-02T22:40:45.456Z"
+      },
+      {
+        "id": "cmurjr4pb000mob8awvthskk4",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":380928,\"ema\":379410,\"amountIn\":\"0.000004838 WSOL\",\"txid\":\"0x43d6404a09cdf13805c22fb30980c60b4499a517dcfaa043eaef47d1474f023e\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:40:45.456Z"
+      },
+      {
+        "id": "cmurjr4gj000kob8aijje5oyp",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:40:45.140Z"
+      },
+      {
+        "id": "cmurjpx0r000fob8a8pq4i5uc",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":10928100,\"ema\":11016300,\"amountIn\":\"0.1543 wSAOS\",\"txid\":\"0x3ca55d3eecb95ed36263d79b76f7652209fb342dc16fe7ce9cee022f766dadff\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:39:48.844Z"
+      },
+      {
+        "id": "cmurjpx0r000eob8a4gzdvf0j",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"buy\",\"amount\":0.15431559386342042,\"ok\":true,\"txid\":\"0x3ca55d3eecb95ed36263d79b76f7652209fb342dc16fe7ce9cee022f766dadff\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"1.406e-8 WBNB\"}",
+        "createdAt": "2026-10-02T22:39:48.843Z"
+      },
+      {
+        "id": "cmurjpwr0000bob8a595d6vnt",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8249654686222636,\"ok\":true,\"txid\":\"0x62982aed997a12f619cdee8fabbc5cfb8cebafb4753588c7ba55ade41bc72ca4\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004780 WSOL\"}",
+        "createdAt": "2026-10-02T22:39:48.493Z"
+      },
+      {
+        "id": "cmurjpwr1000dob8axv17khgt",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:39:48.493Z"
+      },
+      {
+        "id": "cmurjpwr0000cob8adn72h2o6",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":374606,\"ema\":377627,\"amountIn\":\"1.8250 wSAOS\",\"txid\":\"0x62982aed997a12f619cdee8fabbc5cfb8cebafb4753588c7ba55ade41bc72ca4\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:39:48.493Z"
+      },
+      {
+        "id": "cmurjpwi50008ob8al14vkoqu",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"buy\",\"amount\":0.15431559386342042,\"ok\":true,\"txid\":\"0x674e8e8c3d670d6f7226cc5576bf126ff139997160fe6465deaa43fb45f9d705\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"1.434e-8 WBNB\"}",
+        "createdAt": "2026-10-02T22:39:48.174Z"
+      },
+      {
+        "id": "cmurjpwi6000aob8altrk9tga",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:39:48.174Z"
+      },
+      {
+        "id": "cmurjpwi50009ob8ap2zlw3yo",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":10972200,\"ema\":11016300,\"amountIn\":\"0.1543 wSAOS\",\"txid\":\"0x674e8e8c3d670d6f7226cc5576bf126ff139997160fe6465deaa43fb45f9d705\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:39:48.174Z"
+      },
+      {
+        "id": "cmurjpw8g0005ob8acf6c9k9f",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8249654686222636,\"ok\":true,\"txid\":\"0x426d450dff45b7d69a19640fd142684e9d1dded601c73f7b0c44e5e90a45a450\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004876 WSOL\"}",
+        "createdAt": "2026-10-02T22:39:47.825Z"
+      },
+      {
+        "id": "cmurjpw8h0006ob8akaflbx7i",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":376116,\"ema\":377627,\"amountIn\":\"1.8250 wSAOS\",\"txid\":\"0x426d450dff45b7d69a19640fd142684e9d1dded601c73f7b0c44e5e90a45a450\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:39:47.825Z"
+      },
+      {
+        "id": "cmurjpw8h0007ob8a85i02zwz",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:39:47.825Z"
+      },
+      {
+        "id": "cmurjpvzz0004ob8azu5scrbx",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:39:47.520Z"
+      },
+      {
+        "id": "cmurjpvsh0002ob8aibcoq2wi",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"buy\",\"amount\":0.30258552886021806,\"ok\":true,\"txid\":\"0x2798b61ee9d92d68ec397740bb8bfc85a6f998e63bcf12da64cb25cee739a725\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"2.897e-8 WBNB\"}",
+        "createdAt": "2026-10-02T22:39:47.249Z"
+      },
+      {
+        "id": "cmurjpvsh0003ob8azks1y5ax",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"buy\",\"devPct\":-7.084,\"ema\":10999800,\"amountIn\":\"0.3026 wSAOS\",\"txid\":\"0x2798b61ee9d92d68ec397740bb8bfc85a6f998e63bcf12da64cb25cee739a725\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:39:47.249Z"
+      },
+      {
+        "id": "cmurjptwn0001ob8a4afn21vf",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:39:44.808Z"
+      },
+      {
+        "id": "cmurjna950007ob3frqn5h7pg",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":684032,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 668KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-02T22:37:46.025Z"
+      },
+      {
+        "id": "cmurjna8h0006ob3f6pp9ej21",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:37:46.002Z"
+      },
+      {
+        "id": "cmurjjin20017obh0tgj9amzu",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"sell\",\"amount\":1.3967010833759999e-8,\"ok\":true,\"txid\":\"0x3b00dfbcc379d82175cff831671ca4374dcf987f5c52b17acdedbfe909031b9c\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"0.1553 wSAOS\"}",
+        "createdAt": "2026-10-02T22:34:50.271Z"
+      },
+      {
+        "id": "cmurjjin20018obh0ufpuimu7",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":11233200,\"ema\":11144100,\"amountIn\":\"1.397e-8 WBNB\",\"txid\":\"0x3b00dfbcc379d82175cff831671ca4374dcf987f5c52b17acdedbfe909031b9c\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:50.271Z"
+      },
+      {
+        "id": "cmurjjidc0016obh0d7wpx13o",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:49.920Z"
+      },
+      {
+        "id": "cmurjjibk0015obh0xinbmw32",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":11484700,\"ema\":11577300,\"amountIn\":\"3.9800 wSAOS\",\"txid\":\"0xfda7c85265f7b8fc57e3a4a1c9c7ab5f7a57c837e8256e279c0588ec3d303ef4\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:49.856Z"
+      },
+      {
+        "id": "cmurjjibk0014obh0jy8qv0um",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"buy\",\"amount\":3.9800002235007623,\"ok\":true,\"txid\":\"0xfda7c85265f7b8fc57e3a4a1c9c7ab5f7a57c837e8256e279c0588ec3d303ef4\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"3.537e-7 WETH\"}",
+        "createdAt": "2026-10-02T22:34:49.856Z"
+      },
+      {
+        "id": "cmurjji1y0013obh0afpp0hod",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":383263,\"ema\":380221,\"amountIn\":\"0.000004838 WSOL\",\"txid\":\"0x9e53af1af936760c11ac5404eef4ea37cfc64fb3e1c978cb4a5b45c3a149c8b9\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:49.511Z"
+      },
+      {
+        "id": "cmurjji1y0011obh0ql37opgj",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.00000483777366133468,\"ok\":true,\"txid\":\"0x9e53af1af936760c11ac5404eef4ea37cfc64fb3e1c978cb4a5b45c3a149c8b9\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8033 wSAOS\"}",
+        "createdAt": "2026-10-02T22:34:49.510Z"
+      },
+      {
+        "id": "cmurjji1y0012obh0ihccr5jv",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:49.510Z"
+      },
+      {
+        "id": "cmurjjhtb0010obh09tqj9apg",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:49.200Z"
+      },
+      {
+        "id": "cmurjjhre000yobh0x5pmx8uk",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9763017908814406,\"ok\":true,\"txid\":\"0xfd3d18867137f811184d734472000598924ddc04ad93b00eba24c9d41b90c080\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0008031 WTRX\"}",
+        "createdAt": "2026-10-02T22:34:49.131Z"
+      },
+      {
+        "id": "cmurjjhrf000zobh08tmf0liq",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":1248.19,\"ema\":1258.26,\"amountIn\":\"0.9763 wSAOS\",\"txid\":\"0xfd3d18867137f811184d734472000598924ddc04ad93b00eba24c9d41b90c080\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:49.131Z"
+      },
+      {
+        "id": "cmurjjhj8000vobh0wcehref8",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"sell\",\"amount\":1.3967010833759999e-8,\"ok\":true,\"txid\":\"0x8b4bc728e15c0d4c8429d1750c4b49c298cc43e4e10057c83cd6e42e3031c3e4\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"0.1584 wSAOS\"}",
+        "createdAt": "2026-10-02T22:34:48.837Z"
+      },
+      {
+        "id": "cmurjjhj9000xobh0ydmofshp",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:48.837Z"
+      },
+      {
+        "id": "cmurjjhj8000wobh0vvyap0tr",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11188700,\"ema\":11144100,\"amountIn\":\"1.397e-8 WBNB\",\"txid\":\"0x8b4bc728e15c0d4c8429d1750c4b49c298cc43e4e10057c83cd6e42e3031c3e4\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:48.837Z"
+      },
+      {
+        "id": "cmurjjh99000uobh0lijcqqnd",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:48.478Z"
+      },
+      {
+        "id": "cmurjjh7b000sobh0vazpcffh",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"buy\",\"amount\":3.9800002235007623,\"ok\":true,\"txid\":\"0xaccdcaed5e365795dea143277773ca4826fd95938401ec5c16d779a9fb1c4f16\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"3.608e-7 WETH\"}",
+        "createdAt": "2026-10-02T22:34:48.408Z"
+      },
+      {
+        "id": "cmurjjh7b000tobh082fvyga8",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":11531000,\"ema\":11577300,\"amountIn\":\"3.9800 wSAOS\",\"txid\":\"0xaccdcaed5e365795dea143277773ca4826fd95938401ec5c16d779a9fb1c4f16\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:48.408Z"
+      },
+      {
+        "id": "cmurjjgxq000robh0r0tem1c0",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:48.063Z"
+      },
+      {
+        "id": "cmurjjgxq000pobh0x2vpft4s",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"sell\",\"amount\":0.00000483777366133468,\"ok\":true,\"txid\":\"0x6e1ca8f238b3af345fe97c83b7e5a882748c490ac117e82288f6ac0d709c84f0\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"1.8393 wSAOS\"}",
+        "createdAt": "2026-10-02T22:34:48.062Z"
+      },
+      {
+        "id": "cmurjjgxq000qobh04d0fn6t0",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":381742,\"ema\":380221,\"amountIn\":\"0.000004838 WSOL\",\"txid\":\"0x6e1ca8f238b3af345fe97c83b7e5a882748c490ac117e82288f6ac0d709c84f0\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:48.062Z"
+      },
+      {
+        "id": "cmurjjgp1000oobh0tku7qxx3",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:47.750Z"
+      },
+      {
+        "id": "cmurjjgn5000mobh0s02enqfq",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":0.9763017908814406,\"ok\":true,\"txid\":\"0x871a9ca78ad261ba7099d7621bc8f83734f8bb1413bb9a2a2b80bcab84d41792\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0008191 WTRX\"}",
+        "createdAt": "2026-10-02T22:34:47.682Z"
+      },
+      {
+        "id": "cmurjjgn6000nobh0uogszac0",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":1253.23,\"ema\":1258.26,\"amountIn\":\"0.9763 wSAOS\",\"txid\":\"0x871a9ca78ad261ba7099d7621bc8f83734f8bb1413bb9a2a2b80bcab84d41792\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:47.682Z"
+      },
+      {
+        "id": "cmurjjgf4000lobh0a7ko73ub",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:47.392Z"
+      },
+      {
+        "id": "cmurjjg7o000kobh07fip0gs4",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WBNB\",\"dir\":\"sell\",\"devPct\":6.068,\"ema\":11259500,\"amountIn\":\"2.739e-8 WBNB\",\"txid\":\"0x242212070620c24efcd54554d435d9fc97b1737082ffe5d10926364c5994ee4b\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:34:47.124Z"
+      },
+      {
+        "id": "cmurjjg7o000jobh0tyraswa3",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WBNB\",\"dir\":\"sell\",\"amount\":2.7386829407520002e-8,\"ok\":true,\"txid\":\"0x242212070620c24efcd54554d435d9fc97b1737082ffe5d10926364c5994ee4b\",\"pair\":\"WBNB/wSAOS\",\"amountOut\":\"0.3200 wSAOS\"}",
+        "createdAt": "2026-10-02T22:34:47.124Z"
+      },
+      {
+        "id": "cmurjjeg5000iobh07u8t0dtq",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:34:44.837Z"
+      },
+      {
+        "id": "cmurjedaf0008obh0254iyhzm",
+        "op": "broadcast-queue-publish-git",
+        "detail": "{\"published\":0,\"failed\":7,\"results\":[{\"slug\":\"yield-governor-economics\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"the-living-harness\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"sovereign-network-ladder\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"sovereign-manager-zero-wait\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"sovereign-decision-authority\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"peer-cross-audit\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"measured-agent-economy\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null}],\"by\":\"bearer:c0cc48d6\",\"trigger\":\"keeper-tick\"}",
+        "createdAt": "2026-10-02T22:30:50.056Z"
+      },
+      {
+        "id": "cmurjedae0007obh0qmujucon",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"measured-agent-economy\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:30:50.052Z\"}",
+        "createdAt": "2026-10-02T22:30:50.054Z"
+      },
+      {
+        "id": "cmurjecuj0006obh0yfjyy5gl",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"peer-cross-audit\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:30:49.482Z\"}",
+        "createdAt": "2026-10-02T22:30:49.484Z"
+      },
+      {
+        "id": "cmurjec9v0005obh0polmlcfv",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-decision-authority\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:30:48.737Z\"}",
+        "createdAt": "2026-10-02T22:30:48.739Z"
+      },
+      {
+        "id": "cmurjebp40004obh0h24zuxej",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-manager-zero-wait\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:30:47.991Z\"}",
+        "createdAt": "2026-10-02T22:30:47.993Z"
+      },
+      {
+        "id": "cmurjeb1q0002obh08p7h6jvk",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-network-ladder\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:30:47.149Z\"}",
+        "createdAt": "2026-10-02T22:30:47.151Z"
+      },
+      {
+        "id": "cmurjeabk0001obh0mfrxychy",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"the-living-harness\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:30:46.207Z\"}",
+        "createdAt": "2026-10-02T22:30:46.209Z"
+      },
+      {
+        "id": "cmurje9vn0000obh0eq28shvu",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"yield-governor-economics\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:30:45.633Z\"}",
+        "createdAt": "2026-10-02T22:30:45.635Z"
+      },
+      {
+        "id": "cmurj5p62000cobh42acn3v27",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"yield-governor-economics\",\"titleHe\":\"המוח-הכלכלי: איך רשת-סוכנים מקצה מאמץ לפי תשואה נמדדת — ולא לפי תקציב\",\"titleEn\":\"The yield governor: how an autonomous agent network allocates effort by measured yield — not by budget\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-yield-governor-economics.md\",\"sha\":\"1ec564b70f3abe4eb44afcb0efa06ae195597b1e4c240ccf1950edc16b3e9b54\",\"bytes\":6943,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:24:05.546Z\"}",
+        "createdAt": "2026-10-02T22:24:05.547Z"
+      },
+      {
+        "id": "cmurj5p60000bobh4awlsf8rm",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"the-living-harness\",\"titleHe\":\"המסגרת-החיה: איך רשת-סוכנים מאמתת את עצמה — בלי לסמוך על אף אחד\",\"titleEn\":\"The living harness: how an autonomous agent network verifies itself — trusting nobody's claims\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-the-living-harness.md\",\"sha\":\"4f616400f16b12bd30d374d6a901674f6144e938b7690474ef95eeaf7dd83672\",\"bytes\":4901,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:24:05.543Z\"}",
+        "createdAt": "2026-10-02T22:24:05.544Z"
+      },
+      {
+        "id": "cmurj5p5y000aobh46q3l6v7i",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-network-ladder\",\"titleHe\":\"ריבונות דיגיטלית בפועל: רשת סוכנים אוטונומית שמודדת את עצמה ומעגנת אמת על הבלוקצ'יין\",\"titleEn\":\"Sovereignty in practice: an autonomous agent network that measures itself and anchors truth on-chain\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-network-ladder.md\",\"sha\":\"cbb4124de7e0452527c32a13c71fc2fa0fd7cfb2b8291ddb4db840855cc76817\",\"bytes\":8549,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:24:05.542Z\"}",
+        "createdAt": "2026-10-02T22:24:05.542Z"
+      },
+      {
+        "id": "cmurj5p5w0009obh4bvawnsb7",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-manager-zero-wait\",\"titleHe\":\"הריבונות מנהלת: כך רשת-סוכנים מפסיקה לחכות — אפס-המתנה כעקרון-הנדסי\",\"titleEn\":\"The sovereign manages: zero-waiting as an engineering principle in an autonomous agent network\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-manager-zero-wait.md\",\"sha\":\"f86d8a0abaf62ca25abe58b4fe89ad75e80b12d62f8847dbc4ccc3a31dd121d5\",\"bytes\":3637,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:24:05.540Z\"}",
+        "createdAt": "2026-10-02T22:24:05.541Z"
+      },
+      {
+        "id": "cmurj5p5u0008obh4wj1towys",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-decision-authority\",\"titleHe\":\"הרשות-הריבונית: איך רשת-סוכנים מכריעה בעצמה — ומנהלת בלי להמתין\",\"titleEn\":\"The sovereign authority: how an agent network decides for itself — and manages without waiting\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-decision-authority.md\",\"sha\":\"798099066350407a529c9cfde91d74f72ae1de5a0e6267221960d6c34f1119a7\",\"bytes\":4897,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:24:05.538Z\"}",
+        "createdAt": "2026-10-02T22:24:05.539Z"
+      },
+      {
+        "id": "cmurj5p5s0007obh4pvy40bpa",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"peer-cross-audit\",\"titleHe\":\"ביקורת-עמיתים מוסדית: כך צוות-סוכנים בודק את עבודת-הגיט של עצמו\",\"titleEn\":\"Institutional peer cross-audit: how an agent team reviews its own Git work\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-peer-cross-audit.md\",\"sha\":\"7409a765e4a3c7670e9791a793aac44e3a04e3f609565deec70495d8ba9bced8\",\"bytes\":6588,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:24:05.535Z\"}",
+        "createdAt": "2026-10-02T22:24:05.537Z"
+      },
+      {
+        "id": "cmurj5p5n0006obh4l1trxd4z",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"measured-agent-economy\",\"titleHe\":\"כלכלה שמודדת את עצמה: איך רשת-סוכנים בונה סולם-אמת מסימולציה למדידה\",\"titleEn\":\"A self-measuring economy: how an autonomous agent network climbs a truth ladder from simulation to measurement\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-measured-agent-economy.md\",\"sha\":\"dc09296a9ed78e149392f13e7d1cb888fa9632b7d08d42cda05ebab1b93e33e7\",\"bytes\":7131,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:24:05.529Z\"}",
+        "createdAt": "2026-10-02T22:24:05.532Z"
+      },
+      {
+        "id": "cmuriq7ty001sobm1bbn6387q",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":2832.21,\"ema\":2855.05,\"amountIn\":\"21.4072 wSAOS\",\"txid\":\"0x33ac76b1ed749b2f6f50fe3141b26ac3f58c8ebe76cd819d5e69790afb6ef12c\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:12:03.239Z"
+      },
+      {
+        "id": "cmuriq7ty001robm15l8a76rs",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"buy\",\"amount\":21.407211747778646,\"ok\":true,\"txid\":\"0x33ac76b1ed749b2f6f50fe3141b26ac3f58c8ebe76cd819d5e69790afb6ef12c\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"0.007358 WRXP\"}",
+        "createdAt": "2026-10-02T22:12:03.238Z"
+      },
+      {
+        "id": "cmuriq7jf001oobm11u1jnkc1",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8253339139091298,\"ok\":true,\"txid\":\"0x22fd6489b9002db0585972659d697466be34dce4c56d12f51302b7119346f270\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004779 WSOL\"}",
+        "createdAt": "2026-10-02T22:12:02.860Z"
+      },
+      {
+        "id": "cmuriq7jg001qobm1a7szmj7z",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:12:02.860Z"
+      },
+      {
+        "id": "cmuriq7jf001pobm1jc1s9ujk",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":375678,\"ema\":378707,\"amountIn\":\"1.8253 wSAOS\",\"txid\":\"0x22fd6489b9002db0585972659d697466be34dce4c56d12f51302b7119346f270\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:12:02.860Z"
+      },
+      {
+        "id": "cmuriq7ao001lobm1d2vortri",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"buy\",\"amount\":21.407211747778646,\"ok\":true,\"txid\":\"0x1f66d270ff76b0d4066e3b9a5453e5c55ce6764c2e6b6d44e3d019f6e0785218\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"0.007505 WRXP\"}",
+        "createdAt": "2026-10-02T22:12:02.545Z"
+      },
+      {
+        "id": "cmuriq7ap001nobm1ng0ty6wq",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:12:02.545Z"
+      },
+      {
+        "id": "cmuriq7ap001mobm13rd061hy",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":2843.63,\"ema\":2855.05,\"amountIn\":\"21.4072 wSAOS\",\"txid\":\"0x1f66d270ff76b0d4066e3b9a5453e5c55ce6764c2e6b6d44e3d019f6e0785218\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:12:02.545Z"
+      },
+      {
+        "id": "cmuriq708001kobm1hr62y958",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:12:02.169Z"
+      },
+      {
+        "id": "cmuriq708001iobm14lzpxw4f",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WSOL\",\"dir\":\"buy\",\"amount\":1.8253339139091298,\"ok\":true,\"txid\":\"0x6ee75bd9c27999e49fe85ba4ed9f6405f480734006d5d6f31b73fc35a063bf83\",\"pair\":\"WSOL/wSAOS\",\"amountOut\":\"0.000004874 WSOL\"}",
+        "createdAt": "2026-10-02T22:12:02.168Z"
+      },
+      {
+        "id": "cmuriq708001jobm1k60n83ml",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WSOL\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":377193,\"ema\":378707,\"amountIn\":\"1.8253 wSAOS\",\"txid\":\"0x6ee75bd9c27999e49fe85ba4ed9f6405f480734006d5d6f31b73fc35a063bf83\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:12:02.168Z"
+      },
+      {
+        "id": "cmuriq6rg001fobm1kzt3wwsy",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007903972000584253,\"ok\":true,\"txid\":\"0x1f1c341615e51facbac302e4d5a0c98c52426e0e58f741154126f2c0a66f4458\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0117 wSAOS\"}",
+        "createdAt": "2026-10-02T22:12:01.853Z"
+      },
+      {
+        "id": "cmuriq6rh001gobm1ek2qs0m6",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":1290.22,\"ema\":1285.08,\"amountIn\":\"0.0007904 WTRX\",\"txid\":\"0x1f1c341615e51facbac302e4d5a0c98c52426e0e58f741154126f2c0a66f4458\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T22:12:01.853Z"
+      },
+      {
+        "id": "cmuriq6rh001hobm1kk6prxci",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:12:01.853Z"
+      },
+      {
+        "id": "cmuriq4q4001eobm1wrrbwus6",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T22:11:59.212Z"
+      },
+      {
+        "id": "cmuriptt4001dobm1cpvnbi47",
+        "op": "broadcast-queue-publish-git",
+        "detail": "{\"published\":0,\"failed\":6,\"results\":[{\"slug\":\"yield-governor-economics\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"sovereign-network-ladder\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"sovereign-manager-zero-wait\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"sovereign-decision-authority\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"peer-cross-audit\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null},{\"slug\":\"measured-agent-economy\",\"ok\":false,\"message\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"sha\":null}],\"by\":\"bearer:c0cc48d6\",\"trigger\":\"keeper-tick\"}",
+        "createdAt": "2026-10-02T22:11:45.065Z"
+      },
+      {
+        "id": "cmuriptt3001cobm1pfkg4y49",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"measured-agent-economy\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:11:45.061Z\"}",
+        "createdAt": "2026-10-02T22:11:45.063Z"
+      },
+      {
+        "id": "cmuriptgc001bobm1a3cw4llw",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"peer-cross-audit\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:11:44.603Z\"}",
+        "createdAt": "2026-10-02T22:11:44.605Z"
+      },
+      {
+        "id": "cmuript3x001aobm19ar84rpb",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-decision-authority\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:11:44.156Z\"}",
+        "createdAt": "2026-10-02T22:11:44.158Z"
+      },
+      {
+        "id": "cmuripsqu0019obm1enpv0sl4",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-manager-zero-wait\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:11:43.685Z\"}",
+        "createdAt": "2026-10-02T22:11:43.687Z"
+      },
+      {
+        "id": "cmuripse50018obm1c9tbdvyt",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-network-ladder\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:11:43.228Z\"}",
+        "createdAt": "2026-10-02T22:11:43.229Z"
+      },
+      {
+        "id": "cmurips1r0017obm134rg7jh5",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"yield-governor-economics\",\"rail\":\"git-public\",\"error\":\"git push נכשל: fatal: could not read Username for 'https://github.com': No such device or address\\n\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T22:11:42.782Z\"}",
+        "createdAt": "2026-10-02T22:11:42.783Z"
+      },
+      {
+        "id": "cmuriprl20016obm1rtnee5ov",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"yield-governor-economics\",\"titleHe\":\"המוח-הכלכלי: איך רשת-סוכנים מקצה מאמץ לפי תשואה נמדדת — ולא לפי תקציב\",\"titleEn\":\"The yield governor: how an autonomous agent network allocates effort by measured yield — not by budget\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-yield-governor-economics.md\",\"sha\":\"1ec564b70f3abe4eb44afcb0efa06ae195597b1e4c240ccf1950edc16b3e9b54\",\"bytes\":6943,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:11:42.181Z\"}",
+        "createdAt": "2026-10-02T22:11:42.182Z"
+      },
+      {
+        "id": "cmuriprl00015obm1i18f69yu",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-network-ladder\",\"titleHe\":\"ריבונות דיגיטלית בפועל: רשת סוכנים אוטונומית שמודדת את עצמה ומעגנת אמת על הבלוקצ'יין\",\"titleEn\":\"Sovereignty in practice: an autonomous agent network that measures itself and anchors truth on-chain\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-network-ladder.md\",\"sha\":\"cbb4124de7e0452527c32a13c71fc2fa0fd7cfb2b8291ddb4db840855cc76817\",\"bytes\":8549,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:11:42.179Z\"}",
+        "createdAt": "2026-10-02T22:11:42.180Z"
+      },
+      {
+        "id": "cmuriprky0014obm1a9edp40m",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-manager-zero-wait\",\"titleHe\":\"הריבונות מנהלת: כך רשת-סוכנים מפסיקה לחכות — אפס-המתנה כעקרון-הנדסי\",\"titleEn\":\"The sovereign manages: zero-waiting as an engineering principle in an autonomous agent network\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-manager-zero-wait.md\",\"sha\":\"f86d8a0abaf62ca25abe58b4fe89ad75e80b12d62f8847dbc4ccc3a31dd121d5\",\"bytes\":3637,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:11:42.178Z\"}",
+        "createdAt": "2026-10-02T22:11:42.179Z"
+      },
+      {
+        "id": "cmuriprkw0013obm1q4bopg2a",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"sovereign-decision-authority\",\"titleHe\":\"הרשות-הריבונית: איך רשת-סוכנים מכריעה בעצמה — ומנהלת בלי להמתין\",\"titleEn\":\"The sovereign authority: how an agent network decides for itself — and manages without waiting\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-sovereign-decision-authority.md\",\"sha\":\"798099066350407a529c9cfde91d74f72ae1de5a0e6267221960d6c34f1119a7\",\"bytes\":4897,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:11:42.176Z\"}",
+        "createdAt": "2026-10-02T22:11:42.177Z"
+      },
+      {
+        "id": "cmuriprkv0012obm19kesckfq",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"peer-cross-audit\",\"titleHe\":\"ביקורת-עמיתים מוסדית: כך צוות-סוכנים בודק את עבודת-הגיט של עצמו\",\"titleEn\":\"Institutional peer cross-audit: how an agent team reviews its own Git work\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-peer-cross-audit.md\",\"sha\":\"7409a765e4a3c7670e9791a793aac44e3a04e3f609565deec70495d8ba9bced8\",\"bytes\":6588,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:11:42.174Z\"}",
+        "createdAt": "2026-10-02T22:11:42.175Z"
+      },
+      {
+        "id": "cmuriprks0011obm1eqh00aot",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"measured-agent-economy\",\"titleHe\":\"כלכלה שמודדת את עצמה: איך רשת-סוכנים בונה סולם-אמת מסימולציה למדידה\",\"titleEn\":\"A self-measuring economy: how an autonomous agent network climbs a truth ladder from simulation to measurement\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-measured-agent-economy.md\",\"sha\":\"dc09296a9ed78e149392f13e7d1cb888fa9632b7d08d42cda05ebab1b93e33e7\",\"bytes\":7131,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T22:11:42.171Z\"}",
+        "createdAt": "2026-10-02T22:11:42.172Z"
+      },
+      {
+        "id": "cmurip5b9000zobm1egcrytz8",
+        "op": "state-snapshot.export",
+        "detail": "{\"ok\":true,\"file\":\"state-snapshot-2026-10-02.json\",\"bytes\":97593,\"counts\":{\"agentRole\":5,\"opLog\":255,\"economyRun\":1},\"digest\":\"32eb7ef3110c8795\"}",
+        "createdAt": "2026-10-02T22:11:13.317Z"
+      },
       {
         "id": "cmurioyob000xobm1cpjzd5jy",
         "op": "exchange.swap",
@@ -1628,6 +3380,20 @@
         "receiptDigest": "8902f0a319e1b3cb23a592479b361249cf20e156d0930eb459dc08090da1cc70",
         "notes": "מחיר-SAOS-M $0.001 (SAOS_M_USD_POLICY מהבורסה החיה) · גלגל-החור 30% (מדיניות DEFAULT_ECONOMY) — הוצהר, לא נמדד כתנועה · זרמים מצטברים (potHarvested/sweptPnl/paidOut) מתויגים cumulative — לא פוצלו ל-24h שרירותית · trading-pnl-24h הוא קצב-הפרש-24h (לא מצטבר) — נגזר מהפנקס עצמו · trigger=manual",
         "at": "2026-10-02T21:39:39.353Z"
+      },
+      {
+        "id": 2,
+        "stage": 1,
+        "mode": "measured",
+        "trigger": "manual",
+        "streams": "[{\"name\":\"exchange-harvest\",\"he\":\"קציר-בורסה (קופת-הקציר של הבריכות)\",\"amountUsdMicro\":6978,\"txids\":[],\"source\":\"exchange-live.exchangeStatus().totals.harvestedUsd (potHarvested × מדיניות/אורקל)\",\"note\":\"cumulative מאז-פריסה (לא 24h) · 935 swaps אמת · TVL $4.14\"},{\"name\":\"grid-sweeps\",\"he\":\"שטיפות-מיקרו-גריד לקופת-העבודה (גלגל-החור)\",\"amountUsdMicro\":27,\"txids\":[],\"source\":\"microgrid-live.microgridStatus().totals.sweptPnl (SAOS-M × מחיר-מדיניות)\",\"note\":\"cumulative מאז-פריסה · realized 0.027 SAOS-M · 22 מילויים · txid = מילויים-אחרונים שהניבו את הרווח · אין מילויים טריים (swept יכול להיות 0 בצדק)\"},{\"name\":\"work-orders-paid\",\"he\":\"פקודות-עבודה ששולמו (SAOS-M מקופת-העבודה)\",\"amountUsdMicro\":266000,\"txids\":[],\"source\":\"mesh-client.meshBoard() (SAOSWorkBoard חי) + WorkDeliverable (DB)\",\"note\":\"cumulative-שרשרת: 686 נמסרו · 4622 SAOS-M שולמו · בן-24h (עד 40 פקודות אחרונות): 40 שולמו · WorkDeliverable-DB בן-24h: 0 (txid = עיגוני SAOS-WORK של המסירות)\"},{\"name\":\"xrp-anchors\",\"he\":\"פעימות/עיגוני-XRPL (לייבנט — חתימות r3Tq66)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"AnchorTx (DB) — network=XRPL · נרשם על-ידי anchor-xrp / physical-move\",\"note\":\"אין פעימות XRPL בן-24h (ה-DB נולד-מחדש באיפוס-הסנדבוקס; עוגנים היסטוריים-מאומתים אינם נספרים כנה) — הערך כאן עדות-txid, לא הכנסה\"},{\"name\":\"steem-anchors\",\"he\":\"עיגוני-STEEM (auto-anchor — custom_json חי)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"AnchorTx (DB) — network=STEEM · נרשם על-ידי auto-anchor\",\"note\":\"אין עיגוני STEEM בן-24h — העיגון נמדד ב-RC (אין עלות-USD נמדדת); הערך עדות-txid מיינטנט\"},{\"name\":\"inbound-harvest-rail\",\"he\":\"מסילת-harvest נכנסת (memo saos:harvest/v1)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"— אין פנקס-קליטה (liquidity-radar/treasury מדווחים יתרות, לא קליטות)\",\"note\":\"לא נמדד — אין פנקס שמזרים קליטות saos:harvest/v1; אפס-כנה ולא התחייבות\"},{\"name\":\"liquidity-inflow\",\"he\":\"נזילות-נכנסת (הפרש-24h: TVL בורסה + הפקדות wSAOS, מחיר-מדיניות)\",\"txids\":[],\"source\":\"exchange-live.exchangeStatus() (SAOSExchange · SAOS-EVM): totals.tvlUsd + assets[WSAOS].totalMinted − poolBal\",\"note\":\"cumulative/24h-delta as measured · נוכחי: TVL $4.1445 + הפקדות-wSAOS-מחוץ-לבריכות 399177.02 SAOS-M = $399.1770 · בסיס-השוואה 2026-10-02T21:39:38.408Z (הישנה בחלון-24h) · הפרש נמדד +$0.050623 · אין txid — זהו הפרש-מצב, לא עסקה\",\"amountUsdMicro\":50623},{\"name\":\"trading-pnl-24h\",\"he\":\"רווח-מסחר 24ש' (הפרש: קציר-בורסה + שטיפות-גריד — קצב, לא מצטבר)\",\"amountUsdMicro\":793,\"txids\":[],\"source\":\"הפרש-24h מפנקס EconomyRun: Δexchange-harvest (potHarvested × מחיר-מדיניות) + Δgrid-sweeps (sweptPnl × מחיר-מדיניות) מול הריצה-הקודמת בחלון\",\"note\":\"הפרש-24h as measured — קצב (rate), לא cumulative; הזרמים-המצטברים נותרו בסימונם · בסיס: ריצה #1 לפני 102 דק' · Δקציר-בורסה +793µ$ · Δשטיפות-גריד +0µ$ · אין txid — זהו הפרש-פנקס בין מדידות, לא עסקה\"}]",
+        "totalPerDayUsdMicro": 324421,
+        "reinvestedUsdMicro": 97326,
+        "retainedUsdMicro": 227095,
+        "proofTxids": "[]",
+        "receiptDigest": "c210410a998a135e5b087258931b7349694e22b4e93f08112bcb04f5978bb8ce",
+        "notes": "מחיר-SAOS-M $0.001 (SAOS_M_USD_POLICY מהבורסה החיה) · גלגל-החור 30% (מדיניות DEFAULT_ECONOMY) — הוצהר, לא נמדד כתנועה · זרמים מצטברים (potHarvested/sweptPnl/paidOut) מתויגים cumulative — לא פוצלו ל-24h שרירותית · trading-pnl-24h הוא קצב-הפרש-24h (לא מצטבר) — נגזר מהפנקס עצמו · trigger=manual",
+        "at": "2026-10-02T23:21:15.309Z"
       }
     ]
   }

@@ -164,11 +164,17 @@ const RSS_SHED_READINGS = 2;
 // webs (< boot-grace) keep the classic 1790 headroom: v55 proved lower lines
 // + post-revive compile storms = recycle loops (the storm legitimately peaks
 // at 1.6–1.7GB), and the 06:21 kernel kill of a young web was at 1893MB.
-const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
-const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
+// v107 (2026-10-02, caught live ×3): the kernel's line DRIFTED DOWN — kills
+// observed at 1393MB (young, ~5min boot), 1988MB, 1393MB again. anvil alone
+// holds 0.83GB; global pressure kills below our old lines. Re-tuned: mature
+// 1500→1250 · young 1790→1350 (fires BEFORE the kernel's observed 1393).
+// Paired with next.config turbopack.memoryLimit=1024 (the storm shrinks; the
+// young line is now reachable-before-kernel instead of theoretical).
+const RSS_KILL_LINE_MB = 1250; // mature webs (≥ 12 min)
+const RSS_KILL_LINE_YOUNG_MB = 1350; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "48.0.0";
+const KEEPER_VERSION = "48.2.0";
 const SOVEREIGNTY_EVERY = 90; // v93 — sovereignty census tick every 90th cycle (≈15min)
 const SOVEREIGNTY_FIRST_AT = 6; // first census 60s after boot
 // v95 — the unified agent census tick (מצבת-האמת): every 30th cycle (≈5min)
@@ -558,7 +564,11 @@ interface KeeperEvent {
     | "workers-error"
     // wave-16 — the state-snapshot tick (קיום-המצבת יומי)
     | "state-snap-tick"
-    | "state-snap-error";
+    | "state-snap-error"
+    // v107 — THE INVISIBLE GUARD (dcg adoption: the fleet's blast-radius cap)
+    | "revive-guard-deny"
+    | "revive-guard-warn"
+    | "revive-guard-absent";
   detail: string;
 }
 
@@ -585,6 +595,7 @@ const S = {
   // paths (death-revive / recycle / panic-cure) share the WEB window (they
   // all act on the same tree); herald/swarm/runner each own theirs.
   webReviveDeadline: 0,
+  parkedAt: null as number | null, // v107-final — gate-park window (verify.sh heavy stages)
   heraldReviveDeadline: 0,
   swarmReviveDeadline: 0,
   runnerReviveDeadline: 0,
@@ -840,6 +851,34 @@ function readMeminfo(): { totalMb: number; availableMb: number } {
   }
 }
 
+// ─── v107 · THE INVISIBLE GUARD (dcg) — the fleet's blast-radius cap ───────
+// destructive_command_guard adoption (owner directive): the keeper is fully
+// autonomous — nothing waits for a human — SO destructive patterns must be
+// mechanically impossible. Every shell-string this service spawns passes the
+// guard first. Contract measured live: JSON `decision` field is the truth
+// (warn exits 0 by default; exit codes alone under-report warnings).
+// Runtime fail-open on guard-absent/error: revival is life-critical, the gate
+// (verify.sh stage 8) is where guard health is fail-closed.
+const GUARD_BIN = process.env.DCG_BIN ?? `${process.env.HOME ?? "/home/z"}/.local/bin/dcg`;
+
+function guardDecision(cmd: string): "allow" | "deny" | "warn" | "absent" | "error" {
+  try {
+    const p = Bun.spawnSync([GUARD_BIN, "--robot", "test", cmd], { timeout: 5_000 });
+    const out = p.stdout ? new TextDecoder().decode(p.stdout) : "";
+    try {
+      const d = (JSON.parse(out) as { decision?: string }).decision;
+      if (d === "deny" || d === "warn" || d === "allow") return d;
+    } catch {
+      /* JSON-unparseable — exit-code fallback below */
+    }
+    if (p.exitCode === 1) return "deny";
+    if (p.exitCode === 0) return "allow";
+    return "error";
+  } catch {
+    return "absent"; // guard binary missing — honest, revival proceeds
+  }
+}
+
 // ─── detached revive (survives the keeper's own death) ─────────────────────
 
 /** v36: optional delay — when replacing a SIGTERM'd zombie, give the old
@@ -849,7 +888,15 @@ function reviveDetached(dir: string, logFile: string, delayMs = 0): void {
   try {
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
     const delay = delayMs > 0 ? `sleep ${(delayMs / 1000).toFixed(1)}; ` : "";
-    Bun.spawn(["bash", "-c", `${delay}cd ${dir} && exec bun run dev >> ${logFile} 2>&1`], {
+    const cmd = `${delay}cd ${dir} && exec bun run dev >> ${logFile} 2>&1`;
+    const verdict = guardDecision(cmd);
+    if (verdict === "deny") {
+      journal("revive-guard-deny", `guard DENIED revive spawn — no execution. cmd-head: ${cmd.slice(0, 80)}`);
+      return;
+    }
+    if (verdict === "warn") journal("revive-guard-warn", `guard warned (graduated) — proceeding. cmd-head: ${cmd.slice(0, 80)}`);
+    else if (verdict === "absent" || verdict === "error") journal("revive-guard-absent", `guard ${verdict} — proceeding fail-open (revival is life-critical; gate owns guard health)`);
+    Bun.spawn(["bash", "-c", cmd], {
       detached: true,
       stdin: "ignore",
       stdout: "ignore",
@@ -1026,6 +1073,14 @@ function runRestoreDrill(): void {
       S.drills.fail += 1;
       S.drills.lastVerdict = "DRILL-TOOL-MISSING";
       journal("restore-drill-miss", "scripts/restore-drill.ts not found — drill cannot run");
+      return;
+    }
+    const drillCmd = `bun ${drillPath}`;
+    const guardVerdict = guardDecision(drillCmd);
+    if (guardVerdict === "deny") {
+      S.drills.fail += 1;
+      S.drills.lastVerdict = "DRILL-GUARD-DENIED";
+      journal("restore-drill-miss", `guard DENIED drill spawn — no execution. cmd: ${drillCmd.slice(0, 120)}`);
       return;
     }
     const proc = Bun.spawnSync(["bun", drillPath], {
@@ -2795,6 +2850,51 @@ Bun.serve({
     const url = new URL(req.url);
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/status")) {
       return Response.json(statusJson());
+    }
+    if (req.method === "POST" && url.pathname === "/park-web") {
+      // v107-final · שיעור-ה-OOM (נתפס-חי ×6): אפילו שרת-צעיר לא נשאר צעיר —
+      // המצפינים (pollers) מכינים-מסלולים כל-הזמן וה-RSS מטפס בזמן שהשער רץ.
+      // התשובה-המבנית: השער מחנה את השרת לפני השלבים-הכבדים (tsc·lint) —
+      // התקציב של המכונה שייך לשער ל-70ש', ואז ממשיכים ו-live-api פוגש שרת-חם.
+      S.webReviveDeadline = Date.now() + 180_000; // חלון-חניה — השומר לא מחייה בתוכו
+      S.parkedAt = Date.now();
+      journal("web-recycle", "gate-park: verify.sh parked the web tier for the heavy stages (planned; resume follows)");
+      const procs = scanProcs().filter(
+        (p) => p.cwd === PROJECT_DIR && (p.cmdline.includes("next-server") || p.cmdline.includes("next dev"))
+      );
+      let killed = 0;
+      for (const p of procs) {
+        try { process.kill(p.pid, "SIGTERM"); killed += 1; } catch { /* already gone */ }
+      }
+      return Response.json({ ok: true, parked: true, killed, at: new Date().toISOString() });
+    }
+    if (req.method === "POST" && url.pathname === "/resume-web") {
+      // v107-final — השער מסיים את השלבים-הכבדים ומבקש את השרת בחזרה.
+      // v107-fix (נתפס-חי: OOM #7): ה-trap של verify.sh קורא resume גם אחרי
+      // שה-web-resume-stage כבר החזיר — כפילות-שרתים = מלחמת-פורטים = OOM.
+      // resume הוא אידמפוטנטי: אם השרת עונה 200 — לא מפעילים כלום.
+      try {
+        const probe = await fetch("http://127.0.0.1:3000/api/saos/status", { signal: AbortSignal.timeout(3_000) });
+        if (probe.ok) {
+          S.webReviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+          S.parkedAt = null;
+          journal("web-revive", "gate-resume skipped — web already answering (idempotent; no double spawn)");
+          return Response.json({ ok: true, resumed: false, alreadyRunning: true });
+        }
+      } catch { /* web down — proceed with the real resume */ }
+      const parkedMs = S.parkedAt ? Date.now() - S.parkedAt : 0;
+      S.parkedAt = null;
+      S.webReviveDeadline = Date.now() + REVIVE_WINDOW_MS; // חלון רגיל — לא חניה
+      reviveDetached(PROJECT_DIR, path.join(PROJECT_DIR, "dev.log"));
+      journal("web-revive", `gate-resume after ${Math.round(parkedMs / 1000)}s parked — web respawned detached for live-api`);
+      return Response.json({ ok: true, resumed: true, parkedMs });
+    }
+    if (req.method === "POST" && url.pathname === "/recycle-web") {
+      // v107 · עמדת-שער-קל: verify.sh מבקש מיחזור-מתוכנן לפני השלבים-הכבדים
+      // (tsc·lint) — שרת-צעיר (~200MB) במקום שרת-בוגר (0.8–1.6GB) = השער רץ
+      // בתוך-התקציב, הקרנל לא מכה, live-api בסוף פוגש שרת-חם. Loopback בלבד.
+      recycleWeb("gate-clear (verify.sh pre-heavy-stage planned recycle)");
+      return Response.json({ ...statusJson(), recycle: { requested: true, at: new Date().toISOString() } });
     }
     if (req.method === "POST" && url.pathname === "/probe") {
       return (async () => {

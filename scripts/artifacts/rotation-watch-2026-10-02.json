@@ -1,0 +1,106 @@
+{
+  "kind": "rotation-watch",
+  "role": "key-rotation-watch",
+  "executor": "rotation-watch",
+  "measuredAt": "2026-10-02T22:58:08.506Z",
+  "measured": true,
+  "keyFilesConsidered": 11,
+  "maxAgeHours": 54,
+  "worst": "ok",
+  "windows": {
+    "watchHours": 720,
+    "breachHours": 2160
+  },
+  "permDriftCount": 5,
+  "rows": [
+    {
+      "location": "home-secrets",
+      "file": "saos-admin-key",
+      "ageHours": 1,
+      "mode": "600",
+      "window": "ok",
+      "permDrift": false
+    },
+    {
+      "location": "home-secrets",
+      "file": "saos-git-cred.sh",
+      "ageHours": 0,
+      "mode": "700",
+      "window": "ok",
+      "permDrift": false
+    },
+    {
+      "location": "home-secrets",
+      "file": "saos-git-askpass.sh",
+      "ageHours": 0,
+      "mode": "700",
+      "window": "ok",
+      "permDrift": false
+    },
+    {
+      "location": "home-secrets",
+      "file": "github-token",
+      "ageHours": 0,
+      "mode": "600",
+      "window": "ok",
+      "permDrift": false
+    },
+    {
+      "location": "saos-vault-agent-keys",
+      "file": "fleet_keys.meta.json",
+      "ageHours": 1,
+      "mode": "600",
+      "window": "ok",
+      "permDrift": false
+    },
+    {
+      "location": "saos-vault-agent-keys",
+      "file": "fleet_keys.enc",
+      "ageHours": 1,
+      "mode": "600",
+      "window": "ok",
+      "permDrift": false
+    },
+    {
+      "location": "upload-agent-keys",
+      "file": "fleet_keys.enc",
+      "ageHours": 54,
+      "mode": "777",
+      "window": "ok",
+      "permDrift": true
+    },
+    {
+      "location": "upload-agent-keys",
+      "file": "fleet_keys.meta.json",
+      "ageHours": 54,
+      "mode": "777",
+      "window": "ok",
+      "permDrift": true
+    },
+    {
+      "location": "upload-gate-agents",
+      "file": "gate-herald.json",
+      "ageHours": 1,
+      "mode": "777",
+      "window": "ok",
+      "permDrift": true
+    },
+    {
+      "location": "upload-gate-agents",
+      "file": "gold-scout.json",
+      "ageHours": 1,
+      "mode": "777",
+      "window": "ok",
+      "permDrift": true
+    },
+    {
+      "location": "upload-gate-agents",
+      "file": "night-scout.json",
+      "ageHours": 1,
+      "mode": "777",
+      "window": "ok",
+      "permDrift": true
+    }
+  ],
+  "note": "תקין: הגיל המקסימלי 54ש' מתחת לחלון-הצפייה"
+}

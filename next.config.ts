@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(import.meta.dirname ?? "."),
   },
+  // v107 · OOM-lesson (caught live ×3, 2026-10-02): the dev compile storm pushed
+  // next-server to 1.39–1.99GB on a 4GB box (anvil alone holds 0.83GB) and the
+  // kernel killed it mid-storm. 1GB target forces earlier cache release — the
+  // storm peaks lower, the kernel's global OOM never fires. (Bytes, per
+  // next/dist/server/config-shared.d.ts.)
+  experimental: {
+    turbopackMemoryLimit: 640 * 1024 * 1024,
+  },
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,

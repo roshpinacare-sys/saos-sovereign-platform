@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, audit } from "@/lib/saos/auth";
-import { harnessPeek, runHarnessVerify } from "@/lib/saos/harness";
+import { harnessPeek, verifyDetachedWithPoll } from "@/lib/saos/harness";
 import { logOp } from "@/lib/saos/oplog";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic";
  *   סטטוס-פיצ'רים מ-feature_list.json, והראיה-האחרונה של שער-האימות.
  *
  * POST /api/saos/harness — fail-closed (requireAuth):
- *   {action:"verify"} → הרצת scripts/verify.sh בפועל (fails-fast)
- *                       + עדות JSON אוטומטית תחת scripts/artifacts/
+ *   {action:"verify"} → מצית את השער בתהליך-עצמאי (v107 שיעור-ה-OOM: השער-הכבד
+ *                       לעולם לא בתוך next-server) וצופה בעדות עד ~110ש';
+ *                       עדות JSON אוטומטית תחת scripts/artifacts/
  *
  * דוקטרינת v106 (THE LIVING HARNESS): אין "בוצע" בלי ראיה רצה.
  * ה-GET כנה גם כשהכל חסר (presence:false — לא שלד-מדומה); ה-POST מדווח
@@ -36,13 +37,13 @@ export async function POST(req: NextRequest) {
   const action = String(body.action ?? "");
 
   if (action === "verify") {
-    const res = await runHarnessVerify();
+    const res = await verifyDetachedWithPoll();
     await logOp("harness.verify", {
-      ok: res.ok,
-      verdict: res.verdict,
+      ok: res.state === "pass" || res.state === "running",
+      state: res.state,
       pass: res.pass,
       fail: res.fail,
-      ms: res.ms,
+      waitedMs: res.waitedMs,
       evidence: res.evidenceFile,
       by: auth.actorRef
     });
@@ -52,10 +53,11 @@ export async function POST(req: NextRequest) {
       action: "POST verify",
       allowed: true,
       req,
-      detail: `${res.verdict} (pass=${res.pass} fail=${res.fail} ${(res.ms / 1000).toFixed(1)}s)`.slice(0, 120)
+      detail: `${res.state} (pass=${res.pass} fail=${res.fail} waited=${(res.waitedMs / 1000).toFixed(0)}s detached)`.slice(0, 120)
     });
-    // verdict:fail הוא תשובת-ok (השער רץ והעיד כישלון) — הכנות היא ב-verdict, לא ב-HTTP
-    return NextResponse.json({ ok: true, verify: res });
+    // state:"running" הוא תשובת-ok כנה (השער רץ מנותק, העדות תגיע כקובץ);
+    // state:"fail" הוא תשובת-ok (השער רץ והעיד כישלון) — הכנות ב-state, לא ב-HTTP
+    return NextResponse.json({ ok: true, mode: "detached", verify: res });
   }
 
   await logOp("harness", `פעולה-לא-מוכרת נדחתה: ${action}`);

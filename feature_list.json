@@ -2,7 +2,7 @@
   "version": 3,
   "doctrine": "feature_list.json — harness primitive (adopted v106, merged across parallel waves). One active feature at a time. No feature is done without evidence (command + measured result). Status values: done | in_progress | todo | blocked | owner-gated. dependencies = feature ids that must be done first. The Task-19 parallel wave's kernel lineage rows (feat-001..006) live in git history (01a144e) — the measured economy rows below are this ledger's source of truth; do not import rows without evidence.",
   "updated": "2026-10-02T23:59:00Z",
-  "active_feature": "harness-engineering-adoption",
+  "active_feature": null,
   "rules": [
     "one-feature-at-a-time: exactly one in_progress",
     "evidence-or-it-did-not-happen: every done carries a runnable proof string",
@@ -102,12 +102,12 @@
       "name": "Harness Engineering Adoption",
       "title": "המסגרת-החיה — AGENTS.md + feature_list + verify.sh + init.sh + lifecycle + harness-audit executor + keeper loop (merged: Task-19 landing protocol folded in)",
       "description": "Adopt the five harness subsystems (instructions/state/verification/scope/lifecycle) as running code: fails-fast gate, session lifecycle with structure sanity, self-recruited checker role, keeper loop, adoption report + roast; merged with the parallel Task-19 wave (AGENTS landing protocol + BLOC-STATE routing + sibling-waves rule)",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "living-workers",
         "git-public-rail"
       ],
-      "evidence": "validator measured 20/100 before; verify.sh live-caught (a) harness-files missing, (b) db-sync spurious pass via migrate-status fallback, (c) live-api swallowed exit-code — all fixed honestly; full battery 7/7 pass measured; parallel push caught live (1/2 divergence) → surgical merge",
+      "evidence": "validator 20→100/100 (their own tool) · verify VERDICT=pass · v106.0.0 add6d3d pushed 0/0 with origin · merged Task-18/19 lineage (surgical 5-conflict superset)",
       "done_when": "validator re-measures ≥90/100 AND verify.sh verdict=pass AND keeper harness loop journaled AND merged lineage pushed to origin"
     },
     {
@@ -125,11 +125,11 @@
       "name": "Key Rotation Watch",
       "title": "צפיית-רוטציית-מפתחות — key-census מזין גיל-מדוד; הצעת-רוטציה מעל סף",
       "description": "Deterministic detector proposing key rotation when the measured key age (from key-census) crosses the policy threshold",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "living-workers"
       ],
-      "evidence": "key-census live: upload copy at 777 vs primary home at 600 (real rotation data, v105.1)",
+      "evidence": "rotation-watch-2026-10-02.json: 11 key files measured, maxAge 54h (ok), permDrift 5 (FUSE-mount staging — chmod-ignored environment, canonical homes 0600/0700) · role key-rotation-watch activated via gap-detector source-8 + API · executor rotation-watch (24h cadence), thresholds watch 720h / breach 2160h",
       "done_when": "a detector proposes rotation when measured key age crosses the policy threshold"
     },
     {
@@ -143,6 +143,18 @@
       ],
       "evidence": "OBSERVED 2026-10-02T22:34Z (Z-37): headless registry-tick through the SAME call chain as the keeper hourly GET — sweepStale ok:true, empty-state census 0/0/0, 48h/72h arithmetic executed on real SQLite. Receipt: docs/FEAT-006-keeper-tick-observation.md · script: scripts/registry-tick-observe.ts (bunx tsx — bun trips on xrpl interop, honestly noted). Hourly live cadence stays with keeper v48 in its ops env.",
       "done_when": "keeper observation windows measured over time and the row graduates with evidence"
+    },
+    {
+      "id": "invisible-guard",
+      "name": "Invisible Guard",
+      "title": "המשמר-הבלתי-נראה — destructive_command_guard כאסם-טווח-הפיצוץ של הצבא (v107)",
+      "description": "dcg robot-mode adoption: guardTest/guardedBash primitive, .dcg.toml in-repo enforcement packs, guard-selftest battery (13 cases), verify.sh gate 10 fail-closed, keeper+gate-agent spawn wiring, house law 7 — autonomy scales because the blast radius is mechanically capped",
+      "status": "done",
+      "dependencies": [
+        "harness-engineering-adoption"
+      ],
+      "evidence": "guard-selftest-2026-10-02.json 13/13 (17ms probes) · verify VERDICT=pass 10/10 incl. guard gate (deny-proof rm -rf / + allow-proof + .dcg.toml) · live-caught contract fix (warn exits 0; JSON decision is truth) · 6× OOM caught live → gate-park/resume + sentinel detached + tsc --incremental + eslint --cache (lint 36s→2s) + turbopackMemoryLimit 640MB + keeper 48.2.0 recycle lines 1250/1350",
+      "done_when": "every fleet shell-string passes the guard; the gate proves deny-proof+allow-proof every run; no destructive known pattern can execute without a git-recorded allowlist change"
     }
   ]
 }

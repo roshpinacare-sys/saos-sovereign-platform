@@ -27,6 +27,12 @@
    ב-v106: Task 19 דחף במקביל) — `git pull --rebase` לפני כל push,
    שיחזור-בייט-מדויק, לעולם לא force. *The repo is the system of record;
    rebase-first, never force.*
+7. **המשמר-לפני-הריצה (v107 · THE INVISIBLE GUARD)** — כל פקודת-shell
+   של פועל-צבא עוברת `dcg` (robot-mode) לפני ריצה; **deny = לעולם לא
+   רץ** (עוקפים: stash במקום reset, פקודה-צרה יותר), warn = רץ עם יומן,
+   guard-absent = fail-open בזמן-ריצה אבל שער-ה-guard ב-verify.sh
+   fail-closed. הרחבת-הרשאות (allowlist) = קומיט בגיט בלבד, לעולם לא
+   שקט. *The blast-radius cap is what makes full autonomy safe.*
 
 ## סדר-הפעולה (Startup Workflow — run before writing code, every session)
 

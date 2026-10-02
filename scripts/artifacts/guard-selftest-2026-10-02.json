@@ -1,0 +1,120 @@
+{
+  "kind": "guard-selftest",
+  "role": "guard-engineer",
+  "executor": "guard-selftest",
+  "measuredAt": "2026-10-02T23:36:55.748Z",
+  "measured": true,
+  "guardVersion": "0.15.2",
+  "projectConfigPresent": true,
+  "totalCases": 13,
+  "passed": 13,
+  "mismatches": 0,
+  "totalMs": 328,
+  "ok": true,
+  "cases": [
+    {
+      "name": "rm-rf-root",
+      "expect": "deny",
+      "actual": "deny",
+      "ruleId": "core.filesystem:rm-rf-root-home",
+      "ms": 9,
+      "ok": true
+    },
+    {
+      "name": "rm-rf-src",
+      "expect": "deny",
+      "actual": "deny",
+      "ruleId": "core.filesystem:rm-rf-general",
+      "ms": 8,
+      "ok": true
+    },
+    {
+      "name": "rm-rf-tmp-allowed",
+      "expect": "allow",
+      "actual": "allow",
+      "ruleId": null,
+      "ms": 8,
+      "ok": true
+    },
+    {
+      "name": "git-reset-hard",
+      "expect": "deny",
+      "actual": "deny",
+      "ruleId": "core.git:reset-hard",
+      "ms": 15,
+      "ok": true
+    },
+    {
+      "name": "git-push-force",
+      "expect": "deny",
+      "actual": "deny",
+      "ruleId": "core.git:push-force-long",
+      "ms": 16,
+      "ok": true
+    },
+    {
+      "name": "git-clean-force",
+      "expect": "deny",
+      "actual": "deny",
+      "ruleId": "core.git:clean-force",
+      "ms": 16,
+      "ok": true
+    },
+    {
+      "name": "find-delete",
+      "expect": "deny",
+      "actual": "deny",
+      "ruleId": "core.filesystem:find-delete-general",
+      "ms": 37,
+      "ok": true
+    },
+    {
+      "name": "sqlite-drop-table",
+      "expect": "deny",
+      "actual": "deny",
+      "ruleId": "database.sqlite:drop-table",
+      "ms": 14,
+      "ok": true
+    },
+    {
+      "name": "git-pull-rebase",
+      "expect": "allow",
+      "actual": "allow",
+      "ruleId": null,
+      "ms": 18,
+      "ok": true
+    },
+    {
+      "name": "git-add-commit-push",
+      "expect": "allow",
+      "actual": "allow",
+      "ruleId": null,
+      "ms": 71,
+      "ok": true
+    },
+    {
+      "name": "verify-gate",
+      "expect": "allow",
+      "actual": "allow",
+      "ruleId": null,
+      "ms": 7,
+      "ok": true
+    },
+    {
+      "name": "grep-data-not-exec",
+      "expect": "allow",
+      "actual": "allow",
+      "ruleId": null,
+      "ms": 6,
+      "ok": true
+    },
+    {
+      "name": "git-stash-drop-warn",
+      "expect": "warn",
+      "actual": "warn",
+      "ruleId": "core.git:stash-drop",
+      "ms": 25,
+      "ok": true
+    }
+  ]
+}

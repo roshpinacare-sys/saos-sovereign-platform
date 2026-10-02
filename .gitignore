@@ -80,3 +80,4 @@ tool-results/
 /db/observe.db
 /db/observe.db-wal
 /db/observe.db-shm
+.cache/

@@ -628,18 +628,116 @@ export async function runVaultCensus(now = Date.now()): Promise<VaultCensus> {
   };
 }
 
+// ─── מבצע 6 — גלאי-סף-רוטציה (key-rotation-watch · r12) ─────────────────────
+// הפריט-הפתוח (progress.md יורשת): "r12-key-rotation-watch — גלאי-סף-רוטציה
+// שקורא גיל-מדוד מ-key-census וחלונות-תצפית-שומר (זמן, לא קוד)".
+// העיקרון: הרוטציה עצמה היא חומר-בעלים (owner-gated בעיצוב) — הגלאי לא רוטט,
+// הוא מציץ ומדווח: גיל מדוד מול חלונות-צפייה + סטיית-הרשאות (0600 מצופה).
+
+export interface RotationWatchRow {
+  location: string;
+  file: string;
+  ageHours: number | null;
+  mode: string | null;
+  /** איזה חלון נפרץ (אם נפרץ) — זמן, לא קוד */
+  window: "ok" | "watch" | "breach" | "unknown";
+  permDrift: boolean;
+}
+
+export interface RotationWatch {
+  kind: "rotation-watch";
+  role: "key-rotation-watch";
+  executor: "rotation-watch";
+  measuredAt: string;
+  measured: boolean;
+  keyFilesConsidered: number;
+  maxAgeHours: number | null;
+  worst: "ok" | "watch" | "breach" | "unknown";
+  windows: { watchHours: number; breachHours: number };
+  permDriftCount: number;
+  rows: RotationWatchRow[];
+  note: string;
+  error?: string;
+}
+
+/** חלונות-הצפייה (זמן, לא קוד): צפייה מגיל 30-יום, פריצה מעבר ל-90-יום.
+ *  הרוטציה עצמה — חומר-בעלים; הגלאי מדווח, לעולם לא מסובב. */
+export const ROTATION_WINDOWS = { watchHours: 30 * 24, breachHours: 90 * 24 };
+
+export async function runRotationWatch(now = Date.now()): Promise<RotationWatch> {
+  const measuredAt = new Date().toISOString();
+  const census = await runKeyCensus(now);
+  if (!census.measured) {
+    return {
+      kind: "rotation-watch",
+      role: "key-rotation-watch",
+      executor: "rotation-watch",
+      measuredAt,
+      measured: false,
+      keyFilesConsidered: 0,
+      maxAgeHours: null,
+      worst: "unknown",
+      windows: ROTATION_WINDOWS,
+      permDriftCount: 0,
+      rows: [],
+      note: "key-census לא נמדד — אין גיל מדוד, אין פסק (כנה)",
+      ...(census.error ? { error: census.error } : {})
+    };
+  }
+  const rows: RotationWatchRow[] = census.rows
+    .filter((r) => r.present)
+    .map((r) => {
+      const age = r.ageHours;
+      const window: RotationWatchRow["window"] =
+        age === null ? "unknown" : age >= ROTATION_WINDOWS.breachHours ? "breach" : age >= ROTATION_WINDOWS.watchHours ? "watch" : "ok";
+      // הרשאה-בטוחה: אפס ביט-קבוצה/עולם (600 למפתחות · 700 לסקריפטים-של-אימות —
+      // שניהם עוברים). סטייה = קריא/כתיב מעבר לבעלים (נמדד-חי: עותק-upload על 777)
+      const permDrift = r.mode !== null && (parseInt(r.mode, 8) & 0o077) !== 0;
+      return { location: r.location, file: r.file, ageHours: age, mode: r.mode, window, permDrift };
+    });
+  const ages = rows.map((r) => r.ageHours).filter((a): a is number => a !== null);
+  const maxAgeHours = ages.length ? Math.max(...ages) : null;
+  const worst: RotationWatch["worst"] = rows.some((r) => r.window === "breach")
+    ? "breach"
+    : rows.some((r) => r.window === "watch")
+      ? "watch"
+      : rows.some((r) => r.window === "unknown")
+        ? "unknown"
+        : "ok";
+  const permDriftCount = rows.filter((r) => r.permDrift).length;
+  return {
+    kind: "rotation-watch",
+    role: "key-rotation-watch",
+    executor: "rotation-watch",
+    measuredAt,
+    measured: true,
+    keyFilesConsidered: rows.length,
+    maxAgeHours,
+    worst,
+    windows: ROTATION_WINDOWS,
+    permDriftCount,
+    rows,
+    note:
+      worst === "breach"
+        ? `פריצת-חלון: קובץ-מפתח בגיל ${maxAgeHours}ש' ≥ ${ROTATION_WINDOWS.breachHours}ש' — רוטציה היא חומר-בעלים (owner-gated), הגלאי מדווח בלבד`
+        : worst === "watch"
+          ? `צפייה: הגיל המקסימלי ${maxAgeHours}ש' בתוך חלון-הצפייה (30-90 ימים)`
+          : `תקין: הגיל המקסימלי ${maxAgeHours}ש' מתחת לחלון-הצפייה`
+  };
+}
+
 // ─── חיבור-התפקידים (המצבת הכנה) ────────────────────────────────────────────
 
 // v106 (THE LIVING HARNESS): "harness-audit" — ה-checker של maker-checker.
 // המבצע מריץ את שער-האימות (scripts/verify.sh — fails-fast, עדות JSON)
 // וכותב artifact: הפלטפורמה מאמתת את עצמה בפועל, לא מצהירה.
-export type RoleExecutor = "fuel-census" | "estate-census" | "key-census" | "vault-census" | "harness-audit";
+export type RoleExecutor = "fuel-census" | "estate-census" | "key-census" | "vault-census" | "harness-audit" | "rotation-watch";
 
 export interface WorkerBinding {
   executor: RoleExecutor;
   artifactKind: string;
   he: string;
-  run: () => Promise<FuelCensus | EstateCensus | KeyCensus | VaultCensus | HarnessVerifyResult>;
+  run: () => Promise<FuelCensus | EstateCensus | KeyCensus | VaultCensus | HarnessVerifyResult | RotationWatch>;
 }
 
 /** החיבורים שקיימים היום — כל תפקיד אחר מוצהר "unwired" (כנה, לא מדומה) */
@@ -676,13 +774,22 @@ export const WORKER_BINDINGS: Record<string, WorkerBinding> = {
     artifactKind: "harness-verify",
     he: "זקיף-המסגרת: מריץ את שער-האימות (verify.sh — fails-fast) וכותב עדות JSON — ה-checker של maker-checker; אין 'בוצע' בלי ראיה רצה",
     run: () => runHarnessVerify()
+  },
+  // r12-key-rotation-watch — הפריט-הפתוח נסגר: גלאי-סף שקורא גיל-מדוד
+  // מ-key-census מול חלונות-צפייה (זמן, לא קוד). רוטציה = חומר-בעלים.
+  "key-rotation-watch": {
+    executor: "rotation-watch",
+    artifactKind: "rotation-watch",
+    he: "צופה-הרוטציה: גיל-מפתחות מדוד מול חלונות-צפייה (צפייה 30-יום · פריצה 90-יום) + סטיות-הרשאות (0600 מצופה) — מדווח ולעולם לא מסובב (רוטציה = חומר-בעלים)",
+    run: () => runRotationWatch()
   }
 };
 
 /** קצב-מבצע-ספציפי — עוקף את WORKER_MIN_INTERVAL_MS (השער כבד: lint נמדד ~35ש').
  *  זקיף-המסגרת רץ לכל היותר אחת ל-6 שעות; שאר המבצעים נשארים בשעה. */
 export const EXECUTOR_MIN_INTERVAL_MS: Partial<Record<RoleExecutor, number>> = {
-  "harness-audit": 6 * 60 * 60_000
+  "harness-audit": 6 * 60 * 60_000,
+  "rotation-watch": 24 * 60 * 60_000 // צפייה-איטית מטבעה — יום-מדידה אחד לכל גלאי
 };
 
 export function isWired(slug: string): boolean {
@@ -745,6 +852,9 @@ export interface WorkerRunOutcome {
   skipped?: "throttled" | "not-active" | "unwired" | "retired";
   artifact?: ArtifactMeta & { kind: string };
   measured?: boolean;
+  /** v107: "detached" = הריצה הועברה לתהליך-עצמאי (ראיה תגיע כ-artifact); "inline" = רץ כאן ועכשיו */
+  mode?: "inline" | "detached";
+  note?: string;
   error?: string;
 }
 
@@ -774,6 +884,37 @@ export async function runWorker(slug: string, actor: string, opts?: { force?: bo
   const minIntervalMs = EXECUTOR_MIN_INTERVAL_MS[binding.executor] ?? WORKER_MIN_INTERVAL_MS;
   if (!opts?.force && role.lastArtifactAt && Date.now() - role.lastArtifactAt.getTime() < minIntervalMs) {
     return { ...out, ran: false, skipped: "throttled" };
+  }
+
+  // ── v107 · שיעור-ה-OOM שנתפס-חי (2026-10-02): global_oom הרג את next-server
+  // (RSS 1.99GB) כשהשער-הכבד (tsc·lint) רץ כילד של תהליך-ה-web. החוק-החדש:
+  // מבצעים-כבדים רצים אך-ורק בתהליך-עצמאי מת (bun scripts/role-worker-run.ts …)
+  // — תהליך-קטן שנכנס, כותב artifact, ויוצא. ה-API מחזיר מיד; העדות היא הקובץ.
+  if (binding.executor === "harness-audit") {
+    try {
+      // node-runtime-safe (Next.js has no Bun global — caught live 400)
+      const { spawn } = await import("node:child_process");
+      const zdir = path.join(process.cwd(), ".zscripts");
+      fs.mkdirSync(zdir, { recursive: true });
+      const logFd = fs.openSync(path.join(zdir, "harness-sentinel.log"), "a");
+      const child = spawn("bun", ["scripts/role-worker-run.ts", "harness-sentinel"], {
+        cwd: process.cwd(),
+        detached: true,
+        stdio: ["ignore", logFd, logFd]
+      });
+      child.unref();
+      fs.closeSync(logFd);
+      await db.agentRole.update({
+        where: { slug: clean },
+        data: { artifactNote: `harness-audit → detached run triggered (pid ${child.pid}); evidence lands in scripts/artifacts/harness-verify-*.json + harness-audit-*.json` }
+      });
+      await logOp("workers.run", { ok: true, slug: clean, executor: binding.executor, mode: "detached", pid: child.pid ?? null, by: actor });
+      return { ...out, ran: true, mode: "detached", note: `detached sentinel run triggered (pid ${child.pid}) — heavy gate never runs inside the web tier (v107 OOM lesson)` };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.slice(0, 160) : "detached-spawn-failed";
+      await logOp("workers.run", { ok: false, slug: clean, executor: binding.executor, error: msg, by: actor });
+      return { ...out, ok: false, error: msg };
+    }
   }
 
   let artifact: ArtifactMeta;

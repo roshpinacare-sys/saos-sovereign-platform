@@ -1,0 +1,11 @@
+# SAOS project guard config — ENFORCEMENT-ONLY layer (auto-discovered).
+# This file travels with git: every clone gets the same minimum guard posture.
+# Philosophy: default-allow (autonomy) + deny known-catastrophic (blast-radius cap).
+# strict_git is MEASURED-REJECTED here (breaks house law `git pull --rebase`);
+# see docs/DCG-ADOPTION.md for the evidence.
+
+[packs]
+enabled = ["core.filesystem", "core.git", "system.disk", "database.sqlite", "secret_disclosure"]
+
+[heredoc]
+enabled = true
