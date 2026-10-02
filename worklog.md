@@ -1237,3 +1237,25 @@ Stage Summary:
 - 6 public SEO pieces live on the public GitHub repo with verifiable shas
 - One infinite-republish bug caught by cross-channel verification (shell vs browser) and fixed at the root
 - Doctrine shift institutionalized: owner keeps override (policy gate) but the system never stalls — "הריבונות מנהלת"
+
+---
+Task ID: 4 (wave-17 — בחינה, שיפור, יישום-פתוחים)
+Agent: Orchestrator (Z.ai Code — הריבונות המנהלת)
+Task: "בחן היטב מה שעשית ושפר היטב תקן הכל וודא שאתה בקומיט האחרון ותעדכן היטב מה נעשה ותקן שפר ייעל ככל הניתן בנוסף יש עוד דברים פתוחים שלך שיש ליישם ולוודא היטב" — בחינה-עצמית מול-ראיות, סגירת-פערים-פתוחים, שיפור-הצבא.
+
+Work Log:
+- בחינה-בלי-לסמוך-על-טענות: git log/status/fetch נמדדו — ה-local היה 18-קומיטים מאחורי origin/main (v100→v105 מהגלים-המקבילים: המוח-הכלכלי, הדוג׳ו, הרשות-הריבונית, הריבונות-המנהלת, רכבת-git-הציבורית עם 6-פרסומי-SEO חיים). fetch מאובטח דרך gh-token (askpass-ארעי ב-.zscripts, נגרס-מיד; אפס-טוקן-בפלט) → merge --ff-only → 0/0 מסונכרן על ac6650c
+- שיקום-סביבה: bun install (no changes) · prisma generate (v102 lesson) · db:push ("already in sync") · tsc=0 · lint נקי · השרת-החי אימת v105.0.0 ב-API (one-net 7/7 חיים)
+- DB-רענן-נמדד (איפוס-סנדבוקס): authority sweep=0, brain=null, economyRun=0 — state-snapshot-2026-10-02.json המחויב (4 תפקידים · 734 OpLogs · 8 ריצות) נמדד ואומת כזיכרון-הצבא; if-empty מסרב-כנה כי המצבת-החיה התחדשה-מעצמה (3 תפקידים מוצעים מחדש ע"י לולאת-הגיוס) — "המצבת-החיה-קדושה" נשמרה כמתוכנן
+- סגירת-הפער-המוצהר (פריט-פתוח מ-wave-16c): key-forge-operator + vault-auditor היו unwired — נוספו ל-role-workers.ts שני מבצעי-אמת קריאה-בלבד: runKeyCensus (4 אתרי-מפתחות: ~/.secrets · /home/z/saos-vault/agent-keys · upload/.agent-keys · upload/.gate-agents + נוכחות-env set/unset — לכל קובץ: קיום/גודל/הרשאות/גיל-שעות/תחילית-sha256-16hex של-הקובץ; אף-תוכן לא נקרא) ו-runVaultCensus (sealAvailability+vaultPassState+vaultHomesHealth מ-vault-seal — בלי לפתוח-את-החותם; מטא-המעטפת externalPass/migratedAt בלבד); נמדדו-חי: key-census מצא 3-אתרים · 7-קבצים · 2-מעטפות-אטומות · העתק-upload ב-777 מול בית-פריימרי ב-600 (תצפית-אבטחה-אמת לרוטציית-R12); vault-census: sealed+present · pass=missing · 3-בתים
+- wiring-חי: API agents-roles מדווח 3/3 מחוברים · 0-unwired (estate-scout חזר-להיצע דרך הלולאה-העצמית והקאפ-3)
+- P0-חימוש-מחדש (הפריט-הפתוח המרכזי): ~/.secrets נעלם עם איפוס-הסנדבוקס → מפתח-מפעיל-מקומי נוצר מחדש (randomBytes-32, 0600/0700, מחוץ-לגיט, אפס-הדפסות, תג c0cc48d6) לפי אותה דוקטרינת-v100 → כל-הטיקים-החתומים קמו-מעצמם: economy POST run → run#1 stage-1 measured (8-זרמים, $0.277212/יום) · market-brain cycle#1 (קורא-את-ריצה#1) · authority sweep#1 — 3-הכרעות (allocation-record executed · role-activation deferred-evidence-watch · policy-compute-rate executed self-declared-with-provenance) · escalationsOpen=0 — אפס-המתנה
+- הצבא-מופעל: activate ×3 (evm-fuel-attendant · key-forge-operator · vault-auditor) בזהות gold-scout אמיתית (x-agent-name/x-agent-key, אפס-הדפסת-מפתח) → 3×200; run-workers דילג-כנה "throttled" (הפעלה-מרעננת lastArtifactAt) — הסבב-השעתי-של-השומר-יפיק-את-ה-artifacts בתוך-שעה; ה-throttle-של-60דק' נשמר (אנטי-נפיחות)
+- זיכרון-החיים: POST state-snapshot {op:"export"} → 200 (4 תפקידים · 44 OpLogs · ריצה#1 · digest cea1fb89) — מחויב-בגיט
+- E2E-דפדפן (agent-browser) — סוגר-את-הפער-הכנה של v105: מובייל-390: scrollWidth 390=390 (אפס-גלילה-אופקית) · פוטר-נדחף-טבעי (footerBottom 6642=bodyH) · כרטיסי-כלכלה חיים (הרשות-הריבונית ✓ סולם ✓ דוג׳ו ✓ המוח ✓) · רשת-אחת: גיוס-עצמי מציג 3-חיים·1-מוצע·0-פרשים · אפס שגיאות-קונסולה · דסקטופ-1440: אפס-גלילה · v105.1-בסרגל; צילומים shots/wave17-economy-390.png + shots/wave17-desktop-1440.png
+- גרסה: version.ts+package.json → 105.1.0 "העובדים-החיים (THE LIVING WORKERS)"; tsc=0 · lint נקי אחרי-כל-עריכה
+
+Stage Summary:
+- הפריטים-הפתוחים-שנסגרו היום: (1) סנכרון-18-קומיטים → 0/0 (2) 2-מבצעים-לא-מחוברים → key-census+vault-census חיים, 3/3-wired (3) מישור-P0-אפוּ-מחדש → כל-הטיקים-החתומים-חיים (4) הצבא-מופעל-3-תפקידים-בזהות-אמת (5) mobile-390-E2E של-v105-נמדד-בפועל (6) זיכרון-החיים-מחויב
+- פתוח-כנה-שנותר (בעלים-בלבד, לפי-עיצוב): מילות-הכספת (הדלת-מוכנה — ברגע-החימוש: עיגוני-24h יגררו-את-הסולם-לשלב-2 ותור-ה-steem-יירה-עם-txid); רוטציית-R12-מקבלת-כעת-נתוני-גיל-מדודים מ-key-census בכל-סבב-עובדים
+- הלולאה-העצמית: גלאי-פערים → הצעה → הפעלה-בזהות-אמת → עובד-שעתי → artifact → פנקס — כל-החוליות-חיות-ונמדדו-היום
