@@ -1,4 +1,4 @@
-<!-- saos-queue: {"slug":"sovereign-decision-authority","titleHe":"הרשות-הריבונית: איך רשת-סוכנים מכריעה בעצמה — ומתי היא מזדקרת לבעלים","createdAt":"2026-10-02","rail":"steem-custom_json"} -->
+<!-- saos-queue: {"queue":true,"slug":"sovereign-decision-authority","titleHe":"הרשות-הריבונית: איך רשת-סוכנים מכריעה בעצמה — ומנהלת בלי להמתין","titleEn":"The sovereign authority: how an agent network decides for itself — and manages without waiting","targetRail":"git-public"} -->
 
 # הרשות-הריבונית: איך רשת-סוכנים מכריעה בעצמה — ומתי היא מזדקרת לבעלים
 
