@@ -286,33 +286,47 @@ const SRC_STABLE_MS = 180_000; // source untouched for 3 min
 // keeper loopback POST (the v27 backup / v66 expansion / v67 drip / v80 agri
 // / v73 anchor / v74 heal / v41 ambush cadences died behind the wall). The
 // admin key plaintext lives at /home/z/.secrets/saos-admin-key (0600, same
-// user as this keeper) — read ONCE per process, cached in module memory,
-// NEVER logged, NEVER journaled. Missing/unreadable file → {} → the POST
-// goes unsigned → honest 401 in the journal (fail-closed, nothing fabricated).
+// user as this keeper) — NEVER logged, NEVER journaled. Missing/unreadable
+// file → {} → the POST goes unsigned → honest 401/403 in the journal
+// (fail-closed, nothing fabricated).
 // Task 13-c: /home/z/.secrets died with a sandbox reset — the chain now is
 // env SAOS_ADMIN_KEY_FILE → the historical .secrets path → the devgate broker
 // copy. Still fail-closed if none exists (owner-blocked re-materialization).
+// 2-a (v100): the ORIGINAL cache-once-forever had a latent flaw — the first
+// call (key file still missing) cached the EMPTY {} headers for the lifetime
+// of the process, so a key armed LATER was never seen without a keeper
+// restart (live: 403 "auth-unconfigured" kept repeating after the operator
+// key was armed). Fix = the same 30s-TTL fresh-read pattern as beatKey()
+// below: candidates are re-read every 30s, so an armed/rotated key is picked
+// up by the next cadence with no restart; plaintext still never leaves this
+// function.
 const ADMIN_KEY_CANDIDATES = [
   process.env.SAOS_ADMIN_KEY_FILE || "",
   "/home/z/.secrets/saos-admin-key",
   "/home/z/.devgate/secrets/saos-admin-key",
 ].filter(Boolean);
-let loopbackAuthCache: Record<string, string> | null = null;
+const LOOPBACK_AUTH_TTL_MS = 30_000;
+let loopbackAuthCache: { headers: Record<string, string>; at: number } | null = null;
 function loopbackAuthHeaders(): Record<string, string> {
-  if (loopbackAuthCache === null) {
-    for (const ADMIN_KEY_FILE of ADMIN_KEY_CANDIDATES) {
-      try {
-        const key = fs.readFileSync(ADMIN_KEY_FILE, "utf8").trim();
-        if (key) { loopbackAuthCache = { authorization: `Bearer ${key}` }; break; }
-      } catch {
-        /* next candidate */
-      }
-    }
-    if (loopbackAuthCache === null) {
-      loopbackAuthCache = {}; // fail-closed: the POST then 401s and journals honestly
+  const now = Date.now();
+  if (loopbackAuthCache && now - loopbackAuthCache.at < LOOPBACK_AUTH_TTL_MS) {
+    return loopbackAuthCache.headers;
+  }
+  let headers: Record<string, string> = {};
+  for (const ADMIN_KEY_FILE of ADMIN_KEY_CANDIDATES) {
+    try {
+      const key = fs.readFileSync(ADMIN_KEY_FILE, "utf8").trim();
+      // empty/too-short key never becomes a bearer (same bar as beatKey + the
+      // web tier's own ≥16 file-hash rule) — fail-closed, next cadence retries
+      if (key.length >= 16) { headers = { authorization: `Bearer ${key}` }; break; }
+    } catch {
+      /* next candidate */
     }
   }
-  return loopbackAuthCache;
+  // empty set is cached for the SAME TTL only — an armed key is discovered on
+  // the next cadence; fail-closed: the unsigned POST then 401/403s honestly
+  loopbackAuthCache = { headers, at: now };
+  return headers;
 }
 
 // 9-e — one-net heartbeat (רשת-אחת): ONE signed beat per minute inside the
@@ -2332,3 +2346,4 @@ journal("boot", `SHOMER v${KEEPER_VERSION} (ביקורת-הפריוויו — ח
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
 console.log(`[keeper] SHOMER v${KEEPER_VERSION} LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 10min (v36) · single-seat lock v36 · revive only on confirmed death (documented exceptions, all objective-evidence · v43: per-member windows, never cross-blocking)`);
+

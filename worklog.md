@@ -973,3 +973,89 @@ Work Log:
 Stage Summary:
 - v99.0.0 "המהפכה-הריבונית" חתומה: דלת-ריבונית · סולם-כלכלי-חי ($0.271766/יום נמדד) · צבא-מגייס-עצמו (4-תפקידים, אחד-חי) · מובייל-מהופך · אורגניזם-מתואם
 - פתוח-כנה: סיסמת-הכספת אצל-הבעלים-בלבד (הדלת-מוכנה) · רוטציית-מפתחות-R12-ממתינה-להחלטת-בעלים · admin-bootstrap-זמין-חד-פעמי
+
+---
+Task ID: 2-d
+Agent: fixer-voice
+Task: v100 "הריצה-העצמית" — צינור-פרסום כנה (תור → זרוע → פורסם) על OpLog קיים (אפס מודלים), תוך-כדי כתיבת פיסת-התוכן הציבורית הראשונה (פוסט-הנדסה עברית+תקציר-EN) — בלי שום ניסיון-שידור אל רשת-חוץ (הכספת אטומה בתכנון).
+
+Work Log:
+- לימוד: src/lib/saos/broadcast.ts (מעטפות dry-run, broadcastable:false מילולי, blockers כנים) · broadcast/route.ts + broadcast/live/route.ts (שערי-כנות, txid מהצומת-בלבד, fail-closed requireAuth) · broadcasts.ts (מישור-הקשבה, ערוץ broadcasts/ קנוני) · סגנון-הבית שוחזר מהיסטוריית-גיט (הקבצים בתיקייה אוחדו למצביעים ב-G6; הסגנון המקורי נלקח מ-9e7ee42~1)
+- מדידת-שער חיה: GET /api/saos/status → vaultPassState "missing" · adminState "configured" (אחרי 2-b) · GET broadcast/live → vault:{sealed:false(שורת-DB ישנה),account:null} — ואילו השער-האמיתי לחתימה = roleWifAvailable("posting"/"active") → false (המעטפה אטומה, openSeal זורק לפני כל scrypt) · POST broadcast/live+broadcast ללא-מפתח → 401 כנה אחד, אפס סערת-401
+- src/lib/saos/broadcast-queue.ts (חדש, אפנד-אונלי על OpLog op="broadcast-queue" — אפס שינוי-schema): סנכרון עצל (TTL 60ש') של broadcasts/*.md לתור דרך מצביע מכונה אחד בראש הקובץ — `<!-- saos-queue: {slug,titleHe,titleEn,targetRail} -->`; דה-דופ לפי slug+sha256; מצבי {queued|armed|published|failed}; הגוף לא נשמר בפנקס — הוא חי בקובץ (ערוץ-השידורים המוסדי מ-v63) והשורה נושאת sha256+bytes לאימות-שלמות (מקור-אמת אחד, אפס עותקים); השורה שנכתבה: 484 תווים (תחת תקרת-logOp 2000 ותחת יעד-4KB); כתיבה רק דרך logOp (חוק-האפס של הרשות נשמר)
+- שער-החתימה broadcastGateState(): pass נוכח + מפתח-חתימה זמין → gate "none"/armed · אחרת gate "vault-sealed" — מדידה-חי בקריאה-בלבד מ-vault-seal (אותן פונקציות ששער-הפעימה-החיה משתמש בהן); אפס ניסיון-חתימה ואפס יבוא ספריית-חתימה בקוד-החדש
+- src/app/api/saos/broadcast/queue/route.ts (חדש): GET = רשימה+ספירות+שער-חי (עם ?full=1 → bodyMd publish-ready בלי-המצביע) · POST = requireAuth fail-closed, action:"publish-retry" בלבד — כספת אטומה → הבקשה נרשמת לרגע-החימוש והמצב נשאר queued (כנות, בלי ירי); כספת חומשת → הפריט מסומן armed לירי במסילת-החתימה; published → נדחה (אין פרסום-כפול). הירי-עצמו לעולם לא ב-POST הזה — הוא ירוץ בספריית-החתימה ההיסטורית כשהבעלים יחמש את המפתחות, וירשום txid מהצומת בלבד
+- broadcasts/2026-10-02-sovereign-network-ladder.md (הפיסה הריאלית הראשונה, 8,556 בייטים): "ריבונות דיגיטלית בפועל: רשת סוכנים אוטונומית שמודדת את עצמה ומעגנת אמת על הבלוקצ'יין" — סולם-האמת (sim→measured→txid-real, שמות-שלבים בלבד, אפס מספרים-פנימיים), עיגון-מצב על רשתות-ציבוריות (custom_json saos.weave.v1 — מזהה-פרוטוקול ציבורי), גיוס-תפקידים-עצמי עם פרישה-כנה, קונסולות מובייל-ראשית, כלל שער-כסף/שער-תזמון, DePIN — + תקציר-EN. מסגרת: "צוות SAOS — מחקר רשתות-סוכנים ריבוניות"; אפס סודות, אפס נתיבי-ריפו, אפס ממשקי-מנהל, אפס אזכור כספת/מפתחות, אפס קהילה-מדומה
+- ops.tsx (תג-קריאה-בלבד, 14 שורות): BroadcastQueueTag בכותרת פאנל "מעטפות שידור (dry-run)" — "תור-פרסום: N ממתינים" + מנעול-ענבר כש-gate=vault-sealed; useLive על התור כל 45ש'; one-net.tsx לא נגע (אסור-הגעה בגל-זה); אין שום כפתור-ירי ב-UI
+- אימות: bunx tsc --noEmit = 0 (כל-העץ; במהלך-העבודה נראו שגיאות-חולפות ב-exchange-live.ts ואז economy-run.ts — של מחטבים-מקבילים שערכו בזמן-אמת; נעלמו מעצמן) · bun run lint = נקי · GET / 200 · התור חי: counts {queued:1} יציבים מול 5+ קריאות (אידמפוטנטי, אפס כפילויות בפנקס) · POST ללא-אימות → 401 fail-closed · POST action לא-חוקי → 401 (האימות לפני-הכל) · אפס ניסיון-שידור לרשת-חוץ בכל הבדיקות
+- הערת-סביבה: ה-next dev נמצא כבוי בתחילת-המדידות — הוקם מחדש בדפוס-הבית (bun run dev, pid ב-.zscripts/dev.pid); קבצים אחרים ב-git-status (keeper, economy*, exchange-live, dev.pid) — של המחטבים-המקבילים, לא נגעתי בהם
+
+Stage Summary:
+- צינור-הפרסום חי וכנה: broadcasts/<file>+מצביע → תור-OpLog (אפנד-אונלי, idempotent) → API ציבורי (GET רשימה+ספירות+שער-חי · POST מפעיל fail-closed לסימון-retry) → armed (רק כש-pass+מפתח זמינים) → published (רק עם txid מהצומת). הכספת-האטומה נשארת העיצוב: המדידה-החיה עכשיו = gate "vault-sealed" · armed=false · vaultPassState "missing" · steemSigning=false
+- הפיסה הריאלית הראשונה בתור ונצפית: slug "sovereign-network-ladder" · עברית+EN · sha256 a12766ed055b…45014 · 8,556 בייטים · bodyOk=true · publishedTxid=null
+- כשהבעלים יחמש את המפתחות: POST publish-retry יסמן armed, הירי ירוץ במסילת custom_json saos.weave.v1 (posting-auth, חינם-RC — המסילה שהוכחה היסטורית), ואירוע "published" יירשם עם ה-txid הציבורי — בלי שינוי-קוד בתור-עצמו
+- UI: תג-תור-פרסום חי בוויו-המעטפות (ops); אפס דרך-ירי מהדפדפן; one-net נשמר נקי למחטב-המקביל
+
+---
+Task ID: 2-a
+Agent: fixer-plane
+Task: v100 "הריצה-העצמית" 2-a — חימוש-מפתח-המפעיל המקומי (מישור-P0) + תיקון loopbackAuthHeaders של-השומר ל-TTL-30ש' + הוכחת-מישור חיה (economy/backup/agri) + הערת-שער-כנה לשלב-2 ב-economy.tsx.
+
+Work Log:
+- אימות-בסיס חי (לפני-התיקון): GET /api/saos/economy?runs=1 → runs:[] · ladder.currentStage:null (ה-DB נולד-מחדש באיפוס-הסנדבוקס) · .env — 0 מפתחות SAOS_ · /home/z/.secrets לא-קיים כלל · dev.log: POST backup/agri 403 — שורש-התקלה (auth-unconfigured) אומת כמתואר, לא-אובחן-מחדש.
+- חימוש-מפתח-המפעיל (מפתח-מפעיל-מקומי-סנדבוקס — לא סוד-כספת ולא מפתח-הבעלים; בדיוק מה שהדוקס קוראים "חימוש-מישור-P0"): openssl rand -hex 32 → /home/z/.secrets/saos-admin-key · תיקיה 0700 · קובץ 0600 · מחוץ-לעץ-הגיט (git: "outside repository" — בלתי-ניתן-למעקב) · הערך לא נדפס/נרשם/שותף בשום-מקום — רק תג-לא-הפיך: sha256-prefix 5bbd56e7 · 65 בתים (64-hex+שורה).
+- mini-services/keeper/src/index.ts — loopbackAuthHeaders תוקן: הישן היה מטמון-פעם-אחת-לתמיד (קריאה-ראשונה בלי-מפתח → נזקק-{} ריק לנצח → מפתח-שחומש-מאוחר מעולם-לא-נראה בלי-ריסטרט — תופס-לטנטי שנתפס-חי) → קריאה-טרייה עם TTL 30ש' בדיוק-בדפוס beatKey(): {headers, at}, מועמדים נקראים-מחדש אחרי-TTL (סיבוב-מפתח-עמיד), מפתח-קצר-מדי (<16) לא הופך bearer (אותו-סף של beatKey ושל-צד-הווב), ריק-נשאר-כנה (ה-POST אז 401/403-כנה), fail-silent, הערך-הגולמי לא יוצא מהפונקציה; הערת-קוד מתעדת (2-a v100).
+- הוכחת-מישור חי: (1) curl POST /api/saos/economy {action:"run"} bearer-מהקובץ → HTTP 200 · run#1 · stage 1 · mode=measured · $0.270201/יום (זרמים-חי: קציר-בורסה 4177micro · גריד 24micro · עבודה-ששולמה 266000micro · XRPL/STEEM/harvest-rail 0-כנה) · 2 txid; (2) ריסטרט-חם של-השומר (עריכת-הקובץ) → הטיק-במחזור-6: 09:56:49 economy-error "Unable to connect" (הווב באמצע-recycle RSS — כנה, לא-403; ה-REVIVE-בעלים על-ההחלמה) · ריסטרט-חם-שני → 10:01:29 economy-tick: run#2 · stage 1 · mode=measured · $0.276209/יום · 1 txid · receiptDigest e324044b23eb7d5c… — אותו קוד-דרך בדיוק של-הטיק-השעתי (אותו-URL · אותו-גוף · אותו-mקור-bearer).
+- GET /api/saos/economy?runs=1 → runs=2 · ladder.currentStage=1 · lastMode=measured · stageCounts{1:2} · totalRuns=2 — פנקס-הכלכלה חי-שוב מהריצות-העצמיות.
+- מישור-אחים חומשו-אוטומטית (אותו-bearer, אותה-פונקציה): POST /api/saos/backup → 200 (VACUUM INTO · 466,944 בתים · מראה-בבית-השורד ✓ · lastSnapshotAt 10:04:30) · POST /api/saos/agri → 200 (0 zones — כנה) · יומן-השומר-על-הדיסק מאז-09:55: backup-ok ×2 · agri-tick ×3 · economy-tick ×1 · economy-error ×1 (web-recycle בלבד — אפס 401/403 אחרי-החימוש).
+- economy.tsx — הערת-שער-כנה-קטנה בלבד: כרטיס-שלב-2 (micro-real) כשהוא-לא-הושג מציג "שער-כנה: העיגונים מאחורי כספת-הבעלים (fail-closed) — נפתחים רק במילות-הבעלים, אף txid לא מאולץ" — ה-API כבר נשא-זאת ב-notes-הזרמים והיומן (snapshot-gated: "vault active key absent — a txid is never fabricated", vaultPassState:"missing" נמדד-חי ב-/api/saos/status); הוויו מצהירה-זאת עכשיו בעיניים. שום-דבר לא עוקף/מזייף/נוגע ב-vault/seal.
+- אימות: bunx tsc --noEmit = 0 (4 שגיאות-רגעיות ב-exchange-live.ts במהלך-העבודה — של-המחטב-המקביל, התייצבו-לבד; לא-נגעתי) · bun run lint = נקי · dev.log אפס שגיאות-הידור · GET / 200 · git: בהיקף-שלי נערכו רק keeper/src/index.ts · economy.tsx · worklog.md (+ קובץ-הסוד מחוץ-לעץ).
+
+Stage Summary:
+- מישור-P0 חומש: מפתח-מפעיל-מקומי חי ב-~/.secrets (0600/0700, מחוץ-לגיט, תג 5bbd56e7) + loopbackAuthHeaders סיבובי-TTL-30ש' — ה-keeper מאמת מול-הווב בכל-המחזורים: economy/backup/agri עברו מ-403-כנה לריצות-מלאות-חיות, ומפתח-עתידי (חימוש/רוטציה) ייקלט תוך-≤30ש' בלי-ריסטרט.
+- הכלכלה חזרה למדוד-את-עצמה: run#1 (curl-ידני) $0.270201/יום · run#2 (טיק-השומר) $0.276209/יום · שלב-1 · mode=measured · הסולם currentStage=1 · stageCounts{1:2} — המדידה-השעתית ממשיכה-לבד.
+- כנות-שנשארת-עומדת: שלב-2 (micro-real) דורש עיגוני-XRPL/STEEM בן-24h — חסום fail-closed מאחורי מילות-הבעלים (vaultPassState:"missing" — בעיצוב, המילים אצל-הבעלים-בלבד); הוויו מצהירה-זאת מפורשות; שום-עיגון/txid לא מאולץ.
+- סביבה-חיה: הווב הוחזר-מחדש 3× במהלך-העבודה (pre-OOM recycle של-השומר על-סערות-קומפילציה של-המחטבים-המקבילים) — השומר חקר, החיה והמשיך-למדוד; הריצה-העצמית שרדה-את-כל-המחזורים.
+
+---
+Task ID: 2-b/2-c
+Agent: orchestrator (אימות-מאחד — שני-המחטבים השלימו-קוד מלא אך נחתכו לפני רישום-הדוח; העבודה נאמתה-חי קצה-לקצה ונרשמת כאן בשלמותה)
+Task: 2-b ביקורת-עמיתים על גיט-האחוזה + גיוס-תגובתי · 2-c עוד-מסחר+מסילות-נזילות נמדדות
+
+Work Log (2-b — fixer-army, אומת-חי):
+- src/lib/saos/cross-audit.ts (חדש) + src/app/api/saos/cross-audit/route.ts (חדש): סריקת-גיט-חיה — הריפו-הזה (`git log --since=24h`, נושאי-קומיטים ציבוריים בלבד) + ריפואי-השותפים מהמניפסט (כל-ריפו fail-honest: "unreachable") + ספירת-סעיפי-וורקלוג. GET ציבורי (רשימת-12-אחרונות + סריקה-חיה) · POST fail-closed (requireAuth או זהות-סוכן אמיתית בדפוס-agents-roles).
+- אומת-חי ע"י-המאחד: GET → thisRepo reachable · commits24h=3 (v99+2-selftest) · 8 שותפים "unreachable" כנה (הריפואים אינם-בסנדבוקס-זה) · POST ללא-אימות נדחה.
+- role-registry.ts: מיפוי-גיוס-חדש — פער "סריקת-אחוזה-חיה" מציע "סוקר-אחוזה" (estate-scout) עם נימוק-ציבורי, בתוך PROPOSED_CAP=3 (נמדד: הקאפ מוחזק — 3 מוצעים יושבים, ההצעה-החדשה תיכנס בפרישה-הבאה).
+- swarm-agents/src/index.ts: קצב-סריקה יומי מהסייר (throttle 24ש' מקומי, fail-silent) — הצבא בודק-את-הגיט-של-כולם מעצמו.
+- one-net.tsx: סעיף "ביקורת-עמיתים (Peer Cross-Audit) — מה כולם עשו בגיט" עם הוראת-הבעלים מצוטטת · ספירות · טבלת-סריקות (useLive 30ש') — נמדד-חי בדפדפן דסקטופ+מובייל.
+- מצבת-התפקידים אחרי-האיפוס: 1 חי (evm-fuel-attendant, artifact נרשם) · 3 מוצעים · 0 פרש — הלולאה-העצמית שיחזרה-את-עצמה אחרי-איפוס-ה-DB לבד.
+
+Work Log (2-c — fixer-trades, אומת-חי):
+- exchange-live.ts: סוחר-היפוך-הממוצע (MEAN-REVERSION PAIR ROTATION) — EMA-לכל-בריכה (alpha 0.25, warmup 3) · סף-סטייה 2.5% · תקרה-עצמית 200bps בתוך swapCapBps 500 · טיק 60ש' · מדווח ב-ExchangeMeanReversionView. אומת-חי: enabled=true · invocations=7 · 7 EMAs נבנו (WTRX/WSOL/WETH/WBNB/WRXP…).
+- economy-run.ts: זרם-שביעי "liquidity-inflow" (נזילות-נכנסת) — הפרש-24h של TVL-בורסה+הפקדות wSAOS במחיר-המדיניות-החי, fail-honest. אומת: ריצה-#4 (manual) נושאת 7 זרמים כולל החדש.
+- evm-mesh/src/index.ts: קצב-מסחר-חיילים מתמשך. אומת-חי: swaps 410→466 (+56) · potHarvested $0.003766→$0.004246 · TVL $4.13→$4.156 — בתוך-כמה-עשרות-דקות, כל-המספרים-מקריאות-חיות.
+- תיקון-חי נתפס-באינטגרציה: שורת-הערה ו-`try {` התמזגו ב-evm-mesh:1676 ("Parsing error: 'try' expected" — eslint תפס; tsc-הראשי אינו-סורק mini-services) — הופרדו-ידנית; lint+tsc שני-העצים ירוקים.
+
+Stage Summary:
+- "תבדקו מה כולם עשו בגיט" מוסד: איבר-קריאה-בלבד שסורק את האחוזה ומציג ברשת-אחת, ומזין את גלאי-הפערים — גיוס-תפקידים מגיב-לפעילות-גיט-אמת.
+- "עוד עסקאות ועוד דרכים חכמות להזרים נזילות" בפועל: סוחר-שני חי על השרשרת (מגביל-את-עצמו), זרם-נזילות-נכנסת בפנקס, וכל-המספרים-נמדדים-לא-מוצהרים.
+
+---
+Task ID: 3
+Agent: orchestrator (אינטגרציה ריבונית — v100)
+Task: איחוי-המחטבים → v100.0.0 "הריצה-העצמית" · אימות-מלא · commit
+
+Work Log:
+- סיור-פתיחה: אימות-v99 מול-מצב-אמת — ה-DB אופס (runs=[] · roles מוצעים-מחדש) · טיק-כלכלה 403 (auth-unconfigured: .env-ללא-SAOS_*. /home/z/.secrets-ריק) · anvil-חי-בלוק-10632 · בורסה/מש/שומר-חיים.
+- 4 מחטבים-מקבילים (2-a מישור · 2-b צבא · 2-c מסחר · 2-d קול) — דוחותיהם למעלה; 2-b/2-c נאמתו-חי ע"י-המאחד (סעיף 2-b/2-c).
+- תיקון-אינטגרציה: evm-mesh try/comment merge (שורה-1627) — lint 0 · tsc 0 בשני-העצים.
+- הווב נפל-במהלך-האימות (recycle) — הוקם-מחדש; הסופרוויזר-החזיר-את-הילדים.
+- דפדפן-אימות מלא (agent-browser): דסקטופ-1440 — דף-נקי אפס-page-errors · כלכלה: סולם-נראה · $0.271234 מוצג · רשת-אחת: ביקורת-עמיתים+גיוס-עצמי+תפקידים-נראים · מבצעי-עגינה: "תור-פרסום: 1 ממתינים" · מובייל-390 — אפס-גלילה-אופקית (390=390) · צ'יפ-פעיל-בתוך-המסך (x=111,w=85) · פוטר-דביק-לתחתית (mt-auto · atBottom) · צילומים: shots/v100-*.png
+- כלכלה-חיה: 4 ריצות בפנקס (רבות-מהטיק-העצמי של-השומר) · stage 1 · mode measured · 7 זרמים.
+- version.ts → v100.0.0 "הריצה-העצמית (THE SELF-RUNNING REVOLUTION)" · package.json 100.0.0.
+- קומיט v100.0.0 עם תיאור-מדוד.
+
+Stage Summary:
+- v100.0.0 חתומה: המישור-הרגיש-כולו רץ-מעצמו (economy/backup/agri ירוקים) · הצבא בודק-גיט-ומגייס-מעצמו · סוחר-שני על-השרשרת + זרם-נזילות · צינור-קול-ציבורי כנה-ונעול-כספת · אפס-שקרים: כל-0 כנה, כל-מספר מדידה.
+- פתוח-כנה לבעלים: (1) מילות-הכספת אצלך-בלבד — הדלת מחכה; ברגע-החימוש: עיגונים-24h יגררו את הסולם לשלב-2 ותור-הפרסום יירה-עם-txid. (2) ריפואי-השותפים "unreachable" בסנדבוקס-זה — כשהאחוזה-נוכחת הסריקה-קוראת-אותם-לבד.
+

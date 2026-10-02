@@ -82,6 +82,7 @@ const KEEPER_STATUS = `${WEB}/api/saos/keeper`;
 const NET_STATUS = `${WEB}/api/saos/status`;
 const MESH_STATUS = `${WEB}/api/saos/mesh`;
 const ROLES_URL = `${WEB}/api/saos/agents-roles`; // v99 גיוס-עצמי — המצבת שמגייסת את עצמה
+const CROSS_AUDIT_URL = `${WEB}/api/saos/cross-audit`; // v100 ביקורת-עמיתים — מה כולם עשו בגיט
 const KEY_HOME_DIR = path.resolve(import.meta.dir, "..", "..", "..", "upload", ".gate-agents");
 const STATE_DIR = path.resolve(import.meta.dir, "..", "state");
 const ISSUES_DIR = path.resolve(import.meta.dir, "..", "issues"); // v76 — התיקייה שלנו: פנקס העניינים
@@ -495,6 +496,71 @@ async function proposeRolesCall(a: AgentState, openIssues: number): Promise<void
     }
   } catch (e) {
     journal(a.name, "roles-propose-unreachable", `roles registry unreachable (fail-silent): ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`);
+  }
+}
+
+// ─── v100 ביקורת-עמיתים (PEER CROSS-AUDIT) — פעם-ביום על-ידי סייר-הלילה ────
+// הוראת הבעלים: "בדקו מה כל אחד עשה בגיט" — הנחיל לא רק סוקר איברים,
+// הוא קורא את עבודת-הגיט של כל-האחוזה (הריפו-הזה + ריפואי-השותפים)
+// מול רישומי-הוורקלוג. פעם-ביום: POST {action:"run"} ל-/api/saos/cross-audit
+// עם הזהות של סייר-הלילה (x-agent-name/x-agent-key — אותו דפוס שער).
+// סף-24ש' נשמר בקובץ-מצב (state/cross-audit.json, 0600, atomic rename) —
+// שורד החייאות ואתחולים, לא רק את הזיכרון. Fail-silent + יומן-מקומי:
+// כישלון-ביקורת לעולם לא שובר את הסיור. נטילת הסף לפני הקריאה (נעילה-כנה —
+// הניסיון הזה הוא הריצה של היום, גם אם השער נסגר) — לא יותר מ-POST אחד ליום.
+const CROSS_AUDIT_STATE = path.join(STATE_DIR, "cross-audit.json");
+const CROSS_AUDIT_EVERY_MS = 24 * 3_600_000;
+
+function crossAuditLastRunAt(): number {
+  try {
+    const j = JSON.parse(fs.readFileSync(CROSS_AUDIT_STATE, "utf8")) as { lastRunAt?: number };
+    return typeof j.lastRunAt === "number" && j.lastRunAt > 0 ? j.lastRunAt : 0;
+  } catch {
+    return 0; // אין קובץ — טרם רץ (כנה)
+  }
+}
+
+function markCrossAuditRun(at: number): void {
+  try {
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    const tmp = `${CROSS_AUDIT_STATE}.tmp`;
+    fs.writeFileSync(tmp, `${JSON.stringify({ lastRunAt: at }, null, 2)}\n`, { mode: 0o600 });
+    fs.renameSync(tmp, CROSS_AUDIT_STATE); // atomic — קובץ-סף קרוע לא מטעה
+    try { fs.chmodSync(CROSS_AUDIT_STATE, 0o600); } catch { /* best effort */ }
+  } catch {
+    /* קובץ-הסף לעולם לא שובר את הסיור */
+  }
+}
+
+async function crossAuditCall(): Promise<void> {
+  if (!NIGHT.identity) return;
+  const now = Date.now();
+  if (now - crossAuditLastRunAt() < CROSS_AUDIT_EVERY_MS) return;
+  markCrossAuditRun(now);
+  try {
+    const res = await fetch(CROSS_AUDIT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-agent-name": NIGHT.name, "x-agent-key": NIGHT.identity.apiKey },
+      body: JSON.stringify({ action: "run" }),
+      signal: AbortSignal.timeout(20_000)
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      summary?: { totals?: { reposScanned?: number; commits24h?: number; workRecords?: number } };
+      error?: string;
+    };
+    if (res.ok && body.ok) {
+      const t = body.summary?.totals ?? {};
+      journal(
+        NIGHT.name,
+        "cross-audit",
+        `peer cross-audit stored — repos ${t.reposScanned ?? "?"} · commits24h ${t.commits24h ?? "?"} · work records ${t.workRecords ?? "?"} (the army reads what everyone did in git)`
+      );
+    } else {
+      journal(NIGHT.name, "cross-audit-refused", `cross-audit refused: ${res.status} ${body.error ?? ""}`.trim());
+    }
+  } catch (e) {
+    journal(NIGHT.name, "cross-audit-unreachable", `cross-audit unreachable (fail-silent): ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`);
   }
 }
 
@@ -939,6 +1005,13 @@ async function nightPatrol(): Promise<void> {
 
   SWARM.night.prevFlags = flagKeys;
   SWARM.night.knownFlags = new Set([...SWARM.night.knownFlags, ...flagKeys]);
+
+  // v100 ביקורת-עמיתים — פעם-ביום (סף-קובץ); כישלון לעולם לא שובר את הסיור
+  try {
+    await crossAuditCall();
+  } catch {
+    /* fail-silent — הסיור ממשיך */
+  }
 }
 
 // ─── directives (the owner's voice — prefix + separator, Hebrew-safe) ─────

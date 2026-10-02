@@ -163,6 +163,19 @@ export interface ExchangeSwapRow {
   blockNumber: number | null;
 }
 
+export interface ExchangeMeanReversionView {
+  enabled: boolean;
+  tickMs: number;
+  devPct: number;
+  capBps: number;
+  emaAlpha: number;
+  warmup: number;
+  invocations: number;
+  pools: Array<{ symbol: string; ema: number | null; samples: number }>;
+  lastTradeAt: string | null;
+  recentTrades: Array<{ at: string; symbol: string; dir: string; amountIn: string; txid: string; devPct: number }>;
+}
+
 export interface ExchangeStatus {
   ok: boolean;
   error?: string;
@@ -184,6 +197,8 @@ export interface ExchangeStatus {
   };
   traders: ExchangeTraderRow[];
   recentSwaps: ExchangeSwapRow[];
+  /** v100 — מנוע-היפוך-הממוצע (זרם-2): נצפה ומדיד כמו כל מספר אחר */
+  meanReversion: ExchangeMeanReversionView;
   treasury: {
     address: string;
     label: string;
@@ -300,6 +315,9 @@ function invalidateExchangeStatusCache(): void {
 }
 
 export async function exchangeStatus(): Promise<ExchangeStatus> {
+  // v100 — קריאת-הסטטוס הראשונה חומשת את פעימת-מנוע-ההיפוך (עצלה, פעם-אחת
+  // לתהליך) — הקצב הקבוע חי בתוך-המנוע עצמו, לא בשירות-חוץ.
+  ensureMrHeartbeat();
   if (statusCache && Date.now() - statusCache.at < STATUS_TTL_MS) return statusCache.value;
   if (statusInflight) return statusInflight;
   statusInflight = buildStatus()
@@ -536,6 +554,7 @@ async function buildStatus(): Promise<ExchangeStatus> {
       },
       traders,
       recentSwaps,
+      meanReversion: mrStatusView(),
       treasury: {
         address: treasury,
         label: "אוצר-הבורסה",
@@ -565,6 +584,7 @@ async function buildStatus(): Promise<ExchangeStatus> {
       totals: { pools: 0, swaps: 0, tvlUsd: null, volumeUsd: null, potUsd: null, harvestedUsd: null, pulses: 0 },
       traders: [],
       recentSwaps: [],
+      meanReversion: mrStatusView(),
       treasury: { address: "—", label: "אוצר-הבורסה", balances: {}, harvested: {}, sweptToPayrollSaos: "0" },
       server: { gatewayOk: null, blockNumber: null, chainId: null, note: "SAOS-EVM לא ענתה מבפנים (honest)" },
       error: e instanceof Error ? e.message.slice(0, 160) : "קריאת בורסה נכשלה"
@@ -585,6 +605,7 @@ function notDeployed(artifactVersion: string, reason: string): ExchangeStatus {
     totals: { pools: 0, swaps: 0, tvlUsd: null, volumeUsd: null, potUsd: null, harvestedUsd: null, pulses: 0 },
     traders: [],
     recentSwaps: [],
+    meanReversion: mrStatusView(),
     treasury: { address: "—", label: "אוצר-הבורסה", balances: {}, harvested: {}, sweptToPayrollSaos: "0" },
     server: { gatewayOk: null, blockNumber: null, chainId: null, note: reason },
     error: reason
@@ -1008,4 +1029,322 @@ async function symbolById(xc: ethers.Contract, id: number): Promise<string> {
   } catch {
     return "?";
   }
+}
+
+// ─── v100 — זרם-2: סוחר-היפוך-הממוצע (MEAN-REVERSION PAIR ROTATION) ────────
+//
+// האסטרטגיה השנייה לצד בוט-הארב' של האוצר (שמיישר את הבריכות אל האורקל) —
+// כאן הבריכות נסחרות אל מול **הממוצע-הנע של עצמן**: כשמחיר-בריכה סוטה
+// מעבר לסף מה-EMA העצמי, ה-HQ סוחר אל-עבר-האיזון (מחיר גבוה מהממוצע →
+// מכירת הנכס לבריכה · מחיר נמוך → קנייה מהבריכה). הסחר עובר אך ורק דרך
+// הנתיב הקיים — exchangeAction("swap") → SAOSExchange.swapExactIn (שער
+// הרשות flow-liquidity/hq + יומן-הפעולות) — אפס חוזים-חדשים, אפס פריסות.
+//
+// גבולות-האמת (ללא שינוי במדיניות הקיימת):
+//   - swapCapBps 500 בחוזה — גודל-העסקה מוגבל כאן ל-CAP_BPS (200 ברירת-מחדל,
+//     קשיח ≤ 400) מרזרבת צד-הכניסה — תמיד מתחת לתקרת החוזה.
+//   - עסקה אחת לכל הפעמה (single-flight), רוטציית-זוגות לפי הסטיה הגדולה.
+//   - אבק נדחה בכנות (כמו הארב' v46): קנייה מתחת ל-MIN_IN_WSAOS / מכירה
+//     שההחזר שלה מתחת לסף — דילוג כנה, לא עסקת-אבק.
+//   - הכל fail-honest: שרשרת למטה → תוצאת דילוג כנה, לעולם לא זריקה.
+//   - קונפיגורציה דרך סביבה עם ברירות-מחדל שמרניות — ON כברירת-מחדל.
+
+const MR_STATE_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "exchange-mr-state.json");
+const MR_LOCK_PATH = path.join(process.cwd(), "mini-services", "evm-mesh", "state", "exchange-mr-lock.json");
+
+interface MrConfig {
+  enabled: boolean;
+  tickMs: number;
+  devPct: number;      // סף-סטייה מה-EMA (%)
+  capBps: number;      // גודל-עסקה כ-bps מרזרבת צד-הכניסה (קשיח ≤ 400 — מתחת ל-500 של החוזה)
+  minInWsaos: number;  // סף-אבק: קנייה ב-wSAOS מתחת לזה נדחית
+  emaAlpha: number;    // משקל-ה-EMA לתצפית חדשה
+  warmup: number;      // מספר-תצפיות מזערי לפני הסחר הראשון בזוג
+}
+
+function mrConfig(): MrConfig {
+  const num = (v: string | undefined, d: number): number => {
+    const n = v == null ? NaN : Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
+  const env = process.env as Record<string, string | undefined>;
+  // קשיח: אף קונפיגורציה לא יכולה לעבור את תקרת-החוזה (swapCapBps 500) או
+  // לשנות את מדיניות-העמלות — הקשיחות כאן היא חלק מהדוקטרינה.
+  const capBps = Math.min(400, Math.max(10, num(env.EXCHANGE_MR_CAP_BPS, 200)));
+  const devPct = Math.max(0.2, num(env.EXCHANGE_MR_DEV_PCT, 2.5));
+  const tickMs = Math.min(3_600_000, Math.max(15_000, num(env.EXCHANGE_MR_TICK_MS, 60_000)));
+  const minInWsaos = Math.max(0.01, num(env.EXCHANGE_MR_MIN_IN_WSAOS, 0.05));
+  const emaAlpha = Math.min(0.95, Math.max(0.05, num(env.EXCHANGE_MR_EMA_ALPHA, 0.25)));
+  const warmup = Math.min(50, Math.max(1, Math.round(num(env.EXCHANGE_MR_WARMUP, 3))));
+  const enabled = env.EXCHANGE_MR_ENABLED !== "0";
+  return { enabled, tickMs, devPct, capBps, minInWsaos, emaAlpha, warmup };
+}
+
+interface MrState {
+  ema: Record<string, number>;      // סמל → EMA של מחיר-הבריכה (SAOS ליחידת-נכס)
+  samples: Record<string, number>;  // סמל → מספר-תצפיות
+  invocations: number;
+  trades: Array<{ at: string; symbol: string; dir: string; amountIn: string; txid: string; devPct: number }>;
+  updatedAt: string;
+}
+
+function mrEmptyState(): MrState {
+  return { ema: {}, samples: {}, invocations: 0, trades: [], updatedAt: new Date().toISOString() };
+}
+
+function readMrState(): MrState {
+  try {
+    const s = JSON.parse(fs.readFileSync(MR_STATE_PATH, "utf8")) as Partial<MrState>;
+    if (!s || typeof s !== "object") return mrEmptyState();
+    return {
+      ema: s.ema && typeof s.ema === "object" ? s.ema : {},
+      samples: s.samples && typeof s.samples === "object" ? s.samples : {},
+      invocations: typeof s.invocations === "number" ? s.invocations : 0,
+      trades: Array.isArray(s.trades) ? s.trades.slice(-20) : [],
+      updatedAt: typeof s.updatedAt === "string" ? s.updatedAt : new Date().toISOString()
+    };
+  } catch {
+    return mrEmptyState(); // קובץ חסר/פגום — התחלה-כנה (ה-EMA נבנה מחדש מהשרשרת)
+  }
+}
+
+function writeMrState(st: MrState): void {
+  try {
+    st.trades = st.trades.slice(-20);
+    st.updatedAt = new Date().toISOString();
+    const tmp = `${MR_STATE_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(st), "utf8");
+    fs.renameSync(tmp, MR_STATE_PATH);
+  } catch {
+    /* כתיבת-מצב best-effort — המדידות הקשות חיות בשרשרת עצמה */
+  }
+}
+
+/** תצוגת-המנוע לסטטוס (מקובץ-המצב בלבד — אפס קריאות-שרשרת נוספות). */
+function mrStatusView(): ExchangeMeanReversionView {
+  const cfg = mrConfig();
+  const st = readMrState();
+  const pools = Object.keys(st.ema).map((symbol) => ({
+    symbol,
+    ema: typeof st.ema[symbol] === "number" ? st.ema[symbol] : null,
+    samples: typeof st.samples[symbol] === "number" ? st.samples[symbol] : 0
+  }));
+  const last = st.trades[st.trades.length - 1];
+  return {
+    enabled: cfg.enabled,
+    tickMs: cfg.tickMs,
+    devPct: cfg.devPct,
+    capBps: cfg.capBps,
+    emaAlpha: cfg.emaAlpha,
+    warmup: cfg.warmup,
+    invocations: st.invocations,
+    pools,
+    lastTradeAt: last ? last.at : null,
+    recentTrades: st.trades.slice(-5)
+  };
+}
+
+/**
+ * פעמה אחת של הסוחר: קריאת בריכות חיה → עדכון-EMA → החלטת-היפוך אחת
+ * (הסטיה הגדולה ביותר) → עסקה דרך exchangeAction (הנתיב המגודר הקיים).
+ * מוחזרת תוצאה כנה — גם דילוג הוא נתון, לא שקט.
+ */
+export interface MrSweepResult {
+  ok: boolean;
+  tickedAt: string;
+  decided: boolean;
+  symbol?: string;
+  dir?: "buy" | "sell";
+  devPct?: number;
+  price?: number;
+  ema?: number;
+  amountIn?: string;
+  txid?: string | null;
+  note: string;
+  error?: string;
+}
+
+export async function exchangeMeanReversionSweep(trigger: string): Promise<MrSweepResult> {
+  const cfg = mrConfig();
+  const tickedAt = new Date().toISOString();
+  if (!cfg.enabled) {
+    return { ok: true, tickedAt, decided: false, note: "מנוע-ההיפוך כבוי במפורש (EXCHANGE_MR_ENABLED=0)" };
+  }
+  const state = readState();
+  if (!state) return { ok: false, tickedAt, decided: false, note: "אין פריסה — דילוג כנה", error: notLiveError() };
+  const xc = exchangeContract(state);
+  if (!xc) return { ok: false, tickedAt, decided: false, note: "ארטיפקט לא תואם — דילוג כנה", error: notLiveError() };
+
+  try {
+    const provider = getProvider();
+    const poolCount = Number(await xc.poolCount());
+    const symbols: string[] = [];
+    const prices: number[] = [];
+    const reservesA: bigint[] = [];
+    const reservesB: bigint[] = [];
+    for (let i = 0; i < poolCount; i++) {
+      try {
+        const p = (await xc.pools(BigInt(i))) as unknown as { aId: bigint; rA: bigint; rB: bigint };
+        const rA = bg(p.rA);
+        const rB = bg(p.rB);
+        if (rA <= 0n || rB <= 0n) continue; // בריכה ריקה — דילוג כנה
+        const sym = await symbolById(xc, Number(p.aId));
+        if (sym === "?" || sym === "wSAOS") continue; // בלי סמל/בלי בריכת-wSAOS-עצמה
+        symbols.push(sym);
+        reservesA.push(rA);
+        reservesB.push(rB);
+        prices.push(Number(ethers.formatEther(rB)) / Number(ethers.formatEther(rA)));
+      } catch {
+        /* בריכה בודדת נכשלה — השאר ממשיכים (כנה) */
+      }
+    }
+    if (symbols.length === 0) {
+      return { ok: true, tickedAt, decided: false, note: "אין בריכות קריאות — דילוג כנה" };
+    }
+
+    // 1. עדכון-EMA מהמדידה החיה (כל הפעמה מעדכנת — סחר או לא)
+    const st = readMrState();
+    st.invocations += 1;
+    const candidates: Array<{ idx: number; dev: number; ema: number }> = [];
+    for (let i = 0; i < symbols.length; i++) {
+      const sym = symbols[i]!;
+      const price = prices[i]!;
+      const prev = typeof st.ema[sym] === "number" ? st.ema[sym] : null;
+      if (prev == null || !Number.isFinite(prev)) {
+        st.ema[sym] = price; // תצפית-ראשונה = העוגן
+        st.samples[sym] = 1;
+        continue;
+      }
+      st.ema[sym] = cfg.emaAlpha * price + (1 - cfg.emaAlpha) * prev;
+      st.samples[sym] = (typeof st.samples[sym] === "number" ? st.samples[sym] : 0) + 1;
+      const dev = price / st.ema[sym] - 1;
+      if (st.samples[sym] >= cfg.warmup && Math.abs(dev) * 100 >= cfg.devPct) {
+        candidates.push({ idx: i, dev, ema: st.ema[sym] });
+      }
+    }
+    writeMrState(st);
+
+    if (candidates.length === 0) {
+      return { ok: true, tickedAt, decided: false, note: `אין סטייה ≥${cfg.devPct}% מהממוצע-הנע (EMA חי, ${symbols.length} בריכות נצפות)` };
+    }
+    // רוטציית-זוגות לפי הזדמנות: הסטיה הגדולה ביותר — עסקה אחת להפעמה
+    candidates.sort((a, b) => Math.abs(b.dev) - Math.abs(a.dev));
+    const pick = candidates[0]!;
+    const sym = symbols[pick.idx]!;
+    const dir: "buy" | "sell" = pick.dev < 0 ? "buy" : "sell"; // מחיר מתחת לממוצע → קנייה (אל-עבר-האיזון)
+
+    // 2. גודל: capBps מרזרבת צד-הכניסה — תמיד מתחת לתקרת-החוזה
+    const hq = await provider.getSigner(0);
+    const hqAddr = ethers.getAddress(await hq.getAddress());
+    let amount: number;
+    if (dir === "buy") {
+      amount = Number(ethers.formatEther(reservesB[pick.idx]!)) * (cfg.capBps / 10_000);
+      if (amount < cfg.minInWsaos) {
+        return { ok: true, tickedAt, decided: false, symbol: sym, dir, devPct: pick.dev * 100, note: `סחר-אבק (${amount.toFixed(4)} wSAOS < ${cfg.minInWsaos}) — דילוג כנה` };
+      }
+    } else {
+      // מכירה — ה-HQ חייב מלאי נכס אמיתי (אין המצאה): מכר רק מה שבידיו
+      const assetId = Number(await xc.assetIdOf(sym));
+      const held = Number(ethers.formatEther((await xc.balanceOf(assetId, hqAddr)) as bigint));
+      amount = Math.min(Number(ethers.formatEther(reservesA[pick.idx]!)) * (cfg.capBps / 10_000), held);
+      if (amount <= 0) {
+        return { ok: true, tickedAt, decided: false, symbol: sym, dir, devPct: pick.dev * 100, note: `אין מלאי ${sym} בידי ה-HQ למכירה — דילוג כנה (הקניות של הזרם הזה בונות את המלאי)` };
+      }
+      // סף-אבק בצד-היציאה: ההחזר ב-wSAOS חייב להיות משמעותי
+      // (pick.idx הוא בדיוק poolId — הבריכות נסרקו לפי אינדקס)
+      const q = (await xc.quote(BigInt(pick.idx), true, toWei(amount))) as bigint;
+      if (q <= 0n || Number(ethers.formatEther(q)) < cfg.minInWsaos) {
+        return { ok: true, tickedAt, decided: false, symbol: sym, dir, devPct: pick.dev * 100, note: `מכירת-אבק (החזר ${q > 0n ? fmtAmt(q) : "0"} wSAOS < ${cfg.minInWsaos}) — דילוג כנה` };
+      }
+    }
+
+    // 3. הוצאה-לפועל — הנתיב הקיים והמגודר בלבד (flow-liquidity/hq + יומן-אדום)
+    const out = await exchangeAction({ action: "swap", asset: sym, dir, amount });
+    if (!out.ok) {
+      return { ok: false, tickedAt, decided: true, symbol: sym, dir, devPct: pick.dev * 100, price: prices[pick.idx], ema: pick.ema, note: `העסקה נדחתה על-ידי הנתיב המגודר (${(out.error ?? "").slice(0, 90)}) — כנה`, error: out.error };
+    }
+    const amountIn = `${out.amountIn ?? "?"}`;
+    st.trades.push({ at: tickedAt, symbol: sym, dir, amountIn, txid: out.txid ?? "", devPct: Number((pick.dev * 100).toFixed(3)) });
+    writeMrState(st);
+    void logOp("exchange.mr-sweep", {
+      actor: trigger === "engine-tick" ? "hq" : trigger,
+      symbol: sym,
+      dir,
+      devPct: Number((pick.dev * 100).toFixed(3)),
+      ema: Number(pick.ema.toPrecision(6)),
+      amountIn,
+      txid: out.txid ?? null,
+      trigger
+    });
+    return {
+      ok: true, tickedAt, decided: true, symbol: sym, dir,
+      devPct: Number((pick.dev * 100).toFixed(3)), price: prices[pick.idx], ema: pick.ema,
+      amountIn, txid: out.txid ?? null,
+      note: `היפוך-ממוצע: ${dir === "buy" ? "קנייה" : "מכירה"} ${sym} — מחיר ${Number(prices[pick.idx]!.toPrecision(6))} מול EMA ${Number(pick.ema.toPrecision(6))} (סטייה ${(pick.dev * 100).toFixed(2)}%)`
+    };
+  } catch (e) {
+    return {
+      ok: false, tickedAt, decided: false,
+      note: `פעמת-היפוך נכשלה (${e instanceof Error ? e.message.slice(0, 90) : "error"}) — כנה`,
+      error: e instanceof Error ? e.message.slice(0, 160) : "mr sweep failed"
+    };
+  }
+}
+
+// ─── v100 — פעמת-המנוע (ENGINE HEARTBEAT): קצב-קבוע בתוך-התהליך ────────────
+//
+// הארב' והחיילים רצים ב-120ש' של הראנר; הסוחר-הזה פועל כל TICK_MS (60ש'
+// ברירת-מחדל) מתוך תהליך-הווב עצמו — בלי שירות-חוץ, בלי שער-אימות (הפעמה
+// אינה נתיב-API; כל עסקה עוברת בכל-זאת את שער-הרשות בתוך exchangeAction).
+// נערם עצלן: קריאת-הסטטוס הראשונה (ויו/keeper/economy) חומשת את הטיימר.
+// מנעול-קובץ מונע הפעמות-כפולות אם ייתכנו שני תהליכי-ווב.
+
+const MR_G = globalThis as unknown as {
+  __exchangeMrTimer?: ReturnType<typeof setInterval>;
+  __exchangeMrInflight?: boolean;
+};
+
+function mrLockHeldByOther(): boolean {
+  try {
+    const l = JSON.parse(fs.readFileSync(MR_LOCK_PATH, "utf8")) as { pid?: number; at?: number };
+    if (!l || typeof l.pid !== "number" || l.pid === process.pid) return false;
+    const age = Date.now() - (typeof l.at === "number" ? l.at : 0);
+    return age < 3 * mrConfig().tickMs; // מנעול-טרי של תהליך-אחר
+  } catch {
+    return false;
+  }
+}
+
+function mrRenewLock(): void {
+  try {
+    fs.writeFileSync(MR_LOCK_PATH, JSON.stringify({ pid: process.pid, at: Date.now() }), "utf8");
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function ensureMrHeartbeat(): void {
+  if (MR_G.__exchangeMrTimer) return; // כבר חמוש בתהליך זה (חסין hot-reload)
+  const cfg = mrConfig();
+  if (!cfg.enabled) return;
+  const t = setInterval(() => {
+    if (MR_G.__exchangeMrInflight) return; // single-flight — פעמה לא על-גבי פעמה
+    MR_G.__exchangeMrInflight = true;
+    (async () => {
+      if (mrLockHeldByOther()) return; // תהליך-ווב אחר מחזיק את הפעמה — כנה
+      mrRenewLock();
+      const r = await exchangeMeanReversionSweep("engine-tick");
+      if (r.decided) {
+        console.log(`[exchange-live] v100 mr-sweep: ${r.symbol} ${r.dir} dev=${r.devPct?.toFixed(2)}% → ${r.ok ? `txid ${r.txid?.slice(0, 18)}…` : `נדחה כנה (${(r.error ?? r.note).slice(0, 80)})`}`);
+      }
+    })()
+      .catch(() => {
+        /* לעולם לא קורס את התהליך */
+      })
+      .finally(() => {
+        MR_G.__exchangeMrInflight = false;
+      });
+  }, cfg.tickMs);
+  t.unref?.(); // לא מחזיק את ה-loop — השרת זה שמחזיק
+  MR_G.__exchangeMrTimer = t;
 }
