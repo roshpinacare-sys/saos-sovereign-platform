@@ -39,6 +39,8 @@ export const WINDOW_HOURS = 24;
 const DETAIL_BUDGET_CHARS = 1900;
 /** כמה סעיפי-וורקלוג אחרונים נספרים כרישומי-עבודה */
 const WORKLOG_TAIL_SECTIONS = 8;
+/** שער-איכות: מינימום שורות-עבודה (bullets) תחת Work Log בסעיף Task ID */
+const QUALITY_MIN_WORK_LINES = 3;
 /** נתיב-האחוזה — שם הריפואים-השותפים נשכפלו (v95) ושם הם נסרקים */
 const ESTATE_ROOT = "/home/z/repos";
 const GIT_TIMEOUT_MS = 10_000;
@@ -112,10 +114,19 @@ export interface WorkRecord {
   title: string;
 }
 
-function readWorklogRecords(): { records: WorkRecord[]; sectionsScanned: number; error?: string } {
+function readWorklogText(): { lines: string[]; error?: string } {
   try {
     const raw = fs.readFileSync(path.join(process.cwd(), "worklog.md"), "utf8");
-    const lines = raw.split("\n");
+    return { lines: raw.split("\n") };
+  } catch {
+    return { lines: [], error: "worklog.md לא נקרא" };
+  }
+}
+
+function readWorklogRecords(): { records: WorkRecord[]; sectionsScanned: number; error?: string } {
+  try {
+    const { lines, error } = readWorklogText();
+    if (error) return { records: [], sectionsScanned: 0, error };
     const all: WorkRecord[] = [];
     let cur: Partial<WorkRecord> | null = null;
     for (const line of lines) {
@@ -145,6 +156,95 @@ function readWorklogRecords(): { records: WorkRecord[]; sectionsScanned: number;
   }
 }
 
+// ─── שער-איכות סעיפי-הוורקלוג (v101 "ההגדלה" — ביקורת-עמיתים מעמיקה) ─────────
+// כל סעיף Task ID נמדד מול 4 חוקי-בית: כותרת Task ID · Work Log עם ≥3 שורות ·
+// Stage Summary · טוקן-מדידה אחד לפחות (ספרות+יחידה: ms/ש'/MB/bytes/$/%).
+// פער-איכות הוא נתון — הסעיף הנכשל מוצג עם רשימת-החסרות שלו, לעולם לא ירוק-מזויף.
+
+export interface WorklogSectionQuality {
+  taskId: string;
+  ok: boolean;
+  /** מזהי-חוק יציבים: task-id · work-log-lines>=3 · stage-summary · measured-token */
+  missing: string[];
+  workLogLines: number;
+}
+
+export interface WorklogQuality {
+  measured: boolean;
+  error?: string;
+  sections: WorklogSectionQuality[];
+  pass: number;
+  total: number;
+  /** "5/7 sections pass quality gate" — נמדד, לא מוצהר */
+  estateScore: string;
+}
+
+/** טוקן-מדידה: מספר לפני יחידה (12ms · 3ש' · 466 בתים · 50%) או מחיר ($0.27) */
+const MEASURED_TOKEN_RE = /\d[\d.,_]*\s*(ms|us|µs|sec|s\b|MB|KB|GB|bytes|בתים|%|ש'|ש׳|מ"ש|דק'|שע'|שעות)|\$\s*\d/;
+
+const QUALITY_FAIL_HONEST: WorklogQuality = {
+  measured: false,
+  error: "worklog.md לא נקרא — שער-האיכות כנה (אין ירוק בלי מדידה)",
+  sections: [],
+  pass: 0,
+  total: 0,
+  estateScore: "0/0 sections pass quality gate"
+};
+
+/** שער-האיכות על כל סעיפי Task ID בוורקלוג — קריאה-בלבד, fail-honest */
+function readWorklogQuality(): WorklogQuality {
+  const { lines, error } = readWorklogText();
+  if (error) return { ...QUALITY_FAIL_HONEST, error };
+  const sections: WorklogSectionQuality[] = [];
+  // פיסוק: סעיף נפתח בשורת Task ID: וגופו הוא השורות עד סעיף-הבא
+  let cur: { taskId: string; body: string[] } | null = null;
+  const flush = () => {
+    if (!cur) return;
+    let inWorkLog = false;
+    let workLogLines = 0;
+    let hasStage = false;
+    for (const line of cur.body) {
+      if (/^Stage Summary\b/.test(line)) {
+        hasStage = true;
+        inWorkLog = false;
+        continue;
+      }
+      if (/^Work Log\b/.test(line)) {
+        inWorkLog = true;
+        continue;
+      }
+      if (/^(Task ID|Agent|Task)\b/.test(line) || /^---\s*$/.test(line)) {
+        inWorkLog = false;
+        continue;
+      }
+      if (inWorkLog && /^\s*-\s+\S/.test(line)) workLogLines += 1;
+    }
+    const missing: string[] = [];
+    if (workLogLines < QUALITY_MIN_WORK_LINES) missing.push(`work-log-lines>=${QUALITY_MIN_WORK_LINES}`);
+    if (!hasStage) missing.push("stage-summary");
+    if (!MEASURED_TOKEN_RE.test(cur.body.join("\n"))) missing.push("measured-token");
+    sections.push({ taskId: cur.taskId, ok: missing.length === 0, missing, workLogLines });
+  };
+  for (const line of lines) {
+    const mId = /^Task ID:\s*(.+?)\s*$/.exec(line);
+    if (mId) {
+      flush();
+      cur = { taskId: mId[1]!.slice(0, 60), body: [] };
+      continue;
+    }
+    cur?.body.push(line);
+  }
+  flush();
+  const pass = sections.filter((s) => s.ok).length;
+  return {
+    measured: true,
+    sections,
+    pass,
+    total: sections.length,
+    estateScore: `${pass}/${sections.length} sections pass quality gate`
+  };
+}
+
 // ─── הסריקה ──────────────────────────────────────────────────────────────────
 
 export interface CrossAuditRepoRow {
@@ -171,6 +271,8 @@ export interface CrossAuditScan {
   worklog: {
     records: WorkRecord[];
     sectionsScanned: number;
+    /** v101 שער-איכות לכל סעיף Task ID — כולל estateScore; fail-honest כשהוורקלוג לא נקרא */
+    quality: WorklogQuality;
     error?: string;
   };
   totals: { reposScanned: number; commits24h: number; workRecords: number };
@@ -243,8 +345,9 @@ export async function collectCrossAudit(opts?: { persist?: boolean }): Promise<C
       }
     }
 
-    // 3) רישומי-עבודה (וורקלוג — כותרות בלבד)
+    // 3) רישומי-עבודה (וורקלוג — כותרות בלבד) + שער-איכות לכל סעיף (v101)
     const worklog = readWorklogRecords();
+    const quality = readWorklogQuality();
 
     const scan: CrossAuditScan = {
       at,
@@ -252,7 +355,12 @@ export async function collectCrossAudit(opts?: { persist?: boolean }): Promise<C
       thisRepo,
       partnerRepos,
       partnerReachable: partnerRepos.filter((r) => r.reachable).length,
-      worklog: { records: worklog.records, sectionsScanned: worklog.sectionsScanned, ...(worklog.error ? { error: worklog.error } : {}) },
+      worklog: {
+        records: worklog.records,
+        sectionsScanned: worklog.sectionsScanned,
+        quality,
+        ...(worklog.error ? { error: worklog.error } : {})
+      },
       totals: {
         reposScanned: (thisRepo.reachable ? 1 : 0) + partnerRepos.filter((r) => r.reachable).length,
         commits24h: thisRepo.commits24h + partnerRepos.reduce((acc, r) => acc + (r.commits24h ?? 0), 0),
@@ -293,7 +401,16 @@ function compactDetail(scan: CrossAuditScan, level: number): Record<string, unkn
     partnerReachable: scan.partnerReachable,
     work: {
       records: scan.worklog.records.length,
-      sections: scan.worklog.records.slice(-workCap).map((r) => ({ id: r.taskId, ...(workLen > 24 ? { t: r.title.slice(0, workLen) } : {}) }))
+      sections: scan.worklog.records.slice(-workCap).map((r) => ({ id: r.taskId, ...(workLen > 24 ? { t: r.title.slice(0, workLen) } : {}) })),
+      // v101 שער-איכות — תמצית כנה (pass/total + עד-3 סעיפים נכשלים) בתוך תקציב-ה-OpLog
+      q: {
+        p: scan.worklog.quality.pass,
+        t: scan.worklog.quality.total,
+        f: scan.worklog.quality.sections
+          .filter((s) => !s.ok)
+          .slice(0, 3)
+          .map((s) => s.taskId.slice(0, 24))
+      }
     }
   };
   if (subjCap > 0) {
@@ -325,7 +442,7 @@ export interface StoredCrossAudit {
     this?: { name?: string; reachable?: boolean; commits24h?: number; subjects?: string[] };
     repos?: Array<{ name?: string; c?: number; s?: string; u?: boolean }>;
     partnerReachable?: number;
-    work?: { records?: number; sections?: Array<{ id?: string; t?: string }> };
+    work?: { records?: number; sections?: Array<{ id?: string; t?: string }>; q?: { p?: number; t?: number; f?: string[] } };
     trimmed?: boolean;
     raw?: string;
   } | null;
