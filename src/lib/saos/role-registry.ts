@@ -3,6 +3,7 @@ import { listIssues } from "./agents-issues";
 import { truthRoast, type RoastGap } from "./roast";
 import { logOp } from "./oplog";
 import { readLatestCrossAudit } from "./cross-audit";
+import { agentCensus } from "./agent-census";
 
 /**
  * lib/saos/role-registry.ts — v99 גיוס-עצמי (THE SELF-RECRUITING ARMY).
@@ -12,10 +13,13 @@ import { readLatestCrossAudit } from "./cross-audit";
  *
  * הלולאה האוטונומית — בלי-keeper, בלי-יד:
  *   1. detectRoleGaps()  — קורא מקורות-פער קיימים: פנקס-העניינים של
- *      הנחיל (mini-services/swarm-agents/issues — מהקבצים) ופערי-רוסט-
- *      אמת (roast.ts — מדידה כבדה, מרוץ-זמן כנה של 4ש'). מפיק מועמדי-
- *      תפקיד {slug, titleHe, justification, fromIssue} — פער-מוכר ממופה
- *      לתפקיד-ממוקד; פער-לא-מוכר → "סייר-<topic>" כנה.
+ *      הנחיל (mini-services/swarm-agents/issues — מהקבצים), פערי-רוסט-
+ *      אמת (roast.ts — מדידה כבדה, מרוץ-זמן כנה של 4ש'), הסריקה-השמורה
+ *      של ביקורת-העמיתים (v100) והמצבת-עצמה (v101 "ההגדלה" — סוכני-דופק
+ *      חיים בלי תפקיד מכסה → census-resonance-officer; קומיטי-שותפים
+ *      בלי מעכל → estate-digest-scribe — שמות-יציבים לכל פער). מפיק
+ *      מועמדי-תפקיד {slug, titleHe, justification, fromIssue} — פער-מוכר
+ *      ממופה לתפקיד-ממוקד; פער-לא-מוכר → "סייר-<topic>" כנה.
  *   2. proposeRoles()    — לכל פער-פתוח בלי תפקיד פעיל/מוצע תואם
  *      (dedupe לפי slug) → upsert AgentRole status=proposed, origin=auto.
  *      חוק-אנטי-נפיחות: מקסימום PROPOSED_CAP=3 מוצעים במצבר.
@@ -61,6 +65,11 @@ export interface GapSources {
   /** v100 ביקורת-עמיתים — הסריקה השמורה האחרונה + כמה ריפואי-שותפים חייבים-קומיטים בלי רישום-עבודה */
   crossAuditMeasured: boolean;
   crossAuditUncoveredRepos: number;
+  /** v101 "ההגדלה" — גלאי-מהמצאי: קומיטים-חיים של שותפים שאין מי שמעכל אותם */
+  auditPartnerCommits: number;
+  /** v101 — המצבת: האם מדידת-המצבת הצליחה הסבב הזה + כמה סוכני-דופק חיים בלי תפקיד מכסה */
+  censusMeasured: boolean;
+  censusUncovered: number;
 }
 
 export interface GapDetection {
@@ -107,6 +116,34 @@ const KNOWN_ROLE_MAPPINGS: Record<string, { slug: string; titleHe: string; justi
     slug: "cold-start-scout",
     titleHe: "סייר-הקור-הראשון",
     justification: "פער-רוסט (המכה הראשונה): מודד את compile הקר אחרי כל ריסוק ומזהיר על המכה הבאה — הראשון-שמדווח חוסך את ההפתעה"
+  }
+};
+
+// ─── מיפוי-פערים-חיים (v101 "ההגדלה" — הצבא מגייס מהמצאי) ──────────────────
+// שמות-תפקידים יציבים לכל פער-חי (one-time naming per gap — השם נקבע פעם-
+// אחת כאן, לא נוצר דינמית); הנימוק נבנה מהמדידה של הסבב. ההצעות עוברות את
+// אותו dedupe + PROPOSED_CAP + פרישה-כנה כמו כל מועמד — אנטי-נפיחות נשמר.
+const CENSUS_GAP_ROLES: Record<
+  string,
+  { slug: string; titleHe: string; justification: (uncovered: number, names: string) => string }
+> = {
+  "census-resonance": {
+    slug: "census-resonance-officer",
+    titleHe: "קצין-תהודת-מצבת",
+    justification: (uncovered, names) =>
+      `פער-מצבת חי: ${uncovered} סוכנים עם דופק נמדד (${names}) ואין תפקיד רשום שמכסה את תפקודם — קצין-התהודה ממפה כל סוכן-חי לתפקיד המכסה אותו ומדווח על תפקודים חשוכים במספרים (מצבת ↔ רישום-תפקידים)`
+  }
+};
+
+const CROSS_AUDIT_GAP_ROLES: Record<
+  string,
+  { slug: string; titleHe: string; justification: (commits: number) => string }
+> = {
+  "estate-digest": {
+    slug: "estate-digest-scribe",
+    titleHe: "סופר-עיכול-האחוזה",
+    justification: (commits) =>
+      `פער-ביקורת-עמיתים: לריפואי-השותפים ${commits} קומיטים ב-24ש' ואין תפקיד שמעכל אותם לרישום — סופר-העיכול הופך קומיטים של שותפים לתמצית-עבודה מדויקת בוורקלוג (מטא-דאטה ציבורי בלבד)`
   }
 };
 
@@ -201,6 +238,9 @@ export async function detectRoleGaps(): Promise<GapDetection> {
   let roastMeasured = false;
   let crossAuditMeasured = false;
   let crossAuditUncoveredRepos = 0;
+  let auditPartnerCommits = 0;
+  let censusMeasured = false;
+  let censusUncovered = 0;
 
   // מקור 1 — פנקס-העניינים (מהקבצים — מהיר, אמין, נקרא גם כשהשער סגור)
   const ledger = listIssues();
@@ -254,9 +294,57 @@ export async function detectRoleGaps(): Promise<GapDetection> {
           fromIssue: `cross-audit:${top.name}`
         });
       }
+      // v101 "ההגדלה" — קומיטים-חיים של שותפים בלי מעכל: סכום-הקומיטים של
+      // הריפואים הנגישים; אם הוא >0 ואין תפקיד חי/מוצע שמעכל אותם (ה-dedupe
+      // לפי slug נאכף ב-proposeRoles) → סופר-עיכול-האחוזה, שם-יציב מהמיפוי.
+      auditPartnerCommits = (audit.detail.repos ?? []).reduce(
+        (acc, r) => acc + (r.name && !r.u && typeof r.c === "number" ? r.c : 0),
+        0
+      );
+      if (auditPartnerCommits > 0) {
+        const mapping = CROSS_AUDIT_GAP_ROLES["estate-digest"]!;
+        candidates.push({
+          slug: mapping.slug,
+          titleHe: mapping.titleHe,
+          justification: mapping.justification(auditPartnerCommits),
+          fromIssue: `cross-audit:partner-commits-${auditPartnerCommits}`
+        });
+      }
     }
   } catch {
     /* כנה — אין סריקה שמורה הסבב הזה; שני המקורות האחרים כבר סיפקו מועמדים */
+  }
+
+  // מקור 4 — המצבת עצמה (v101 "הצבא מגייס מהמצאי"): סוכנים-חיים בדופק
+  // (מדידת-מצבת קיימת, מטמון-60ש' — קריאה-בלבד) שאין תפקיד-חי ברישום
+  // שמכסה את תפקודם. כיסוי = שם-הסוכן מופיע ב-slug/נימוק/מקור של תפקיד חי,
+  // או שקצין-תהודת-המצבת עצמו חי (הוא הכיסוי הפורמלי של תפקודי-המצבת).
+  // כישלון-מדידה = דילוג כן — לעולם לא מועמד-מדומה.
+  try {
+    const census = await agentCensus();
+    if (census.ok) {
+      censusMeasured = true;
+      const activeRoles = await db.agentRole.findMany({ where: { status: "active" } });
+      const officerActive = activeRoles.some((r) => r.slug === CENSUS_GAP_ROLES["census-resonance"]!.slug);
+      const coverText = activeRoles.map((r) => `${r.slug} ${r.justification} ${r.fromIssue ?? ""}`.toLowerCase());
+      const aliveService = census.agents.filter((a) => a.layer === "service" && a.vitality === "alive");
+      const uncovered = officerActive
+        ? []
+        : aliveService.filter((a) => !coverText.some((t) => t.includes(a.name.toLowerCase())));
+      censusUncovered = uncovered.length;
+      if (uncovered.length > 0) {
+        const mapping = CENSUS_GAP_ROLES["census-resonance"]!;
+        const names = uncovered.slice(0, 3).map((a) => a.name).join(", ");
+        candidates.push({
+          slug: mapping.slug,
+          titleHe: mapping.titleHe,
+          justification: mapping.justification(uncovered.length, names),
+          fromIssue: `agent-census:${uncovered.slice(0, 3).map((a) => a.name).join("+")}`
+        });
+      }
+    }
+  } catch {
+    /* כנה — המצבת לא נמדדה הסבב הזה; שאר המקורות כבר סיפקו מועמדים */
   }
 
   // dedupe לפי slug (אותו תפקיד משני-מקורות — הקודם זוכה)
@@ -269,7 +357,10 @@ export async function detectRoleGaps(): Promise<GapDetection> {
       roastOpen,
       roastMeasured,
       crossAuditMeasured,
-      crossAuditUncoveredRepos
+      crossAuditUncoveredRepos,
+      auditPartnerCommits,
+      censusMeasured,
+      censusUncovered
     }
   };
 }
@@ -516,4 +607,38 @@ export async function listAgentRoles(): Promise<AgentRoleView[]> {
   return rows
     .map(toView)
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || Date.parse(b.at) - Date.parse(a.at));
+}
+
+// ─── גיוס-מהמצאי (v101) — חסימת-ה-mobilization ל-API ────────────────────────
+
+export interface Mobilization {
+  /** סוכנים במדידת-המצבת (אמת) — 0 כנה כשהמדידה נכשלה (fail-honest zeros) */
+  censusAgents: number;
+  activeRoles: number;
+  proposedRoles: number;
+  retiredRoles: number;
+  /** חוק-האנטי-נפיחות מוחזק: מוצעים ≤ PROPOSED_CAP */
+  capHeld: boolean;
+}
+
+/**
+ * חסימת-ה-mobilization — המצבת מול המצאי: כמה ידיים אמת קיימות במצבת
+ * (מדידת agent-census קיימת, מטמון-60ש', קריאה-בלבד) מול כמה תפקידים
+ * חיים ברישום. כל הערכים מהמדידות הקיימות; כישלון-מדידה = 0 כנה.
+ */
+export async function mobilizationBlock(counts: { active: number; proposed: number; retired: number }): Promise<Mobilization> {
+  let censusAgents = 0; // fail-honest zero
+  try {
+    const census = await agentCensus();
+    if (census.ok) censusAgents = census.totals.total;
+  } catch {
+    /* כנה — אין מספר בלי מדידה */
+  }
+  return {
+    censusAgents,
+    activeRoles: counts.active,
+    proposedRoles: counts.proposed,
+    retiredRoles: counts.retired,
+    capHeld: counts.proposed <= PROPOSED_CAP
+  };
 }
