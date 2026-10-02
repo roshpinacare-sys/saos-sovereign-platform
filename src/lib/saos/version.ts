@@ -272,33 +272,12 @@
  * 5. אימות-המאחד: tsc 0 · lint 0 · דפדפן E2E דסקטופ+מובייל (סולם ·
  *    ביקורת-עמיתים · תור-פרסום · צ'יפ-פעיל-ממורכז · פוטר-דביק · אפס
  *    גלילה-אופקית 390=390 · אפס שגיאות-קונסולה) · 4 ריצות-כלכלה בפנקס.
- *
- * v101 ההגדלה (THE AMPLIFICATION) — owner trace 1a0fc43d9ae465c9 ·
- * 4 מחטבים-מקבילים על גבי הריצה-העצמית:
- * 1. כלכלה→ערך (fixer-value): זרם-שמיני "רווח-מסחר 24ש'" (trading-pnl-24h
- *    — קצב-הפרש מפנקס EconomyRun, לא-מצטבר; run#6 נמדד) + סוחר-שלישי
- *    "סוחר-רשת" (grid rotation: 5 מדרגות ±0.4%, תקרה-עצמית 100bps,
- *    מקס 2 מילויים/בריכה/טיק) חי לצד הארב' והיפוך-הממוצע — swaps
- *    466→493+ · TVL $4.156→$4.188+ במדידה-חיה. כרטיס-חי בוויו הבורסה.
- * 2. הצבא (fixer-army): גיוס-מהמצאי — פערי-מצאי/קומיטים-שותפים מציעים
- *    census-resonance-officer/estate-digest-scribe (קאפ-3 מוחזק, הפעלה
- *    רק עם זהות+artifact אמת) + חסימת-mobilization ב-API (census 25
- *    נגד 1-חי, כנה) + שער-איכות וורקלוג בביקורת-העמיתים (estateScore
- *    נמדד: 38/44) + swarm-agents מגיב-יומית. הכל בוויו רשת-אחת.
- * 3. מהירות (fixer-speed): מטמון-API מוסדי אחד (בודד-טיסה · TTL ·
- *    fail-open) — agents-net/census/cross-audit חמים 4.7–6.6ms (היה
- *    2.5s לסריקה), כותרת x-saos-cache HIT|MISS כנה, stats ב-kernel;
- *    status נמדד 4.2ms ונשאר-כנה-ללא-מטמון. ?force=1 מדידה-טרייה.
- * 4. קול+אחוזה (fixer-voice): 2 פיסות-SEO בתור (כלכלה-נמדדת ·
- *    ביקורת-עמיתים — עברית+EN, צוות-תומך-קהילה, אפס-סודות) — תור
- *    נמדד queued:3 · דוקטרינת הפרדת-כפילויות מוח/קונסולה/דומיין
- *    (docs/ESTATE-CONSOLE-DOMAIN-ROLES.md) במפת-360 ובוויו.
  */
 
-export const SAOS_VERSION = "101.0.0";
+export const SAOS_VERSION = "100.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "ההגדלה (THE AMPLIFICATION)";
+export const SAOS_CODENAME = "הריצה-העצמית (THE SELF-RUNNING REVOLUTION)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

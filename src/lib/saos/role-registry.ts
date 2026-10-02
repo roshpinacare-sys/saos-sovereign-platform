@@ -4,6 +4,12 @@ import { truthRoast, type RoastGap } from "./roast";
 import { logOp } from "./oplog";
 import { readLatestCrossAudit } from "./cross-audit";
 import { agentCensus } from "./agent-census";
+import {
+  watchSteemReceiptsCadence,
+  watchReceiptsChain,
+  type SteemCadenceRow,
+  type ReceiptsChainRow
+} from "./receipts-watch";
 
 /**
  * lib/saos/role-registry.ts — v99 גיוס-עצמי (THE SELF-RECRUITING ARMY).
@@ -70,6 +76,13 @@ export interface GapSources {
   /** v101 — המצבת: האם מדידת-המצבת הצליחה הסבב הזה + כמה סוכני-דופק חיים בלי תפקיד מכסה */
   censusMeasured: boolean;
   censusUncovered: number;
+  /** wave-15 קצב-קבלות-steem — נמדד/גיל-הקבלה-החדשה/הפער-פתוח */
+  steemCadenceMeasured: boolean;
+  steemCadenceAgeHours: number | null;
+  steemCadenceGapOpen: boolean;
+  /** wave-15 רצף-קבלות חוצה-ריפואים — נמדד + כמה שרשראות שבורות */
+  receiptsChainMeasured: boolean;
+  receiptsChainBrokenRepos: number;
 }
 
 export interface GapDetection {
@@ -229,6 +242,8 @@ export function candidateForRoast(gap: RoastGap): RoleCandidate | null {
  *  · ביקורת-עמיתים (v100 — הסריקה השמורה האחרונה: ריפו-שותף עם קומיטים
  *    ב-24ש' בלי רישום-עבודה תואם → סוקר-אחוזה; הצבא קורא מה כולם עשו
  *    בגיט ומגייס בהתאם)
+ *  · קצב-קבלות-steem ורצף-קבלות חוצה-ריפואים (wave-15 — receipts-watch.ts:
+ *    אין-קבלה 48ש' → מחדש-האוצרות · שרשרת-קבלות-שבורה 72ש' → מבקר-הקבלות)
  * מרוץ-זמן על הרוסט: הוא מדידה כבדה — מי שלא ענה תוך 4ש' מדולג בכנות,
  * הסבב הבא (≤15 דק') מנסה שוב. לעולם לא נופל.
  */
@@ -241,6 +256,8 @@ export async function detectRoleGaps(): Promise<GapDetection> {
   let auditPartnerCommits = 0;
   let censusMeasured = false;
   let censusUncovered = 0;
+  let steemCadence: SteemCadenceRow | null = null;
+  let receiptsChain: ReceiptsChainRow | null = null;
 
   // מקור 1 — פנקס-העניינים (מהקבצים — מהיר, אמין, נקרא גם כשהשער סגור)
   const ledger = listIssues();
@@ -347,6 +364,47 @@ export async function detectRoleGaps(): Promise<GapDetection> {
     /* כנה — המצבת לא נמדדה הסבב הזה; שאר המקורות כבר סיפקו מועמדים */
   }
 
+  // מקור 5 — קצב-קבלות-steem (wave-15, הוראת הבעלים "גוף-אחד"): קבלה היא
+  // העדות-הקנונית לעבודת-תוכן/אוצרות אמת. החוק הדטרמיניסטי: אין-קבלה
+  // חדשה ב-48ש' ב-steem/agent/receipts → פער פתוח → מוצע "מחדש-האוצרות"
+  // (steem-curator-ream) — מכין תוכנית-הצבעה/פוסט לאישור-בעלים, אפס-שידור
+  // בלי-שער-חם (דוקטרינת DRY_RUN 14-c). לא-נגיש = לא-נמדד, אף-מועמד.
+  try {
+    steemCadence = watchSteemReceiptsCadence();
+    if (steemCadence.measured && steemCadence.gapOpen) {
+      const age = steemCadence.ageHours !== null ? `${steemCadence.ageHours}ש'` : "אין-קבלות";
+      const newest = steemCadence.newestAt ? ` האחרונה: ${steemCadence.newestAt.slice(0, 10)}` : "";
+      candidates.push({
+        slug: "steem-curator-ream",
+        titleHe: "מחדש-האוצרות",
+        justification: `פער-קצב-תוכן: אין-קבלה חדשה ב-steem/agent/receipts כבר ${age}${newest} (החוק: 48ש') — מחדש-האוצרות מכין תוכנית-הצבעה/פוסט כנה לאישור-בעלים עם הזהות-המקורית; אפס-שידור בלי-שער-חם (DRY_RUN דוקטרינה)`,
+        fromIssue: "receipts-cadence:steem/agent/receipts"
+      });
+    }
+  } catch {
+    /* כנה — הגלאי לא זמין הסבב הזה */
+  }
+
+  // מקור 6 — רצף-קבלות חוצה-ריפואים (wave-15): Domain/Console/steem מחזיקים
+  // ספריות-קבלות קנוניות — שרשרת-אחת של הגוש. החוק הדטרמיניסטי: ריפו
+  // לא-נגיש / ספרית-קבלות ריקה / קומיט-קבלות אחרון מעל 72ש' → שרשרת-שבורה
+  // → מוצע "מבקר-הקבלות" (receipts-auditor) עם הריפואים-השבורות בנימוק
+  // (מטא-דאטה ציבורי בלבד: שמות, ספירות, תאריכי-קומיט).
+  try {
+    receiptsChain = await watchReceiptsChain();
+    if (receiptsChain.measured && receiptsChain.brokenRepos > 0) {
+      const names = receiptsChain.brokenNames.join(", ");
+      candidates.push({
+        slug: "receipts-auditor",
+        titleHe: "מבקר-הקבלות",
+        justification: `פער-רצף-קבלות: השרשרת חוצת-הריפואים (Domain/Console/steem) שבורה ב-${receiptsChain.brokenRepos} מתוך ${receiptsChain.watched} — [${names}] (לא-נגיש/ריק/ללא-קומיט-קבלות 72ש') — מבקר-הקבלות ימדוד את הרצף, ימפה את הפערים וידווח כנה מה חסר`,
+        fromIssue: `receipts-chain:${names.slice(0, 80)}`
+      });
+    }
+  } catch {
+    /* כנה — הגלאי לא זמין הסבב הזה */
+  }
+
   // dedupe לפי slug (אותו תפקיד משני-מקורות — הקודם זוכה)
   const seen = new Set<string>();
   const unique = candidates.filter((c) => (seen.has(c.slug) ? false : (seen.add(c.slug), true)));
@@ -360,7 +418,12 @@ export async function detectRoleGaps(): Promise<GapDetection> {
       crossAuditUncoveredRepos,
       auditPartnerCommits,
       censusMeasured,
-      censusUncovered
+      censusUncovered,
+      steemCadenceMeasured: steemCadence?.measured ?? false,
+      steemCadenceAgeHours: steemCadence?.ageHours ?? null,
+      steemCadenceGapOpen: steemCadence?.gapOpen ?? false,
+      receiptsChainMeasured: receiptsChain?.measured ?? false,
+      receiptsChainBrokenRepos: receiptsChain?.brokenRepos ?? 0
     }
   };
 }

@@ -21,14 +21,6 @@
  * הפרש-24h נמדד של (TVL הבורסה + הפקדות wSAOS מחוץ-לבריכות) דרך מחיר-המדיניות
  * החי; אין בסיס-השוואה → אפס-כנה; שלילי = נזילות יצאה (רשום בסימן שלו).
  * הזרמים הקיימים לא שונו — הסולם נגזר כמו קודם.
- *
- * v101 ("ההגדלה"): זרם-שמיני "רווח-מסחר 24ש'" (trading-pnl-24h) — קצב-הפרש
- * נמדד של ההכנסה-הממשית-ממסחר: דלתא של הזרם-המצטבר exchange-harvest
- * (potHarvested × מחיר-מדיניות) + דלתא של הזרם-המצטבר grid-sweeps (sweptPnl),
- * מול הריצה-הקודמת בחלון-24h מפנקס-ה-runs עצמו. הזרמים-המצטברים נשארים
- * cumulative בסימונם; הזרם-הזה הוא הקצב (rate) — אין כפל-ספירה של מספרים.
- * אין ריצה-קודמת בחלון → אפס-כנה עם הערה; הפרש-שלילי (לא-אמור-לקרות
- * ל-cumulative) נשמר-באפס עם הערה — לעולם לא מספר-שלילי-מומצא.
  */
 
 import * as fs from "fs";
@@ -413,102 +405,6 @@ async function collectLiquidityInflow(policyPrice: number | null): Promise<Econo
   }
 }
 
-// ─── v101 — זרם-8: רווח-מסחר 24ש' (TRADING-PNL-24H, קצב-הפרש נמדד) ──────────
-//
-// הזרמים הקיימים exchange-harvest ו-grid-sweeps הם מצטברים (cumulative מאז-
-// פריסה). הזרם הזה הוא הקצב: דלתא של שניהם יחד מול הריצה-הקודמת בחלון-24h
-// (ה-runs כבר שומרים את הזרמים של כל ריצה — הפנקס עצמו הוא בסיס-ההשוואה).
-// כנות: בסיס-חסר/אפס-לא-מובחן-מכישלון → רכיב לא נספר (לעולם לא
-// מצטבר-שלם-מוצג-כרווח-24h); אין ריצה-קודמת בחלון → אפס-כנה; הפרש-שלילי
-// (לא-אמור לקרות למונה-cumulative) נשמר-באפס עם הערה.
-
-const TRADING_PNL_NAME = "trading-pnl-24h";
-
-interface TradingBasis {
-  runId: number;
-  at: string; // ISO
-  harvestUsdMicro: number | null; // בסיס-כשיר רק אם נמדד > 0 בריצה-הקודמת
-  sweepsUsdMicro: number | null;
-}
-
-/** הריצה-הקודמת החדשה-ביותר בחלון-24h — ממנה נגזר בסיס-ההפרש (מהפנקס עצמו). */
-async function priorTradingBasis(): Promise<TradingBasis | null> {
-  try {
-    const dayAgo = new Date(Date.now() - WINDOW_24H_MS);
-    const row = await db.economyRun.findFirst({
-      where: { at: { gte: dayAgo } },
-      orderBy: [{ at: "desc" }, { id: "desc" }],
-      select: { id: true, at: true, streams: true }
-    });
-    if (!row) return null; // אין ריצה-קודמת בחלון — כנה
-    const streams = safeParseArray<EconomyRunStream>(row.streams);
-    const harvest = streams.find((s) => s && s.name === "exchange-harvest");
-    const sweeps = streams.find((s) => s && s.name === "grid-sweeps");
-    const usable = (v: number | undefined): number | null =>
-      typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null; // אפס/חסר = אין בסיס כנה
-    return {
-      runId: row.id,
-      at: row.at.toISOString(),
-      harvestUsdMicro: usable(harvest?.amountUsdMicro),
-      sweepsUsdMicro: usable(sweeps?.amountUsdMicro)
-    };
-  } catch {
-    return null; // קריאת-פנקס נכשלה — אין בסיס כנה; הזרם יימדד בריצה-הבאה
-  }
-}
-
-/** זרם-8: הפרש-24h של (קציר-בורסה + שטיפות-גריד) — ההכנסה-הממשית-ממסחר בקצב. */
-function collectTradingPnl24h(
-  currentHarvestUsdMicro: number,
-  currentSweepsUsdMicro: number,
-  basis: TradingBasis | null
-): EconomyRunStream {
-  const name = TRADING_PNL_NAME;
-  const he = "רווח-מסחר 24ש' (הפרש: קציר-בורסה + שטיפות-גריד — קצב, לא מצטבר)";
-  const source =
-    "הפרש-24h מפנקס EconomyRun: Δexchange-harvest (potHarvested × מחיר-מדיניות) + Δgrid-sweeps (sweptPnl × מחיר-מדיניות) מול הריצה-הקודמת בחלון";
-  if (!basis) {
-    return {
-      name,
-      he,
-      amountUsdMicro: 0,
-      txids: [],
-      source,
-      note: "אין-ריצה-קודמת-בחלון-24ש' — הזרם-נמדד-מהריצה-הבאה (fail-honest; אפס-כנה, אין-המצאה)"
-    };
-  }
-  const parts: string[] = [];
-  let delta = 0;
-  let clamped = false;
-  if (basis.harvestUsdMicro != null) {
-    const d = currentHarvestUsdMicro - basis.harvestUsdMicro;
-    if (d >= 0) delta += d;
-    else clamped = true; // מונה-cumulative לא אמור לרדת — שמירה-באפס עם הערה
-    parts.push(`Δקציר-בורסה ${d >= 0 ? "+" : ""}${d}µ$${d < 0 ? " (שלילי→0 כנה)" : ""}`);
-  } else {
-    parts.push("Δקציר-בורסה: אין בסיס-השוואה כנה בריצה-הקודמת (אפס/חסר) — הרכיב לא נספר");
-  }
-  if (basis.sweepsUsdMicro != null) {
-    const d = currentSweepsUsdMicro - basis.sweepsUsdMicro;
-    if (d >= 0) delta += d;
-    else clamped = true;
-    parts.push(`Δשטיפות-גריד ${d >= 0 ? "+" : ""}${d}µ$${d < 0 ? " (שלילי→0 כנה)" : ""}`);
-  } else {
-    parts.push("Δשטיפות-גריד: אין בסיס-השוואה כנה בריצה-הקודמת (אפס/חסר) — הרכיב לא נספר");
-  }
-  const ageMin = Math.max(0, Math.round((Date.now() - new Date(basis.at).getTime()) / 60_000));
-  const note = [
-    "הפרש-24h as measured — קצב (rate), לא cumulative; הזרמים-המצטברים נותרו בסימונם",
-    `בסיס: ריצה #${basis.runId} לפני ${ageMin} דק'`,
-    ...parts,
-    clamped ? "הפרש-שלילי נשמר-באפס (cumulative לא אמור לרדת — נמדד כנה)" : "",
-    "אין txid — זהו הפרש-פנקס בין מדידות, לא עסקה"
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return { name, he, amountUsdMicro: delta, txids: [], source, note };
-}
-
 // ─── הצינור הראשי ───────────────────────────────────────────────────────────
 
 let inflight: Promise<EconomyRunView> | null = null;
@@ -541,11 +437,7 @@ async function runOnce(trigger: string): Promise<EconomyRunView> {
     collectLiquidityInflow(policyPrice)
   ]);
   const rail = collectInboundRail();
-  // v101 זרם-8 — קצב-רווח-המסחר: הפרש מול הריצה-הקודמת בפנקס (לפני רישום הריצה
-  // החדשה — היא עצמה תהיה הבסיס של הריצה-הבאה)
-  const basis = await priorTradingBasis();
-  const tradingPnl = collectTradingPnl24h(ex.stream.amountUsdMicro, grid.amountUsdMicro, basis);
-  const streams: EconomyRunStream[] = [ex.stream, grid, work, xrp, steem, rail, liq, tradingPnl];
+  const streams: EconomyRunStream[] = [ex.stream, grid, work, xrp, steem, rail, liq];
 
   // 3. סה"כ יומי — סכום-ישר של מה שנמדד (המצטברים מתויגים cumulative ב-notes)
   const totalPerDayUsdMicro = streams.reduce((s, x) => s + x.amountUsdMicro, 0);
@@ -566,7 +458,6 @@ async function runOnce(trigger: string): Promise<EconomyRunView> {
     policyNote,
     `גלגל-החור ${flywheelPct}% (מדיניות DEFAULT_ECONOMY) — הוצהר, לא נמדד כתנועה`,
     "זרמים מצטברים (potHarvested/sweptPnl/paidOut) מתויגים cumulative — לא פוצלו ל-24h שרירותית",
-    "trading-pnl-24h הוא קצב-הפרש-24h (לא מצטבר) — נגזר מהפנקס עצמו",
     `trigger=${trigger}`
   ].join(" · ");
 

@@ -3,12 +3,8 @@ import { collectCrossAudit, lastCrossAuditRows, WINDOW_HOURS } from "@/lib/saos/
 import { requireAuth } from "@/lib/saos/auth";
 import { authAgent } from "@/lib/saos/smartvault";
 import { logOp } from "@/lib/saos/oplog";
-import { withCacheMeta } from "@/lib/saos/api-cache";
 
 export const dynamic = "force-dynamic";
-
-/** v101 — מטמון-מסלול על סריקת-ה-GET בלבד (60ש׳ — הסריקה מריצה git-subprocessים); rows נקראות-חי מה-OpLog בכל-בקשה. POST ומסלולי-כתיבה לא נוגעים. */
-const LIVE_SCAN_TTL_MS = 60_000;
 
 /**
  * /api/saos/cross-audit — v100 ביקורת-עמיתים (THE PEER CROSS-AUDIT).
@@ -31,20 +27,13 @@ const LIVE_SCAN_TTL_MS = 60_000;
 
 export async function GET() {
   try {
-    // v101 — רק הסריקה-החיה (git-subprocessים) במטמון בודד-טיסה; שורות-ההיסטוריה נקראות חי מה-DB
-    const [{ value: live, hit }, rows] = await Promise.all([
-      withCacheMeta("GET /api/saos/cross-audit:live", LIVE_SCAN_TTL_MS, () => collectCrossAudit({ persist: false })),
-      lastCrossAuditRows(12)
-    ]);
-    return NextResponse.json(
-      {
-        ok: true,
-        live,
-        rows,
-        windowHours: WINDOW_HOURS
-      },
-      { headers: { "x-saos-cache": hit ? "HIT" : "MISS" } }
-    );
+    const [live, rows] = await Promise.all([collectCrossAudit({ persist: false }), lastCrossAuditRows(12)]);
+    return NextResponse.json({
+      ok: true,
+      live,
+      rows,
+      windowHours: WINDOW_HOURS
+    });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "שגיאת ביקורת-עמיתים" }, { status: 500 });
   }

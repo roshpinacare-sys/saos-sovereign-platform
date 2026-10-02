@@ -16,10 +16,10 @@
  *     — including the DEX and the TRON energy micro-grid)
  */
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   Boxes, ShieldAlert, Flame, ListOrdered, Coins, Gauge, CircleDot,
-  CheckCircle2, AlertTriangle, Github, TrendingUp, Brain, Monitor, Globe, Scale
+  CheckCircle2, AlertTriangle, Github, TrendingUp
 } from "lucide-react";
 import { useLive, timeAgo } from "../lib";
 import { Panel, PanelHeader, PanelBody, Kpi, Pill, Table, Th, Td, Callout, Tag, SkeletonPanel, ErrorNotice, LiveDot } from "../ui";
@@ -184,26 +184,6 @@ export function Network360View() {
         </PanelBody>
       </Panel>
 
-      {/* ─── estate doctrine: one voice per organ (v101 dedup) ─────────── */}
-      <Panel>
-        <PanelHeader
-          icon={<Scale size={16} />}
-          title="חלוקת-תפקידים באחוזה (הפרדת-כפילויות)"
-          sub="איבר אחד = קול אחד · הדוקטרינה: ESTATE-CONSOLE-DOMAIN-ROLES"
-        />
-        <PanelBody className="space-y-2.5">
-          <div className="grid gap-2 sm:grid-cols-3">
-            <DoctrineOrgan icon={<Brain size={14} />} name="המוח הריבוני" repo="saos-sovereign-platform" text="פנקס-האמת, הכלכלה והרשת — מקור-האמת הקנוני; הנתונים חיים כאן ומופנים משם." />
-            <DoctrineOrgan icon={<Monitor size={14} />} name="הקונסולה" repo="Console · saos-control-center" text="קונסולת-המפעיל: פעולות, אישורים ותצוגות-ops — מרנדרת מהפנקס, לעולם לא מחשבת מחדש." />
-            <DoctrineOrgan icon={<Globe size={14} />} name="הדומיין" repo="Domain" text="הפנים-הציבוריות: נקודת-הכניסה ל-SEO וערוץ-השידורים — מציגה, לא משכפלת." />
-          </div>
-          <Callout tone="zinc" icon={<Scale size={14} />}>
-            <strong>כלל-ההפרדה:</strong> נתון חי במקום אחד בלבד ומוזכר בהפניה — הפנקס של הריפו-המוח קנוני · קונסולות מרנדרות, לא מחשבות מחדש ·
-            אין עותק-שני של דשבורדים · יכולת חדשה הולכת לאיבר שלה: מסחר→מוח · חוויית-מפעיל→קונסולה · תוכן-ציבורי→דומיין/שידורים.
-          </Callout>
-        </PanelBody>
-      </Panel>
-
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         {/* ─── achievements, chain-verified ───────────────────────────── */}
         <Panel>
@@ -349,19 +329,6 @@ function AchieveRow({ ok, title, detail }: { ok: boolean; title: string; detail:
         <p className="text-[12px] font-semibold text-zinc-100">{title}</p>
         <p className="text-[11px] text-zinc-500 leading-relaxed">{detail}</p>
       </div>
-    </div>
-  );
-}
-
-function DoctrineOrgan({ icon, name, repo, text }: { icon: ReactNode; name: string; repo: string; text: string }) {
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-zinc-900/35 px-3 py-2">
-      <p className="flex items-center gap-1.5 text-[12px] font-semibold text-zinc-100">
-        <span className="text-emerald-400">{icon}</span>
-        <span>{name}</span>
-        <span className="text-[10px] font-normal text-zinc-500" dir="ltr">({repo})</span>
-      </p>
-      <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">{text}</p>
     </div>
   );
 }
