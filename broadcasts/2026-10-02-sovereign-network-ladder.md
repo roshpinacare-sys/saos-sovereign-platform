@@ -1,4 +1,4 @@
-<!-- saos-queue: {"queue":true,"slug":"sovereign-network-ladder","titleHe":"ריבונות דיגיטלית בפועל: רשת סוכנים אוטונומית שמודדת את עצמה ומעגנת אמת על הבלוקצ'יין","titleEn":"Sovereignty in practice: an autonomous agent network that measures itself and anchors truth on-chain","targetRail":"steem-custom_json"} -->
+<!-- saos-queue: {"queue":true,"slug":"sovereign-network-ladder","titleHe":"ריבונות דיגיטלית בפועל: רשת סוכנים אוטונומית שמודדת את עצמה ומעגנת אמת על הבלוקצ'יין","titleEn":"Sovereignty in practice: an autonomous agent network that measures itself and anchors truth on-chain","targetRail":"git-public"} -->
 
 # ריבונות דיגיטלית בפועל: רשת סוכנים אוטונומית שמודדת את עצמה ומעגנת אמת על הבלוקצ'יין
 
