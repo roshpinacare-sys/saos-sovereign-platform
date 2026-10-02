@@ -4,7 +4,8 @@ import { logOp } from "@/lib/saos/oplog";
 import {
   listBroadcastQueue,
   queueItemBody,
-  requestPublishRetry
+  requestPublishRetry,
+  autoPublishGitRail
 } from "@/lib/saos/broadcast-queue";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const full = new URL(req.url).searchParams.get("full") === "1";
-    const { gate, counts, items } = await listBroadcastQueue();
+    const { gate, gitRail, counts, items } = await listBroadcastQueue();
     const withBody = items.map((it) => {
       const body = full && it.bodyRef ? queueItemBody(it.bodyRef) : null;
       return {
@@ -39,10 +40,12 @@ export async function GET(req: Request) {
       armed: gate.armed,
       vaultPassState: gate.passState,
       steemSigning: gate.steemSigning,
+      // v105 — מסילת-הגיט הציבורית: מדידה חיה; פרסום = commit+push, txid=sha
+      gitRail,
       counts,
       items: withBody,
       usage:
-        "GET ?full=1 — גוף מלא · POST {slug, action:'publish-retry'} — מפעיל-בלבד, סימון לירי-מחדש (fail-closed; לא מפרסם בעצמו)"
+        "GET ?full=1 — גוף מלא · POST {slug, action:'publish-retry'} — סימון (fail-closed) · POST {action:'publish-git'} — פרסום-אמיתי של כל פריטי git-public (commit+push, txid=sha)"
     });
   } catch (e) {
     return NextResponse.json(
@@ -62,10 +65,20 @@ export async function POST(req: Request) {
 
   try {
     const body: unknown = await req.json().catch(() => ({}));
-    const obj = (typeof body === "object" && body !== null ? body : {}) as { slug?: unknown; action?: unknown };
+    const obj = (typeof body === "object" && body !== null ? body : {}) as { slug?: unknown; action?: unknown; trigger?: unknown };
+
+    // v105 — פרסום-אמיתי במסילת-הגיט: commit+push מול origin, txid=sha.
+    // fail-closed requireAuth (מעלה); המסילה עצמה נמדדת בתוך המנוע.
+    if (obj.action === "publish-git") {
+      const trigger = typeof obj.trigger === "string" && obj.trigger.length <= 40 ? obj.trigger : "manual";
+      const out = await autoPublishGitRail(`${__auth.actorRef ?? "operator"}:${trigger}`);
+      await logOp("broadcast-queue-publish-git", { ...out, by: __auth.actorRef ?? "operator", trigger });
+      return NextResponse.json({ ok: true, action: "publish-git", ...out });
+    }
+
     if (obj.action !== "publish-retry") {
       return NextResponse.json(
-        { ok: false, error: "action נתמך: publish-retry בלבד (סימון-בלבד; הירי רק במסילת-החתימה עם כספת חומשת)" },
+        { ok: false, error: "action נתמך: publish-retry (סימון) או publish-git (פרסום-אמיתי במסילת-הגיט)" },
         { status: 400 }
       );
     }

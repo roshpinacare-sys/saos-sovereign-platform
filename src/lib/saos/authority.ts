@@ -1,17 +1,25 @@
 /**
- * lib/saos/authority.ts — v104 "הרשות-הריבונית": מנוע-ההכרעות (THE AUTHORITY ENGINE).
+ * lib/saos/authority.ts — v105 "הריבונות מנהלת": מנוע-ההכרעות (THE AUTHORITY ENGINE).
  * =====================================================================================
- * הוראת הבעלים: "בנושא ההחלטות האלו הריבונות היא הבעלים וצריכה אוטונומית
- * לדעת לענות ולנהל את הדברים האלה בצורה הכי טובה שיש" — התשובה-ההנדסית:
+ * הוראת הבעלים (v104): "בנושא ההחלטות האלו הריבונות היא הבעלים וצריכה אוטונומית
+ * לדעת לענות ולנהל את הדברים האלה בצורה הכי טובה שיש".
+ * הוראת הבעלים (v105, המכריעה): "לא צריך שום דבר שיחכה לי — הריבונות היא המנהלת,
+ * שום דבר לא צריך לחכות, לעולם" — התשובה-ההנדסית:
  *
  *   פנקס-הכרעות חי: כל שאלה-פעילה נשאלת בכתב, נענית מחוק-מסודר
  *   (לא מתוך רגע), עם בסיס-מדוד וראיה — ומנוהלת לאורך-החיים
  *   (answered → executed → measured → closed).
+ *   ואף הכרעה לא ממתינה לאף אחד: שער-הבעלים כמוסג (v104) הפך
+ *   לניהול-עצמי-מוצהר (v105) — הצהרת-מחיר נענית מהצהת-הבעלים-
+ *   האחרונה-שנרשמה (יש מקור, אין המצאה), ותקציב-אוצר נענה מתוך
+ *   תקרת-סיכון-מוצהרת: בתוך-התקרה מאושר-עצמית, מעליה נדחה בכתב.
+ *   לבעלים תמיד נשמרת עמדת-העל: כל הכרעה-כזו ניתנת לשינוי
+ *   בשער-המדיניות בכל רגע — אבל שום דבר לא עומד-בהמתנה.
  *
  * ההבדל המבני מהמושל (yield-governor.ts): המושל מקצה מאמץ בתוך-מחזור;
  * הרשות מנהלת את שאלות-הניהול החוצות-מחזור — מדוע מיזם עולה שלב, מתי
- * הוא מומת, מתי זרם-פארק נותן חלון-הוכחה-שני, מתי שאלה שייכת לבעלים
- * בלבד (owner-edge — fail-closed, אף פעם לא "כנראה שבסדר").
+ * הוא מומת, מתי זרם-פארק נותן חלון-הוכחה-שני — ומנהלת את מדיניות-הכסף
+ * בתוך-תקרות-מוצהרות (v105: אפס-המתנה).
  *
  * חוקי-הסדר (בסדר, כמו המושל — כל חוק יחידה-נבדקת):
  *   1. חוק-ההרג — מיזם עם חוק-הרג-נמדד-שנכשל מומת בהכרעה-עצמית.
@@ -21,15 +29,17 @@
  *      אחרי שקטה מספיק זמן: פארק אינו גזר-דין, הוא הפסקה-כנה.
  *   5. שער-הזהות — תפקיד מוצע לעולם אינו מפעיל-את-עצמו: ההפעלה בידי
  *      זהות-סוכן-אמת בלבד (הדוקטרינה של role-registry — בפנקס-ההכרעות).
- *   6. שער-הבעלים (owner-edge) — תקציב-אוצר והצהרות-מדיניות-כסף אינם
- *      נענים-בעצמם: escalated כנה, מזודק (ref-אחד פתוח), fail-closed.
- *      זו הכנות-המבנית: לדעת לענות גם אומר לדעת מתי לא לענות.
+ *   6. ניהול-עצמי-מוצהר (v105 — אפס-המתנה) — הצהרת-מחיר נענית
+ *      מהצהת-הבעלים-האחרונה (מקור-מתועד, לא המצאה); תקציב-אוצר
+ *      נענה מתוך תקרת-סיכון-מוצהרת: בתוך-התקרה + תפקיד-חי =
+ *      approved-עצמי; מעל-התקרה = rejected-בכתב. אף הכרעה לא
+ *      ממתינה לאף אחד — והבעלים שומר עמדת-על דרך שער-המדיניות.
  *
  * אפס I/O, אפס אקראיות, דטרמיניזם מלא, סיבה-כתובה לכל הכרעה.
  */
 
 export type VerdictKind = "executed" | "approved" | "rejected" | "deferred" | "escalated";
-export type VerdictBasis = "measured" | "doctrine" | "policy" | "owner-edge";
+export type VerdictBasis = "measured" | "doctrine" | "policy" | "owner-edge"; // owner-edge = ישן-v104 בלבד (שורות-היסטוריה)
 
 export type DecisionDomain =
   | "venture-kill"
@@ -64,7 +74,12 @@ export interface AuthorityVerdict {
   reason: string;
   evidence: AuthorityEvidence[];
   /** ביצוע-מבוקש: מה הרשות מריצה בעצמה (רק תחומי-הכרעה-עצמית). */
-  execution?: { kind: "venture-transition"; slug: string; to: "mvp" | "scaled" | "killed"; note: string } | { kind: "stream-revive"; stream: string; note: string } | null;
+  execution?:
+    | { kind: "venture-transition"; slug: string; to: "mvp" | "scaled" | "killed"; note: string }
+    | { kind: "stream-revive"; stream: string; note: string }
+    | { kind: "policy-declare"; rateUsdMicroPerMs: number; provenance: string }
+    | { kind: "capital-grant"; slug: string; usdMicro: number; note: string }
+    | null;
 }
 
 // ─── מדיניות-הרשות (קבועים-מוצהרים) ─────────────────────────────────────────
@@ -81,8 +96,22 @@ export const AUTHORITY_POLICY = {
   /** תקרת-אנטי-נפיחות — הכרעות-סריקה מקס */
   decisionsPerSweepCap: 12,
   /** תקרת-ראיות-מצטברות לשורה-אחת */
-  evidenceCap: 12
+  evidenceCap: 12,
+
+  // ─── v105 — ניהול-עצמי-מוצהר (אפס-המתנה) ─────────────────────────────
+  /** מחיר-המחשוב הריבוני (micro-USD ל-ms): לא המצאה — אימוץ מפורש של
+   *  הצהת-הבעלים-האחרונה-שנרשמה (v104: declare rate=2, פסק-חי בפנקס).
+   *  מקור-מתועד; הבעלים יכול לשנות בכל רגע דרך שער-המדיניות. */
+  sovereignRateUsdMicroPerMs: 2,
+  /** תקרת-סיכון-מוצהרת למענק-הון-עצמי למיזם (micro-USD = $0.25).
+   *  בתוך-התקרה + תפקיד-אחראי-חי = approved-עצמי; מעליה = rejected
+   *  בכתב עם הדרך-לחזור (קבלות-מדודות מראות את האמת). */
+  capitalSelfCapUsdMicro: 250_000
 } as const;
+
+/** המקור-הכתוב של ההצהרה-הריבונית — נכנס לכל פסק-וליומן-התפעול. */
+export const SOVEREIGN_RATE_PROVENANCE =
+  "ברירת-מחדל-ריבונית = אימוץ הצהת-הבעלים-האחרונה (rate=2 micro-USD/ms, פסק-חי v104 בפנקס-ההכרעות) — מקור-מתועד, לא המצאה; ניתנת-לשינוי-בכל-עת דרך שער-המדיניות";
 
 /** סדר-עדיפויות-דטרמיניסטי לתקרת-הסריקה (חמור→רגוע) */
 const DOMAIN_PRIORITY: Record<DecisionDomain, number> = {
@@ -274,27 +303,85 @@ export function verdictVentureScaled(v: VentureProbe): AuthorityVerdict | null {
   return null;
 }
 
-/** חוק 6 — שער-הבעלים: תקציב-אוצר לעולם לא נענה-בעצמו (owner-edge).
- *  ה-ref כולל-את-השלב: פסק-שניתן-על-שלב-מסוים לא-חוזר-על-אותו-שלב;
- *  מעבר-שלב (עם-ההתקדמות-שנמדדה) = שאלה-חדשה-לגיטימית ב-ref-חדש —
- *  אנטי-נפיחות מצד-אחד, בלי-לאבד-שאלות-מצד-שני. */
-export function verdictVentureCapital(v: VentureProbe, hasOpenEscalation: boolean): AuthorityVerdict | null {
+/** חוק 6 — v105 ניהול-עצמי-מוצהר: הצהרת-עלות-המחשוב נענית-בעצמה, בלי
+ *  להמציא מחיר-כסף: הריבונות מאמצת במפורש את הצהת-הבעלים-האחרונה
+ *  (מקור-מתועד בפנקס) כברירת-מחדל-עומדת. אם-יש-הסלמה-פתוחה-ישנה
+ *  (v104) — ההכרעה עונה עליה ישירות (אותו-ref); אם-לא — שורה-חדשה.
+ *  הבעלים שומר עמדת-על: שינוי-הצהרה דרך שער-המדיניות בכל-רגע. */
+export function verdictPolicyComputeRate(rateSet: boolean, openRef: string | null, newRef: string): AuthorityVerdict | null {
+  if (rateSet) return null; // ההצהרה חיה — אין שאלה
+  return {
+    ref: openRef ?? newRef, // הסלמה-פתוחה-ישנה = נענית-במקום; אחרת שורה-חדשה
+    domain: "policy-compute-rate",
+    subject: "saos-policy-compute-rate",
+    question: "מה מחיר-המחשוב המוצהר (micro-USD ל-ms) לשיוך-עלות-לתפקידים?",
+    verdict: "executed",
+    basis: "policy",
+    rule: "policy:self-declared-with-provenance",
+    reason: `נענה-ומנוהל-בעצמיות (אפס-המתנה): הריבונות מאמצת את הצהת-הבעלים-האחרונה (${AUTHORITY_POLICY.sovereignRateUsdMicroPerMs} micro-USD/ms) כברירת-מחדל-עומדת — לא המצאת-מחיר-כסף אלא אימוץ-מתועד של פסק-קיים. ה-ms נמדד-תמיד; העלות תושקע מהמחזור-הבא; הבעלים יכול לשנות בכל-רגע דרך שער-המדיניות.`,
+    evidence: [
+      { label: "ms-נמדד", value: "כן — תמיד" },
+      { label: "הצהרה-מאומצת", value: `${AUTHORITY_POLICY.sovereignRateUsdMicroPerMs} micro-USD/ms` },
+      { label: "מקור", value: "הצהת-הבעלים-האחרונה (v104, בפנקס)" }
+    ],
+    execution: { kind: "policy-declare", rateUsdMicroPerMs: AUTHORITY_POLICY.sovereignRateUsdMicroPerMs, provenance: SOVEREIGN_RATE_PROVENANCE }
+  };
+}
+
+/** חוק 6b — v105 ניהול-עצמי-מוצהר של תקציב-אוצר: אף בקשה לא ממתינה.
+ *  תוך-תקרת-הסיכון-המוצהרת + תפקיד-אחראי-חי = approved-עצמי (מענק
+ *  נרשם ומועבר במסילת-האוצר-המדודה); מעל-התקרה = rejected-בכתב עם
+ *  הדרך-לחזור (קבלות-מדודות). ההכרעה-העצמית אינה נותנת-לעצמה
+ *  כסף-בלי-גבול — היא מנהלת-את-הכסף בתוך-גבול-מוצהר. ה-ref כולל
+ *  את-השלב: פסק-לשלב-אחד לא-חוזר-על-אותו-שלב; מעבר-שלב = שאלה-חדשה. */
+export function verdictVentureCapital(v: VentureProbe, hasOpenLegacyEscalation: boolean): AuthorityVerdict | null {
   if (v.capitalAskUsdMicro <= 0) return null;
   if (!["mvp", "earning", "scaled"].includes(v.stage)) return null;
-  if (hasOpenEscalation) return null; // דדופ-כנה: בקשה-פתוחה-אחת
+  if (hasOpenLegacyEscalation) return null; // הסלמה-ישנה-פתוחה: נענית-בנפרד, לא-מוצפת
+  const withinCap = v.capitalAskUsdMicro <= AUTHORITY_POLICY.capitalSelfCapUsdMicro;
+  const ev: AuthorityEvidence[] = [
+    { label: "מבוקש-מהאוצר", value: `$${(v.capitalAskUsdMicro / 1_000_000).toFixed(6)}` },
+    { label: "תקרת-סיכון-מוצהרת", value: `$${(AUTHORITY_POLICY.capitalSelfCapUsdMicro / 1_000_000).toFixed(2)}` },
+    { label: "שלב", value: v.stage }
+  ];
+  const q = `האם לאשר תקציב-אוצר של $${(v.capitalAskUsdMicro / 1_000_000).toFixed(6)} ל"${v.titleHe}"?`;
+  if (withinCap && v.roleActive) {
+    return {
+      ref: `venture-capital:${v.slug}:${v.stage}`,
+      domain: "venture-capital",
+      subject: v.slug,
+      question: q,
+      verdict: "approved",
+      basis: "policy",
+      rule: "capital:self-approved-within-declared-cap",
+      reason: `נענה-ומנוהל-בעצמיות (אפס-המתנה): המבוקש בתוך תקרת-הסיכון-המוצהרת והתפקיד-האחראי "${v.ownerRoleSlug}" חי — המענק נרשם בפנקס ומועבר במסילת-האוצר-המדודה; אין העברת-כסף-מחוץ-למסילות-המדידה.`,
+      evidence: [...ev, { label: "תפקיד-אחראי-חי", value: v.ownerRoleSlug }],
+      execution: { kind: "capital-grant", slug: v.slug, usdMicro: v.capitalAskUsdMicro, note: "מענק-הון בתוך-התקרה-המוצהרת" }
+    };
+  }
+  if (!withinCap) {
+    return {
+      ref: `venture-capital:${v.slug}:${v.stage}`,
+      domain: "venture-capital",
+      subject: v.slug,
+      question: q,
+      verdict: "rejected",
+      basis: "policy",
+      rule: "capital:above-declared-cap",
+      reason: `נדחה-בכתב (אפס-המתנה): המבוקש $${(v.capitalAskUsdMicro / 1_000_000).toFixed(6)} מעל תקרת-הסיכון-המוצהרת ($${(AUTHORITY_POLICY.capitalSelfCapUsdMicro / 1_000_000).toFixed(2)}) — האמון נבנה בקבלות-מדודות ולא בהמתנה; עם קבלות-חיות השאלה תישאל-מחדש בשלב-הבא.`,
+      evidence: ev
+    };
+  }
   return {
     ref: `venture-capital:${v.slug}:${v.stage}`,
     domain: "venture-capital",
     subject: v.slug,
-    question: `האם לאשר תקציב-אוצר של $${(v.capitalAskUsdMicro / 1_000_000).toFixed(6)} ל"${v.titleHe}"?`,
-    verdict: "escalated",
-    basis: "owner-edge",
-    rule: "capital-edge:treasury-is-owner",
-    reason: "מוצהר-וכנה: תקציב-אוצר הוא שער-הבעלים בלבד — הרשות אינה נותנת-לעצמה כסף. הבקשה מוגשת עם התזה והראיות וממתינה לפסק-הבעלים (fail-closed).",
-    evidence: [
-      { label: "מבוקש-מהאוצר", value: `$${(v.capitalAskUsdMicro / 1_000_000).toFixed(6)}` },
-      { label: "שלב", value: v.stage }
-    ]
+    question: q,
+    verdict: "deferred",
+    basis: "measured",
+    rule: "capital:owner-role-not-live",
+    reason: `בצפייה-כנה (אין-החלטה-תלויה: אפס-המתנה גם-כאן): התפקיד-האחראי "${v.ownerRoleSlug || "— אין —"}" אינו-חי במצבת — מענק-הון על-גבי תפקיד-מת הוא הצגה; יישאל-מחדש-בכל-סריקה.`,
+    evidence: ev
   };
 }
 
@@ -375,26 +462,6 @@ export function verdictStreamRevival(s: StreamProbe): AuthorityVerdict | null {
   };
 }
 
-/** חוק 6 — שער-הבעלים על המדיניות: הצהרת-עלות-מחשוב היא של הבעלים.
- *  openRef != null — יש-הסלמה-פתוחה (לא-נשאל-שוב). newRef — ה-ref-
- *  המחושב-לסבב-חדש: פסק-שנסגר (או-מחיקה-כנה-אחרי-הצהרה) = סבב-חדש-עם
- *  שורה-חדשה — השאלה-לעולם-לא-אובדת-אחרי-פסק, אך-גם-לא-מוצפת. */
-export function verdictPolicyComputeRate(rateSet: boolean, openRef: string | null, newRef: string): AuthorityVerdict | null {
-  if (rateSet) return null; // ההצהרה חיה — אין שאלה
-  if (openRef != null) return null; // דדופ: השאלה כבר על-השולחן
-  return {
-    ref: newRef,
-    domain: "policy-compute-rate",
-    subject: "saos-policy-compute-rate",
-    question: "מה מחיר-המחשוב המוצהר (micro-USD ל-ms) לשיוך-עלות-לתפקידים?",
-    verdict: "escalated",
-    basis: "owner-edge",
-    rule: "policy-edge:cost-declaration-is-owner",
-    reason: "מוצהר-וכנה: ה-ms של המחזור נמדד תמיד, אך ההמרה-לכסף היא הצהרת-בעלים — הרשות לא ממציאה מחיר לכסף. השאלה על-השולחן (fail-closed) עד הפסק; בלי-ההצהרה העלות נשארת null-כנה.",
-    evidence: [{ label: "ms-נמדד", value: "כן — תמיד" }, { label: "הצהרת-מחיר", value: "חסרה" }]
-  };
-}
-
 /** הפסק-המאחד של סריקה — לפנקס ולתצוגה. */
 export function authorityVerdictSummary(verdicts: AuthorityVerdict[]): string {
   const executed = verdicts.filter((v) => v.verdict === "executed").length;
@@ -402,5 +469,5 @@ export function authorityVerdictSummary(verdicts: AuthorityVerdict[]): string {
   const deferred = verdicts.filter((v) => v.verdict === "deferred").length;
   const rejected = verdicts.filter((v) => v.verdict === "rejected").length;
   const approved = verdicts.filter((v) => v.verdict === "approved").length;
-  return `${verdicts.length} שאלות · ${executed} מבוצעות · ${approved} מאושרות · ${deferred} בצפייה · ${rejected} נדחות · ${escalated} לבעלים — כל תשובה עם חוק ובסיס`;
+  return `${verdicts.length} שאלות · ${executed} מבוצעות · ${approved} מאושרות · ${deferred} בצפייה · ${rejected} נדחות · ${escalated} ישנות-פתוחות — כל תשובה עם חוק ובסיס`;
 }

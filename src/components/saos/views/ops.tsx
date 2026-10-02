@@ -17,6 +17,7 @@ import {
   Fingerprint,
   FileCode2,
   Gauge as GaugeIcon,
+  GitBranch,
   History,
   KeyRound,
   Landmark,
@@ -88,17 +89,26 @@ import { NETWORKS, RELEASE, RailPanel, STATUS_TONE, addressError, selectCls } fr
 import { EnvelopeCard, MiniStat, SealStat, Toggle } from "./ops-parts";
 import { useRailPulse } from "./use-rail-pulse";
 
-/** תג-תור-פרסום (v100) — קריאה בלבד ל-/api/saos/broadcast/queue; השער נמדד חי ואינו נגיע */
+/** תג-תור-פרסום (v100/v105) — קריאה בלבד ל-/api/saos/broadcast/queue; השער נמדד חי ואינו נגיע.
+ *  v105 — תצוגת-שתי-המסילות: כספת (steem, fail-closed) + מסילת-גיט-ציבורית (publish-git, txid=sha). */
 function BroadcastQueueTag() {
-  const q = useLive<{ gate: string; armed: boolean; counts: { queued: number; armed: number } }>(
+  const q = useLive<{
+    gate: string;
+    armed: boolean;
+    counts: { queued: number; armed: number; published: number };
+    gitRail?: { ok: boolean; detail: string };
+  }>(
     "/api/saos/broadcast/queue",
     45000
   );
   const n = q.data ? q.data.counts.queued + q.data.counts.armed : 0;
+  const pub = q.data?.counts.published ?? 0;
+  const gitOk = q.data?.gitRail?.ok === true;
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400" title="תור-פרסום: queue → armed → published">
-      <ScrollText size={11} /> תור-פרסום: {q.data ? `${n} ממתינים` : "\u2026"}
-      {q.data && !q.data.armed && <Lock size={11} className="text-amber-400" aria-label="gate: vault-sealed" />}
+    <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400" title="תור-פרסום: queue → armed → published · שתי מסילות: כספת (fail-closed) + גיט-ציבורי (commit+push, txid=sha)">
+      <ScrollText size={11} /> תור-פרסום: {q.data ? `${n} ממתינים${pub ? ` · ${pub} פורסמו` : ""}` : "\u2026"}
+      {q.data && !q.data.armed && <Lock size={11} className="text-amber-400" aria-label="gate: vault-sealed (מסילת-הכספת)" />}
+      {q.data && gitOk && <GitBranch size={11} className="text-emerald-400" aria-label="מסילת-גיט-ציבורית חיה — פרסום=commit+push" />}
     </span>
   );
 }

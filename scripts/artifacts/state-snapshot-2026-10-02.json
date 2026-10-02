@@ -1,14 +1,14 @@
 {
   "format": "saos-state-snapshot",
   "version": 1,
-  "exportedAt": "2026-10-02T14:27:43.369Z",
+  "exportedAt": "2026-10-02T14:43:01.267Z",
   "source": "keeper-tick",
   "counts": {
     "agentRole": 4,
-    "opLog": 689,
+    "opLog": 734,
     "economyRun": 8
   },
-  "digest": "fd268cc3aa49477ecbe7b3930ec50a02f54bf5e96d73b3c7ad5ddbb670691c8c",
+  "digest": "73d4834740ae73ee51a0e6268f19571a0aa6e1142510866644f9255aa6575895",
   "tables": {
     "agentRole": [
       {
@@ -69,6 +69,276 @@
       }
     ],
     "opLog": [
+      {
+        "id": "cmur2ohk80009n8yf2rwxppq8",
+        "op": "authority",
+        "detail": "סריקה 5 (keeper-tick): 8 שאלות · 3 מבוצעות · 0 מאושרות · 5 בצפייה · 0 נדחות · 0 ישנות-פתוחות — כל תשובה עם חוק ובסיס · חדשות 2 · מתעדכנות 6 · לבעלים 0 · 766ms",
+        "createdAt": "2026-10-02T14:42:48.680Z"
+      },
+      {
+        "id": "cmur2oh500008n8yfqhd7zibw",
+        "op": "authority-policy",
+        "detail": "{\"e\":\"self-declared\",\"rateUsdMicroPerMs\":2,\"provenance\":\"ברירת-מחדל-ריבונית = אימוץ הצהת-הבעלים-האחרונה (rate=2 micro-USD/ms, פסק-חי v104 בפנקס-ההכרעות) — מקור-מתועד, לא המצאה; ניתנת-לשינוי-בכל-עת דרך שער-המדיניות\",\"at\":\"2026-10-02T14:42:48.122Z\"}",
+        "createdAt": "2026-10-02T14:42:48.132Z"
+      },
+      {
+        "id": "cmur2o39k0004n8yffqu00kpl",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:42:30.153Z"
+      },
+      {
+        "id": "cmur2nf2s0002n8yf8x6qb2am",
+        "op": "market-brain",
+        "detail": "מחזור 8 (keeper-tick): 8 זרמים · 0 מוגדלים · 0 רצפה · 4 בפארק-תשואה — כל החלטה עם סיבה נמדדת · ריצה #8",
+        "createdAt": "2026-10-02T14:41:58.805Z"
+      },
+      {
+        "id": "cmur2n2qo0001n8yf237uq72g",
+        "op": "workers.sweep",
+        "detail": "{\"ok\":true,\"active\":1,\"ran\":0,\"artifacts\":0,\"unwiredActive\":[],\"by\":\"bearer:47894c5a\"}",
+        "createdAt": "2026-10-02T14:41:42.817Z"
+      },
+      {
+        "id": "cmur2like000qn8ku6vx0z0l6",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:40:30.015Z"
+      },
+      {
+        "id": "cmur2lg9n000pn8kuqra7w1c1",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:40:27.035Z"
+      },
+      {
+        "id": "cmur2lam0000on8ku4ayuf58m",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":1.39413636865e-7,\"ok\":false,\"txid\":null,\"pair\":null,\"amountOut\":null}",
+        "createdAt": "2026-10-02T14:40:19.704Z"
+      },
+      {
+        "id": "cmur2lah4000nn8kunfkyasbb",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:40:19.528Z"
+      },
+      {
+        "id": "cmur2laf9000ln8kuumh5joh6",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007987123853430436,\"ok\":true,\"txid\":\"0xcadc6e25765094517df3ef26adcdaf3373edf56729b1a0fd5547082d3359fbc8\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.9812 wSAOS\"}",
+        "createdAt": "2026-10-02T14:40:19.461Z"
+      },
+      {
+        "id": "cmur2laf9000mn8kuhwe0l6ek",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":1249.4,\"ema\":1239.49,\"amountIn\":\"0.0007987 WTRX\",\"txid\":\"0xcadc6e25765094517df3ef26adcdaf3373edf56729b1a0fd5547082d3359fbc8\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T14:40:19.461Z"
+      },
+      {
+        "id": "cmur2la79000kn8kutf6h52ib",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:40:19.173Z"
+      },
+      {
+        "id": "cmur2la5e000in8kug5ho17dz",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"sell\",\"amount\":0.007503478983084288,\"ok\":true,\"txid\":\"0x52f6159d9e1e63868ab9ef49f4a619d3b6b1e71e18f6687ea1ef1093e356649a\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"21.4018 wSAOS\"}",
+        "createdAt": "2026-10-02T14:40:19.107Z"
+      },
+      {
+        "id": "cmur2la5f000jn8ku972j34xi",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":2818.28,\"ema\":2807.05,\"amountIn\":\"0.007503 WRXP\",\"txid\":\"0x52f6159d9e1e63868ab9ef49f4a619d3b6b1e71e18f6687ea1ef1093e356649a\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T14:40:19.107Z"
+      },
+      {
+        "id": "cmur2l9ut000hn8ku8vtxkjkf",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:40:18.726Z"
+      },
+      {
+        "id": "cmur2l9sy000gn8kuu2vi5x8w",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":1244.45,\"ema\":1239.49,\"amountIn\":\"0.0007987 WTRX\",\"txid\":\"0x7557add517836eac6c78951f8a2073c7a11e54a4b9bed1f5f70dc06e776e1284\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T14:40:18.659Z"
+      },
+      {
+        "id": "cmur2l9sy000fn8kupib0utdz",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007987123853430436,\"ok\":true,\"txid\":\"0x7557add517836eac6c78951f8a2073c7a11e54a4b9bed1f5f70dc06e776e1284\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0008 wSAOS\"}",
+        "createdAt": "2026-10-02T14:40:18.658Z"
+      },
+      {
+        "id": "cmur2l9kw000en8kuq37u907n",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:40:18.369Z"
+      },
+      {
+        "id": "cmur2l9bs000cn8ku2y6tbs1n",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0015661334248545874,\"ok\":true,\"txid\":\"0x25eff810cfa944652a9afa130fde8df30842cc5f7707f024f99d017df6ca31b2\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"2.0215 wSAOS\"}",
+        "createdAt": "2026-10-02T14:40:18.040Z"
+      },
+      {
+        "id": "cmur2l9bs000dn8kue4ru9d53",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"devPct\":4.878,\"ema\":1257.84,\"amountIn\":\"0.001566 WTRX\",\"txid\":\"0x25eff810cfa944652a9afa130fde8df30842cc5f7707f024f99d017df6ca31b2\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T14:40:18.040Z"
+      },
+      {
+        "id": "cmur2l020000bn8kuehyn5i4e",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:40:06.024Z"
+      },
+      {
+        "id": "cmur2iy370003n8kupvrlrwmz",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:38:30.163Z"
+      },
+      {
+        "id": "cmur2ili20001n8kuq82dekf2",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":1384448,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 1352KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-02T14:38:13.850Z"
+      },
+      {
+        "id": "cmur2ilh00000n8kut2dg4up2",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:38:13.812Z"
+      },
+      {
+        "id": "cmur2gdig0001n89n7m94f6w7",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:36:30.184Z"
+      },
+      {
+        "id": "cmur2dssb0007n80yhq112oin",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:34:30.011Z"
+      },
+      {
+        "id": "cmur2baho0000n80y4vzs25rk",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:32:32.988Z"
+      },
+      {
+        "id": "cmur28suo0006n8s7rtejepz5",
+        "op": "state-snapshot.export",
+        "detail": "{\"ok\":true,\"file\":\"state-snapshot-2026-10-02.json\",\"bytes\":277726,\"counts\":{\"agentRole\":4,\"opLog\":706,\"economyRun\":8},\"digest\":\"cc3f833199d42b1f\"}",
+        "createdAt": "2026-10-02T14:30:36.816Z"
+      },
+      {
+        "id": "cmur28npi0005n8s7n030s2qw",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:30:30.151Z"
+      },
+      {
+        "id": "cmur28kd80003n8s7f5vupdwa",
+        "op": "authority",
+        "detail": "סריקה 4 (keeper-tick): 7 שאלות · 2 מבוצעות · 0 מאושרות · 5 בצפייה · 0 נדחות · 0 לבעלים — כל תשובה עם חוק ובסיס · חדשות 2 · מתעדכנות 5 · לבעלים 1 · 119ms",
+        "createdAt": "2026-10-02T14:30:25.820Z"
+      },
+      {
+        "id": "cmur27ivr0001n8s75ls9bd1x",
+        "op": "market-brain",
+        "detail": "מחזור 7 (keeper-tick): 8 זרמים · 0 מוגדלים · 0 רצפה · 4 בפארק-תשואה — כל החלטה עם סיבה נמדדת · ריצה #8",
+        "createdAt": "2026-10-02T14:29:37.239Z"
+      },
+      {
+        "id": "cmur277640000n8s7bsvjjuzb",
+        "op": "workers.sweep",
+        "detail": "{\"ok\":true,\"active\":1,\"ran\":0,\"artifacts\":0,\"unwiredActive\":[],\"by\":\"bearer:47894c5a\"}",
+        "createdAt": "2026-10-02T14:29:22.061Z"
+      },
+      {
+        "id": "cmur2630i001bn8gaacba2vwc",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:28:30.019Z"
+      },
+      {
+        "id": "cmur25xpp001an8ga0r2sr3iu",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":11370300,\"ema\":11280000,\"amountIn\":\"3.549e-7 WETH\",\"txid\":\"0x0d6f6dba432d8b38c359e5259a19ba913f763ebe9c6851fd1d456aa11c3f0076\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T14:28:23.150Z"
+      },
+      {
+        "id": "cmur25xpp0019n8ga60vqeukg",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.5492808822538e-7,\"ok\":true,\"txid\":\"0x0d6f6dba432d8b38c359e5259a19ba913f763ebe9c6851fd1d456aa11c3f0076\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"3.9646 wSAOS\"}",
+        "createdAt": "2026-10-02T14:28:23.149Z"
+      },
+      {
+        "id": "cmur25xgf0018n8gant6gr6ix",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:28:22.815Z"
+      },
+      {
+        "id": "cmur25xel0016n8ga5vz4gi4p",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.5492808822538e-7,\"ok\":true,\"txid\":\"0x1b0f6e6fa9f556011d3c03fc8e2b3f640e70e73bc669d9d939159280c1400647\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0438 wSAOS\"}",
+        "createdAt": "2026-10-02T14:28:22.749Z"
+      },
+      {
+        "id": "cmur25xel0017n8gaduotv64m",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11325200,\"ema\":11280000,\"amountIn\":\"3.549e-7 WETH\",\"txid\":\"0x1b0f6e6fa9f556011d3c03fc8e2b3f640e70e73bc669d9d939159280c1400647\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T14:28:22.749Z"
+      },
+      {
+        "id": "cmur25x5b0015n8ganlhwkrul",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:28:22.416Z"
+      },
+      {
+        "id": "cmur25ww50013n8gatbpqli07",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"devPct\":2.556,\"ema\":1237.39,\"amountIn\":\"0.001597 WTRX\",\"txid\":\"0x12648b4a1d10fa166be5ccb361f7905d14e45f6275a947da6b6ab10c463a2d25\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T14:28:22.085Z"
+      },
+      {
+        "id": "cmur25ww50014n8gakvvo0ynb",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0015967503982227424,\"ok\":true,\"txid\":\"0x12648b4a1d10fa166be5ccb361f7905d14e45f6275a947da6b6ab10c463a2d25\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.9827 wSAOS\"}",
+        "createdAt": "2026-10-02T14:28:22.085Z"
+      },
+      {
+        "id": "cmur25v450012n8gaxvo14juf",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:28:19.782Z"
+      },
+      {
+        "id": "cmur25lbx0011n8gaim4shofx",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":1343488,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 1312KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-02T14:28:07.101Z"
+      },
+      {
+        "id": "cmur25lav0010n8gah6n0of78",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T14:28:07.064Z"
+      },
+      {
+        "id": "cmur25318000zn8ga1t50hlaf",
+        "op": "state-snapshot.export",
+        "detail": "{\"ok\":true,\"file\":\"state-snapshot-2026-10-02.json\",\"bytes\":272037,\"counts\":{\"agentRole\":4,\"opLog\":689,\"economyRun\":8},\"digest\":\"fd268cc3aa49477e\"}",
+        "createdAt": "2026-10-02T14:27:43.388Z"
+      },
       {
         "id": "cmur24vpp000xn8gaiauwzgbw",
         "op": "exchange.swap",
