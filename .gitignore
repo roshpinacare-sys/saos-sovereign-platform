@@ -75,3 +75,8 @@ server.log
 
 # v95 — tool-results are session junk, never canon
 tool-results/
+
+# Task 20 (Z-37): observation dbs are runtime state — never git-frozen
+/db/observe.db
+/db/observe.db-wal
+/db/observe.db-shm
