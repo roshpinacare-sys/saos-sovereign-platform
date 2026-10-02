@@ -293,12 +293,35 @@
  *    ביקורת-עמיתים — עברית+EN, צוות-תומך-קהילה, אפס-סודות) — תור
  *    נמדד queued:3 · דוקטרינת הפרדת-כפילויות מוח/קונסולה/דומיין
  *    (docs/ESTATE-CONSOLE-DOMAIN-ROLES.md) במפת-360 ובוויו.
+ *
+ * v102 המוח-הכלכלי (THE ECONOMIC MIND) — נולד מנתיחת clodfarm
+ * (docs/CLODFARM-POSTMORTEM-ROAST.md): חוות-סוכנים עם שכבת-תפעול
+ * מצוינת (governor פונקציות-טהורות · פנקס-פלאנר · משמעת-git) ובלי
+ * שכבת-כלכלה בכלל (אפס P&L לסוכן · אפס מטבע-פנימי · כסף-אנושי-בכל-קצה).
+ * לקחנו את המשמעת-ההחלטתית שלהם והרכבנו אותה על הכלכלה-המדודה שלנו:
+ * 1. yield-governor.ts — מקצה-תשואה פונקציות-טהורות: עצירות-תשואה
+ *    (פארק אחרי חלון-הוכחה) · רצפת-הוכחה לכל זרם-חי · שוליים-למניב-ביותר
+ *    בתוך תקרת-ריכוז 40% · תקרת-שוליים-3 · סיבה-כתובה לכל החלטה.
+ * 2. market-brain.ts — המוח: קורא ריצת-ה-EconomyRun הטרייה, מרכיב
+ *    GovernorStream עם זיכרון-מחזור (PlatformSetting), מריץ מושל, מייחס
+ *    P&L לתפקידים-חיים (ROLE_ATTRIBUTION), מאכף מיזמים, כותב פנקס-<300
+ *    שורות · peek-API לקריאה-בלבד.
+ * 3. AgentVenture (schema) — סולם-מיזמים: proposed→mvp→earning→scaled;
+ *    תזה+חוק-הרג+תפקיד-אחראי-חי חובה · NEW_VENTURE_CAP=3 · הרגה-אוטונומית
+ *    (14 יום בלי קבלה-נמדדת) · הצעה-אוטונומית רק מזרם-מניב-מדוד.
+ * 4. API /api/saos/market-brain (GET peek ציבורי · POST cycle/propose/
+ *    transition fail-closed) + keeper tick שעתי (BRAIN_FIRST_AT=12, אחרי
+ *    טיק-הכלכלה — תמיד קורא ריצה-טרייה) + כרטיס-המוח-הכלכלי בוויו
+ *    הכלכלה (החלטות · P&L · מיזמים · פנקס · כפתור-מחזור).
+ * 5. הקול: פיסת-SEO "המוח-הכלכלי" (yield-governor-economics · עברית+EN,
+ *    דוקטרינה כללית בלי שמות-פרויקטים-חיצוניים, אפס-סודות, אפס-מספרים
+ *    פנימיים) — בתור.
  */
 
-export const SAOS_VERSION = "101.0.0";
+export const SAOS_VERSION = "102.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "ההגדלה (THE AMPLIFICATION)";
+export const SAOS_CODENAME = "המוח-הכלכלי (THE ECONOMIC MIND)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

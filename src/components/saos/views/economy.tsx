@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import {
   Activity,
+  Brain,
   Coins,
   Database,
   Landmark,
@@ -96,6 +97,201 @@ const DEFAULTS: EconomyForm = {
   doorFee: DEFAULT_ECONOMY.doorFee,
   fly: DEFAULT_ECONOMY.flywheelPct
 };
+
+// ─── v102 — המוח-הכלכלי (THE MARKET BRAIN) ────────────────────────────────
+// לקח-ישיר מהנתיחה של clodfarm (docs/CLODFARM-POSTMORTEM-ROAST.md): הם
+// מקצים לפי תקציב-מנוי; אנחנו מקצים מאמץ לפי תשואה-נמדדת-ליחידה. הכרטיס
+// מציג: החלטות-המושל עם סיבות · P&L לכל תפקיד-חי · סולם-המיזמים · פנקס.
+// ה-API כנה: אין מחזור-ראשון → null כנה, לא שלד-מדומה.
+
+interface BrainDecision {
+  stream: string;
+  he: string;
+  action: "boost" | "hold" | "floor" | "park" | "unpark";
+  unitsBefore: number;
+  unitsAfter: number;
+  yieldPerUnitUsdMicro: number | null;
+  reason: string;
+}
+interface BrainRole {
+  slug: string;
+  titleHe: string;
+  status: string;
+  streams: string[];
+  yieldAttributedUsdMicro: number;
+  note: string;
+}
+interface BrainVenture {
+  id: number;
+  slug: string;
+  titleHe: string;
+  stage: "proposed" | "mvp" | "earning" | "scaled" | "killed" | string;
+  killCriteria: string;
+  receiptsUsdMicro: number;
+  ownerRoleSlug: string;
+}
+interface BrainSnap {
+  cycle: number;
+  at: string;
+  verdict: string;
+  run: { id: number; mode: string } | null;
+  decisions: BrainDecision[];
+  rolePnl: BrainRole[];
+  ventures: BrainVenture[];
+  ventureActions: string[];
+  notebookLines: number | null;
+}
+
+function actionPill(action: BrainDecision["action"]) {
+  if (action === "boost") return <Pill tone="green">הגדלה</Pill>;
+  if (action === "floor") return <Pill tone="amber">רצפת-הוכחה</Pill>;
+  if (action === "park") return <Pill tone="rose">פארק-תשואה</Pill>;
+  return <Pill tone="zinc">החזקה</Pill>;
+}
+
+function venturePill(stage: string) {
+  if (stage === "scaled") return <Pill tone="green">בקנה-מידה</Pill>;
+  if (stage === "earning") return <Pill tone="green">מרוויח</Pill>;
+  if (stage === "mvp") return <Pill tone="amber">MVP</Pill>;
+  if (stage === "killed") return <Pill tone="rose">הומת-כנה</Pill>;
+  return <Pill tone="zinc">הוצע</Pill>;
+}
+
+function MarketBrainPanel() {
+  const toast = useToast();
+  const [cycling, setCycling] = useState(false);
+  const [cycleV, setCycleV] = useState(0);
+  const live = useLive<{ ok: boolean; brain: BrainSnap | null }>(`/api/saos/market-brain?v=${cycleV}`, 60000);
+  const brain = live.data?.brain ?? null;
+
+  const runCycle = async () => {
+    setCycling(true);
+    const res = await postJson<{ brain?: BrainSnap }>("/api/saos/market-brain", { action: "cycle", trigger: "manual" });
+    setCycling(false);
+    if (res.ok) {
+      toast.push({
+        tone: "green",
+        title: "מחזור-מוח הושלם",
+        desc: res.data?.brain ? `מחזור #${res.data.brain.cycle} · ${res.data.brain.verdict.slice(0, 70)}` : "ההחלטות נרשמו בפנקס"
+      });
+      setCycleV((v) => v + 1);
+    } else if (/auth|401|403/i.test(res.error ?? "")) {
+      toast.push({
+        tone: "rose",
+        title: "המחזור נדחה — כנות",
+        desc: "מחזור-כלכלה משנה-מצב — דורש אימות-מנהל/שומר. התצוגה נשארת קריאה-בלבד עד האימות."
+      });
+    } else {
+      toast.push({ tone: "rose", title: "המחזור נכשל", desc: res.error ?? "שגיאה" });
+    }
+  };
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<Brain size={15} />}
+        title="המוח-הכלכלי — מקצה-התשואה"
+        sub="נולד מנתיחת חוות-סוכנים חיצונית: הם מקצים לפי תקציב-מנוי — אנחנו מקצים מאמץ לפי תשואה-נמדדת-ליחידה. פונקציות-טהורות, כל החלטה עם סיבה."
+        actions={
+          <div className="flex items-center gap-2">
+            {brain ? <Pill tone="green">מחזור #{brain.cycle}</Pill> : <Pill tone="amber">טרם-רץ — כנה</Pill>}
+            <Btn size="sm" variant="secondary" onClick={runCycle} disabled={cycling} title="הרץ מחזור-מוח (דורש אימות)">
+              <Zap size={12} /> {cycling ? "מריץ..." : "הרץ מחזור-מוח"}
+            </Btn>
+          </div>
+        }
+      />
+      <PanelBody className="space-y-4">
+        {!brain && !live.error ? (
+          <Skeleton className="h-24 w-full" />
+        ) : !brain ? (
+          <Callout tone="gold">
+            אין עדיין מחזור-מוח — כנה. השומר מריץ מחזור-שעתי משלו (אחרי טיק-הכלכלה), או הרץ ידנית עם אימות.
+          </Callout>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Kpi label="מחזור" value={`#${brain.cycle}`} hint={brain.run ? `ריצה-כלכלית #${brain.run.id} (${brain.run.mode})` : "בלי ריצה — אפס-כנה"} />
+              <Kpi label="זרמים נשקלים" value={String(brain.decisions.length)} hint="כל זרם עם סיבה כתובה" />
+              <Kpi
+                label="תשואה-משויכת לתפקידים"
+                value={`$${(brain.rolePnl.reduce((a, x) => a + x.yieldAttributedUsdMicro, 0) / 1_000_000).toFixed(6)}`}
+                hint={`${brain.rolePnl.filter((x) => x.status === "active").length} תפקידים חיים במצבת`}
+              />
+              <Kpi label="סולם-מיזמים" value={String(brain.ventures.length)} hint={brain.notebookLines ? `פנקס ${brain.notebookLines}/300 שורות` : "פנקס טרם-נפתח"} />
+            </div>
+
+            {brain.ventureActions.length > 0 && (
+              <Callout tone="green">
+                {brain.ventureActions.join(" · ")}
+              </Callout>
+            )}
+
+            <div className="max-h-96 overflow-y-auto">
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>זרם</Th>
+                    <Th>החלטה</Th>
+                    <Th>מאמץ</Th>
+                    <Th>תשואה/יחידה</Th>
+                    <Th>סיבה</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brain.decisions.map((d) => (
+                    <tr key={d.stream}>
+                      <Td>
+                        <span className="font-medium">{d.he}</span>
+                        <span className="block text-[11px] text-zinc-500" dir="ltr">{d.stream}</span>
+                      </Td>
+                      <Td>{actionPill(d.action)}</Td>
+                      <Td className="tabular-nums">{d.unitsBefore}→{d.unitsAfter}</Td>
+                      <Td className="tabular-nums">{d.yieldPerUnitUsdMicro != null ? `$${(d.yieldPerUnitUsdMicro / 1_000_000).toFixed(6)}` : <span className="text-zinc-500">אין בסיס — כנה</span>}</Td>
+                      <Td className="text-[12px] text-zinc-400">{d.reason}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+
+            {brain.ventures.length > 0 && (
+              <div className="max-h-64 overflow-y-auto">
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>מיזם</Th>
+                      <Th>שלב</Th>
+                      <Th>קבלות נמדדות</Th>
+                      <Th>חוק-ההרג</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {brain.ventures.map((v) => (
+                      <tr key={v.slug}>
+                        <Td>
+                          <span className="font-medium">{v.titleHe}</span>
+                          <span className="block text-[11px] text-zinc-500" dir="ltr">{v.slug}{v.ownerRoleSlug ? ` · ${v.ownerRoleSlug}` : ""}</span>
+                        </Td>
+                        <Td>{venturePill(v.stage)}</Td>
+                        <Td className="tabular-nums">${(v.receiptsUsdMicro / 1_000_000).toFixed(6)}</Td>
+                        <Td className="text-[12px] text-zinc-400">{v.killCriteria}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            )}
+
+            <Callout tone="zinc">
+              דוקטרינה: עצירות-תשואה (זרם-אפס מעבר לחלון-ההוכחה נכנס לפארק) · רצפת-הוכחה לכל זרם-חי · השוליים הולכים למניב ביותר בתוך תקרת-ריכוז · תקרת-מיזמים אנטי-נפיחות · הרגה-כנה כשחוק-ההרג נמדד-ונכשל.
+            </Callout>
+          </>
+        )}
+      </PanelBody>
+    </Panel>
+  );
+}
 
 export function ViewEconomy() {
   useTick(15000);
@@ -186,6 +382,8 @@ export function ViewEconomy() {
         running={running}
         onRun={runMeasurement}
       />
+
+      <MarketBrainPanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
         {/* פרמטרים */}

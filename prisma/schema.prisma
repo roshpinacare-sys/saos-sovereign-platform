@@ -517,6 +517,30 @@ model EconomyRun {
 // האוטונומיה מזהה פער (issue פתוח/סיור/roast) ומציע תפקיד-חדש עם נימוק.
 // תפקיד הופך active רק כשמתחברת זהות-סוכן אמיתית ומדידה-חיה; תפקיד בלי
 // artifact תוך 48h פורש אוטומטית (כנה — אין סוכני-רפאים במצבת).
+// ─── המוח-הכלכלי v102 — סולם-המיזמים (האינקובטור) ────────────────────────────
+// השכבה שחוות-סוכנים אחרות (clodfarm postmortem) אינה בכלל: עסקים שהסוכנים
+// מציעים, מריצים ונושאים באחריות-כלכלית מדודה. שלב-הוכחה כנה בדיוק כמו
+// סולם-האמת: proposed (תזה בלבד) → mvp (artifact אמיתי) → earning (קבלה
+// נמדדה בפנקס) → scaled · killed (עצירת-תשואה — כנה, מוכרחת מהשליט).
+model AgentVenture {
+  id            Int      @id @default(autoincrement())
+  slug          String   @unique
+  titleHe       String
+  thesis        String // מה הוא מוכר, למי, ולמה אנחנו
+  stage         String   @default("proposed") // proposed | mvp | earning | scaled | killed
+  origin        String   @default("auto") // auto | owner | market-brain
+  ownerRoleSlug String   @default("") // התפקיד-האחראי (AgentRole.slug חי בלבד)
+  capitalAskUsdMicro    Int @default(0)
+  expectedYieldUsdMicro Int @default(0)
+  killCriteria  String   @default("") // חוק-העצירה הכנה (מוכרח, נמדד)
+  receiptsUsdMicro Int   @default(0) // קבלות-נמדדות שיוחסו למיזם
+  lastReceiptAt DateTime?
+  evidence      String   @default("[]") // JSON [{at, note, digest?}]
+  at            DateTime @default(now())
+
+  @@index([stage, at])
+}
+
 model AgentRole {
   id            Int      @id @default(autoincrement())
   slug          String   @unique

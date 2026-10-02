@@ -230,6 +230,17 @@ const ECONOMY_URL = "http://127.0.0.1:3000/api/saos/economy";
 const ECONOMY_EVERY = 360; // every 360th cycle = 1 hour (same cadence as the outer-anchor scout)
 const ECONOMY_FIRST_AT = 6; // first measurement 60s after boot
 
+// v102 — the market-brain tick (המוח-הכלכלי). Born from the clodfarm
+// postmortem: their planner runs on budgets-per-subscription; OUR brain
+// allocates EFFORT by MEASURED yield-per-unit (EconomyRun streams → pure
+// governor decisions → role P&L → venture ladder with honest kill rules).
+// Same signed loopback bearer, ONE POST {action:"cycle"} every hour, 15
+// minutes AFTER the economy tick (so the brain always reads a FRESH run,
+// never a stale ladder). Non-OK = honest journal row, never fabricated.
+const BRAIN_URL = "http://127.0.0.1:3000/api/saos/market-brain";
+const BRAIN_EVERY = 360; // hourly
+const BRAIN_FIRST_AT = 12; // first cycle 2 min after boot (economy first at 60s)
+
 // v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
 // weave + the signing hand (vault gates · fail-closed self-verify · the
 // single whitelisted op custom_json saos.snapshot.v1 · inclusion proof from
@@ -1502,6 +1513,45 @@ async function checkEconomy(): Promise<void> {
   }
 }
 
+/** v102 — the market-brain tick (המוח-הכלכלי). ONE POST {action:"cycle"}
+ *  every hour, 15 min after the economy tick so the brain reads a FRESH
+ *  run. The brain owns every decision (governor + P&L + venture kills);
+ *  the keeper owns only the cadence. Fail-silent, journaled honestly. */
+async function checkMarketBrain(): Promise<void> {
+  try {
+    const res = await fetch(BRAIN_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ action: "cycle", trigger: "keeper-tick" }),
+      signal: AbortSignal.timeout(60_000)
+    });
+    if (!res.ok) {
+      journal(
+        "brain-error",
+        `market-brain tick non-OK HTTP ${res.status}${res.status === 401 || res.status === 403 ? " (auth-required — honest wait until the operator key is armed)" : ""} — next window in 1 hour`
+      );
+      return;
+    }
+    const out = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      brain?: { cycle?: number; verdict?: string; ventureActions?: string[]; run?: { id?: number } | null };
+      error?: string;
+    } | null;
+    if (!out || out.ok !== true || !out.brain) {
+      journal("brain-error", `market-brain tick failed honestly: ${out?.error ?? "non-JSON/unparseable response"} — next window in 1 hour`);
+      return;
+    }
+    const b = out.brain;
+    journal(
+      "brain-cycle",
+      `market-brain cycle #${b.cycle ?? "?"} — ${b.verdict ?? "no verdict"}${b.run ? ` · economy-run #${b.run.id}` : " · no economy-run (honest zero)"}${b.ventureActions?.length ? ` · ${b.ventureActions.length} venture action(s)` : ""}`
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    journal("brain-error", `market-brain fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
+  }
+}
+
 /** v73 — the outer-anchor scout (עוגן-החוץ). Reads the snapshot board,
  *  and every hour asks the engine to anchor the current state digest
  *  (source=auto). The engine dedupes UNCHANGED digests (a still state
@@ -2172,6 +2222,14 @@ async function cycle(): Promise<void> {
   //      cadence. Web down = honest wait.
   if (RT.cycle === ECONOMY_FIRST_AT || (RT.cycle > ECONOMY_FIRST_AT && (RT.cycle - ECONOMY_FIRST_AT) % ECONOMY_EVERY === 0)) {
     await checkEconomy();
+  }
+
+  // 12.6 v102 — the market-brain tick (המוח-הכלכלי). Every hour, offset
+  //      from the economy tick: the brain reads the FRESH EconomyRun and
+  //      allocates effort by measured yield — governor decisions, role P&L,
+  //      venture ladder enforcement. Web down = honest wait.
+  if (RT.cycle === BRAIN_FIRST_AT || (RT.cycle > BRAIN_FIRST_AT && (RT.cycle - BRAIN_FIRST_AT) % BRAIN_EVERY === 0)) {
+    await checkMarketBrain();
   }
 
   // 10.5. v74 — the sync-radar scout (מכ"ם-הסנכרון). Every 10 min: read the
