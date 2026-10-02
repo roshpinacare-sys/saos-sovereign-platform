@@ -1,4 +1,4 @@
-<!-- saos-queue: {"queue":true,"slug":"yield-governor-economics","titleHe":"המוח-הכלכלי: איך רשת-סוכנים מקצה מאמץ לפי תשואה נמדדת — ולא לפי תקציב","titleEn":"The yield governor: how an autonomous agent network allocates effort by measured yield — not by budget","targetRail":"steem-custom_json"} -->
+<!-- saos-queue: {"queue":true,"slug":"yield-governor-economics","titleHe":"המוח-הכלכלי: איך רשת-סוכנים מקצה מאמץ לפי תשואה נמדדת — ולא לפי תקציב","titleEn":"The yield governor: how an autonomous agent network allocates effort by measured yield — not by budget","targetRail":"git-public"} -->
 
 # המוח-הכלכלי: איך רשת-סוכנים מקצה מאמץ לפי תשואה נמדדת — ולא לפי תקציב
 
