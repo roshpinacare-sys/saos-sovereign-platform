@@ -38,6 +38,7 @@ import {
   type VentureProbe
 } from "./authority";
 import { listVentures, transitionVenture, loadComputeRatePolicy, setComputeRatePolicy } from "./market-brain";
+import { SOVEREIGN_RATE_PROVENANCE } from "./authority";
 
 // ─── מצב-הרשות (PlatformSetting) ────────────────────────────────────────────
 
@@ -243,10 +244,38 @@ async function executeVerdict(v: AuthorityVerdict): Promise<string | null> {
     });
     return `${v.execution.note} — הזרם ${v.execution.stream} חזר לרצפת-ההוכחה (חלון-מדידה-חדש)`;
   }
+  if (v.execution.kind === "policy-declare") {
+    // v105 — ניהול-עצמי-מוצהר: הרשות מאמצת את הצהת-הבעלים-האחרונה
+    // דרך אותו-שער-מדיניות בדיוק (setComputeRatePolicy) — אפס מסלול
+    // צד-אחורי, והמקור נרשם ביומן-התפעול.
+    await setComputeRatePolicy(v.execution.rateUsdMicroPerMs);
+    await logOp("authority-policy", {
+      e: "self-declared",
+      rateUsdMicroPerMs: v.execution.rateUsdMicroPerMs,
+      provenance: SOVEREIGN_RATE_PROVENANCE,
+      at: new Date().toISOString()
+    });
+    return `הצהרה-עצמית-מנוהלת — המחיר ${v.execution.rateUsdMicroPerMs} micro-USD/ms הוצהר (מקור-מתועד) ויחול מהמחזור-הבא; הבעלים יכול לשנות בכל-רגע`;
+  }
+  if (v.execution.kind === "capital-grant") {
+    // v105 — מענק-הון בתוך-התקרה-המוצהרת: נרשם בפנקס-וביומן; הכסף
+    // עצמו נע במסילת-האוצר-המדודה בלבד — אין תנועת-כסף מההכרעה.
+    await logOp("capital-grant", {
+      e: "approved",
+      venture: v.execution.slug,
+      usdMicro: v.execution.usdMicro,
+      rule: v.rule,
+      note: "מענק-בתוך-תקרת-הסיכון-המוצהרת; ההעברה במסילת-האוצר-המדודה",
+      at: new Date().toISOString()
+    });
+    return `${v.execution.note} — מענק $${(v.execution.usdMicro / 1_000_000).toFixed(6)} אושר-עצמית ל${v.execution.slug} ונרשם; ההעברה במסילת-האוצר-המדודה`;
+  }
   return null;
 }
 
-/** הפנקס: שורה-אחת ל-ref. deferred שנענה אחרת מתעדכן; escalated פתוח נשאר. */
+/** הפנקס: שורה-אחת ל-ref. deferred שנענה אחרת מתעדכן; escalated פתוח
+ *  ישן (v104) נענה-במקום כשהפסק-החדש executed (v105 — אפס-המתנה:
+ *  הסלמה-ישנה אינה יכולה להישאר תלויה לנצח). */
 async function persistVerdict(v: AuthorityVerdict, sweep: number, outcome: string | null): Promise<"created" | "updated" | "skipped"> {
   const existing = await db.sovereignDecision.findUnique({ where: { ref: v.ref } });
   const status = v.verdict === "executed" ? (outcome && !outcome.startsWith("כשל") ? "executed" : "answered") : v.verdict === "escalated" ? "escalated" : "answered";
@@ -268,6 +297,24 @@ async function persistVerdict(v: AuthorityVerdict, sweep: number, outcome: strin
       }
     });
     return "created";
+  }
+  // v105 — הסלמה-ישנה-פתוחה שהפסק-החדש עונה עליה (executed) = נענית-במקום
+  if (existing.status === "escalated" && v.verdict === "executed") {
+    await db.sovereignDecision.update({
+      where: { ref: v.ref },
+      data: {
+        verdict: v.verdict,
+        basis: v.basis,
+        rule: v.rule,
+        reason: v.reason,
+        evidence: JSON.stringify(v.evidence.slice(0, AUTHORITY_POLICY.evidenceCap)),
+        status,
+        outcome: `${outcome ?? ""} · ענה-על-ההסלמה-הפתוחה-הישנה (v105 אפס-המתנה)`.slice(0, 500),
+        sweep,
+        closedAt: new Date()
+      }
+    });
+    return "updated";
   }
   if (existing.status === "escalated" || existing.status === "closed" || existing.status === "measured") return "skipped";
   const verdictUnchanged = existing.verdict === v.verdict && existing.rule === v.rule;
@@ -361,11 +408,15 @@ export async function authoritySweep(trigger: string): Promise<AuthoritySnapshot
     }
   }
 
-  // המדיניות — שער-הבעלים (סבבים: פסק-סגור-לא-שולל-שאלה-חדשה-אחריו)
+  // המדיניות — v105 ניהול-עצמי-מוצהר: אם יש הסלמה-פתוחה-ישנה (v104)
+  // היא נענית-במקום (אותו-ref); אם לא — שורה-חדשה. אף שאלה לא ממתינה.
   const POLICY_BASE = "policy-compute-rate:open";
-  const policyOpen = await hasOpenEscalationPrefix(POLICY_BASE);
+  const openPolicyRow = await db.sovereignDecision.findFirst({
+    where: { ref: { startsWith: POLICY_BASE }, status: "escalated" },
+    orderBy: { at: "asc" }
+  });
   const policyNewRef = await nextEscalationRef(POLICY_BASE);
-  const policyVerdict = verdictPolicyComputeRate(rateSet, policyOpen ? POLICY_BASE : null, policyNewRef);
+  const policyVerdict = verdictPolicyComputeRate(rateSet, openPolicyRow?.ref ?? null, policyNewRef);
   if (policyVerdict) {
     verdictsRaw.push(policyVerdict);
     cands.push({ ref: policyVerdict.ref, domain: policyVerdict.domain, subject: policyVerdict.subject, question: policyVerdict.question });

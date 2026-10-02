@@ -417,11 +417,13 @@ function DojoPanel() {
   );
 }
 
-// ─── v104 — הרשות-הריבונית (THE SOVEREIGN AUTHORITY) ──────────────────
-// הוראת הבעלים: "הריבונות היא הבעלים וצריכה אוטונומית לדעת לענות ולנהל"
+// ─── v104/v105 — הרשות-הריבונית (THE SOVEREIGN AUTHORITY) ───────────────────
+// הוראת הבעלים (v104): "הריבונות היא הבעלים וצריכה אוטונומית לדעת לענות ולנהל"
+// הוראת הבעלים (v105, המכריעה): "לא צריך שום דבר שיחכה לי — הריבונות היא המנהלת,
+// שום דבר לא צריך לחכות, לעולם"
 // — פנקס-ההכרעות החי: כל שאלה-פעילה נענית מחוק-מסודר עם סיבה-כתובה
-// ובסיס-מדוד, מבוצעת בתחום-ההכרעה-העצמית, ומוסלמת-כנה לבעלים רק בשער-
-// הכסף-והמדיניות (owner-edge, fail-closed).
+// ובסיס-מדוד, מבוצעת בתחום-ההכרעה-העצמית — ומנוהלת-עצמאית בשערי-הכסף
+// והמדיניות (הצהרה-ממקור-מתועד · תקרת-סיכון-מוצהרת) — אפס-המתנה.
 
 interface AuthorityDecisionView {
   id: number;
@@ -457,7 +459,7 @@ function verdictPill(v: string) {
   if (v === "executed") return <Pill tone="green">בוצע</Pill>;
   if (v === "approved") return <Pill tone="green">מאושר</Pill>;
   if (v === "rejected") return <Pill tone="rose">נדחה</Pill>;
-  if (v === "escalated") return <Pill tone="amber">לבעלים</Pill>;
+  if (v === "escalated") return <Pill tone="amber">ישן-פתוח</Pill>;
   return <Pill tone="zinc">בצפייה</Pill>;
 }
 
@@ -475,8 +477,8 @@ function domainLabel(d: string): string {
 function basisLabel(b: string): string {
   if (b === "measured") return "נמדד";
   if (b === "doctrine") return "דוקטרינה";
-  if (b === "policy") return "מדיניות";
-  return "שער-בעלים";
+  if (b === "policy") return "מדיניות-ריבונית";
+  return "ישן-שער-בעלים";
 }
 
 function AuthorityPanel() {
@@ -513,7 +515,7 @@ function AuthorityPanel() {
       <PanelHeader
         icon={<Scale size={15} />}
         title="הרשות-הריבונית — פנקס-ההכרעות"
-        sub="הריבונות היא הבעלים: כל שאלה-פעילה נענית מחוק-מסודר עם סיבה-כתובה ובסיס-מדוד, מבוצעת בתחומה — ומוסלמת-כנה לבעלים רק בשער-הכסף-והמדיניות."
+        sub="הריבונות מנהלת (אפס-המתנה): כל שאלה נענית מחוק-מסודר עם סיבה-כתובה ובסיס-מדוד; הצהרות-מחיר נענות מהצהת-הבעלים-האחרונה (מקור-מתועד) ותקציבים מתוך תקרת-סיכון-מוצהרת — אף הכרעה לא ממתינה לאף אחד."
         actions={
           <div className="flex items-center gap-2">
             {auth && auth.sweep > 0 ? <Pill tone="green">סריקה #{auth.sweep}</Pill> : <Pill tone="amber">טרם-רצה — כנה</Pill>}
@@ -537,15 +539,15 @@ function AuthorityPanel() {
                 <Kpi label="סריקה" value={`#${auth.sweep}`} hint={auth.hadBrainState ? "על מצב-מוח חי" : "בלי מצב-מוח — כנה"} />
                 <Kpi label="מבוצעות" value={String(auth.counts.executed)} hint="בוצעו בתחום-ההכרעה-העצמית" />
                 <Kpi label="בצפייה" value={String(auth.counts.deferred)} hint="ממתינות לבסיס-מדוד" />
-                <Kpi label="הסלמות-פתוחות" value={String(auth.escalationsOpen.length)} hint="שער-הבעלים — fail-closed" />
+                <Kpi label="הסלמות-ישנות-פתוחות" value={String(auth.escalationsOpen.length)} hint="שורות-v104-היסטוריות — תיסגרנה-עצמאית בסריקה-הבאה (אפס-המתנה)" />
               </div>
 
               {auth.escalationsOpen.length > 0 && (
                 <div className="space-y-2">
                   {auth.escalationsOpen.map((e) => (
                     <Callout key={e.id} tone="gold">
-                      <span className="font-semibold">{domainLabel(e.domain)} — {e.question}</span>
-                      <span className="block text-[12px] text-zinc-400 mt-1">{e.reason}</span>
+                      <span className="font-semibold">ישן-v104 — {domainLabel(e.domain)}: {e.question}</span>
+                      <span className="block text-[12px] text-zinc-400 mt-1">שורה-היסטורית מהעידן-שלפני-אפס-המתנה — הסריקה-הבאה נענית עליה עצמאית (הצהרה-ממקור-מתועד) וסוגרת אותה בלי להמתין לאף אחד.</span>
                     </Callout>
                   ))}
                 </div>
@@ -582,7 +584,7 @@ function AuthorityPanel() {
               </div>
 
               <Callout tone="zinc">
-                דוקטרינת-ההכרעה: חוק-ההרג מדבר לבדו כשנמדד-ונכשל · אין מיזם-יתום (שער-mvp דורש תפקיד-אחראי-חי) · הקבלות פוגשות-את-התזה לפני הסדרה · זרם-פארק מקבל חלון-הוכחה-שני אחד · תפקיד אינו מפעיל-את-עצמו (שער-הזהות) · תקציב-אוצר והצהרות-מחיר — שער-הבעלים בלבד.
+                דוקטרינת-ההכרעה (v105 אפס-המתנה): חוק-ההרג מדבר לבדו כשנמדד-ונכשל · אין מיזם-יתום (שער-mvp דורש תפקיד-אחראי-חי) · הקבלות פוגשות-את-התזה לפני הסדרה · זרם-פארק מקבל חלון-הוכחה-שני אחד · תפקיד אינו מפעיל-את-עצמו (שער-הזהות) · הצהרת-מחיר = אימוץ-מתועד של הצהת-הבעלים-האחרונה · תקציב-אוצר = תקרת-סיכון-מוצהרת: בתוכה מאושר-עצמית, מעליה נדחה-בכתב — ולבעלים עמדת-על בשער-המדיניות, בלי שום דבר עומד-בהמתנה.
               </Callout>
             </>
           )

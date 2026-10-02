@@ -168,7 +168,7 @@ const RSS_KILL_LINE_MB = 1500; // mature webs (≥ 12 min)
 const RSS_KILL_LINE_YOUNG_MB = 1790; // young webs riding the compile storm
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "46.0.0";
+const KEEPER_VERSION = "47.0.0";
 const SOVEREIGNTY_EVERY = 90; // v93 — sovereignty census tick every 90th cycle (≈15min)
 const SOVEREIGNTY_FIRST_AT = 6; // first census 60s after boot
 // v95 — the unified agent census tick (מצבת-האמת): every 30th cycle (≈5min)
@@ -278,6 +278,18 @@ const STATE_FIRST_AT = 18; // first export 3 min after boot
 const AUTHORITY_URL = "http://127.0.0.1:3000/api/saos/authority";
 const AUTHORITY_EVERY = 360; // hourly
 const AUTHORITY_FIRST_AT = 17; // first sweep ~5 min after the brain cycle
+
+// v105 — the sovereign-voice publish tick (הקול-הריבוני). The owner's
+// directive: NOTHING waits for anyone — the queued SEO broadcasts no
+// longer sit behind the sealed vault. The web tier owns the git-public
+// rail (commit the broadcast file + push to the PUBLIC origin; published
+// txid = the real commit sha — verifiable on GitHub, zero fabrication);
+// the keeper owns the cadence: ONE signed POST {action:"publish-git"}
+// every hour, offset after the authority sweep. Steem rail stays
+// fail-closed vault-sealed exactly as before — two rails, two gates.
+const PUBLISH_URL = "http://127.0.0.1:3000/api/saos/broadcast/queue";
+const PUBLISH_EVERY = 360; // hourly
+const PUBLISH_FIRST_AT = 21; // first publish ~7 min after boot
 
 // v73 — the outer-anchor scout (עוגן-החוץ). The web tier owns the snapshot
 // weave + the signing hand (vault gates · fail-closed self-verify · the
@@ -1793,6 +1805,53 @@ async function checkAuthority(): Promise<void> {
   }
 }
 
+/** v105 — the sovereign-voice publish tick (הקול-הריבוני). ONE signed
+ *  POST {action:"publish-git"} every hour: the web tier commits every
+ *  queued git-public broadcast and pushes to the PUBLIC origin — the
+ *  published record carries the REAL commit sha (verifiable on GitHub,
+ *  never fabricated). Failures are honest journal rows. The steem rail
+ *  stays fail-closed vault-sealed exactly as before. */
+async function checkGitPublish(): Promise<void> {
+  try {
+    const res = await fetch(PUBLISH_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ action: "publish-git", trigger: "keeper-tick" }),
+      signal: AbortSignal.timeout(180_000) // commit+push over the network — measured, not instant
+    });
+    if (!res.ok) {
+      journal(
+        "publish-error",
+        `git-publish tick non-OK HTTP ${res.status}${res.status === 401 || res.status === 403 ? " (auth-required — honest wait until the operator key is armed)" : ""} — next window in 1 hour`
+      );
+      return;
+    }
+    const out = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      published?: number;
+      failed?: number;
+      results?: Array<{ slug?: string; ok?: boolean; message?: string; sha?: string | null }>;
+      error?: string;
+    } | null;
+    if (!out || out.ok !== true) {
+      journal("publish-error", `git-publish tick failed honestly: ${out?.error ?? "non-JSON/unparseable"} — next window in 1 hour`);
+      return;
+    }
+    const shas = (out.results ?? []).filter((r) => r.ok && r.sha).map((r) => `${r.slug}@${String(r.sha).slice(0, 8)}`).join(", ");
+    if ((out.published ?? 0) === 0 && (out.failed ?? 0) === 0) {
+      journal("publish-tick", `git-publish tick — nothing to publish (queue clean, honest no-op)`);
+      return;
+    }
+    journal(
+      "publish-tick",
+      `git-publish — ${out.published ?? 0} published · ${out.failed ?? 0} failed${shas ? ` · [${shas}]` : ""} — the sovereign voice is public on GitHub`
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    journal("publish-error", `git-publish fetch failed: ${msg.slice(0, 120)} — honest wait, the web revive owns recovery`);
+  }
+}
+
 
 /** v73 — the outer-anchor scout (עוגן-החוץ). Reads the snapshot board,
  *  and every hour asks the engine to anchor the current state digest
@@ -2499,6 +2558,15 @@ async function cycle(): Promise<void> {
   //      escalations. Web down = honest wait.
   if (RT.cycle === AUTHORITY_FIRST_AT || (RT.cycle > AUTHORITY_FIRST_AT && (RT.cycle - AUTHORITY_FIRST_AT) % AUTHORITY_EVERY === 0)) {
     await checkAuthority();
+  }
+
+  // 12.10 v105 — the sovereign-voice publish tick (הקול-הריבוני). Every
+  //      hour, offset AFTER the authority sweep: ONE signed POST fires the
+  //      git-public rail — queued broadcasts are committed and pushed to
+  //      the PUBLIC origin (txid = real sha). Nothing waits for anyone;
+  //      the steem rail stays fail-closed vault-sealed. Web down = wait.
+  if (RT.cycle === PUBLISH_FIRST_AT || (RT.cycle > PUBLISH_FIRST_AT && (RT.cycle - PUBLISH_FIRST_AT) % PUBLISH_EVERY === 0)) {
+    await checkGitPublish();
   }
 
   // 10.5. v74 — the sync-radar scout (מכ"ם-הסנכרון). Every 10 min: read the
