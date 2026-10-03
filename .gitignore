@@ -95,3 +95,5 @@ tool-results/
 !skills/openreview-review/
 # SAOS-adoption playbook (rebuild-v112 רפלקס laya) — house artifact, tracked:
 !skills/laya-system1/
+# SAOS-adoption playbook (118-a חוסן fcc-llm-chain) — house artifact, tracked:
+!skills/fcc-llm-chain/

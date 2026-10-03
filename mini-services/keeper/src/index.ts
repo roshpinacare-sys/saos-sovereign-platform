@@ -108,6 +108,25 @@ const JOURNAL_MAX_BYTES = 5 * 1024 * 1024; // rotate at 5 MB — hygiene, not de
 const CHECK_MS = 10_000; // web tier
 const ANVIL_EVERY = 3; // every 3rd cycle (30s)
 
+// v118 שסתום-המעבדה (Task 118-d) — ANVIL VALVE. The measured incident: the
+// kernel OOM-killed anvil at 1.68GB and the keeper only MEASURED the corpse
+// ("mesh runner watchdog owns the respawn"). The runner's own v108
+// lab-recycle (700MB, 10min gap — caught live 19:10Z recycling a fat anvil)
+// is the PRIMARY owner; a valve that dies with its owner is no valve — the
+// keeper is the organism's guarantee (the same mutual-watch doctrine that
+// revives the runner). Facts measured live: fresh anvil from --load-state
+// ≈82MB, ~924MB after 2h20m — the growth is runtime accumulation (journal /
+// tx history), not the state (which stays lean, ~15MB). CAP 900 = the
+// runner's 700-line gets first shot; 900 catches exactly the case the
+// runner cannot (runner dead/wedged). Planned recycle: SIGTERM (exit-dump
+// → resume, zero state loss beyond the known 30s window) → 3s grace →
+// SIGKILL → same-args respawn. Anti-flap: ≥10min between anvil actions.
+const ANVIL_STATE_PATH = path.join(MESH_DIR, "state", "anvil-state.json");
+const ANVIL_RSS_CAP_MB = 900;
+const ANVIL_RECYCLE_MIN_GAP_MS = 10 * 60_000;
+const ANVIL_GRACE_MS = 3_000; // SIGTERM grace — anvil's exit-dump flushes well under this
+const ANVIL_DEATH_STREAK = 3; // RPC-refused AND /proc-absent ×3 across 30s cycles = confirmed death
+
 // v36 — the gate herald (the first external agent, mini-services/gate-agent).
 // Watched like any organ: connection-refused only, confirmed death → detached
 // revive. A boot grace window absorbs the /start.sh ordering (the keeper may
@@ -184,9 +203,18 @@ const RSS_SHED_READINGS = 2;
 // young line is now reachable-before-kernel instead of theoretical).
 const RSS_KILL_LINE_MB = 1480; // mature webs — was 1250 (calibrated for the smaller pre-v99 app)
 const RSS_KILL_LINE_YOUNG_MB = 1520; // young webs — was 1350; 240MB under the measured kernel floor (1761)
+// v118 — the v108 PLANNED web line, restored after the rollback ate it: the
+// kill lines above are the EMERGENCY tier (kernel-adjacent); 1200 is the
+// CALM planned tier for a MATURE answering web (the live spawn carries
+// NODE_OPTIONS --max-old-space-size=1280 — RSS marching past 1200 on a
+// settled web is a leak march, recycled on OUR schedule with the 10min
+// anti-flap gap). Young webs keep the boot-grace — the v55 compile-storm
+// recycle loop (caught live) never returns through this line.
+const WEB_RSS_RECYCLE_MB = 1200;
+const WEB_RSS_RECYCLE_MIN_GAP_MS = 10 * 60_000;
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
-const KEEPER_VERSION = "48.2.0";
+const KEEPER_VERSION = "49.0.0"; // v49 — the anvil valve (Task 118-d): planned recycle + confirmed-death revive + the restored web planned rss line
 const SOVEREIGNTY_EVERY = 90; // v93 — sovereignty census tick every 90th cycle (≈15min)
 const SOVEREIGNTY_FIRST_AT = 6; // first census 60s after boot
 // v95 — the unified agent census tick (מצבת-האמת): every 30th cycle (≈5min)
@@ -590,7 +618,13 @@ interface KeeperEvent {
     // v116 — גריד-הריבון (the sovereign grid on the Hive internal market)
     | "grid-tick"
     | "grid-fill"
-    | "grid-error";
+    | "grid-error"
+    // v118 — סתום-המעבדה (the anvil valve: planned recycle + confirmed-death revive)
+    | "anvil-recycle-start"
+    | "anvil-recycle-done"
+    | "anvil-revive"
+    // v118 — the restored v108 planned web rss line (the calm tier)
+    | "web-recycle-rss";
   detail: string;
 }
 
@@ -624,6 +658,17 @@ const S = {
   anvilOk: null as boolean | null,
   anvilHeight: null as number | null,
   anvilLastOkAt: null as string | null,
+  // v118 — the anvil valve (planned recycle + confirmed-death revive)
+  anvilRssMb: 0,
+  anvilProcSeen: null as boolean | null,
+  anvilDeadStreak: 0,
+  anvilRevives: 0,
+  anvilRecycles: 0,
+  anvilLastRecycleMs: 0,
+  anvilReviveDeadline: 0,
+  // v118 — the web planned rss line (calm tier)
+  lastWebRssRecycleMs: 0,
+  rssRecycles: 0,
   runnerSeen: false,
   runnerRevives: 0,
   zombieBlock: 0,
@@ -952,7 +997,9 @@ function reviveRunner(): void {
  *  next dev → next-server, all with cwd == PROJECT_DIR) is TERMINATED
  *  gently and respawned detached. The kernel's OOM kill at 1.79 GB was
  *  measured; this path acts at 1500 MB on two consecutive readings —
- *  before the kernel, on our terms, with the full journal trail. */
+ *  before the kernel, on our terms, with the full journal trail.
+ *  v118: reason "rss" = the restored v108 PLANNED line (WEB_RSS_RECYCLE_MB,
+ *  the calm tier on a mature answering web) — journals web-recycle-rss. */
 function recycleWeb(reason = "pre-OOM"): void {
   S.recycles += 1;
   S.lastRecycleAt = new Date().toISOString();
@@ -961,12 +1008,19 @@ function recycleWeb(reason = "pre-OOM"): void {
   S.wedgedStreak = 0;
   S.rssShedStreak = 0;
   S.recoveredLogged = false;
-  journal(
-    "web-recycle",
-    reason === "wedged"
-      ? "wedged-web recycle #" + S.recycles + ": 300s total silence with a live process — SIGTERM now, detached respawn follows (planned, not emergency)"
-      : "pre-OOM recycle #" + S.recycles + ": RSS " + S.mem.nextRssMb + "MB ≥ " + RSS_SHED_MB + "MB ×" + RSS_SHED_READINGS + " readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"
-  );
+  if (reason === "rss") {
+    // v118 — the restored v108 planned line: same planned recycle path, its own
+    // honest row (the calm tier — evidence in the row, no second journal).
+    S.rssRecycles += 1;
+    journal("web-recycle-rss", `planned rss recycle #${S.rssRecycles}: RSS ${S.mem.nextRssMb}MB ≥ ${WEB_RSS_RECYCLE_MB}MB on a mature answering web (heap capped at 1280 — past this line it is a leak march) — SIGTERM now, detached respawn follows (v108 doctrine restored; anti-flap gap ${Math.round(WEB_RSS_RECYCLE_MIN_GAP_MS / 60_000)}min)`);
+  } else {
+    journal(
+      "web-recycle",
+      reason === "wedged"
+        ? "wedged-web recycle #" + S.recycles + ": 300s total silence with a live process — SIGTERM now, detached respawn follows (planned, not emergency)"
+        : "pre-OOM recycle #" + S.recycles + ": RSS " + S.mem.nextRssMb + "MB ≥ " + RSS_SHED_MB + "MB ×" + RSS_SHED_READINGS + " readings — kernel killed at 1790MB before; SIGTERM now, detached respawn follows (planned, not emergency)"
+    );
+  }
   const procs = scanProcs().filter(
     (p) =>
       p.cwd === PROJECT_DIR &&
@@ -1196,6 +1250,116 @@ function restartFrozenRunner(): void {
     reviveDetached(MESH_DIR, RUNNER_LOG);
     journal("runner-revive", `frozen runner replaced — fresh bun run dev spawned detached (restart #${S.zombieRestarts})`);
   }, 2_500).unref?.();
+}
+
+// ─── v118 שסתום-המעבדה — THE ANVIL VALVE (planned recycle + confirmed revive) ──
+
+/** The anvil child, found exactly the way the mesh runner's findAnvilPid
+ *  finds it (cmd contains anvil + --port + the port) — /proc reads only,
+ *  stdlib only, no deps, no subprocess on the hot path. */
+function anvilProc(): { found: boolean; pid: number | null; rss: number } {
+  for (const p of scanProcs()) {
+    if (p.cmdline.includes("anvil") && p.cmdline.includes("--port") && p.cmdline.includes("8545")) {
+      try {
+        const status = fs.readFileSync(`/proc/${p.pid}/status`, "utf8");
+        const m = /VmRSS:\s+(\d+)\s+kB/.exec(status);
+        return { found: true, pid: p.pid, rss: m ? Math.round(Number(m[1]) / 1024) : 0 };
+      } catch {
+        return { found: false, pid: null, rss: 0 }; // vanished mid-read = absent
+      }
+    }
+  }
+  return { found: false, pid: null, rss: 0 };
+}
+
+/** v118 — mirror of the mesh runner's spawnAnvil(): the SAME binary-search
+ *  chain (foundry → local → the v34 survivable mirror), the SAME state
+ *  file, the SAME flags (v54 keeper=96). Guard-checked + detached exactly
+ *  like every spawn in this file; output joins the canonical runner log
+ *  (v59 — one source of truth). Returns false only on honest refusal. */
+function spawnAnvilDetached(): boolean {
+  let bin: string | null = null;
+  for (const cand of [
+    `${process.env.HOME ?? "/home/z"}/.foundry/bin/anvil`,
+    "/usr/local/bin/anvil",
+    "/usr/bin/anvil",
+    path.join(PROJECT_DIR, "upload", ".mesh-state", "bin", "anvil") // v34 survivable mirror
+  ]) {
+    try { fs.accessSync(cand, fs.constants.X_OK); bin = cand; break; } catch { /* next candidate */ }
+  }
+  if (!bin) {
+    journal("anvil-down", "anvil binary not found in any known path (foundry → local → mirror) — no spawn, honest fail; next cadence retries");
+    return false;
+  }
+  const resume = fs.existsSync(ANVIL_STATE_PATH);
+  const args = [
+    ...(resume ? ["--load-state", ANVIL_STATE_PATH] : []),
+    "--port", "8545", "--chain-id", "31337", "--dump-state", ANVIL_STATE_PATH,
+    "--state-interval", "30", "--transaction-block-keeper", "96"
+  ];
+  const cmd = `cd ${MESH_DIR} && exec ${bin} ${args.join(" ")} >> ${RUNNER_LOG} 2>&1`;
+  const verdict = guardDecision(cmd);
+  if (verdict === "deny") {
+    journal("revive-guard-deny", `guard DENIED anvil spawn — no execution. cmd-head: ${cmd.slice(0, 80)}`);
+    return false;
+  }
+  if (verdict === "warn") journal("revive-guard-warn", `guard warned (graduated) — proceeding. cmd-head: ${cmd.slice(0, 80)}`);
+  else if (verdict === "absent" || verdict === "error") journal("revive-guard-absent", `guard ${verdict} — proceeding fail-open (revival is life-critical; gate owns guard health)`);
+  try {
+    fs.mkdirSync(path.dirname(RUNNER_LOG), { recursive: true });
+    Bun.spawn(["bash", "-c", cmd], {
+      detached: true,
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "ignore"
+    });
+    return true;
+  } catch (e) {
+    journal("anvil-down", `anvil spawn failed: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`);
+    return false;
+  }
+}
+
+/** v118 — the CONFIRMED-death revive: RPC refused AND /proc absent ×3
+ *  across 30s cycles (90s of objective absence — the web revive's ×3
+ *  pattern, adapted to the chain). The runner's watchdog is the primary
+ *  owner; this is the organism's guarantee (today the runner itself WAS
+ *  the hole). One anvil action per window — never a double spawn; if the
+ *  runner's own anvil reappeared between checks, we stand down silently. */
+function reviveAnvil(): void {
+  if (anvilProc().found) return; // came back (the runner's watchdog or else) — no spawn
+  S.anvilRevives += 1;
+  S.anvilReviveDeadline = Date.now() + REVIVE_WINDOW_MS;
+  S.anvilDeadStreak = 0;
+  S.anvilLastRecycleMs = Date.now(); // a revive is an anvil action — the gap honors it
+  const spawned = spawnAnvilDetached();
+  journal("anvil-revive", `anvil dead confirmed ×${ANVIL_DEATH_STREAK} (RPC refused + /proc absent) — ${spawned ? "respawned detached --load-state (same args as the mesh runner's spawnAnvil)" : "spawn REFUSED (see previous row)"} — revive #${S.anvilRevives}; the runner watchdog is the primary owner, the keeper is the guarantee — no member stays dead`);
+}
+
+/** v118 — the PLANNED recycle (the valve itself): fat but alive → SIGTERM
+ *  (anvil writes its exit-dump → the respawn RESUMES it; zero loss beyond
+ *  the known 30s window) → 3s grace → SIGKILL if still breathing →
+ *  same-args respawn. Journal contract: anvil-recycle-start {rss} →
+ *  anvil-recycle-done {ms}. All the heavy work happens in the grace timer
+ *  — the 10s cycle never blocks. */
+function recycleAnvil(pid: number, rssMb: number): void {
+  S.anvilRecycles += 1;
+  S.anvilLastRecycleMs = Date.now();
+  S.anvilReviveDeadline = Date.now() + REVIVE_WINDOW_MS; // one anvil action per window
+  S.anvilDeadStreak = 0;
+  const t0 = Date.now();
+  journal("anvil-recycle-start", `anvil pid ${pid} RSS ${rssMb}MB ≥ ${ANVIL_RSS_CAP_MB}MB — planned recycle #${S.anvilRecycles} (the kernel killed it at 1680MB before; on OUR schedule the state survives) — SIGTERM now, exit-dump → resume`);
+  try { process.kill(pid, "SIGTERM"); } catch { /* already gone */ }
+  setTimeout(() => {
+    let sigkill = false;
+    try {
+      fs.statSync(`/proc/${pid}`);
+      process.kill(pid, "SIGKILL");
+      sigkill = true;
+    } catch { /* exited within the grace — the exit-dump is the truth */ }
+    const spawned = spawnAnvilDetached();
+    journal("anvil-recycle-done", `#${S.anvilRecycles} in ${Date.now() - t0}ms — ${sigkill ? "SIGKILL after 3s grace (the 30s dump is the network — honest)" : "graceful exit within grace"} — ${spawned ? "respawned detached --load-state" : "spawn REFUSED (see previous row)"}`);
+  }, ANVIL_GRACE_MS).unref?.();
 }
 
 // ─── the watch cycle ───────────────────────────────────────────────────────
@@ -2459,13 +2623,26 @@ async function cycle(): Promise<void> {
 
   // 2. lab chain (every 30s) — anvil is also watched by the mesh runner's
   //    own watchdog (respawn + regenesis); here we measure and journal.
+  //    v118 — the keeper now holds the CONFIRMED-death revive as well: RPC
+  //    refused AND /proc absent ×3 across cycles = objective death (90s).
+  //    A live-but-silent anvil is WATCHED, never killed (slow-but-alive is
+  //    alive — the same law as the web). The runner watchdog is primary;
+  //    the keeper is the organism's guarantee.
   if (RT.cycle % ANVIL_EVERY === 0) {
     const ok = await checkAnvil();
+    const proc = anvilProc();
+    S.anvilProcSeen = proc.found;
+    if (proc.found) S.anvilRssMb = proc.rss;
+    if (ok) S.anvilDeadStreak = 0;
+    else if (!proc.found) S.anvilDeadStreak += 1;
     if (ok !== S.anvilOk) {
       S.anvilOk = ok;
-      journal(ok ? "anvil-up" : "anvil-down", ok ? `anvil answering, block ${S.anvilHeight}` : "anvil :8545 not answering (mesh runner watchdog owns the respawn)");
+      journal(ok ? "anvil-up" : "anvil-down", ok ? `anvil answering, block ${S.anvilHeight}` : `anvil :8545 not answering${proc.found ? " (process alive — watching; the fat-valve + the runner own the rest)" : ` (process absent — death ${S.anvilDeadStreak}/${ANVIL_DEATH_STREAK}, revive armed)`}`);
     }
     S.anvilLastOkAt = ok ? new Date().toISOString() : S.anvilLastOkAt;
+    if (S.anvilDeadStreak >= ANVIL_DEATH_STREAK && Date.now() > S.anvilReviveDeadline) {
+      reviveAnvil();
+    }
   }
 
   // 3. mesh runner — TWO truths (v26.1, measured incident): process
@@ -2564,8 +2741,36 @@ async function cycle(): Promise<void> {
           journal("pressure", `RSS ${rss}MB ≥ ${RSS_SHED_MB}MB (reading ${S.rssShedStreak}/${RSS_SHED_READINGS}) — recycle armed`);
         }
       }
+    } else if (rss >= WEB_RSS_RECYCLE_MB && webAnswering && ageMs >= RSS_BOOT_GRACE_MS && Date.now() > S.webReviveDeadline && Date.now() - S.lastWebRssRecycleMs >= WEB_RSS_RECYCLE_MIN_GAP_MS) {
+      // v118 — the restored v108 planned line (the CALM tier): a mature,
+      // answering web marching past 1200 while its heap is capped at 1280 —
+      // recycled on our schedule, 10min anti-flap gap. Reuses the SAME
+      // reading and the SAME recycleWeb() path — zero new probes, no
+      // duplicated logic. The emergency lines above stay untouched; this
+      // branch only owns the calm band between 1200 and the kill lines.
+      S.lastWebRssRecycleMs = Date.now();
+      recycleWeb("rss");
     } else if (rss > 0 && rss < RSS_SHED_MB - 200) {
       S.rssShedStreak = 0;
+    }
+  }
+
+  // 4.5 v118 — ANVIL VALVE (every 60s, SLOW_EVERY): probe the anvil child's
+  //     RSS straight from /proc (the same probe the runner's v108 lab-recycle
+  //     uses — cheap reads, stdlib only). Fat-but-alive → the PLANNED recycle
+  //     on OUR schedule (SIGTERM → exit-dump → 3s grace → SIGKILL → same-args
+  //     respawn); ≥10min between anvil actions (anti-flap). The runner's own
+  //     700MB line gets first shot — this 900MB line is the guarantee for the
+  //     case the runner cannot own (today's measured case: the kernel killed
+  //     anvil at 1.68GB and only the journal noticed).
+  if (RT.cycle % SLOW_EVERY === 0) {
+    const ap = anvilProc();
+    S.anvilProcSeen = ap.found;
+    if (ap.found && ap.pid !== null && ap.rss > 0) {
+      S.anvilRssMb = ap.rss;
+      if (ap.rss >= ANVIL_RSS_CAP_MB && Date.now() - S.anvilLastRecycleMs >= ANVIL_RECYCLE_MIN_GAP_MS && Date.now() > S.anvilReviveDeadline) {
+        recycleAnvil(ap.pid, ap.rss);
+      }
     }
   }
 
@@ -2843,7 +3048,17 @@ function statusJson() {
         lastReviveAt: S.lastReviveAt,
         recovering: Date.now() < S.webReviveDeadline
       },
-      anvil: { alive: S.anvilOk === true, block: S.anvilHeight, lastOkAt: S.anvilLastOkAt },
+      anvil: {
+        alive: S.anvilOk === true,
+        block: S.anvilHeight,
+        lastOkAt: S.anvilLastOkAt,
+        rssMb: S.anvilRssMb,
+        procSeen: S.anvilProcSeen,
+        deadStreak: S.anvilDeadStreak,
+        revives: S.anvilRevives,
+        recycles: S.anvilRecycles,
+        lastRecycleAt: S.anvilLastRecycleMs > 0 ? new Date(S.anvilLastRecycleMs).toISOString() : null
+      },
       runner: { alive: S.runnerSeen, revives: S.runnerRevives, zombieRestarts: S.zombieRestarts, block: S.anvilHeight },
       herald: { alive: S.heraldAlive === true, failStreak: S.heraldFailStreak, revives: S.heraldRevives, lastOkAt: S.heraldLastOkAt, agent: "gate-herald", port: 3006 },
       swarm: { alive: S.swarmAlive === true, failStreak: S.swarmFailStreak, revives: S.swarmRevives, lastOkAt: S.swarmLastOkAt, agents: "gold-scout+night-scout", port: 3007 },
@@ -2858,7 +3073,9 @@ function statusJson() {
     memory: S.mem,
     pressureThresholdMb: PRESSURE_MB,
     rssShedMb: RSS_SHED_MB,
-    recycle: { count: S.recycles, lastAt: S.lastRecycleAt, rssShedStreak: S.rssShedStreak },
+    recycle: { count: S.recycles, lastAt: S.lastRecycleAt, rssShedStreak: S.rssShedStreak, rssCount: S.rssRecycles },
+    anvilValve: { rssCapMb: ANVIL_RSS_CAP_MB, minGapMin: ANVIL_RECYCLE_MIN_GAP_MS / 60_000, graceMs: ANVIL_GRACE_MS, deathStreak: ANVIL_DEATH_STREAK },
+    webRssValve: { recycleMb: WEB_RSS_RECYCLE_MB, minGapMin: WEB_RSS_RECYCLE_MIN_GAP_MS / 60_000 },
     panic: { streak: S.page500Streak, cures: S.panics, lastAt: S.lastPanicAt, lastPageHttp: S.lastPageHttp },
     backups: { ok: S.backups.ok, miss: S.backups.miss, lastAt: S.backups.lastAt },
     drills: { ok: S.drills.ok, fail: S.drills.fail, lastAt: S.drills.lastAt, lastVerdict: S.drills.lastVerdict },
@@ -3009,8 +3226,8 @@ try {
   /* no journal yet — fresh start */
 }
 
-journal("boot", `SHOMER v${KEEPER_VERSION} (ביקורת-הפריוויו — חלונות-תחייה נפרדים לכל איבר + קו-ההרג המיידי) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · agents-roles hourly (wave-16: detectors + workers sweep) · state-snapshot daily (wave-16: the army's memory outlives the sandbox) · never touches key material`);
+journal("boot", `SHOMER v${KEEPER_VERSION} (ביקורת-הפריוויו — חלונות-תחייה נפרדים לכל איבר + קו-ההרג המיידי) up on :${PORT} — watching web :3000 (API + the PAGE itself) · anvil :8545 (v118 סתום-המעבדה: RSS≥900MB → מיחזור-מתוכנן · מוות-מאושר ×3 → תחייה) · mesh runner · gate-herald :3006 (הסוכן החיצוני הראשון — v36) · swarm-agents :3007 (סייר-הזהב + סייר-הלילה — נחיל-הריבונים v38) · memory · sovereign backups every 10min (v36) · single-seat lock (v36) · agents-roles hourly (wave-16: detectors + workers sweep) · state-snapshot daily (wave-16: the army's memory outlives the sandbox) · never touches key material`);
 void cycle();
 RT.timers.push(setInterval(() => void cycle(), CHECK_MS));
-console.log(`[keeper] SHOMER v${KEEPER_VERSION} LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 10min (v36) · single-seat lock v36 · revive only on confirmed death (documented exceptions, all objective-evidence · v43: per-member windows, never cross-blocking)`);
+console.log(`[keeper] SHOMER v${KEEPER_VERSION} LIVE on 127.0.0.1:${PORT} — web every ${CHECK_MS / 1000}s · anvil every 30s + valve every 60s (rss≥${ANVIL_RSS_CAP_MB}MB → planned recycle · dead ×${ANVIL_DEATH_STREAK} → revive) · runner+memory every 60s · gate-herald :3006 + swarm :3007 every 30s (grace 180s, revive on ×${DEAD_STREAK}) · backup every 10min (v36) · single-seat lock v36 · revive only on confirmed death (documented exceptions, all objective-evidence · v43: per-member windows, never cross-blocking)`);
 

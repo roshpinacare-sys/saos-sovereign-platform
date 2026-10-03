@@ -41,6 +41,7 @@ import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
 import { assertInBoundary, inBoundary } from "@/lib/saos/redteam";
 import { isTerminalState, type TerminalState } from "@/lib/saos/loop-discipline";
+import { withFastPath, runLlmChain } from "@/lib/saos/llm-chain";
 import {
   listReviewSkills,
   loadReviewSkill,
@@ -403,6 +404,10 @@ const PHASE_B_INSTRUCTION = `החזר JSON בלבד, בלי טקסט-אחר, ב�
 {"findings": [{"file": "<נתיב-מדויק מהרשימה>", "title": "...", "severity": "critical|high|medium|low", "evidence": "<ציטוט/עובדה מדויקת>", "poc": "<הוכחה-קצרה אופציונלי>", "confidence": "high|medium|low", "rationale": "...", "counterEvidence": "<חובה: הטיעון-החזק ביותר שהממצא אולי שקרי>", "severityChangeConditions": "<אופציונלי>", "fixEffort": "<אופציונלי>", "cwe": "<אופציונלי>", "fixSuggestion": "<אופציונלי — JSON {"old": "<בלוק-הקוד-הקיים-מילה-במילה>", "new": "<התחלופה>"} כשיש תיקון-מוחשי>"}]}
 כללי-ברזל: counterEvidence הוא חובה בכל ממצא (בלי-ו — ממצא בלי מסלול-הפרכה נדחה). file חייב להיות אחד הנתיבים-המתוחמים מילה-במילה. אין ממצאים — החזר {"findings": []} (כנות, לא המצאה).`;
 
+// v115 חוסן — מועמד-הקומפקט של פאזה-B: תוכן-הקבצים קטוץ לתקציב-זה (וגם
+// max_tokens 2000 במקום 4000) — המועמד-השני בשרשרת-החוסן (runLlmChain).
+const PHASE_B_COMPACT_PAYLOAD_CHARS = 64_000;
+
 export async function runSelfReview(opts: { files?: string[] } = {}): Promise<SelfReviewResult> {
   if (inFlight) {
     return { ok: false, error: "ריצת-ביקורת כבר מתהלכת — ריצה-כפולה נדחית (409 כנה, אף-רץ לא פוסק-על-עצמו)" };
@@ -482,10 +487,22 @@ export async function runSelfReview(opts: { files?: string[] } = {}): Promise<Se
       { role: "assistant", content: PHASE_A_SYSTEM },
       { role: "user", content: `${buildSkillsPrompt(skills)}\n\n## סיכום-דיפ (git diff HEAD --stat)\n${diffStat}\n\n## הקבצים-המתוחמים לריצה זו\n${scope.files.map((f) => `- ${f.file} (${f.bytes}B)`).join("\n")}\n\nבחר כישור או הימנע (skill:null).` }
     ];
-    const phaseARaw = await callZai(phaseAMessages, 1200, deadline);
-    llmCalls += 1;
-    tokensIn += phaseARaw.tokensIn;
-    tokensOut += phaseARaw.tokensOut;
+    // v115 חוסן — פאזה-A דרך מטמון-המהירות: מפתח = hash תמונת-הדיפ (diff-stat
+    // + רשימת-הקבצים-המתוחמים). דיפ-זהה בתוך 10 דק' = תשובה-מהמטמון (אפס
+    // טוקנים שנשרפו, tokensSaved מהשימוש-האמיתי-הקודם) — הריצה-עצמה כנה:
+    // בפגיעה llmCalls לא נספר (אף קריאה לא נעשתה) והפנקס רושם fastpath-hit.
+    const phaseAKeySource = `${diffStat}||${scope.files.map((f) => `${f.file}:${f.bytes}`).join(",")}`;
+    const phaseAFast = await withFastPath(
+      async () => {
+        const r = await callZai(phaseAMessages, 1200, deadline);
+        return { output: r.raw, tokensIn: r.tokensIn, tokensOut: r.tokensOut };
+      },
+      `saos:selfreview:phase-a:${phaseAKeySource}`
+    );
+    const phaseARaw: LlmCall = { raw: phaseAFast.output, tokensIn: phaseAFast.tokensIn, tokensOut: phaseAFast.tokensOut, ms: phaseAFast.ms };
+    if (!phaseAFast.hit) llmCalls += 1;
+    tokensIn += phaseAFast.tokensIn;
+    tokensOut += phaseAFast.tokensOut;
     const phaseAJson0 = extractJsonObject(phaseARaw.raw);
     const knownSkills = new Set(skills.map((s) => s.name));
     const rawSkill = typeof phaseAJson0?.skill === "string" ? phaseAJson0.skill.trim() : null;
@@ -510,10 +527,50 @@ export async function runSelfReview(opts: { files?: string[] } = {}): Promise<Se
       { role: "assistant", content: systemPrompt },
       { role: "user", content: `${PHASE_B_INSTRUCTION}\n\n## הקבצים-המתוחמים\n${scopedPayload}` }
     ];
-    const phaseBRaw = await callZai(phaseBMessages, 4000, deadline);
-    llmCalls += 1;
-    tokensIn += phaseBRaw.tokensIn;
-    tokensOut += phaseBRaw.tokensOut;
+    // מועמד-הקומפקט — אותו-חוק, פרומפט-קטן (תוכן-קטוץ) ותקציב-פלט-קטן (2000)
+    const phaseBCompactMessages: { role: "system" | "assistant" | "user"; content: string }[] = [
+      { role: "assistant", content: systemPrompt },
+      { role: "user", content: `${PHASE_B_INSTRUCTION}\n\n(מועמד-קומפקט: תוכן-הקבצים קטוץ ל-${PHASE_B_COMPACT_PAYLOAD_CHARS} תווים — ענה רק על מה שנשאר בתחום)\n\n## הקבצים-המתוחמים\n${scopedPayload.slice(0, PHASE_B_COMPACT_PAYLOAD_CHARS)}` }
+    ];
+    // v115 חוסן — פאזה-B דרך שרשרת-המועמדים (runLlmChain): primary 4000 →
+    // compact-retry 2000, בלי אתחול-הריצה. שער-ה-JSON (validate) הוא חוק-
+    // המשמעת הקיים: פלט חופשי-טקסט אינו נבחר — המועמד-השני נכנס; אזילה =
+    // מכה-כפולה כנה (אף ממצא לא מומצא). טוקנים/קריאות = הניסיונות שבאמת בוצעו.
+    const phaseBChain = await runLlmChain({
+      purpose: "selfreview:phase-b",
+      candidates: [
+        {
+          name: "primary",
+          maxTokens: 4000,
+          call: async () => {
+            const r = await callZai(phaseBMessages, 4000, deadline);
+            return { output: r.raw, tokensIn: r.tokensIn, tokensOut: r.tokensOut };
+          }
+        },
+        {
+          name: "compact-retry",
+          maxTokens: 2000,
+          call: async () => {
+            const r = await callZai(phaseBCompactMessages, 2000, deadline);
+            return { output: r.raw, tokensIn: r.tokensIn, tokensOut: r.tokensOut };
+          }
+        }
+      ],
+      validate: (out) => extractJsonObject(out) !== null
+    });
+    llmCalls += phaseBChain.attempts;
+    tokensIn += phaseBChain.tokensIn ?? 0;
+    tokensOut += phaseBChain.tokensOut ?? 0;
+    if (!phaseBChain.ok || phaseBChain.output == null) {
+      // אזילת-השרשרת = מכה-כפולה כנה: אף פלט לא נבחר, אף ממצא לא מומצא
+      const error = `פאזה-B: שרשרת-ה-LLM אזלה אחרי ${phaseBChain.attempts} מועמדים (מחלקה-אחרונה: ${phaseBChain.errorClass ?? "unknown"}) — מכה-כפולה כנה, אף ממצא לא הומצא`;
+      await finishRun(runId, {
+        status: "failed", terminal: "fail", phaseAJson, scopeJson: JSON.stringify({ files: scope.files, caps: caps(), source: scope.source, llmCalls, phaseACache: phaseAFast.hit ? "hit" : "miss", chain: phaseBChain.attemptsTrace }),
+        skillSelected, findingsCount: 0, tokensIn, tokensOut, msElapsed: Date.now() - t0, driftStatus: "clean", error, llmCalls
+      });
+      return { ok: false, runId: runId ?? undefined, terminal: "fail", tokensIn, tokensOut, msElapsed: Date.now() - t0, llmCalls, error };
+    }
+    const phaseBRaw: LlmCall = { raw: phaseBChain.output, tokensIn: phaseBChain.tokensIn ?? 0, tokensOut: phaseBChain.tokensOut ?? 0, ms: phaseBChain.ms };
 
     // חילוץ-JSON-מכונה + תיקון-אחד מתוקצב (מכה-שנייה = כישלון-כנה)
     let parsed = extractJsonObject(phaseBRaw.raw);
@@ -576,7 +633,9 @@ export async function runSelfReview(opts: { files?: string[] } = {}): Promise<Se
     const terminal: TerminalState = findings.length > 0 ? "success" : rejected.length > 0 ? "fail" : "no-op";
     const scopeJsonFinal = JSON.stringify({
       files: scope.files, caps: caps(), source: scope.source,
-      rejected, llmCalls, repair: repairNote ?? null
+      rejected, llmCalls, repair: repairNote ?? null,
+      phaseACache: phaseAFast.hit ? "hit" : "miss",
+      phaseBChain: { selected: phaseBChain.candidate, attempts: phaseBChain.attempts, trace: phaseBChain.attemptsTrace }
     });
     const msElapsed = Date.now() - t0;
     await finishRun(runId, {
