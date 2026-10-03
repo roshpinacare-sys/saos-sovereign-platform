@@ -8,7 +8,7 @@
 
 ## Current State (מצב-עולם בזק)
 
-הפלטפורמה חיה על **v107.0.0 "המשמר-הבלתי-נראה" + wave-19.5 OOM-doctrine-v49** (main = origin/main a07c244, 0/0).
+הפלטפורמה חיה על **v108.0.0 "מיחזור-המעבדה" + wave-20** (main = origin/main, 0/0).
 **מלחמת-OOM נתפסה-חי ותוקנה-שורשית במהלך-הבחינה-הכללית** (23:50→00:37Z): הקרנל הרג את הווב 4×
 (anon-rss 1761/1813/1945/1960MB — dmesg; oom_kill=43) במעגל: סערת-קדנציות-אחרי-החייאה (~10MB/s עד
 ~1.7GB) → תקיעה → חייאה-עם-פרוסה-ישנה-בחיים → קרנל-הורג-את-השמן. **חמישה-פגמי-אמת נתפסו-ותוקנו**:
@@ -21,7 +21,12 @@
 **הוכחת-קרב**: דריסת-חלון-החייאה ירתה-חי ב-1761MB (00:35:29) → 200-תוך-12ש' · **אפס-הרגות-קרנל
 מ-00:30:26** · הצבא-לא-הפסיק (census 25/25 · brain #5/#6 · authority #6/#7 · workers 3-artifacts ·
 state-snapshot #1 · git-publish 7-פורסמו) · verify.sh **VERDICT=pass 10/10** (כולל web-resume
-שאימת-את-ה-endpoint-המתוקן). **נותר: שער-פארס-ל-mini-services + מקור-הסערה (stagger/cap/anvil-idle).**
+שאימת-את-ה-endpoint-המתוקן). **wave-20 סגר את שני-הנותרים (01:25Z, מדידה-מלאה)**: (א) שער-11 mini-parse ב-verify.sh —
+bun build fail-closed לכל src/*.ts בכל mini-service (8/8 נמדדו-נקי לפני-הקומיט) — מחלקת-ה-SyntaxError-הלטנטי סתומה לתמיד;
+(ב) **v108 LAB RECYCLE** — המדידה: anvil 924MB אחרי 2:20ש' מול ~82MB טרי (state רזה 27.9MB — הזיכרון צבירה-ריצתית) →
+שסתום-RSS (700MB · force · רצפה 10 דק' · דריסה-חיה state/lab-recycle.json) — SIGTERM→exit-dump→RESUME,
+נעול-על RT.busy מול cycles/watchdog · דריל-חי: 2 מיחזורים × 0.5ש' · השרשרת צועדת · זמין-במכונה 1154→1931MB ·
+verify.sh **VERDICT=pass 11/11**.
 
 ## Files (הקבצים-שהגל-נגע-בהם)
 
@@ -39,6 +44,8 @@ state-snapshot #1 · git-publish 7-פורסמו) · verify.sh **VERDICT=pass 10/
 | `package.json` | lint → eslint --cache (content strategy) |
 | `next.config.ts` | experimental.turbopackMemoryLimit 640MB |
 | `mini-services/keeper/src/index.ts` | v48.2.0 — guardDecision על revive/drill · park/resume/recycle endpoints · קווי-מיחזור 1250/1350 · סוגי-יומן חדשים |
+| `scripts/verify.sh` | **wave-20: שער-11 mini-parse** — bun build fail-closed לכל mini-service src/*.ts |
+| `mini-services/evm-mesh/src/index.ts` | **v108 LAB RECYCLE** — שסתום-RSS-נמדד + force-lever + דריסה-חיה + נעילת-RT.busy |
 | `mini-services/gate-agent/src/index.ts` | guard על godparent-mesh spawn |
 | `AGENTS.md` | חוק-בית 7 (המשמר-לפני-הריצה) |
 | `feature_list.json` | 13 שורות: harness-engineering-adoption done · r12 done · +invisible-guard done |
@@ -57,9 +64,8 @@ state-snapshot #1 · git-publish 7-פורסמו) · verify.sh **VERDICT=pass 10/
 
 ## Next Session (הצעד-החיצוני)
 
-1. E2E-דפדפן (desktop-1440 + mobile-390): v107 בסרגל, אפס-שגיאות, פוטר-נדחף.
+1. dcg allow-once מווסת לשעות-חירום (מתועד-OpLog) — התור-המתוכנן; או מדידת-שארית-סערת-הקדנציות.
 2. `git pull --rebase` → commit → push → ורדקט `git log origin/main -1` (0/0).
 3. אם פועל נתקל ב-deny-שקרי: קומיט-קונפיג + עדכון-סוללה — לעולם לא הרחבה-שקטה.
-4. סבב-השומר: 6 תפקידים-חיים עכשיו (fuel · estate · key-census · vault ·
-   harness-sentinel · key-rotation-watch) — קצבי-המבצעים מתועדים
-   ב-EXECUTOR_MIN_INTERVAL_MS.
+4. סבב-השומר: השסתום-חמוש (700MB), שער-11 בסוללה, 8 תפקידים-חיים עכשיו —
+   קצבי-המבצעים מתועדים ב-EXECUTOR_MIN_INTERVAL_MS.
