@@ -66,14 +66,14 @@
   "hbd": 91.5184
  },
  "kpi": {
-  "ticks": 16,
+  "ticks": 17,
   "fillBuy": 3,
   "fillSell": 0,
   "realizedHbd": 0,
   "avgCost": 0.056544000000000004,
   "regrids": 4,
   "noopSpread": 0,
-  "lastTickAt": "2026-10-03T18:00:50.327Z"
+  "lastTickAt": "2026-10-03T18:02:48.660Z"
  },
  "fills": [
   {
@@ -163,6 +163,6 @@
    "he": "סטייה 132bps > סף 120bps — סולם הוזז למרכז 0.056247"
   }
  ],
- "updatedAt": "2026-10-03T18:00:51.673Z",
+ "updatedAt": "2026-10-03T18:02:50.039Z",
  "startedAt": "2026-10-03T17:28:52.290Z"
 }
