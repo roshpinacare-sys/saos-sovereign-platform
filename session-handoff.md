@@ -8,36 +8,38 @@
 
 ## Current State (מצב-עולם בזק)
 
-הפלטפורמה חיה על **v109.0.0 "ידיים-ריבוניות" (SOVEREIGN HANDS) — wave-21**
-(מבוסס על v108 LAB RECYCLE שסגר את מלחמת-ה-OOM: אפס-הרגות-קרנל מאז 00:30:26, שער-11 mini-parse 8/8).
-**מה-התווסף-בגל-זה (הוראת הבעלים: "מה יש לנו בידיים · עוד יכולות ועוד כוח — trycua/cua לדוגמא", 2026-10-03):**
-בחינה-נמדדת של cua (shallow-clone מלא — 8001 קבצים; אומצו 4 דפוסים, נדחתה תשתית-VM בכנות — אין KVM/macOS) →
-**src/lib/saos/hands.ts**: 5 פני-שטח נמדדים-חי (browser=agent-browser 0.38.1 CDP · shell=dcg-מושמר · git · anvil:8545 · fs)
-+ 4 משימות-bench עם קריטריון-אימות ו-trajectory מלא + עדות-כתובה. **הרצה-חיה ראשונה: 4/4 pass ב-6.5ש' —
-הצבא ראה את הפלטפורמה שלו בעצמו** (קרא v108-מהעמוד-החי, צילם, סגר-סשן). שני-פגמים-עצמיים נתפסו-חי-בהרצה-הראשונה
-ותוקנו (guardedBash-בלי-await · ms-תקציב-במקום-זמן) — הסוויטה דיווחה fail-כנה, בדיוק-כמתוכנן.
-בנוסף: API /api/saos/hands (GET לוח · POST fail-closed-401+whitelist) · תצוגת "ידיים" בסרגל (#hands) ·
-פועל hands-operator ב-role-worker-run · **שער-12 hands-probe** ב-verify.sh · **חוק-8 ב-AGENTS.md: כל-יד-עוברת-משמר**.
+הפלטפורמה חיה על **v110.0.0 "בית-המלאכה-לכישורים" (SKILL FOUNDRY) — wave-22**
+(על גבי v109 SOVEREIGN HANDS: 5 פני-שטח-ידיים + 4 משימות-bench · v108 שסגר את מלחמת-ה-OOM).
+**מה-התווסף-בגל-זה (הוראת הבעלים: "מה לגבי זה https://github.com/alirezarezvani/claude-skills", 2026-10-03):**
+בחינה-נמדדת של claude-skills (shallow-clone מלא — 65MB · 3104 קבצי-md · 388 כישורים; פסק-דין: **מחצבה לא יסוד** —
+אומצו 6 משמעויות, נדחו הכלי-ה-Python/המראות-ההפצה/מסת-הפדידה) →
+**src/lib/saos/loop-discipline.ts** (חדש): (א) מ-loop-library — שבעת מצבי-הקצה המכוננים
+(success · no-op · blocked · approval-required · exhausted · stagnated · fail) + classifyRunOutcome
+(**שגיאה לעולם לא הצלחה · חוסר-עדות = fail**, fail-closed); (ב) מ-agent-harness — compileGoal:
+מטרה-עמומה נדחית-בשער עם סיבות (בלי-פועל · סמני-עמימות · בלי-קריטריון-אימות).
+**hands.ts**: כל trajectory מסתיימת במצב-קצה מכונן — נגזר-אחיד בשער runBenchTask (לא ידנית-ברצים);
+לוח-הידיים מציג את מצב-הקצה ב-badge עברי. **skills/ +5** מדבקות-משמעת מותאמות-SAOS עם ייחוס:
+zero-hallucination-coder · loop-doctor · grill-me · swarm-discipline · aeo (דו-מדיניות: AEO-לסיפור-הפומבי,
+חיסיון-מוחלט לפנים-הצבא ולמפתחות — ציטוט-LLM של פרט-פנימי = דליפה).
+**עדויות-חיות**: מבחן-יחידה 10/10 PASS · bench git-truth חי עם `"terminal": "success"` בפלט ·
+lint+tsc נקי · VERDICT=pass 12/12 · docs/CLAUDE-SKILLS-ADOPTION.md (ה-roast + טבלת-החלטות 8 שורות).
 
-## Files (הקבצים-שהגל-נגע-בהם — wave-21)
+## Files (הקבצים-שהגל-נגע-בהם — wave-22)
 
 | קובץ | שינוי |
 |---|---|
-| `src/lib/saos/hands.ts` | **חדש (wave-21)** — 5 פני-שטח-נמדדים + 4 משימות-bench + trajectory + artifact-writer + handsPeek |
-| `scripts/hands-run.ts` | **חדש** — probe · task-בודד · all (הסוויטה+עדות) |
-| `src/app/api/saos/hands/route.ts` | **חדש** — GET לוח-חי · POST fail-closed (requireAuth + whitelist) |
-| `src/components/saos/views/hands.tsx` | **חדש** — תצוגת-הידיים (פני-שטח · הרצה-מהעמוד · trajectory · היסטוריה) |
-| `src/components/saos/shell.tsx` | ViewId + VIEWS-רשומת "ידיים" + אייקון Hand |
-| `src/app/page.tsx` | import/TITLES/render של HandsView |
-| `scripts/role-worker-run.ts` | op `hands-bench` → פועל hands-operator |
-| `scripts/verify.sh` | **שער-12 hands-probe** (hands.ts-parse + agent-browser-עונה) · gates[] עודכן |
-| `src/lib/saos/version.ts` | v109.0.0 — ידיים-ריבוניות (SOVEREIGN HANDS) + רישום-מהדורה |
-| `AGENTS.md` | חוק-בית 8 (כל-יד-עוברת-משמר) |
-| `docs/CUA-ADOPTION.md` | **חדש** — הבחינה-הנמדדת + מה-אומץ/נדחה + ה-roast |
-| `feature_list.json` | +sovereign-hands-v109 (done, עם-ראיות) |
+| `src/lib/saos/loop-discipline.ts` | **חדש (wave-22)** — TERMINAL_STATES · isTerminalState · compileGoal · classifyRunOutcome · terminalFromBench |
+| `src/lib/saos/hands.ts` | +terminal על BenchTrajectory · TrajectoryCore-split (הרצים לא פוסקים-על-עצמם) · גזירה-אחידה ב-runBenchTask (הצלחה+חריגה) |
+| `src/components/saos/views/hands.tsx` | +TerminalBadge (מצב-קצה-מכונן עם תווית-עברית) לצד VerdictBadge |
+| `skills/zero-hallucination-coder/SKILL.md` | **חדש** — לולאת Discuss→Map→Decompose→Execute→Verify + KNOWN/INFERRED/UNKNOWN + סולם-YAGNI (מותאם-SAOS) |
+| `skills/loop-doctor/SKILL.md` | **חדש** — מחזור-המשוב בן-6-הצעדים + שבעת מצבי-הקצה + צ'קליסט-רופא-לולאות |
+| `skills/grill-me/SKILL.md` | **חדש** — חקירה-בן-שאלה-אחת עם תשובה-מומלצת-מנומקת (ייחוס: Matt Pocock) |
+| `skills/swarm-discipline/SKILL.md` | **חדש** — חמשת האינווריאנטים של הנחיל (worktree-בידוד · חוזה-JSON-אחד · מיזוג-מנצח-יחיד · סולם-נפילה) |
+| `skills/aeo-answer-engine-optimization/SKILL.md` | **חדש** — AEO + הדו-מדיניות הפומבי/חיסיון של SAOS |
+| `docs/CLAUDE-SKILLS-ADOPTION.md` | **חדש** — ה-roast המלא + טבלת-החלטות (אומץ/נדחה עם נקודות-נחיתה) |
+| `src/lib/saos/version.ts` | v110.0.0 — בית-המלאכה-לכישורים (SKILL FOUNDRY) + רישום-מהדורה |
+| `feature_list.json` | +skill-foundry-v110 (done, עם-ראיות) |
 | `progress.md` / `session-handoff.md` | מצב-ההמשך (גל-זה) |
-| `scripts/artifacts/hands-bench-2026-10-03.json` | עדות-ההרצה-הראשונה (4/4) |
-| `shots/hands-self-view-*.png` | צילומי-הצבא-של-העמוד-החי |
 
 ## Blockers (כנים)
 
@@ -49,7 +51,8 @@
 
 ## Next Session (הצעד-החיצוני)
 
-1. הרחבת-הידיים-המושמרת: קליק-והקלדה בעמוד-החי + capture_id-מלא + קדנציית-השומר ל-hands-bench (הפועל-רשום).
-2. `git pull --rebase` → commit → push → ורדקט `git log origin/main -1` (0/0).
-3. dcg allow-once מווסת לשעות-חירום (מתועד-OpLog) — נשאר בתור-המתוכנן.
-4. אם פועל נתקל ב-deny-שקרי: קומיט-קונפיג + עדכון-סוללה — לעולם לא הרחבה-שקטה.
+1. חיווט compileGoal לפועלים: כל-ריצת-פועל (role-worker ops) מקבלת שער-מטרה — מטרה-עמומה נדחית fail-closed עם הסיבות (החוזה-מנוסח, החיווט דורש-מדידה-זהירה מול הצבא-החי — ה-non-goal הכן של wave-22).
+2. הרחבת-הידיים-המושמרת: קליק-והקלדה בעמוד-החי + capture_id-מלא + קדנציית-השומר ל-hands-bench (הפועל-רשום).
+3. `git pull --rebase` → commit → push → ורדקט `git log origin/main -1` (0/0).
+4. dcg allow-once מווסת לשעות-חירום (מתועד-OpLog) — נשאר בתור-המתוכנן.
+5. לולאות-חיות ראשונות שמייצרות no-op/blocked/stagnated כנים (הטקסונומיה-כבר-נאכפת בקוד) — למשל קדנציית-השומר ל-bench מדווחת no-op כשאין-שינוי.

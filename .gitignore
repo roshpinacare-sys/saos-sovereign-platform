@@ -50,7 +50,13 @@ prompt
 
 server.log
 # Skills directory
-/skills/
+/skills/*
+# SAOS-adoption playbooks (wave-22 SKILL FOUNDRY) — house artifacts, tracked:
+!skills/zero-hallucination-coder/
+!skills/loop-doctor/
+!skills/grill-me/
+!skills/swarm-discipline/
+!skills/aeo-answer-engine-optimization/
 # ── SOVEREIGN KEY HYGIENE (v92) — key material never crosses the git boundary ──
 /upload/
 /agent/
