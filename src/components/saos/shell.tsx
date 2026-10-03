@@ -20,7 +20,7 @@ import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/ver
 import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "hive-grid" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam" | "review" | "system1";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "hive-grid" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam" | "review" | "system1" | "resilience" | "steem-market" | "soldiers";
 
 export interface ViewDef {
   id: ViewId;
@@ -400,6 +400,30 @@ export const VIEWS: ViewDef[] = [
     desc: "v112 רפלקס (אימוץ NandhaKishorM/laya): מנוע-הכרעות-זריז עם חוקי-זיכרון מקודדים (שער-טעינה 2000MB · השלכה אחרי-החלטה <700MB · ווטצדוג <250MB exit(99)) · הימנעות-אף-פעם-לא-שקטה = הסלמת System-2",
     icon: <Crosshair size={16} />,
     group: "מחקר"
+  },
+  {
+    id: "resilience",
+    label: "חוסן — שרשרת-ה-LLM (fcc)",
+    short: "חוסן",
+    desc: "v117/v115 חוסן (סמנטיקת free-claude-code נקיית-חדר): runLlmChain עם failover-באמצע-תורן · withFastPath (LRU-128 · TTL · tokensSaved) · דוח-חשבון LlmChainCall · drill כנה · מיצוי-כנה בלי-המצאות",
+    icon: <HeartPulse size={16} />,
+    group: "מחקר"
+  },
+  {
+    id: "steem-market",
+    label: "שוק-חי (STEEM) — הלשכה-הפיננסית של הרשת",
+    short: "שוק-חי",
+    desc: "v118 שוק-חי: מצפה-השוק הפנימי SBD:STEEM — סולמות-הצי החיים (מודדים מהשרשרת) · מילויים · מאזן נזיל/נעול · רווח-לא-ממומש מול ה-mid · מקור-כנה (native-rpc / פורנזיקת-היסטוריה)",
+    icon: <ArrowLeftRight size={16} />,
+    group: "כלכלה ואנרגיה"
+  },
+  {
+    id: "soldiers",
+    label: "חיילים — תזמורת-הצי (12 חשבונות)",
+    short: "חיילים",
+    desc: "v118 חיילים: מפקד-הצי מהכספת החתומה (שמות-בלבד חוצים-גבול) · מפקד-שרשרת חי (SP · VP · RC לכל חייל) · תזמורת-הצבעות 12-חלונות (הפצת-עומס כדי ש-VP לא יישחק) · כנות: מה חסר-מימון",
+    icon: <Swords size={16} />,
+    group: "תפעול"
   }
 ];
 

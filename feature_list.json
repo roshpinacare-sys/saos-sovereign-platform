@@ -280,6 +280,19 @@
         "cornerstone: EVM triple-verified, SOL+TRON reproduce, XRP honest fail-closed",
         "HIVE sweep: 52 derivations honest zero — chain keys not derivable from sealed sources, stays blocked until owner material"
       ]
+    },
+    {
+      "id": "orchestra-v118",
+      "title": "v118 תזמורת — all agents wired together: llm-chain resilience rebuilt (v115 cure), STEEM market observatory (fleet ladder visible + P&L), 12-soldier orchestra census+plan, keeper anvil/web memory valves, HookPool deployed live with 5/5 v4 hook proofs",
+      "status": "done",
+      "evidence": [
+        "118-a: runLlmChain failover + withFastPath LRU-128 + LlmChainCall ledger + selfreview wiring; drill live on real provider (381ms, tokens 31/1); kpis failover 0.6 tokensSaved 333; 2 REAL review runs through the chain",
+        "118-b: database_api.find_limit_orders {account} discovered working; 17 open orders measured (ladder 1.196/0.571/0.353/0.586 STEEM), fill 0.576@0.100694 captured, locked 9.097 STEEM, unrealized +0.70 SBD; cross-reconciled to the milli",
+        "118-c: 12/12 roster census (headcorner 3946 SP, fleet RC 92-95%), orchestra 12-window plan, honest capableVoters=0 (VP drained by current loop — the plan is the cure)",
+        "118-d: keeper v49 anvil valve 900MB + death-revive x3 + web RSS 1200MB gate, hot-reloaded, zero blocking I/O",
+        "118-e: forge v1.8.4 official release; 5/5 hook proofs PASS (owner-gate/install/payloads/fail-open/dynamic-fee-cap); LIVE deploy 0x95db7321...646a; 50bps adoption proven by exact reserve decode (995.0e / 994.010959e); suite 78+5 green",
+        "wiring: 3 views registered (resilience/steem-market/soldiers), TITLES, render cases; version 118.0.0 תזמורת"
+      ]
     }
   ]
 }

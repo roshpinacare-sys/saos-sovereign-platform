@@ -16,8 +16,8 @@ pragma solidity ^0.8.24;
  */
 
 interface ISaoshook {
-    /// @return selector מזהה-ההוק; מורכב ממספר-ההוק ומהתשובה הרצויה (עמלה/אישור)
-    function beforeSwap(address sender, uint256 amountIn) external returns (bytes4);
+    /// @return selector מזהה-ההוק; feeBps = העמלה-הדינמית שההוק דורש (v118)
+    function beforeSwap(address sender, uint256 amountIn) external returns (bytes4, uint24);
     function afterSwap(address sender, uint256 amountOut) external returns (bytes4);
 }
 
@@ -28,7 +28,8 @@ contract SAOSHookPool {
     error SwapZero();
     error InsufficientOut();
 
-    // ── משתני-מצב ────────────────────────────────────────────────────────
+    // ── משתני-מצב ────────────────────────────────────────────────
+    uint24 public constant MAX_HOOK_FEE_BPS = 1_000; // תקרת-בטיחות: הוק לא יגבה מעל 10%────────
     address public owner;
     address public tokenA; // למשל wSAOS
     address public tokenB; // למשל WETH
@@ -59,11 +60,12 @@ contract SAOSHookPool {
         emit HookInstalled(_hook);
     }
 
-    /// @notice הוק לפני-החלפה רשאי לדרוש עמלה-מותאמת (סמנטיקת dynamic-fee)
+    /// @notice הוק לפני-החלפה קובע עמלה-מותאמת (סמנטיקת dynamic-fee מלאה, v118);
+    /// תקרת-בטיחות: מעל MAX_HOOK_FEE_BPS → עמלת-הבסיס (fail-closed מול הוק-עוין)
     function _beforeSwapFee(address sender, uint256 amountIn) internal returns (uint24) {
         if (address(hook) == address(0)) return feeBps;
-        try hook.beforeSwap(sender, amountIn) returns (bytes4) {
-            return feeBps; // ברירת-מחדל; הרחבה עתידית: הוק מחזיר עמלה
+        try hook.beforeSwap(sender, amountIn) returns (bytes4, uint24 hookFee) {
+            return hookFee > MAX_HOOK_FEE_BPS ? feeBps : hookFee;
         } catch {
             return feeBps; // הוק נכשל → המשך כנה עם עמלת-הבסיס (לא נעילת-בריכה)
         }

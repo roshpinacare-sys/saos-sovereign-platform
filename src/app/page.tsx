@@ -54,6 +54,9 @@ import { ExchangeView } from "@/components/saos/views/exchange";
 import HiveGridView from "@/components/saos/views/hive-grid";
 import { ReviewView } from "@/components/saos/views/review";
 import { System1View } from "@/components/saos/views/system1";
+import { ResilienceView } from "@/components/saos/views/resilience";
+import { SteemMarketView } from "@/components/saos/views/steem-market";
+import { SoldiersView } from "@/components/saos/views/soldiers";
 import { FlowView } from "@/components/saos/views/flow";
 import { RosesView } from "@/components/saos/views/roses";
 import { ViewEconomy } from "@/components/saos/views/economy";
@@ -109,6 +112,9 @@ const TITLES: Record<ViewId, string> = {
   review: "ביקורת — הסקירה-העצמית עם ספריית-הכישורים (v114)",
   "hive-grid": "גריד-השוק — השתלטות על השוק הפנימי HBD:HIVE (v116)",
   system1: "רפלקס — System-1 המיידי עם חוקי-זיכרון (v112)",
+  resilience: "חוסן — שרשרת-ה-LLM עם failover ומסלול-מהיר (v117)",
+  "steem-market": "שוק-חי (STEEM) — מצפה-השוק הפנימי (v118)",
+  soldiers: "חיילים — תזמורת-הצי 12-חשבונות (v118)",
 };
 
 export default function Home() {
@@ -209,6 +215,9 @@ export default function Home() {
         {view === "redteam" && <RedteamView />}
         {view === "review" && <ReviewView />}
         {view === "system1" && <System1View />}
+        {view === "resilience" && <ResilienceView />}
+        {view === "steem-market" && <SteemMarketView />}
+        {view === "soldiers" && <SoldiersView />}
       </AppShell>
     </ToastProvider>
   );

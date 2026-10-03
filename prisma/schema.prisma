@@ -723,3 +723,28 @@ model ReviewFinding {
   @@index([runId])
   @@index([severity])
 }
+
+// ─── v115.0.0 חוסן (Alishahryar1/free-claude-code adoption — CLEAN-ROOM) ──────
+// פנקס-שרשרת-ה-LLM: כל ריצת-שרשרת (chain) · תרגיל-תקינות (drill) · פגיעת-מטמון
+// (fastpath) נרשמת כנה: שמות-המועמדים בלבד (אף תוכן-פרומפט, אף פלט-מודל),
+// המועמד-הנבחר, מספר-הניסיונות, טוקנים אמיתיים מ-usage, טוקנים-שנחסכו בזכות
+// המטמון, זמן-שנמדד, ומחלקת-השגיאה האחרונה בכישלון (rate-limit/timeout/…).
+// חוק-האמת: כישלון נרשם ok=false — אף פלט לא מומצא.
+model LlmChainCall {
+  id          String   @id @default(cuid())
+  kind        String // chain | drill | fastpath
+  chainJson   String // מפרט-השרשרת: purpose + candidate specs + validate — מטא-בלבד
+  candidates  String // JSON array של שמות-המועמדים (שמות בלבד)
+  selected    String?  // המועמד שנבחר (null בכישלון-מלא)
+  attempts    Int      @default(0)
+  ok          Boolean
+  tokensIn    Int?
+  tokensOut   Int?
+  tokensSaved Int?     // טוקנים שלא נשרפו בזכות פגיעת-מטמון (מהשימוש-האמיתי-הקודם)
+  ms          Int?
+  errorClass  String?  // מחלקת-השגיאה בלבד (בלי תוכן): rate-limit | timeout | duplicate | …
+  createdAt   DateTime @default(now())
+
+  @@index([kind])
+  @@index([createdAt])
+}
