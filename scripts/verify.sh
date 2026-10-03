@@ -165,6 +165,19 @@ run_stage "mini-parse" bash -c '
   [ "$rc" = "0" ] && echo "$n/$n mini-service sources parse clean" || exit 1
 '
 
+# ── Stage 12 (v109 · HANDS-PROBE): the sovereign-hands capability layer must
+#    parse AND its browser surface (agent-browser) must be present. A platform
+#    that claims computer-use hands must prove them in the gate — hands.ts is
+#    bun-build fail-closed, agent-browser --version must answer. Cheap (~1s):
+#    no browser spawn, no task runs (bench runs are evidence-producing jobs,
+#    not gate steps).
+run_stage "hands-probe" bash -c '
+  bun build src/lib/saos/hands.ts --target bun --outfile .cache/parse/hands.js >/dev/null 2>&1 || { echo "hands.ts parse FAIL"; exit 1; }
+  command -v agent-browser >/dev/null 2>&1 || { echo "agent-browser missing — hands surface broken"; exit 1; }
+  agent-browser --version 2>/dev/null | grep -q "agent-browser [0-9]" || { echo "agent-browser version probe FAIL"; exit 1; }
+  echo "hands layer parses clean + agent-browser present"
+'
+
 STAGES_JSON="$STAGES_JSON]"
 
 # Fail-fast means: stages after the first failure were SKIPPED (not passed)
@@ -184,7 +197,7 @@ cat > "$TMP" <<EOF
   "pass": $PASS_COUNT,
   "fail": $FAIL_COUNT,
   "failFast": $( [ "$VERDICT" = "fail" ] && echo true || echo false ),
-  "gates": ["toolchain","gate-clear","deps","tsc","lint","db-sync","harness-files","web-resume","live-api","guard","mini-parse"],
+  "gates": ["toolchain","gate-clear","deps","tsc","lint","db-sync","harness-files","web-resume","live-api","guard","mini-parse","hands-probe"],
   "stages": $STAGES_JSON,
   "doctrine": "no done without runnable proof (harness engineering, adopted v106)"
 }

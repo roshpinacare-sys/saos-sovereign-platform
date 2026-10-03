@@ -2,7 +2,7 @@
   "kind": "key-report",
   "role": "key-forge-operator",
   "executor": "key-census",
-  "measuredAt": "2026-10-03T00:25:48.791Z",
+  "measuredAt": "2026-10-03T01:36:08.750Z",
   "measured": true,
   "sitesScanned": 4,
   "keyFiles": 11,
@@ -22,7 +22,7 @@
       "present": true,
       "bytes": 93,
       "mode": "600",
-      "ageHours": 1,
+      "ageHours": 2,
       "shaPrefix": "c029b0b76b18bd15"
     },
     {
@@ -31,7 +31,7 @@
       "present": true,
       "bytes": 65,
       "mode": "600",
-      "ageHours": 2,
+      "ageHours": 3,
       "shaPrefix": "e771df6ac5d4e8eb"
     },
     {
@@ -40,7 +40,7 @@
       "present": true,
       "bytes": 622,
       "mode": "700",
-      "ageHours": 1,
+      "ageHours": 2,
       "shaPrefix": "94e7f81fb555e12f"
     },
     {
@@ -49,7 +49,7 @@
       "present": true,
       "bytes": 1753,
       "mode": "700",
-      "ageHours": 1,
+      "ageHours": 2,
       "shaPrefix": "772ba2dc7857f898"
     },
     {
@@ -58,7 +58,7 @@
       "present": true,
       "bytes": 222356,
       "mode": "600",
-      "ageHours": 3,
+      "ageHours": 4,
       "shaPrefix": "1f5084c99dd37726"
     },
     {
@@ -67,7 +67,7 @@
       "present": true,
       "bytes": 70,
       "mode": "600",
-      "ageHours": 3,
+      "ageHours": 4,
       "shaPrefix": "161102a33c5bcca8"
     },
     {
@@ -76,7 +76,7 @@
       "present": true,
       "bytes": 222356,
       "mode": "777",
-      "ageHours": 55,
+      "ageHours": 57,
       "shaPrefix": "1f5084c99dd37726"
     },
     {
@@ -85,7 +85,7 @@
       "present": true,
       "bytes": 70,
       "mode": "777",
-      "ageHours": 55,
+      "ageHours": 57,
       "shaPrefix": "161102a33c5bcca8"
     },
     {
@@ -94,7 +94,7 @@
       "present": true,
       "bytes": 206,
       "mode": "777",
-      "ageHours": 3,
+      "ageHours": 4,
       "shaPrefix": "b3378916a9d55831"
     },
     {
@@ -103,7 +103,7 @@
       "present": true,
       "bytes": 226,
       "mode": "777",
-      "ageHours": 3,
+      "ageHours": 4,
       "shaPrefix": "05963ab5e38aca6c"
     },
     {
@@ -112,7 +112,7 @@
       "present": true,
       "bytes": 228,
       "mode": "777",
-      "ageHours": 3,
+      "ageHours": 4,
       "shaPrefix": "172a9c86d7e997d0"
     }
   ]

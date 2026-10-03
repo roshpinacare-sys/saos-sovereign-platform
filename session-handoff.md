@@ -8,51 +8,36 @@
 
 ## Current State (מצב-עולם בזק)
 
-הפלטפורמה חיה על **v108.0.0 "מיחזור-המעבדה" + wave-20** (main = origin/main, 0/0).
-**מלחמת-OOM נתפסה-חי ותוקנה-שורשית במהלך-הבחינה-הכללית** (23:50→00:37Z): הקרנל הרג את הווב 4×
-(anon-rss 1761/1813/1945/1960MB — dmesg; oom_kill=43) במעגל: סערת-קדנציות-אחרי-החייאה (~10MB/s עד
-~1.7GB) → תקיעה → חייאה-עם-פרוסה-ישנה-בחיים → קרנל-הורג-את-השמן. **חמישה-פגמי-אמת נתפסו-ותוקנו**:
-(1) וטו-החלון-השקט על קו-ההרג — עכשיו לחץ-מכונה דורס (רצפת-התייצבות 30ש'); (2) בדיקת-העמוד
-(הקומפילציה-הכבדה) נורתה-בתוך-הסערה — מדלגת-חלון-התייצבות; (3) **SyntaxError-לטנטי בשומר**
-(await×2 בתוך fetch-סינכרוני של Bun.serve — מוסתר ע"י tsconfig-סקופ + bun --hot שנכשל-בשקט;
-השומר-הרץ-בזיכרון-קוד-ישן) — תוקן ל-async; (4) קצב-קריאת-זיכרון 60ש' הפסיד-לסערה (~26ש' מהקו
-לרצפת-הקרנל) — עכשיו כל-מחזור (10ש'); (5) קווי-המיחזור לא-גדלו-עם-האפליקציה (1350/1250 כוילו
-מול-קרנל-1393 בעידן-הקטן) — מחוילו-מדיד: 1480/1520 מול-רצפת-קרנל-נמדדת.
-**הוכחת-קרב**: דריסת-חלון-החייאה ירתה-חי ב-1761MB (00:35:29) → 200-תוך-12ש' · **אפס-הרגות-קרנל
-מ-00:30:26** · הצבא-לא-הפסיק (census 25/25 · brain #5/#6 · authority #6/#7 · workers 3-artifacts ·
-state-snapshot #1 · git-publish 7-פורסמו) · verify.sh **VERDICT=pass 10/10** (כולל web-resume
-שאימת-את-ה-endpoint-המתוקן). **wave-20 סגר את שני-הנותרים (01:25Z, מדידה-מלאה)**: (א) שער-11 mini-parse ב-verify.sh —
-bun build fail-closed לכל src/*.ts בכל mini-service (8/8 נמדדו-נקי לפני-הקומיט) — מחלקת-ה-SyntaxError-הלטנטי סתומה לתמיד;
-(ב) **v108 LAB RECYCLE** — המדידה: anvil 924MB אחרי 2:20ש' מול ~82MB טרי (state רזה 27.9MB — הזיכרון צבירה-ריצתית) →
-שסתום-RSS (700MB · force · רצפה 10 דק' · דריסה-חיה state/lab-recycle.json) — SIGTERM→exit-dump→RESUME,
-נעול-על RT.busy מול cycles/watchdog · דריל-חי: 2 מיחזורים × 0.5ש' · השרשרת צועדת · זמין-במכונה 1154→1931MB ·
-verify.sh **VERDICT=pass 11/11**.
+הפלטפורמה חיה על **v109.0.0 "ידיים-ריבוניות" (SOVEREIGN HANDS) — wave-21**
+(מבוסס על v108 LAB RECYCLE שסגר את מלחמת-ה-OOM: אפס-הרגות-קרנל מאז 00:30:26, שער-11 mini-parse 8/8).
+**מה-התווסף-בגל-זה (הוראת הבעלים: "מה יש לנו בידיים · עוד יכולות ועוד כוח — trycua/cua לדוגמא", 2026-10-03):**
+בחינה-נמדדת של cua (shallow-clone מלא — 8001 קבצים; אומצו 4 דפוסים, נדחתה תשתית-VM בכנות — אין KVM/macOS) →
+**src/lib/saos/hands.ts**: 5 פני-שטח נמדדים-חי (browser=agent-browser 0.38.1 CDP · shell=dcg-מושמר · git · anvil:8545 · fs)
++ 4 משימות-bench עם קריטריון-אימות ו-trajectory מלא + עדות-כתובה. **הרצה-חיה ראשונה: 4/4 pass ב-6.5ש' —
+הצבא ראה את הפלטפורמה שלו בעצמו** (קרא v108-מהעמוד-החי, צילם, סגר-סשן). שני-פגמים-עצמיים נתפסו-חי-בהרצה-הראשונה
+ותוקנו (guardedBash-בלי-await · ms-תקציב-במקום-זמן) — הסוויטה דיווחה fail-כנה, בדיוק-כמתוכנן.
+בנוסף: API /api/saos/hands (GET לוח · POST fail-closed-401+whitelist) · תצוגת "ידיים" בסרגל (#hands) ·
+פועל hands-operator ב-role-worker-run · **שער-12 hands-probe** ב-verify.sh · **חוק-8 ב-AGENTS.md: כל-יד-עוברת-משמר**.
 
-## Files (הקבצים-שהגל-נגע-בהם)
+## Files (הקבצים-שהגל-נגע-בהם — wave-21)
 
 | קובץ | שינוי |
 |---|---|
-| `.dcg.toml` | חדש — קונפיג-הגנה enforcement-only (נוסע עם הגיט) |
-| `src/lib/saos/guard.ts` | חדש — guardTest/guardedBash/guardStatus (הפרימיטיב) |
-| `scripts/guard-selftest.ts` | חדש — סוללת-האמת 13 מקרים → artifact |
-| `src/lib/saos/harness.ts` | peek עם guard-status · triggerHarnessVerifyDetached · verifyDetachedWithPoll |
-| `src/app/api/saos/harness/route.ts` | POST verify → מצית-מנותק + תצפית-חסומה |
-| `src/lib/saos/role-workers.ts` | rotation-watch (r12) · harness-audit → detached · WorkerRunOutcome.mode |
-| `src/lib/saos/role-registry.ts` | מקור-8 (פער-רוטציה) · נימוק-מקור-7 עודכן |
-| `scripts/role-worker-run.ts` | ops r12 + harness-sentinel |
-| `scripts/verify.sh` | שער-10: gate-park/resume/guard + NODE_OPTIONS cap + tsc-incremental |
-| `package.json` | lint → eslint --cache (content strategy) |
-| `next.config.ts` | experimental.turbopackMemoryLimit 640MB |
-| `mini-services/keeper/src/index.ts` | v48.2.0 — guardDecision על revive/drill · park/resume/recycle endpoints · קווי-מיחזור 1250/1350 · סוגי-יומן חדשים |
-| `scripts/verify.sh` | **wave-20: שער-11 mini-parse** — bun build fail-closed לכל mini-service src/*.ts |
-| `mini-services/evm-mesh/src/index.ts` | **v108 LAB RECYCLE** — שסתום-RSS-נמדד + force-lever + דריסה-חיה + נעילת-RT.busy |
-| `mini-services/gate-agent/src/index.ts` | guard על godparent-mesh spawn |
-| `AGENTS.md` | חוק-בית 7 (המשמר-לפני-הריצה) |
-| `feature_list.json` | 13 שורות: harness-engineering-adoption done · r12 done · +invisible-guard done |
-| `progress.md` / `session-handoff.md` | מצב-ההמשך |
-| `docs/DCG-ADOPTION.md` | הבחינה-הנמדדת + האינטגרציה + שיעור-ה-OOM + ה-roast |
-| `broadcasts/2026-10-02-the-invisible-guard.md` | פיסת-SEO בתור (git-public) |
-| `scripts/artifacts/` | guard-selftest · rotation-watch · harness-audit/harness-verify (עדויות-היום) |
+| `src/lib/saos/hands.ts` | **חדש (wave-21)** — 5 פני-שטח-נמדדים + 4 משימות-bench + trajectory + artifact-writer + handsPeek |
+| `scripts/hands-run.ts` | **חדש** — probe · task-בודד · all (הסוויטה+עדות) |
+| `src/app/api/saos/hands/route.ts` | **חדש** — GET לוח-חי · POST fail-closed (requireAuth + whitelist) |
+| `src/components/saos/views/hands.tsx` | **חדש** — תצוגת-הידיים (פני-שטח · הרצה-מהעמוד · trajectory · היסטוריה) |
+| `src/components/saos/shell.tsx` | ViewId + VIEWS-רשומת "ידיים" + אייקון Hand |
+| `src/app/page.tsx` | import/TITLES/render של HandsView |
+| `scripts/role-worker-run.ts` | op `hands-bench` → פועל hands-operator |
+| `scripts/verify.sh` | **שער-12 hands-probe** (hands.ts-parse + agent-browser-עונה) · gates[] עודכן |
+| `src/lib/saos/version.ts` | v109.0.0 — ידיים-ריבוניות (SOVEREIGN HANDS) + רישום-מהדורה |
+| `AGENTS.md` | חוק-בית 8 (כל-יד-עוברת-משמר) |
+| `docs/CUA-ADOPTION.md` | **חדש** — הבחינה-הנמדדת + מה-אומץ/נדחה + ה-roast |
+| `feature_list.json` | +sovereign-hands-v109 (done, עם-ראיות) |
+| `progress.md` / `session-handoff.md` | מצב-ההמשך (גל-זה) |
+| `scripts/artifacts/hands-bench-2026-10-03.json` | עדות-ההרצה-הראשונה (4/4) |
+| `shots/hands-self-view-*.png` | צילומי-הצבא-של-העמוד-החי |
 
 ## Blockers (כנים)
 
@@ -64,8 +49,7 @@ verify.sh **VERDICT=pass 11/11**.
 
 ## Next Session (הצעד-החיצוני)
 
-1. dcg allow-once מווסת לשעות-חירום (מתועד-OpLog) — התור-המתוכנן; או מדידת-שארית-סערת-הקדנציות.
+1. הרחבת-הידיים-המושמרת: קליק-והקלדה בעמוד-החי + capture_id-מלא + קדנציית-השומר ל-hands-bench (הפועל-רשום).
 2. `git pull --rebase` → commit → push → ורדקט `git log origin/main -1` (0/0).
-3. אם פועל נתקל ב-deny-שקרי: קומיט-קונפיג + עדכון-סוללה — לעולם לא הרחבה-שקטה.
-4. סבב-השומר: השסתום-חמוש (700MB), שער-11 בסוללה, 8 תפקידים-חיים עכשיו —
-   קצבי-המבצעים מתועדים ב-EXECUTOR_MIN_INTERVAL_MS.
+3. dcg allow-once מווסת לשעות-חירום (מתועד-OpLog) — נשאר בתור-המתוכנן.
+4. אם פועל נתקל ב-deny-שקרי: קומיט-קונפיג + עדכון-סוללה — לעולם לא הרחבה-שקטה.

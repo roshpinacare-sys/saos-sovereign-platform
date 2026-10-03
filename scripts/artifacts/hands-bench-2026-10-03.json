@@ -1,0 +1,124 @@
+{
+  "ok": true,
+  "pass": 4,
+  "fail": 0,
+  "ms": 6619,
+  "measuredAt": "2026-10-03T01:42:50.314Z",
+  "trajectories": [
+    {
+      "task": "browser-self-view",
+      "he": "הסוכן רואה את הפלטפורמה — פתיחה, קריאה, אימות-תוכן, צילום",
+      "surface": "browser",
+      "verify": "טקסט-העמוד מכיל את חותמת SAOS",
+      "startedAt": "2026-10-03T01:42:43.695Z",
+      "ms": 6172,
+      "steps": [
+        {
+          "verb": "open",
+          "detail": "http://127.0.0.1:3000",
+          "ok": true,
+          "ms": 2921,
+          "output": "✓ SAOS Sovereign Platform — קונסולת עגינה ריבונית\n  http://127.0.0.1:3000/\n\n[agent-browser] launched browser"
+        },
+        {
+          "verb": "read",
+          "detail": "טקסט-העמוד החי",
+          "ok": true,
+          "ms": 95,
+          "output": "SAOS Sovereign\n\nNetwork 360 · v109.0.0 · ידיים-ריבוניות\n\nשרשרת חיה#1\n\n1 חותמיםעודכן עכשיו\n\nתפעול\n\n- לוח בקרה\n\n- מימוש — שווי הרשת החי\n\n- ספר האוצר — הכסף מתועד\n\n- ההשקיה החכמה — אוטונומית אבל בחוכמה\n\n- ההשקיה החקלאית — מנוע דו-שכבתי\n\n- עוגן-החוץ — שימור-האמת מחוץ לסנדבוקס\n\n- מכ\"ם-הסנכרון — האמת האחר"
+        },
+        {
+          "verb": "screenshot",
+          "detail": "shots/hands-self-view-hands-murq959r.png",
+          "ok": true,
+          "ms": 153,
+          "output": "✓ Screenshot saved to /home/z/my-project/shots/hands-self-view-hands-murq959r.png"
+        },
+        {
+          "verb": "close",
+          "detail": "סשן hands-murq959r",
+          "ok": true,
+          "ms": 244,
+          "output": "✓ Browser closed"
+        }
+      ],
+      "verdict": "pass",
+      "evidence": "חותמת SAOS נמצאה בטקסט-העמוד החי",
+      "screenshot": "shots/hands-self-view-hands-murq959r.png"
+    },
+    {
+      "task": "evm-lab-head",
+      "he": "יד-על-השרשרת — ראש-המעבדה נמדד ומתפרש כמספר",
+      "surface": "evm",
+      "verify": "eth_blockNumber מחזיר hex מתפרש",
+      "startedAt": "2026-10-03T01:42:50.112Z",
+      "ms": 6,
+      "steps": [
+        {
+          "verb": "eth_blockNumber",
+          "detail": "http://127.0.0.1:8545",
+          "ok": true,
+          "ms": 6,
+          "output": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x38a9\"}"
+        }
+      ],
+      "verdict": "pass",
+      "evidence": "ראש-השרשרת 14505 (0x38a9)",
+      "screenshot": null
+    },
+    {
+      "task": "guarded-shell",
+      "he": "יד-פקודה דרך המשמר — dcg מחליט לפני הריצה",
+      "surface": "shell",
+      "verify": "guard=allow והפלט מאומת",
+      "startedAt": "2026-10-03T01:42:50.119Z",
+      "ms": 173,
+      "steps": [
+        {
+          "verb": "guard-test",
+          "detail": "rm -rf / (בדיקת-משמר בלבד — לא רץ)",
+          "ok": true,
+          "ms": 117,
+          "output": "decision=deny executed=false rule=core.filesystem:rm-rf-root-home"
+        },
+        {
+          "verb": "guardedBash",
+          "detail": "echo + uname",
+          "ok": true,
+          "ms": 56,
+          "output": "hands-shell-ok\nLinux\n"
+        }
+      ],
+      "verdict": "pass",
+      "evidence": "deny-proof חי + פקודה-מותרת רצה והחזירה פלט",
+      "screenshot": null
+    },
+    {
+      "task": "git-truth",
+      "he": "ערוץ-האמת — HEAD ועץ-נקי נמדדים",
+      "surface": "git",
+      "verify": "HEAD מתקבל; סטטוס-עץ נמדד",
+      "startedAt": "2026-10-03T01:42:50.292Z",
+      "ms": 22,
+      "steps": [
+        {
+          "verb": "rev-parse",
+          "detail": "git HEAD",
+          "ok": true,
+          "ms": 5000,
+          "output": "5579203"
+        },
+        {
+          "verb": "status",
+          "detail": "עץ-נקי",
+          "ok": true,
+          "ms": 5000,
+          "output": "M AGENTS.md\n M eslint.config.mjs\n M feature_list.json\n M progress.md\n M scripts/artifacts/fuel-census-2026-10-03.json\n M scripts/artifacts/harness-verify-2026-10-03.json\n M scripts/artifacts/key-census-2026-10-03.json\n M scripts/artifacts/vault-census-2026-10-03.json\n M scripts/role-worker-run.ts\n M"
+        }
+      ],
+      "verdict": "pass",
+      "evidence": "HEAD=5579203 · עץ עם-שינויים (מתועד, לא נכשל)",
+      "screenshot": null
+    }
+  ]
+}

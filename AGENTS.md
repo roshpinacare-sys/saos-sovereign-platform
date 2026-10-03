@@ -33,6 +33,12 @@
    guard-absent = fail-open בזמן-ריצה אבל שער-ה-guard ב-verify.sh
    fail-closed. הרחבת-הרשאות (allowlist) = קומיט בגיט בלבד, לעולם לא
    שקט. *The blast-radius cap is what makes full autonomy safe.*
+8. **כל-יד-עוברת-משמר (v109 · SOVEREIGN HANDS)** — יכולות-הפעולה של הצבא
+   (דפדפן-CDP · bash · גיט · שרשרת · מערכת-קבצים) נעות רק דרך `hands.ts`:
+   דפדפן בסשן-ממונה-שנסגר-בסוף (אפס-יתומים), bash דרך `guardedBash`,
+   משימות-bench מרשימה-סגורה (whitelist). כל הרצה מניבה trajectory
+   מתועד (כל שלב + פלט-מגוזר + פסק-דין) ועדות-כתובה ב-`scripts/artifacts/`.
+   *Hands without a guard are not power — they are liability.*
 
 ## סדר-הפעולה (Startup Workflow — run before writing code, every session)
 

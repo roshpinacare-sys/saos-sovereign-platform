@@ -42,6 +42,7 @@ import { ViewWorkboard } from "@/components/saos/views/workboard";
 import { ViewFleet } from "@/components/saos/views/fleet";
 import { ViewSovereignKey } from "@/components/saos/views/sovereign-key";
 import { SovereigntyView } from "@/components/saos/views/sovereignty";
+import { HandsView } from "@/components/saos/views/hands";
 import { SmartLinkView } from "@/components/saos/views/smartlink";
 import { AgentChatView } from "@/components/saos/views/agentchat";
 import { OneNetView } from "@/components/saos/views/one-net";
@@ -74,6 +75,7 @@ const TITLES: Record<ViewId, string> = {
   network360: "רשת-360",
   security: "מגן — ריבונות אבטחה",
   sovereignty: "ריבונות — מפת-השליטה העצמית",
+  hands: "ידיים-ריבוניות — הצבא שנוגע בעולם",
   reshut: "רשות — מטריצת הסמכויות",
   keeper: "שומר — החייאה עצמית",
   networks: "רשתות חיות",
@@ -178,6 +180,7 @@ export default function Home() {
         {view === "fleet" && <ViewFleet />}
         {view === "sovereign-key" && <ViewSovereignKey />}
         {view === "sovereignty" && <SovereigntyView />}
+        {view === "hands" && <HandsView />}
         {view === "smartlink" && <SmartLinkView />}
         {view === "agentchat" && <AgentChatView />}
         {view === "one-net" && <OneNetView />}
