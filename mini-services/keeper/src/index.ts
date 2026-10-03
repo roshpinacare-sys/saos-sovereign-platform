@@ -127,6 +127,12 @@ const SWARM_LOG = path.join(SWARM_DIR, "swarm.log");
 const SWARM_STATUS = "http://127.0.0.1:3007/";
 const SWARM_GRACE_MS = 180_000;
 const SLOW_EVERY = 6; // runner + memory + rss-shed every 6th cycle (60s)
+// v49 — the memory watch is NOT slow anymore: the post-revive storm climbs
+// ~10MB/s, so from the 1480 line the kernel floor (1761 measured) is ~26s
+// away — a 60s reading LOSES that race (measured: the 2/2-armed recycle was
+// preempted by the kernel). readMeminfo + one /proc scan ≈ trivial — the
+// watch runs EVERY cycle (10s); the pressure-override then fires same-cycle.
+const MEM_EVERY = 1;
 const DEAD_STREAK = 3; // connection-refused ×3 = confirmed death
 const REVIVE_WINDOW_MS = 150_000; // only one revive attempt per window
 // v45 — R21 (trace 1a09b4c7423d8c5d) measured hole: a WEDGED web (process
@@ -151,7 +157,13 @@ const ZOMBIE_MS = 6 * 60_000; // v59 — 10→6דק': מחזור בריא כבר
 // יצר לופ-מיחזור: recompile אחרי purge מגיע ל-1.5GB בלגיטימיות → מיחזור
 // בזמן הקומפילציה → שוב. התיקון: הסף 1350 + הקריאות נספרות רק אחרי 12 דק'
 // מעליית הווב (סערת-הקומפילציה חולפת; ווב בוגר ב-1.35GB+ = מסע אמיתי).
-const RSS_SHED_MB = 1350;
+const RSS_SHED_MB = 1480; // v49 recalibration (2026-10-03 00:27Z, kernel evidence): dmesg shows the
+// kernel kills next-server at anon-rss 1761MB (00:12:27) and 1813MB (00:16:25) —
+// NOT the 1393 the v56 line was calibrated against. The app grew (v99→v107:
+// ≈15 API routes + the page in dev-turbopack): warm steady state is now
+// ~1.5GB, so the old 1350 line recycled a HEALTHY warm web every ~3min
+// (caught live: pre-OOM recycle #1 at 1702MB). New doctrine: the lines track
+// the MEASURED kernel floor (1761) minus a ~240MB reading margin.
 const RSS_SHED_READINGS = 2;
 // v43 — the kernel's measured kill line. Above it there is NO margin: the
 // 06:21 incident proved the kernel kills even under our boot-grace (RSS
@@ -170,8 +182,8 @@ const RSS_SHED_READINGS = 2;
 // 1500→1250 · young 1790→1350 (fires BEFORE the kernel's observed 1393).
 // Paired with next.config turbopack.memoryLimit=1024 (the storm shrinks; the
 // young line is now reachable-before-kernel instead of theoretical).
-const RSS_KILL_LINE_MB = 1250; // mature webs (≥ 12 min)
-const RSS_KILL_LINE_YOUNG_MB = 1350; // young webs riding the compile storm
+const RSS_KILL_LINE_MB = 1480; // mature webs — was 1250 (calibrated for the smaller pre-v99 app)
+const RSS_KILL_LINE_YOUNG_MB = 1520; // young webs — was 1350; 240MB under the measured kernel floor (1761)
 // v43 — single source of truth for the keeper's own version (the boot banner
 // said "v39" for four versions — the stale-label disease, cured at the root)
 const KEEPER_VERSION = "48.2.0";
@@ -185,6 +197,11 @@ const SOVEREIGNTY_FIRST_AT = 6; // first census 60s after boot
 const CENSUS_EVERY = 30;
 const CENSUS_FIRST_AT = 4;
 const RSS_BOOT_GRACE_MS = 12 * 60_000; // v55 — לופ-המיחזור נסגר: לא ממחזרים ווב צעיר
+// v49 — minimum settle before a pressure-override recycle may fire: a web in
+// its first 30s gets the revive window's protection (one chance to ride the
+// storm out); after that, over-the-line under pressure = planned recycle.
+// Prevents the override from degrading into a tight planned-recycle loop.
+const RSS_SETTLE_MS = 30_000;
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const RESTORE_DRILL_EVERY = 144; // v45.1 — restore drill every 144th cycle (≈24min)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
@@ -2364,7 +2381,15 @@ async function cycle(): Promise<void> {
   //     עצמו 500 (פאניקת Turbopack / .next מורעל). האמת למשתמש היא העמוד.
   //     הוכחה אובייקטיבית בלבד: 5xx ×2 קריאות רצופות (30ש' ביניהן) על
   //     עץ-מקור שלא שונה 3 דקות — אז התרופה המתועדת: טיהור + הרצה.
-  if (web.alive && web.kind === "ok" && RT.cycle % PAGE_EVERY === 0) {
+  // v49 — no PAGE probe inside the revive settling window: the post-revive
+  // compile storm (≈10 API routes at once) plus the page's own 7.4s compile
+  // was the measured mass that ballooned a 30s-old web to RSS 1528MB and fed
+  // the kernel-kill loop (deaths #5–#8 within one hour). The page is
+  // human-facing — it waits for the window to close; the API lifeline
+  // (live-probes, every 10s) never skips, and the panic detector keeps its
+  // full strength outside the window (panics ride live edits, not planned
+  // revives).
+  if (web.alive && web.kind === "ok" && RT.cycle % PAGE_EVERY === 0 && Date.now() > S.webReviveDeadline) {
     const page = await checkPage();
     S.lastPageHttp = page.http;
     if (page.http !== null && page.http >= 500) {
@@ -2448,7 +2473,7 @@ async function cycle(): Promise<void> {
   //    RSS_SHED_MB (1500) on an answering web tier = a proven march to
   //    the kernel's measured kill line → graceful recycle (planned, on
   //    our terms) instead of an unplanned kernel OOM kill.
-  if (RT.cycle % SLOW_EVERY === 0) {
+  if (RT.cycle % MEM_EVERY === 0) {
     const m = readMeminfo();
     const { rss, ageMs } = nextServerRssMb();
     const pressure = m.availableMb > 0 && m.availableMb < PRESSURE_MB;
@@ -2470,20 +2495,36 @@ async function cycle(): Promise<void> {
     // keep 1790 so the post-revive compile storm (legit 1.6–1.7GB peak) never
     // loops us — the v55 lesson, honored on both lines.
     const killLine = ageMs < RSS_BOOT_GRACE_MS ? RSS_KILL_LINE_YOUNG_MB : RSS_KILL_LINE_MB;
-    if (rss >= killLine && webAnswering && Date.now() > S.webReviveDeadline) {
+    // v49 (2026-10-03 ~00:00Z, deaths #5–#8 within one hour) — the v43 doctrine
+    // was measured INCOMPLETE: `Date.now() > S.webReviveDeadline` silently
+    // VETOED the kill-line recycle inside the 150s revive window (young web,
+    // RSS 1351MB ≥ the 1350 line, journaled "סערת-קומפילציה, לא מיחזרים" — the
+    // kernel killed it one reading later at ~1393MB). The window exists to
+    // prevent revive-thrash, but a kill-line breach under MACHINE PRESSURE
+    // overrides it: a planned ~40s recycle beats an unplanned kernel kill,
+    // and the OOM killer picks the biggest process — tomorrow that could be
+    // the keeper itself, not the web.
+    if (rss >= killLine && webAnswering && (Date.now() > S.webReviveDeadline || (pressure && ageMs >= RSS_SETTLE_MS))) {
       // v43 — lesson of 06:21: the kernel does not honor our boot-grace. At
       // or above the measured kill line there is no margin for a 2nd reading
       // — recycle NOW, same cycle, grace or not (a planned recycle is ~40s
       // of planned darkness; tonight's kernel kill cost ~3min).
+      // v49 — "grace or not" now includes the revive window itself when the
+      // machine is in pressure (available < PRESSURE_MB).
       journal(
         "pressure",
-        `RSS ${rss}MB ≥ קו-ההרג ${killLine}MB (${ageMs < RSS_BOOT_GRACE_MS ? "ווב צעיר — סערה חריגה" : "ווב בוגר — מסע-זיכרון הדרגתי"}) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)`
+        `RSS ${rss}MB ≥ קו-ההרג ${killLine}MB (${ageMs < RSS_BOOT_GRACE_MS ? "ווב צעיר — סערה חריגה" : "ווב בוגר — מסע-זיכרון הדרגתי"}${Date.now() <= S.webReviveDeadline ? " · דריסת-חלון-החייאה: המכונה במחסור" : ""}) — מיחזור מיידי באותו מחזור (החסד לא חל כשאין שוליים)`
       );
       recycleWeb();
     } else if (rss >= RSS_SHED_MB && webAnswering) {
-      if (ageMs < RSS_BOOT_GRACE_MS) {
+      if (ageMs < RSS_BOOT_GRACE_MS && !pressure) {
         // v55 — young web riding the post-revive compile storm: the RSS spike
-        // is legitimate work, not a march — grace (the 19:08 recycle-loop cure)
+        // is legitimate work, not a march — grace (the 19:08 recycle-loop
+        // cure). v49: the grace is valid ONLY with machine headroom — under
+        // `pressure` the storm IS a march, and the kill-line override above
+        // already owns it (with today's constants RSS_SHED_MB == the young
+        // line; if they ever drift apart, a young+pressured web falls through
+        // to the mature streak below — the honest slow path, never a silent pass).
         S.rssShedStreak = 0;
         journal("pressure", `RSS ${rss}MB ≥ ${RSS_SHED_MB}MB אך הווב בן ${(ageMs / 60000).toFixed(1)} דק' (< חסד-עלייה) — סערת-קומפילציה, לא מיחזרים`);
       } else {
@@ -2846,7 +2887,7 @@ acquireSeat("keeper", PORT);
 Bun.serve({
   port: PORT,
   hostname: "127.0.0.1", // loopback only — the outside world never reaches the keeper
-  fetch(req): Response | Promise<Response> {
+  async fetch(req): Promise<Response> {
     const url = new URL(req.url);
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/status")) {
       return Response.json(statusJson());

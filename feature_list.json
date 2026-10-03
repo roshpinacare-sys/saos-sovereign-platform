@@ -155,6 +155,18 @@
       ],
       "evidence": "guard-selftest-2026-10-02.json 13/13 (17ms probes) · verify VERDICT=pass 10/10 incl. guard gate (deny-proof rm -rf / + allow-proof + .dcg.toml) · live-caught contract fix (warn exits 0; JSON decision is truth) · 6× OOM caught live → gate-park/resume + sentinel detached + tsc --incremental + eslint --cache (lint 36s→2s) + turbopackMemoryLimit 640MB + keeper 48.2.0 recycle lines 1250/1350",
       "done_when": "every fleet shell-string passes the guard; the gate proves deny-proof+allow-proof every run; no destructive known pattern can execute without a git-recorded allowlist change"
+    },
+    {
+      "id": "oom-doctrine-v49",
+      "name": "OOM Doctrine v49",
+      "title": "דוקטרינת-הזיכרון v49 — קווים-שגדלו-עם-הגוף + דריסת-לחץ + צפייה-בקצב-הסערה",
+      "description": "The live-caught death-loop fix: kill-line overrides the revive window under machine pressure (30s settle floor), page-check skips the settle window, memory watch every cycle (10s), lines recalibrated to the MEASURED kernel floor (1761-1960MB dmesg evidence) — planned recycles replaced kernel kills",
+      "status": "done",
+      "dependencies": [
+        "invisible-guard"
+      ],
+      "evidence": "dmesg: kernel killed next-server at anon-rss 1761/1813/1945/1960MB (00:12-00:30Z), oom_kill=43 · live-caught: v43 veto (1351MB passed, kernel killed 1min later) · latent SyntaxError in keeper Bun.serve fetch (await×2 in sync fn — hidden by tsconfig scope + bun --hot silent reload failure) · post-fix combat proof: override fired at 1761MB with window-override marker, web back in 12s, ZERO kernel kills since 00:30:26 · verify.sh VERDICT=pass 10/10 incl. web-resume exercising the fixed endpoint",
+      "done_when": "kernel OOM kills of the web tier stop recurring: every web restart is a PLANNED recycle journaled with its trigger, and the lines track the measured kernel floor minus a reading margin"
     }
   ]
 }
