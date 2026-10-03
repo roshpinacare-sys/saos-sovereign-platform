@@ -117,12 +117,14 @@ export async function agentCensus(opts: { force?: boolean } = {}): Promise<Agent
     const organismVerify: AgentCensus["organismVerify"] = [];
 
     // ── 1. platform services (measured now) ──
-    const [keeper, gate, swarm] = await Promise.all([
+    // v123 — laya (:3037) joins the census (the 123-b audit's blind-spot fix)
+    const [keeper, gate, swarm, laya] = await Promise.all([
       probeService(3005, "keeper", "השומר — מחיה, גיבויים, sovereignty-tick, מיחזור-זיכרון"),
       probeService(3006, "gate-herald", "שליח-השער — נוכחות חיצונית והאזנה, קריאה-בלבד"),
-      probeService(3007, "swarm-agents", "הנחיל — gold-scout (כלכלן-LLM) + night-scout (סיור)")
+      probeService(3007, "swarm-agents", "הנחיל — gold-scout (כלכלן-LLM) + night-scout (סיור)"),
+      probeService(3037, "laya (System-1)", "רפלקס — מנוע-הכרעות Python-stdlib עם חוקי-זיכרון מקודדים")
     ]);
-    agents.push(keeper, gate, swarm);
+    agents.push(keeper, gate, swarm, laya);
     // swarm's own agents — measured from the swarm's status payload
     if (swarm.vitality === "alive") {
       try {

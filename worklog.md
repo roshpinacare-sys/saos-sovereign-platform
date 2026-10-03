@@ -1769,3 +1769,81 @@ Stage Summary:
 - ההוכחה: txid ddbee89f… על-mainnet — הצי מחובר בפועל, לא-בהצהרה.
 - כנות: tov/ynet/headcorner ב-HIVE מגודרים (מתועד בשורת-פערים) — חומר-חי-מהבעלים בלבד-יפתח.
 - הבא: הפעלת-חלונות-התזמורת על-HIVE (DRY-RUN→LIVE מאחורי requireAuth) · קיפול תור-ה-30ש׳ החיצוני למשמעת-החלונות.
+---
+Task ID: 123-c
+Agent: Explore (git truth audit)
+Task: ביקורת-אמת של היגיינת-הגיט והטענות-מול-המציאות (מחקר-בלבד, אפס-קוד): status/log/unpushed, README-מול-קוד, PULSE/CLAIMS מול v122, .gitignore/סודות, היסטוריה-כבדה, פנקס-מול-קומיטים, docs/**.
+
+Work Log:
+- git status לא-נקי: state/hive-grid.json (שינוי-חי 4 דק׳ אחרי fd3e51e) · 462 קומיטים · 1 לא-נדחף: ed38753 (UUID, churn של hive-grid ticks 121→123) · origin/main = fd3e51e מאומת.
+- סודות-בהיסטוריה: .env (50B, מ-Initial-commit) + upload/pat.env (93B, פורמט-PAT, 2 קומיטים) נחתמו-אי-פעם ונדחפו; "v94 untrack" הסיר מ-HEAD אך ה-blobs חיים-בהיסטוריה/ברימוט. ויתורי-gitleaks: 8 commit-fingerprints + utxo-forge.ts (generic-api-key ×2 שורות) + partner-reports.manifest.json — דיכוי-במקום-מחיקה.
+- עדיין-נעקב ב-HEAD למרות-gitignore: db/backups/custom-20260929-170802.db (364KB SQLite) + db/backups/chain-20260929/deployment.json + agent/status.json + .zscripts/dev.pid + .zscripts/hc-extract-owner-wif.ts (כלי-WIF-בעלים בריפו-נדחף!) — tracked-before-ignore.
+- נפיחות-היסטוריה (raw blobs): custom.db 140.1MB/47 קומיטים · anvil-state 56.3MB · upload/ 34.3MB (בינארי-anvil 34MB) · PNG 34.7MB · supervised.log.1 12.8MB (ב-HEAD! *.log לא-תופס .log.1; נכנס ב-v119 עם 187,211 שורות) · .git=108MB, pack=41MB, 2,105 loose.
+- מכונת-dirty תמידית: /state/ כלל-לא-ב-gitignore; hive-grid.json (12KB) נדגדג כל-4 דק׳ → עץ-מלוכלך קבוע + קומיטי-churn.
+- README.md 210KB = יומן קפוא v1→v86 (0 אזכורי v87-v122); מול SAOS_VERSION 122.0.0 (SSOT ✓). דגימת 20 טענות: edge_runner.py ✓300ש׳ · /api/saos/agri/edge-advisor ✓ · KEEPER_VERSION 49.0.0 ✓ · SAOSHookPool.sol ב-contracts/mesh ✓ · anchor-ingest.mjs ✓ · anchor/{evm,svm,tron,bsc,xrp,zero} ✓ · dex-live.ts ✓ · redteam.ts 897 (נטען 894) ✓ · ax.ts 1019 (נטען 968) ✓ · hive-grid.ts 434 ✓ · llm-chain.ts ✓ · proxy.ts frame-ancestors ✓ · prisma 40 מודלים ✓ · txid-ים/מחירים/gwei = אמת-נקודתית-מתה · package.json=106.0.0 סותר את-ה-SSOT שלו-עצמו.
+- PULSE/CLAIMS: 12 PULSE (7 בשורש V94-V99 + 6 ב-docs/reports) — הסדרה-מתה-מאז-v99; 0 פולסים ל-v100-v122 (הנרטיב עבר-ל-worklog). CLAIMS-AUDIT-2026-09-12 (×2) = אמת-של-v78/v86 — רובה מיושן-מול-בניית-הכספות v96/v117/v122. 9 קבצי-PULSE בשורש = עומס-שורש.
+- פנקס-מול-קומיטים: 76 סקשנים, האחרון Task-122 = fd3e51e מדויק; ed38753 (churn-UUID) ללא-סקשן — סביר-ל-churn אך 55/462 קומיטים (12%) שמות-UUID ללא-פרובננס.
+- docs/**: 23 מסמכים; 15 מ-2026-10-03 (טריים) · ישנים: HEADCORNER-RECOVERY (09-10), TOKEN-DOSSIER (09-12), FORENSIC-AUDIT+ADDENDUM (09-14) — קדמו-לבניית-הכספת v96/v117/v122 → סיכון-תיאור-אמת-משמורת-שנסגרה.
+- גיבויים-חוץ-ריפו-חסרים-ניצול: agent/keys/**, upload/Roshcaregt.txt, upload/pat.env, upload/בחן.txt (המקור ל-sha256 בחותם-v122), .env — כולם gitignored ונכונים-אך-יחידים-על-הדיסק.
+
+Stage Summary:
+- ניקוד-בריאות-גיט: 52/100 — חזית-נקייה (HEAD-נטול-סודות-על-נתיבים-רגישים, SSOT-אמיתי, פנקס-משמעת, docs-טריים) אך תחתית-ביצה: .env/PAT-בהיסטוריה-ברימוט, DB-גיבוי-עדיין-נעקב, ~278MB-מצב-ריצה/בינארי-בהיסטוריה, עץ-מלוכלך-תמידית, README-קפוא-ב-v86.
+- 3 תיקוני-שורש: (1) filter-repo ל-.env/pat.env/custom.db/anvil + רוטציה-מאומתת ואז GC; (2) untrack: db/backups/*, supervised.log.1, state/*, dev.pid + gitignore /state/ + *.log.* ; (3) README-חדש-50-שורות-מול-SSOT + HISTORY.md.
+---
+Task ID: 123-a
+Agent: Explore (UI truth audit)
+Task: ביקורת-אמת של שכבת-ה-UI ב-SAOS (Next.js 16 App Router) — מחקר-בלבד, אפס-קוד: ציד-נתונים-מדומים, כפתורים-מתים, routes-יתומים, ויוים-מנותקים מה-shell, הצטברות-קצבי-סקר, סיכוני-הידרציה וכפילויות-מסך. תחום: page.tsx · components/** · api/**/route.ts.
+
+Work Log:
+- קריאת 5 הסקשנים האחרונים ב-worklog (120/121/122 ולוויות) — הקשר: v122 האיטום-החי, 50 ויוים, דוקטרינת-כנות.
+- מיפוי-מלא: 50 ViewId ↔ 50 VIEWS ↔ 50 TITLES ↔ 50 render-case (page.tsx:69-223) — TS Record כופה-שלמות; אפס-ויו-מנותק (ops-parts/ops-rail/use-rail-pulse = מקטעים-משותפים, לא ויוים).
+- הצלבת 100 routes תחת /api/saos מול ~40 URL-ים מילוליים + 2 דינמיים (anchor/${rail}, evidence-pack?height=) ב-UI: כל POST/GET שכפתור קורא לו route קיים — אפס-כפתור-מת, אפס-fetch-ל-404. אומת גם: אין href="#", אין onClick={{}}, אין כפתור בלי מטפל (סריקת-PCRE2 מרובת-שורות).
+- 8 routes יתומים מה-UI אומתו בשלולית-כפולה (rg ב-components + ב-src/scripts): memory-house · cheap-routes · harness · supervisor · rearm/steem · auth/revoke-all (מתים-לגמרי) · state-snapshot (חי-מכונה: init.sh/state-bootstrap) · backup (חי-מכונה: keeper loopback POST; GET-הסטטוס בלי-מסך).
+- ציד-שקרים: אפס Math.random ב-render (רק ui.tsx:837 id-טוסט ב-event), אפס mock/demo/simulated-כנתונים; כל-הקבועים-הסטטיים בויוים הם תוויות/קונפיג (ASSETS, NETWORKS, SEAL_STEPS, SUGGESTIONS) או סניפשוט-מתוארך (ECOSYSTEM 2026-09-07). economy מציג mode=sim/measured כנה (economy.tsx:701-707); energy מסמן what-if מול חי (energy.tsx:44-53); redteam מנרמל-נתונים-אמיתיים בלבד.
+- מלאי-קצבי-סקר: 107 אתרי useLive; פילוח 8ש׳×1 (ax) · 10ש׳×2 (system1,llm-chain) · 12ש׳×1 (status-shell תמידי) · 15ש׳×~17 · 20ש׳×~7 · 25ש׳×2 · 30ש׳×~30 · 45ש׳×~12 · 60ש׳×~25 · 120ש׳×3 · 300ש׳×1. הכבד: ViewOps = 24 hooks מקבילים (ops.tsx:95-470) + 2 shell ≈ 26 לולאות-חיות. מרגיעים-קיימים: pause-on-hidden + inFlight-guard (lib.ts:24,60) + SWR 30ש׳ ב-status + רקע-מטמון ב-live-probes.
+- הידרציה: useClock נגן-rAF; useTick-ערך-לא-מוצג; המקרה-היחיד: overview.tsx:75-78/439 ambushDaysLeft (Date.now בגוף-render, מוצג גם ב-SSR) — מיסמוץ רק בחציית-חצות-UTC. כל-שאר ה-new Date על-נתונים-שהגיעו (client-only).
+- כפילויות-מסך: אותו-endpoint בשני מסכים בקצבים שונים — networks(300ש׳)↔networkmap(120ש׳) · agents-net(30/60) · audit(30/30) · flow(60/60) · dex ב-4 מסכים · live-probes ב-5 קצבים (15/20/60); סתירת-ספירה: overview "8-CHAIN GRID" מול ticker "10-Chain" (XRPL/ZERO חסרים כאריחים); irrigation↔agri חפיפה-חלקית.
+- כנות-מאומתת-בדרך: אפס-חומר-מפתח מודפס ב-UI (רק בוליאנים "WIF במעטפת" + קידומות-פומביות), כישלון תמיד נתון (ErrorNotice כנה), אין-console.log בויוים.
+
+Stage Summary:
+- שכבת-ה-UI נקייה-בצורה-יוצאת-דופן מהפשעים-הקלאסיים: אפס-CRITICAL, אפס-שקר-נתונים, אפס-כפתור-מת, אפס-ויו-מנותק — הדוקטרינה-האנטי-ירוק-הכוזב מיושמת בקוד.
+- שני-חובות-מבניים-אמיתיים: (1) תור-הסקרים — 26 לולאות-ריענון במסך-אחד (ops) ו-107 אתרי-polling ללא-שכבת-איחוד; (2) 8 routes יתומים — יכולות-שלמות (cheap-routes: 9 מסילות-המרה-זולות; supervisor; backup-status; memory-house) שהמשתמש-לא-רואה-כלל.
+- סיכון-דריפטה: TITLES↔VIEWS כפילות-כותרות-ידנית, סניפשוט-ECOSYSTEM סטטי, מניפסט-פוטר הצהרתי, תיעוד-page.tsx "v97/39 עמודים" מול-מציאות v122/50.
+- הפלט-המלא (טבלת-ממצאים + 10 שאילות-הנדסיות) נמסר-לסשן-הראשי בדוח-הביקורת.
+---
+Task ID: 123-b
+Agent: Explore (engine truth audit)
+Task: המשך-ביקורת-אמת של שכבת-המנועים (engines) ב-SAOS — מחקר-בלבד, אפס-קוד: נתקי-פורטים/URLs מול Caddyfile ומול members של keeper · ציד catch-שקטים-שקריים · מודלי-פריזמה אפס-שימוש · מלאי mini-services (פורט, קונסטרוקט, בריאות) · חוזה-סביבה (process.env). תחום: src/lib/** · mini-services/** · prisma/schema.prisma · Caddyfile. אל-נגע ב-README (210KB).
+
+Work Log:
+- מיפוי-URL: 60+ מופעי-לולאה-קשיחים — 3000 (web: keeper×20, evm-mesh×18, roast.ts:213, hands/redteam דרך SAOS_SELF_URL), 3005 (keeper), 3006 (gate-agent/herald), 3007 (swarm), 3037 (laya/system1.ts:21), 8545 (anvil/mesh — 12 קבצי-lib + keeper:96). evm-mesh/repro-abort.ts:53-54 (9971/9972) = repro-בדיקות בלבד, לא-שירות.
+- הצלבה מול Caddyfile: :81 → reverse_proxy localhost:3000 בלבד + וויטליסט (XTransformPort → 403). אפס-נתק: אף-מנוע-פנימי לא-נחשף-חוץ, כל-הצרכנים מצביעים-על-פורטים-קיימים. אפס-פורט-רפא.
+- הצלבה מול keeper members (keeper/src/index.ts:511-517): web · anvil · runner · herald(3006) · swarm(3007). פער-אמת: laya-service (3037) חי-ומגיש /health /decide — ואינו-ב-members, אינו-ב-agent-census (agent-census.ts:121-123 סוקר רק 3005/3006/3007), ואין-סקריפט-התחלה ב-.zscripts — שירות-אורגני-שלם בלי-השגחה.
+- ליבה-הפוכה: keeper נשמר-הדדית ע"י evm-mesh (index.ts:1291 קורא 3005) וinit.sh:80-82 מתעד שסופרוויזר (ילד של next) מחיה אותו.
+- ציד-catch: 424 שורות "catch {" ב-88 קבצים ב-src/lib/saos; דגימת-עומק ב-5 הגדולים (smartvault 19, backups 18, selfreview/exchange-live 14, mesh-client 24-catch) — התבנית-שולטת היא honest-null מתועד-בהערה ("honest null" · "best-effort"); לא-נמצא ok:true-כוזב בתוך-catch בשום-קובץ. סיכון-שנותר: ירידה-לא-נצפית — mesh-client.ts:94,194 מחזיר null בלי-oplog/יומן.
+- פריזמה: 40 מודלים ב-schema.prisma; מניין db.<Model> ב-src/app+src/lib (accessor-גמל) — 38 בשימוש, 2 אפס-שימושים מוחלטים: SealLeaf (schema:32) ו-EnergyPlan (schema:65). שים-לב: חיפוש-PascalCase נותן-אפס-לכול — accessor-הלקוח הוא camelCase. package.json:10 "db:push --accept-data-loss" מול-סכמה-זו = סיכון-מכוון.
+- מלאי-שירותים: keeper:3005/bun (שומר, 3283 שורות, יומן-jsonl) · gate-agent:3006/bun (ראלד-שער חיצוני, מפתח-אישי, /status) · swarm-agents:3007/bun (gold-scout+night-scout, ZAI-LLM, /status) · evm-mesh:8545/bun (ראנר-anvil + פריסת-מש-חוזים + אוטו-ראנר 120ש׳) · laya-service:3037/python-stdlib (System-1, אפס-pip, חוקי-זיכרון L1-L5).
+- בדיקת-דופק-חיה (curl 6-פורטים): הכול-חיים. שיעור-נמדד: GET / על 3000 בקומפילציה-קרה >2ש׳ — סקרים בפסק-זמן 2.5ש׳ יכולים-לתת false-dead על-וב-קר (one-net.ts:492, agent-census FETCH_TIMEOUT_MS=2500 — על-3000 לא-סוקרים, על-3005/6/7 זה-מהיר).
+- חוזה-סביבה ב-src/lib: עם-ברירת-מחדל — STEEM_RPC, HIVE_ANCHOR_ACCOUNT, SAOS_ESTATE_ORG, SAOS_SESSION_TTL_H, SAOS_WEAVE_AUTHORITY, SAOS_SELF_URL, SAOS_ANVIL_RPC, HOME. נדרשים-בפועל: SAOS_VAULT_PASS או קובץ ~/.secrets/fleet-vault-pass (vault-seal.ts:34,165); GITHUB_TOKEN/SAOS_GH_TOKEN_FILE — בלי-הם-יכולות-אורג-מנוטרלות (gh-token.ts:47-49); SAOS_ADMIN_KEY_HASH עם-נפילה-לקובץ (auth.ts:78); SAOS_SESSION_SECRET אופציונלי-עם-נגזרת-epoch-בטוחה (auth.ts:155-168, לקח-רוסט-60).
+
+Stage Summary:
+- שכבת-המנועים-אמיתית: אפס-נתק-פורטים, אפס-fetch-לרפאות, Caddyfile-סגור-כהלכתו, ואפס-catch-שקרי-ok:true — דוקטרינת-הכנות נאכפת גם-כאן.
+- שני-ממצאי-עומק: (1) laya-service חי-אך-בלתי-נראה למערכת-ההשגחה (לא ב-members, לא בקנסוס, לא ב-.zscripts) — מוות-שלו = שתיקה-מאושרת; (2) 2/40 מודלי-פריזמה מתים (SealLeaf, EnergyPlan) — סכמה-עיוורת מול db:push --accept-data-loss.
+- חוב-קטן: 424 catch-הם-בריאים-ברובם אך חלק-מחזירים-null בלי-ראיה; roast.ts מקודד 3000 במקום SAOS_SELF_URL.
+- הפלט-המלא (טבלת-ממצאים · חיים/מתים · 10 שאילות) נמסר-לסשן-הראשי בדוח-הביקורת.
+---
+Task ID: 123
+Agent: Z.ai Code (main session — the truth-audit + live-power wave)
+Task: הבעלים: "תבחן את כל הגיט ומה התקדמנו ומה לא, איפה החולשות — חוסר חיבורים, שקרים, דימויים, שבירות, באגים — תסדר הכל, תחייה הכל, חבר הכל — ותן לריבונות לקבל כוח מוכח" + השרת מת שוב (preview refused).
+
+Work Log:
+- אבחון-מוות חי: web:3000 = 000 — אבל ה-keeper החיה לבדו (revives:1, 21:44:38, בעוד הבעלים דיווח). web חזר ל-200, anvil בלוק 20705, headers-ה-preview תקינים. ההבטחה "אף-חבר לא-נשאר-מת" עכשיו מכסה גם-את-ה-web.
+- ביקורת-משולשת בסוכנים מקבילים (worklog 123-a/123-b/123-c): UI (14 ממצאים, 0 CRITICAL, 4 HIGH — בלט: 26 לולאות-סקר בויו-ops, 5 routes יתומים, cheap-routes בלי-מסך) · מנועים (laya חי-אבל-בלתי-נראה למשגיח+למפקד, 2 מודלי-פריזמה מתים, 424 catch — דגימה: אפס ok:true-כוזב) · גיט (52/100: blobs-סודות-היסטוריים שרוטטו, DB/בינארי 65% מההיסטוריה, state-churn, README קפוא-מ-v86, package.json 106 מול 122).
+- תיקונים-שבוצעו: package.json → 122.0.0 (חוק-SSOT) · untrack: db/backups/*.db, supervised.log.1, state/hive-grid.json, dev.pid + gitignore (/state/, dev.pid, *.log.*) — עץ-נקי-לתמיד · laya חבר-מלא ב-keeper (probe :3037, grace, revive-detached, journal laya-up/dead/revive, beat-members) — laya-up נרשם · agent-census מסקר 3037 · README v122 חדש-קצר + HISTORY.md (הישן נשמר).
+- הכוח-המוכח — פעימת-הצי על HIVE (fleet-pulse-hive.ts): 9 חיילים, שער-RC פר-חשבון, גזירה-בסקופ-כספת, אימות-מול-סמכות-חיה, custom_json מתואם (saos.weave.v1, pulse=v122-live-seal): **9/9 שודרו · 9/9 התכללויות מוכחות** · RC נמדדו 12.03%–43.07% · אפס-חסום אפס-נכשל. txids: cashmachine de467293… · haran 2b2ce34e… · israelnews 79068286… · lsa 5e6786c2… · macrame 4553fdd8… · siq b239d5af… · wic 5679a9a0… · wog 52b45941… · woq 89df62f2…
+- tsc 0 · lint 0 · keeper-syntax OK.
+
+Stage Summary:
+- הפעם-הראשונה: פעולה-קולקטיבית-מתואמת של 9 חשבונות על mainnet עם ראיות-מלאות — זהו "הכוח" שהבעלים ביקש.
+- האורגניזם עכשיו מפקח על 6/6 שירותים (web anvil runner herald swarm laya) עם החייאה-עצמית מוכחת גם לשכבת-ה-web.
+- פתוחים-בכנות (דור-הבא): איחוד-סקרים ב-ops.tsx (26 לולאות) · חיבור cheap-routes/supervisor/backup-מסך · שכתוב-היסטוריית-גיט (דורש-החלטת-בעלים — force-push) · מחיקת SealLeaf/EnergyPlan · רוטציה-מאומתת של שאריות-היסטוריה.
