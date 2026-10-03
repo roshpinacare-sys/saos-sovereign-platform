@@ -143,6 +143,11 @@ const HERALD_GRACE_MS = 180_000; // boot grace — 3 min before death is even co
 // only, confirmed death → detached revive. Same boot-grace doctrine.
 const SWARM_DIR = path.join(PROJECT_DIR, "mini-services", "swarm-agents");
 const SWARM_LOG = path.join(SWARM_DIR, "swarm.log");
+// v123 — laya (System-1 reflex engine, python-stdlib on :3037) becomes a member
+const LAYA_DIR = path.join(PROJECT_DIR, "mini-services", "laya-service");
+const LAYA_LOG = path.join(LAYA_DIR, "supervised.log");
+const LAYA_STATUS = "http://127.0.0.1:3037/health";
+const LAYA_GRACE_MS = 180_000;
 const SWARM_STATUS = "http://127.0.0.1:3007/";
 const SWARM_GRACE_MS = 180_000;
 const SLOW_EVERY = 6; // runner + memory + rss-shed every 6th cycle (60s)
@@ -513,7 +518,8 @@ function keeperBeatPayload(): Record<string, unknown> {
       anvil: S.anvilOk === true,
       runner: S.runnerSeen === true,
       herald: S.heraldAlive === true,
-      swarm: S.swarmAlive === true
+      swarm: S.swarmAlive === true,
+      laya: S.layaAlive === true
     },
     memory: { availableMb: S.mem.availableMb, nextRssMb: S.mem.nextRssMb },
     backups: { ok: S.backups.ok, miss: S.backups.miss, lastAt: S.backups.lastAt },
@@ -569,6 +575,10 @@ interface KeeperEvent {
     | "swarm-up"
     | "swarm-dead"
     | "swarm-revive"
+    // v123 — laya (System-1, :3037) — no member stays invisible
+    | "laya-up"
+    | "laya-dead"
+    | "laya-revive"
     // v41 — the recovery ambush (headcorner takeover engine)
     | "ambush-fired"
     | "ambush-alien"
@@ -707,6 +717,13 @@ const S = {
   swarmRevives: 0,
   swarmLastOkAt: null as string | null,
   swarmGraceUntil: Date.now() + SWARM_GRACE_MS,
+  // v123 — laya (System-1, :3037) — the invisible member made visible
+  layaAlive: null as boolean | null,
+  layaFailStreak: 0,
+  layaRevives: 0,
+  layaLastOkAt: null as string | null,
+  layaGraceUntil: Date.now() + LAYA_GRACE_MS,
+  layaReviveDeadline: 0,
   // v41 — the recovery ambush (headcorner): the web tier owns the engine
   // (vault sessions + broadcast); the keeper owns the cadence + the fire.
   recovery: {
@@ -1599,6 +1616,22 @@ async function checkSwarmFunction(webAlive: boolean): Promise<OrganFunction> {
       return { serving: true, zombiePid: null };
     }
     return { serving: false, zombiePid: st?.pid ?? null };
+  } catch {
+    return { serving: false, zombiePid: null };
+  }
+}
+
+/**
+ * v123 — laya vitality (:3037, System-1). The python-stdlib server answers
+ * /health only while its event loop lives — connection-success IS function.
+ * 4s timeout, honest {serving:false} on any failure. Same OrganFunction
+ * contract as the herald/swarm probes (zombiePid unused: stdlib server
+ * either answers or refuses — no port-live-frozen middle state observed).
+ */
+async function checkLayaFunction(): Promise<OrganFunction> {
+  try {
+    const r = await fetch(LAYA_STATUS, { signal: AbortSignal.timeout(4_000) });
+    return { serving: r.ok, zombiePid: null };
   } catch {
     return { serving: false, zombiePid: null };
   }
@@ -2940,6 +2973,38 @@ async function cycle(): Promise<void> {
         journal("swarm-revive", `swarm-agents ${fn.zombiePid ? `zombie pid ${fn.zombiePid} SIGTERM'd` : `dead ×${S.swarmFailStreak} (connection refused)`} — bun run dev spawned detached, revive #${S.swarmRevives} + grace reset (v54) — the awakened chat agents are a member now, no member stays FUNCTION-dead (v36)`);
         S.swarmFailStreak = 0;
         S.swarmAlive = null;
+      }
+    }
+  }
+
+  // 7-b. v123 — laya (System-1, :3037). The 123-b truth-audit found the
+  //    reflex engine ALIVE but INVISIBLE: outside keeper.members, outside
+  //    the census, no supervision at all. The organism's promise — no
+  //    member stays dead — now covers it too (same law as herald/swarm).
+  if (RT.cycle % GATE_EVERY === 0) {
+    const fn = await checkLayaFunction();
+    if (fn.serving) {
+      if (S.layaAlive !== true) {
+        journal("laya-up", `laya serving on :3037${S.layaFailStreak > 0 ? ` (after ${S.layaFailStreak} misses)` : ""} — System-1 reflex is a member now (v123)`);
+      }
+      S.layaAlive = true;
+      S.layaFailStreak = 0;
+      S.layaLastOkAt = new Date().toISOString();
+    } else if (Date.now() < S.layaGraceUntil) {
+      S.layaAlive = null; // boot grace — watching, not yet judging
+    } else {
+      S.layaFailStreak += 1;
+      if (S.layaFailStreak === 1) {
+        journal("laya-dead", `laya :3037 not answering — first sighting, watching (revive needs ×${DEAD_STREAK})`);
+      }
+      if (S.layaFailStreak >= DEAD_STREAK && Date.now() > S.layaReviveDeadline) {
+        S.layaRevives += 1;
+        S.layaReviveDeadline = Date.now() + REVIVE_WINDOW_MS; // its OWN window — never blocks the web
+        reviveDetached(LAYA_DIR, LAYA_LOG);
+        S.layaGraceUntil = Date.now() + LAYA_GRACE_MS;
+        journal("laya-revive", `laya dead ×${S.layaFailStreak} — bun run dev spawned detached (python3 main.py), revive #${S.layaRevives} + grace reset (v123)`);
+        S.layaFailStreak = 0;
+        S.layaAlive = null;
       }
     }
   }

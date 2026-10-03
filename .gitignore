@@ -97,3 +97,8 @@ tool-results/
 !skills/laya-system1/
 # SAOS-adoption playbook (118-a חוסן fcc-llm-chain) — house artifact, tracked:
 !skills/fcc-llm-chain/
+
+# v122 truth-audit fixes: runtime state never git-frozen
+/state/
+dev.pid
+*.log.*
