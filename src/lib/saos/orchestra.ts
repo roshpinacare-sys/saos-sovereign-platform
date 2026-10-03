@@ -34,6 +34,7 @@ import bs58 from "bs58";
 import { db } from "@/lib/db";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { logOp } from "./oplog";
+import { probeHiveRc } from "./hive-rc-live";
 import { withVaultMember, withRoleWif, type SigningAuthority } from "@/lib/vault-seal";
 import {
   getSoldierBoard,
@@ -69,10 +70,18 @@ export const DISCOVERY_TTL_MS = 60_000;
 export const MASTER_SOURCE_MEMBER = "keys/hed-soldiers-source.txt";
 /** the trusted rail — the SAME registered hosts as steem-market-live */
 export const ORCHESTRA_RPC_RAIL = ["https://api.steemit.com", "https://api.justyy.com"] as const;
+/** v121 — the HIVE trusted rail (R19 fleet keys proven live on both chains) */
+export const ORCHESTRA_HIVE_RPC_RAIL = [
+  "https://api.hive.blog",
+  "https://api.deathwing.me",
+  "https://hive-api.arcange.eu"
+] as const;
+/** fixed mainnet chain id — the same discipline as hive-live.ts */
+const HIVE_CHAIN_ID = "beeab0de00000000000000000000000000000000000000000000000000000000";
 
 const RPC_TIMEOUT_MS = 12_000;
 
-assertTrustedEndpoints([...ORCHESTRA_RPC_RAIL], "orchestra");
+assertTrustedEndpoints([...ORCHESTRA_RPC_RAIL, ...ORCHESTRA_HIVE_RPC_RAIL], "orchestra");
 
 // ─── shapes ─────────────────────────────────────────────────────────────────
 
@@ -231,6 +240,20 @@ function privToStmPub(priv: Buffer): string {
 
 function extractMasterPasswords(content: string): string[] {
   return [...new Set([...content.matchAll(/\bP[57][1-9A-HJ-NP-Za-km-z]{48,50}\b/g)].map((m) => m[0]))];
+}
+
+/** v121 — chain-agnostic WIF→STM pubkey (pure crypto, no steem lib needed) */
+function isWifShape(wif: string): boolean {
+  return /^[5KLP][1-9A-HJ-NP-Za-km-z]{48,52}$/.test(wif);
+}
+
+function wifToPub(wif: string): string {
+  const raw = Buffer.from(bs58.decode(wif));
+  const payload = raw.subarray(0, raw.length - 4);
+  const calc = createHash("sha256").update(createHash("sha256").update(payload).digest()).digest().subarray(0, 4);
+  if (!raw.subarray(raw.length - 4).equals(calc)) throw new Error("WIF checksum invalid");
+  if (payload[0] !== 0x80) throw new Error("WIF version unexpected");
+  return privToStmPub(payload.subarray(1, 33));
 }
 
 // ─── RPC helpers (trusted rail, honest per-node errors) ─────────────────────
@@ -688,6 +711,64 @@ async function livePostingAuthorityOf(voter: string): Promise<string | null> {
   return Array.isArray(auths) && auths.length > 0 ? auths[0][0] : null;
 }
 
+/** v121 — the LIVE HIVE posting authority (public chain read, honest null). */
+async function liveHivePostingAuthorityOf(voter: string): Promise<string | null> {
+  const errors: string[] = [];
+  for (const node of ORCHESTRA_HIVE_RPC_RAIL) {
+    try {
+      const res = await trustedFetch(node, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "condenser_api.get_accounts", params: [[voter]] }),
+        timeoutMs: RPC_TIMEOUT_MS
+      });
+      const j = (await res.json()) as { result?: Array<{ posting?: { key_auths?: Array<[string, number]> } }> };
+      const acc = j.result?.[0];
+      const auths = acc?.posting?.key_auths;
+      return Array.isArray(auths) && auths.length > 0 ? auths[0][0] : null;
+    } catch (e) {
+      errors.push(`${hostOf(node)}: ${e instanceof Error ? e.message.slice(0, 100) : "fetch failed"}`);
+    }
+  }
+  console.log(`[orchestra] hive authority probe failed for ${voter}: ${errors.join(" | ").slice(0, 200)}`);
+  return null;
+}
+
+// ─── v121 — the HIVE broadcast rail (dhive, fixed chain id, same gates) ─────
+
+interface DhiveClient {
+  broadcast: {
+    sendOperations(ops: unknown[], key: unknown): Promise<{ id?: string }>;
+  };
+}
+
+async function loadDhive(): Promise<{ Client: new (nodes: string[], opts: { chainId: string }) => DhiveClient; PrivateKey: { from(wif: string): { createPublic(): { toString(): string }; toString(): string } } }> {
+  const mod = (await import("@hiveio/dhive")) as unknown as {
+    Client: new (nodes: string[], opts: { chainId: string }) => DhiveClient;
+    PrivateKey: { from(wif: string): { createPublic(): { toString(): string }; toString(): string } };
+  };
+  return mod;
+}
+
+/**
+ * v121 — broadcasts ONE vote op on HIVE through dhive with the fixed
+ * mainnet chain id. The caller MUST have self-verified the WIF against
+ * the LIVE HIVE posting authority BEFORE calling this (same discipline
+ * as the steem rail — the gate lives in executeLiveOps, not here).
+ */
+async function broadcastOneHive(wif: string, op: ScheduleSlot): Promise<{ txid: string | null }> {
+  const { Client, PrivateKey } = await loadDhive();
+  const client = new Client([...ORCHESTRA_HIVE_RPC_RAIL], { chainId: HIVE_CHAIN_ID });
+  const key = PrivateKey.from(wif);
+  const conf = await client.broadcast.sendOperations(
+    [["vote", { voter: op.voter, author: op.author, permlink: op.permlink, weight: op.weight }]],
+    key
+  );
+  const txid = (conf && conf.id) || null;
+  if (!txid) throw new Error("node accepted the op but answered without a txid (honest)");
+  return { txid };
+}
+
 /**
  * The live signer. headcorner signs through the EXACT fleet-arm scope
  * (withRoleWif("posting") + isWif + wifToPublic self-verify + sendAsync);
@@ -696,12 +777,21 @@ async function livePostingAuthorityOf(voter: string): Promise<string | null> {
  * authority. Material exists only inside the session fn — results return
  * public shapes only ({voter, author, permlink, ok, txid, errorClass}).
  */
-async function executeLiveOps(ops: ScheduleSlot[], windowIndex: number): Promise<ExecuteResultRow[]> {
+async function executeLiveOps(
+  ops: ScheduleSlot[],
+  windowIndex: number,
+  chain: "steem" | "hive" = "steem"
+): Promise<ExecuteResultRow[]> {
   const results: ExecuteResultRow[] = [];
-  const steem = await loadSteem();
+  const steem = chain === "steem" ? await loadSteem() : null;
+  // v121 — the rail decides the authority source AND the broadcast path;
+  // the self-verify gates below always compare against the chain we
+  // actually broadcast to (never a cross-chain assumption).
+  const authorityOf = chain === "hive" ? liveHivePostingAuthorityOf : livePostingAuthorityOf;
   const broadcastOne = async (wif: string, op: ScheduleSlot): Promise<{ txid: string | null }> => {
-    steem.api.setOptions({ url: ORCHESTRA_RPC_RAIL[0] }); // trusted, registered
-    const conf = await steem.broadcast.sendAsync(
+    if (chain === "hive") return broadcastOneHive(wif, op);
+    steem!.api.setOptions({ url: ORCHESTRA_RPC_RAIL[0] }); // trusted, registered
+    const conf = await steem!.broadcast.sendAsync(
       {
         operations: [["vote", { voter: op.voter, author: op.author, permlink: op.permlink, weight: op.weight }]],
         extensions: []
@@ -720,14 +810,14 @@ async function executeLiveOps(ops: ScheduleSlot[], windowIndex: number): Promise
   if (headOps.length > 0) {
     try {
       await withRoleWif("posting", async (wif: string, auth: SigningAuthority) => {
-        if (!steem.auth.isWif(wif)) throw new Error("self-verify FAILED: vault key is not a valid WIF — refusing to sign");
-        const derivedPub = steem.auth.wifToPublic(wif);
+        if (!isWifShape(wif)) throw new Error("self-verify FAILED: vault key is not a valid WIF — refusing to sign");
+        const derivedPub = wifToPub(wif);
         if (auth.rolePub && auth.rolePub !== derivedPub) {
           throw new Error("self-verify FAILED: vault key does not derive to the registered public key");
         }
         for (const op of headOps) {
           try {
-            const livePub = await livePostingAuthorityOf(op.voter);
+            const livePub = await authorityOf(op.voter);
             if (!livePub || livePub !== derivedPub) {
               throw new Error(`self-verify FAILED: vault key is not ${op.voter}'s LIVE posting authority — refusing to sign`);
             }
@@ -755,7 +845,7 @@ async function executeLiveOps(ops: ScheduleSlot[], windowIndex: number): Promise
     const voters = [...new Set(soldierOps.map((o) => o.voter))];
     // live authorities fetched OUTSIDE the sealed scope (public chain data)
     const livePubs = new Map<string, string | null>();
-    for (const v of voters) livePubs.set(v, await livePostingAuthorityOf(v));
+    for (const v of voters) livePubs.set(v, await authorityOf(v));
 
     try {
       await withVaultMember(MASTER_SOURCE_MEMBER, async (content) => {
@@ -775,8 +865,8 @@ async function executeLiveOps(ops: ScheduleSlot[], windowIndex: number): Promise
               }
             }
             if (!wif) throw new Error("no sealed master password derives this soldier's LIVE posting authority (fail-closed)");
-            if (!steem.auth.isWif(wif)) throw new Error("self-verify FAILED: derived WIF invalid under the steem lib");
-            const derivedPub = steem.auth.wifToPublic(wif);
+            if (!isWifShape(wif)) throw new Error("self-verify FAILED: derived WIF invalid (shape/checksum)");
+            const derivedPub = wifToPub(wif);
             if (derivedPub !== livePub) {
               throw new Error("self-verify FAILED: lib roundtrip mismatch vs live authority");
             }
@@ -820,9 +910,13 @@ async function executeLiveOps(ops: ScheduleSlot[], windowIndex: number): Promise
  * be broadcast with the full signing-plan shape and writes honest dryrun
  * ledger rows — zero broadcast. LIVE only when explicitly called with
  * {live:true} (the API route does that only behind requireAuth).
+ * v121 — chain:"hive" routes the live broadcast to the HIVE rail; the plan
+ * eligibility stays the proven soldiers.ts gates PLUS a live HIVE RC floor
+ * gate re-measured right before any broadcast (fail-closed, honest abstain).
  */
-export async function executeSlot(opts: { live?: boolean; windowIndex?: number } = {}): Promise<ExecuteResult> {
+export async function executeSlot(opts: { live?: boolean; windowIndex?: number; chain?: "steem" | "hive" } = {}): Promise<ExecuteResult> {
   const measuredAt = new Date().toISOString();
+  const chain = opts.chain === "hive" ? "hive" : "steem";
   const schedule = await scheduleVotes();
   const windowIndex = typeof opts.windowIndex === "number" ? opts.windowIndex : schedule.currentWindowIndex;
   const mode: "dryrun" | "live" = opts.live === true ? "live" : "dryrun";
@@ -911,10 +1005,21 @@ export async function executeSlot(opts: { live?: boolean; windowIndex?: number }
   }
 
   // LIVE — explicit {live:true} only; the API route reached here behind requireAuth
-  const results = await executeLiveOps(ops, windowIndex);
+  if (chain === "hive") {
+    // v121 — live HIVE RC floor, measured NOW (never assume the steem-side number)
+    const rc = await probeHiveRc(win.account, { force: true });
+    if (!rc.ok || rc.rcPct === null) {
+      return abstain(`HIVE RC probe failed for ${win.account} — מוותר בכנות (fail-closed)`);
+    }
+    if (rc.rcPct < RC_FLOOR_PCT) {
+      return abstain(`HIVE RC של ${win.account} = ${rc.rcPct.toFixed(2)}% מתחת לרצפה ${RC_FLOOR_PCT}% — מוותר בכנות`);
+    }
+  }
+  const results = await executeLiveOps(ops, windowIndex, chain);
   const okCount = results.filter((r) => r.ok).length;
   await logOp("orchestra.execute.live", {
     windowIndex,
+    chain,
     attempted: results.length,
     broadcastOk: okCount,
     failed: results.length - okCount,
