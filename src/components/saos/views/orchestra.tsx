@@ -16,6 +16,7 @@ import { useState } from "react";
 import {
   Activity,
   Crosshair,
+  ExternalLink,
   Filter,
   Loader2,
   Play,
@@ -131,6 +132,7 @@ interface OrchestraEnvelope {
   schedule: ScheduleShape | null;
   kpis: KpisShape | null;
   law: LawShape | null;
+  ledger: LedgerRow[];
   measuredAt: string;
   partErrors: Array<{ part: string; error: string }>;
 }
@@ -142,6 +144,7 @@ const EMPTY: OrchestraEnvelope = {
   schedule: null,
   kpis: null,
   law: null,
+  ledger: [],
   measuredAt: "",
   partErrors: []
 };
@@ -149,12 +152,43 @@ const EMPTY: OrchestraEnvelope = {
 interface ExecuteResponse {
   ok: boolean;
   mode?: string;
+  chain?: string;
   windowIndex?: number;
   broadcasted?: boolean;
   results?: Array<{ voter: string; author: string; permlink: string; weight: number; ok: boolean; txid: string | null; errorClass: string | null; note: string | null }>;
   ledgerWritten?: number;
   abstained?: string | null;
   error?: string;
+}
+
+interface LedgerRow {
+  voter: string;
+  author: string;
+  permlink: string;
+  weight: number;
+  mode: string;
+  ok: boolean;
+  txid: string | null;
+  errorClass: string | null;
+  windowIndex: number;
+  createdAt: string;
+}
+
+function normalizeLedger(raw: unknown[]): LedgerRow[] {
+  return raw
+    .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
+    .map((r) => ({
+      voter: asStr(r.voter) ?? "—",
+      author: asStr(r.author) ?? "—",
+      permlink: asStr(r.permlink) ?? "",
+      weight: asNum(r.weight) ?? 0,
+      mode: asStr(r.mode) ?? "—",
+      ok: r.ok === true,
+      txid: asStr(r.txid),
+      errorClass: asStr(r.errorClass),
+      windowIndex: asNum(r.windowIndex) ?? -1,
+      createdAt: asStr(r.createdAt) ?? ""
+    }));
 }
 
 // ─── נרמול-מגן לכל-שדה ──────────────────────────────────────────────────────
@@ -300,6 +334,8 @@ export function OrchestraView() {
   const [liveRunning, setLiveRunning] = useState(false);
   const [lastExecute, setLastExecute] = useState<ExecuteResponse | null>(null);
   const [lastExecuteErr, setLastExecuteErr] = useState<string | null>(null);
+  // v124 — בחירת-השרשרת לשידור: HIVE (הצי 9 חי 4/4, המסילה-המוכחת) | STEEM
+  const [chain, setChain] = useState<"hive" | "steem">("hive");
 
   // נרמול מפורש — HMR/partial-payload לעולם לא קורס (שיעור-v113)
   const env: OrchestraEnvelope = data
@@ -311,6 +347,7 @@ export function OrchestraView() {
         schedule: normalizeSchedule(data.schedule),
         kpis: normalizeKpis(data.kpis),
         law: normalizeLaw(data.law),
+        ledger: normalizeLedger(asArr(data.ledger)),
         measuredAt: typeof data.measuredAt === "string" ? data.measuredAt : "",
         partErrors: asArr(data.partErrors)
           .filter((p): p is Record<string, unknown> => typeof p === "object" && p !== null)
@@ -348,7 +385,7 @@ export function OrchestraView() {
     else setLiveRunning(true);
     if (mode === "live") setLiveArmed(false);
     try {
-      const r = await postJson<ExecuteResponse>("/api/saos/orchestra", mode === "live" ? { op: "execute", mode: "live" } : { op: "execute", mode: "dryrun" });
+      const r = await postJson<ExecuteResponse>("/api/saos/orchestra", mode === "live" ? { op: "execute", mode: "live", chain } : { op: "execute", mode: "dryrun", chain });
       if (!r.ok) {
         setLastExecuteErr((r.error ?? "כשל לא ידוע").slice(0, 220));
         setLastExecute(null);
@@ -496,6 +533,24 @@ export function OrchestraView() {
             />
             <PanelBody className="px-5 py-4">
               <div className="flex flex-wrap items-center gap-2">
+                <span className="flex overflow-hidden rounded-lg border border-white/[0.08]">
+                  <button
+                    type="button"
+                    onClick={() => setChain("hive")}
+                    className={cn("px-2.5 py-1 text-[10px] font-bold", chain === "hive" ? "bg-emerald-500/20 text-emerald-300" : "bg-transparent text-zinc-500 hover:text-zinc-300")}
+                    aria-pressed={chain === "hive"}
+                  >
+                    HIVE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChain("steem")}
+                    className={cn("px-2.5 py-1 text-[10px] font-bold", chain === "steem" ? "bg-sky-500/20 text-sky-300" : "bg-transparent text-zinc-500 hover:text-zinc-300")}
+                    aria-pressed={chain === "steem"}
+                  >
+                    STEEM
+                  </button>
+                </span>
                 <Btn variant="secondary" size="sm" onClick={() => void doExecute("dryrun")} disabled={dryRunning || liveRunning}>
                   {dryRunning ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
                   בצע DRY-RUN
@@ -659,6 +714,75 @@ export function OrchestraView() {
                       ) : null}
                     </div>
                   ))}
+                </div>
+              )}
+            </PanelBody>
+          </Panel>
+
+          {/* פנקס-הצבעות חי — הראיה-ההוכחתית על-המסך (v124) */}
+          <Panel>
+            <PanelHeader
+              icon={<ExternalLink size={15} />}
+              title="פנקס-ההצבעות החי — ראיות-mainnet עם txids"
+              sub="כל-שורה = הצבעה אמיתית שרשרת (mode live) עם txid להוכחה בסייר, או תרגיל-יבש (mode dryrun) — מהפעימה-החיה ומהלוח. אפס שקר: כישלון נרשם כישלון עם מחלקת-שגיאה."
+              tag={`${env.ledger.length} שורות-אחרונות`}
+            />
+            <PanelBody className="px-5 py-4">
+              {env.ledger.length === 0 ? (
+                <EmptyBlock
+                  icon={<ExternalLink size={18} />}
+                  title="הפנקס ריק (אפס אמיתי)"
+                  desc="אף-הצבעה לא נרשמה עדיין — בצע DRY-RUN או LIVE מהלוח-למעלה; הראיה-הראשונה תירשם כאן."
+                />
+              ) : (
+                <div className="max-h-96 overflow-y-auto scroll-slim rounded-lg border border-white/[0.06]">
+                  <table className="w-full text-[11px] border-collapse">
+                    <thead className="sticky top-0 bg-zinc-900/95 backdrop-blur-sm">
+                      <tr className="text-zinc-400">
+                        <Th className="text-right">מצביע</Th>
+                        <Th>מחבר</Th>
+                        <Th>משקל</Th>
+                        <Th>מצב</Th>
+                        <Th>txid / מחלקת-שגיאה</Th>
+                        <Th>ראיה</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {env.ledger.map((row, i) => (
+                        <tr key={`${row.voter}/${row.author}/${row.txid ?? i}/${row.createdAt}`} className="border-t border-white/[0.04] hover:bg-white/[0.02]">
+                          <Td className="text-right">
+                            <span dir="ltr" className="font-mono font-bold text-zinc-100">{row.voter}</span>
+                          </Td>
+                          <Td dir="ltr" className="max-w-[160px] truncate font-mono text-zinc-300">@{row.author}</Td>
+                          <Td className="tabular-nums text-zinc-300" dir="ltr">{row.weight} <span className="text-zinc-500">({(row.weight / 100).toFixed(0)}%)</span></Td>
+                          <Td>
+                            {row.mode === "live" ? (
+                              row.ok ? <Tag tone="rose">LIVE שודר</Tag> : <Tag tone="zinc">LIVE כשל</Tag>
+                            ) : (
+                              <Tag tone="green">dry</Tag>
+                            )}
+                          </Td>
+                          <Td dir="ltr" className="max-w-[220px] truncate font-mono text-[10px] text-zinc-400">
+                            {row.txid ?? row.errorClass ?? "—"}
+                          </Td>
+                          <Td>
+                            {row.txid ? (
+                              <a
+                                href={`https://hiveblockexplorer.com/tx/${row.txid}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:text-emerald-300"
+                              >
+                                <ExternalLink size={10} /> סייר
+                              </a>
+                            ) : (
+                              <span className="text-zinc-600">—</span>
+                            )}
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </PanelBody>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import { requireAuth, audit, ipHashOf } from "@/lib/saos/auth";
 import { logOp } from "@/lib/saos/oplog";
 import {
@@ -64,15 +65,31 @@ interface PartError {
 export async function GET() {
   const partErrors: PartError[] = [];
   try {
-    const [discoveryRes, scheduleRes, kpisRes] = await Promise.allSettled([
+    const [discoveryRes, scheduleRes, kpisRes, ledgerRes] = await Promise.allSettled([
       discoverCurationCandidates(),
       scheduleVotes(),
-      orchestraKpis()
+      orchestraKpis(),
+      // v124 — הפנקס-החי: שורות-ההצבעה האחרונות (mode/txid/errorClass) —
+      // הראיה-ההוכחתית עצמה על-המסך, לא רק מספרי-מצטברים
+      db.orchestraVote.findMany({ orderBy: { createdAt: "desc" }, take: 50 })
     ]);
 
     const discovery = discoveryRes.status === "fulfilled" ? discoveryRes.value : null;
     const schedule = scheduleRes.status === "fulfilled" ? scheduleRes.value : null;
     const kpis = kpisRes.status === "fulfilled" ? kpisRes.value : null;
+    const ledger = ledgerRes.status === "fulfilled"
+      ? ledgerRes.value.map((r) => ({
+          voter: r.voter, author: r.author, permlink: r.permlink, weight: r.weight,
+          mode: r.mode, ok: r.ok, txid: r.txid, errorClass: r.errorClass,
+          windowIndex: r.windowIndex, createdAt: r.createdAt.toISOString()
+        }))
+      : [];
+    if (ledgerRes.status === "rejected") {
+      partErrors.push({
+        part: "ledger",
+        error: (ledgerRes.reason instanceof Error ? ledgerRes.reason.message : String(ledgerRes.reason)).slice(0, 200)
+      });
+    }
 
     if (discoveryRes.status === "rejected") {
       partErrors.push({
@@ -106,6 +123,8 @@ export async function GET() {
       candidatesMeta: discovery?.meta ?? null,
       schedule,
       kpis,
+      ledger,
+      ledgerCount: ledger.length,
       law: {
         voteWeight: ORCHESTRA_VOTE_WEIGHT,
         tags: [...ORCHESTRA_TAGS],

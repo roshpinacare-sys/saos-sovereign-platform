@@ -210,7 +210,7 @@ async function measureLatencies(): Promise<RoastLatency[]> {
   for (const ep of LATENCY_EPS) {
     const t0 = Date.now();
     try {
-      await fetch(`http://127.0.0.1:3000${ep}`, {
+      await fetch(`${process.env.SAOS_SELF_URL ?? "http://127.0.0.1:3000"}${ep}`, {
         signal: AbortSignal.timeout(6_000),
         cache: "no-store"
       });

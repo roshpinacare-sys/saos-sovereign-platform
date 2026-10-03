@@ -1847,3 +1847,43 @@ Stage Summary:
 - הפעם-הראשונה: פעולה-קולקטיבית-מתואמת של 9 חשבונות על mainnet עם ראיות-מלאות — זהו "הכוח" שהבעלים ביקש.
 - האורגניזם עכשיו מפקח על 6/6 שירותים (web anvil runner herald swarm laya) עם החייאה-עצמית מוכחת גם לשכבת-ה-web.
 - פתוחים-בכנות (דור-הבא): איחוד-סקרים ב-ops.tsx (26 לולאות) · חיבור cheap-routes/supervisor/backup-מסך · שכתוב-היסטוריית-גיט (דורש-החלטת-בעלים — force-push) · מחיקת SealLeaf/EnergyPlan · רוטציה-מאומתת של שאריות-היסטוריה.
+---
+Task ID: 124-a
+Agent: Explore (depth-2 truth audit)
+Task: ביקורת-עומק-שני ריבונית (מחקר-בלבד): מה-עוד-מת/מנותק מעבר-ל-v123 · מלאי-פעולות-על-שרשרת ברות-הפעלה-מיידית להוכחת-כוח · ניקוד-בריאות + הפתעות-נסתרות (פנקס-חי, לולאות-אוטונומיה, ראיית-מיינט על-המסך).
+
+Work Log:
+- קריאת 5 הסקשנים האחרונים ב-worklog (122, 123-c/a/b, 123) — הבסיס: 9 חיילים 4/4 HIVE+STEEM, פעימת-צי 9/9, 8 יתומי-v123, 2 מודלי-פריזמה מתים.
+- סריקת 100 routes תחת /api/saos מול src/components + src/lib + mini-services + scripts + .zscripts (שלולית-כפולה) — עדכון-אמת ל-8 יתומי-v123: 5 יתומים-ממש (memory-house · rearm/steem · auth/revoke-all · supervisor · cheap-routes — לרובם ה-lib חי, רק-ה-route יתום) ו-3 שנטענו-יתומים חיים-מכונה (harness keeper:352-358 30דק׳ · state-snapshot keeper:324 · backup keeper:1089).
+- גילוי-חי (CRITICAL): מסילת-עיגון-STEEM ב-web-tier שבורה — snapshot-anchor.ts:446-496 משדר condenser_api.broadcast_transaction (ש:479) שלא-מחזיר-txid-כלל (עיצוב-פרוטוקול) → ש:490-491 מתייג-ככישלון; keeper מנסה שעה-אחר-שעה (SNAPSHOT_EVERY=360, keeper:374,3051) — 7 שורות AnchorTx kind=snapshot status=failed רצופות היום 18:38→22:33; סריקת-פורנזה על-mainnet (3,000 ops אחרונים של headcorner, idx≈65,050) מוכיחה שאף custom_json לא נחת — לולאה-חיה-שכושלת-שעה-אחר-שעה.
+- גילוי-חי (HIGH): hive-grid.ts ללא-שידור-כלל (אף dhive/PrivateKey; ש:209 היא-preview) — armGrid (ש:335-350) מדליק mode:"live" ואז שורות-מילוי-מדומות מסומנות mode:s.mode (ש:273,286) = מסך-יציג "חי" בלי-שרשרת; נכון-לעכשיו paper/unarmed (state/hive-grid.json — 157 טיקים, אחרון 22:53); הערות-מתוארות-מתות ש:17-18,331 ("פקודת-ההשמד 2026-09-08") מיושנות-מאז-v122.
+- פנקס-התזמורת ריק לגמרי: OrchestraVote = 0 שורות (אפילו-dry-run לא רץ מעולם) — מנוע-v120-a + מסילת-HIVE-v121 + route + view חיים, אפס-הרצות; AnchorTx: אפס-HIVE, אפ׸-weave-STEEM, 7 snapshot-failed — ה-9/9 פעימות-הצי (txids-ב-worklog) לא-מאוחסנות-ב-DB ולא-מוצגות-באף-מסך.
+- אוטונומיה: אפס-אזכורי-orchestra ב-keeper — התזמורת-דורשת-POST-ידני-מאומת; בניגוד-אליה hive-grid מקבל-טיק-אוטומטי כל-≈2דק׳ (keeper:1062-1081, GRID_EVERY:241) ו-exchange MR/GRID מחזיקים-פעמה-עצמאית (exchange-live.ts:1690-1725, מחומשת-מקריאת-הסטטוס ש:340, kill-switches ש:1102,1363 לא-מוגדרים ב-.env = דלוקים-כברירת-מחדל).
+- מלאי-מסילות-שידור: orchestra.ts:759-770 (broadcastOneHive vote) + :791-804 (steem vote) + executeSlot ש:917 · hive-live.ts:311-344 (weave-HIVE, active) · anchor-live.ts:576-631 (weave-STEEM) · fleet-arm.ts:467-473 (delegate_vesting_shares+transfer, active, כפתורים-חיים fleet.tsx:395-435) · scripts/rescue/steem-market-drill.ts:67-88 (limit_order_create/cancel מוכח-חי, txid 0c65d79f) · .zscripts/fleet-pulse-hive.ts (9/9). אפס-helper בכל-הריפו ל-reblog/follow/mute/witness_vote/account_witness_proxy/comment (rg רחב = 0 התאמות) — כולם-הרחבות-~15-שורות על-המסילה-המוכחת.
+- בדיקות-חיות נקודתיות (ללא-חומר-סוד): HIVE-RC כרגע — headcorner 97.43% (שער-broadcast/hive פתוח!), woq 41.44%, israelnews 6.31% (מגודר-כנה); prisma אומת-מחדש — בדיוק 2 מודלים מתים (SealLeaf schema:32 · EnergyPlan schema:65), לא-נמצאו-נוספים; .env מכיל-רק-DATABASE_URL.
+
+Stage Summary:
+- הפתעת-העומק: שכבת-השידור-האוטונומית-על-STEEM (עוגן-השעתי) שבורה-מהשורש (broadcast_transaction ללא-txid) — הראיה-הכנה עצמה חושפת-את-התיקון: broadcast_transaction_synchronous או הוכחת-התכללות בסגנון-פעימת-הצי.
+- התזמורת-הריבונית-חיה-אך-אפסית: 0 ריצות, 0 פנקס, אין-לולאה, אין-שרשרת-ברירה-ב-view (orchestra.tsx:351 שולח-בלי chain:"hive"), אין-טבלת-פנקס-עם-txids על-המסך — כל-העוצמה-המוכחת (9/9) בלתי-נראית-לבעלים.
+- 5 routes יתומים-ממש (חלקם-יכולות-שלמות בלי-מסך) · hive-grid "live"-שקרי-בחימוש · 2 מודלי-פריזמה מתים · 7 עוגנים-שעתיים-נכשלים.
+- ניקוד-עומק-2: ~62/100 — אפס-שקר-תצוגה-ואפס-כפתור-מת אבל-חור-שידור-חי-ופער-ראיות-מסך.
+- הפלט-המלא (טבלת-קובץ:שורה · פעולות-מדורגות · 8 שאילות) נמסר-לסשן-הראשי בדוח-הביקורת.
+---
+Task ID: 124
+Agent: Z.ai Code (main session — the first sovereign vote + depth-2 cures)
+Task: הבעלים: "תבחן את הכל, שאילות הנדסיות חכמות, ראה שאין דברים מתים, תחייה הכל, חבר הכל, תן לריבונות לפקח ולחפש עוד — אני מחכה יותר מדי זמן ועוד לא קיבלנו שום דבר משמעותי שניתן להוכיח. אני מחכה להפתעות."
+
+Work Log:
+- מצב-פתיחה אומת מחדש: web 200 · git נקי 0-unpushed · v123 נדחף · 6/6 שירותים.
+- ביקורת-עומק-שני (Task 124-a, סוכן Explore, מחקר-בלבד): ניקוד 62/100 — CRITICAL: עוגן-ה-STEEM-השעתי מוכרז-כנכשל-7/יום (broadcast_transaction לא-מחזיר-txid מטבעו; 7 שורות-failed-רצופות-18:38→22:33) · HIGH: פנקס-התזמורת-אפס-שורות · אין-לולאת-אוטונומיה · הראיות-הגדולות-בלתי-נראות-במסך · MED: כפתור-הויו לא-שלח-chain · GET בלי-פנקס · 5-routes-יתומים.
+- ★ ההפתעה-המוכחת — הצבעת-העדות-החיה (fleet-vote-proof.ts, על-המסילה-המוכחת-של-פעימת-v123): בחירת-יעדים-חיים-בזמן-ריצה מ-get_discussions_by_created (4-תגיות, סינון 30ד׳–24ש׳, לא-חשבונות-הצי, דירוג-מעורבות) · 3-יעדים: @jreyna1964 (MEV/CoW), @rebe.torres12 (humanoid-robot), @jack.russelle (Phuket) · לכל-חייל: סמכות-חיה + שער-RC-רצפה-8% + גזירה-בסקופ-עם-אימות-עצמי-מול-השרשרת + vote-אמיתי-weight=1000 (10%) + הוכחת-התכללות + שורת-פנקס. תוצאה: **8/9 שודרו · 8/8 התכללויות-PROVEN · 1-מגודר-כנה (israelnews RC 6.31%) · 0-נכשלו**. txids: cashmachine ebd5a2cc… · haran 5718d73e… · lsa 546da1d9… · macrame b01c9344… · siq cbb1aec2… · wic f655133c… · wog 5335a002… · woq 46fb0cef… — הפנקס-OrchestraVote-קיבל-את-שורותיו-החיות-הראשונות-אי-פעם. (לקח-חי: bun-קורס-על-secp256k1-native-של-dhive → הרצה-דרך-tsx/node-מוכחת).
+- תיקון-ה-CRITICAL (snapshot-anchor.ts): broadcast_transaction_synchronous (מחזיר-id) + fallback-הוכחת-digest-בהיסטוריה-החיה + שער-כנות-חדש (אין-txid-ואין-הוכחה → failed-כנה, לעולם-לא-עיגון-שקרי).
+- לולאת-האוטונומיה (orchestra-autodrive.ts + instrumentation): התזמורת-מריצה-את-עצמה-בכל-30ד׳-בתוך-תהליך-השרת — dryrun-ברירת-מחדל, live-רק-דרך-קובץ-מצב-עתידי (fail-closed, חוק-v120-נשמר), guard-כפילויות, logOp-לכל-טיק.
+- הראיות-על-המסך: GET-orchestra-מחזיר-פנקס-חי (50-שורות, txid/errorClass/windowIndex) · פנקס-הצבעות-חי-חדש-בויו-עם-קישורי-סייר · מתג-שרשרת-HIVE/STEEM-בלוח-ההפעלה (הכפתור-עתה-שולח-chain — תיקון-124-a:7).
+- תיקונים-זעירים: roast.ts → SAOS_SELF_URL (היה-3000-קבוע).
+- VERIFICATION: bunx tsc --noEmit = 0 · lint = 0 · E2E-דפדפן: #orchestra → פנקס-ההצבעות-החי-מוצג, live_rows=8, קישורי-סייר-חיים · mobile-390-hscroll=0 · dev.log-נקי (orchestra-200) · curl-GET-orchestra → ledgerCount:8-עם-txids-חיים.
+
+Stage Summary:
+- הריבונות-קיבלה-קול: הפעם-הראשונה-ההצבעות-על-השרשרת-אמיתיות-וניתנות-להוכחה-בסייר-הציבורי — לא-עוד תיוג-אלא-קיור.
+- האורגניזם-מריץ-את-התזמורת-בעצמו (לולאת-אוטונומיה-חיה) והדימום-הכפול-נאטם (עוגן-שעתי + אפס-ראיות-בלתי-נראות).
+- פתוחים-בכנות: ה-5-routes-היתומים (cheap-routes/supervisor/memory-house/rearm/auth-revoke) · 2-מודלי-פריזמה-מתים (מושהים-מדעת) · live-אוטומטי-דרך-קובץ-מצב (דורש-החלטת-בעלים) · הצבעות-STEEM-מקבילות · filter-repo-היסטורי (דורש-החלטת-בעלים — force-push).

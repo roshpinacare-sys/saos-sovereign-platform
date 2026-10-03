@@ -39,4 +39,12 @@ export async function register(): Promise<void> {
   } catch (err) {
     console.error("[saos-supervisor] register failed (honest, non-fatal):", err);
   }
+  try {
+    // v124 — לולאת-האוטונומיה של התזמורת: האורגניזם מריץ את התזמורת בעצמו
+    // (dryrun-כברירת-מחדל; live רק דרך קובץ-המצב — fail-closed, חוק v120 נשמר).
+    const { startOrchestraAutodrive } = await import("./lib/saos/orchestra-autodrive");
+    startOrchestraAutodrive();
+  } catch (err) {
+    console.error("[saos-orchestra-autodrive] register failed (honest, non-fatal):", err);
+  }
 }
