@@ -1,20 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * src/proxy.ts — v111.0.0-content RED TEAM (strix) — שכבת-כותרות-האבטחה של הפלטפורמה.
+ * src/proxy.ts — v121.0.0 preview-loophole (התיקון-שנועל-את-הבעלים-בחוץ) — שכבת-כותרות-האבטחה.
  * =====================================================================
- * Next 16 שינה את שם-הקובץ: middleware.ts → proxy.ts (ה-RENAMED-של Next16 —
- * הקובץ ש-Next באמת טוען). אין ליצור middleware.ts לצד זה.
+ * Next 16 שינה את שם-הקובץ: middleware.ts → proxy.ts. אין ליצור middleware.ts לצד זה.
  *
- * מדיניות-ה-CSP מדורגת (v111 doctrine, staged): אנו מפרסמים
- * Content-Security-Policy-Report-Only ולא CSP אוכף — כי אכיפה על פלטפורמה
- * חיה-בת-113-גלים עם inline styles/scripts של Next dev תשבור את ה-UI בלי
- * מלאי-הפרות ללמוד ממנו. Report-Only מפיק את המלאי תחילה; ההחמרה לאכיפה
- * היא צעד-עצמאי לאחר סקירת-ההפרות (בלי-שינוי-חוזה-השער).
+ * v121 — תיקון-חור-התצוגה-המקדימה (נמדד-חי 2026-10-03): לוח-התצוגה-המקדימה של
+ * הבעלים מטמיע את הקונסולה ב-iframe על תחום-הפלטפורמה (preview-chat-*.space-z.ai) —
+ * ו-X-Frame-Options: DENY (מ-v111) חסם את-הבעלים-עצמו: "refused to connect".
+ * התרופה המדורגת: ביטול-XFO (ה-API המיושן לא-יודע-רשימות-היתר) ומעבר-ל-frame-ancestors
+ * מודרני-מאוכף-בלבד: CSP אוכף-מינימלי שמכיל את-הנחיה-הזו-בלבד (frame-ancestors
+ * https://*.space-z.ai) — לא-נוגע-בשום-הנחיה-אחרת, אפס-סיכון-שבירת-UI, וההגנה
+ * מול-קליק-ג'קינג נשארת (כל-מקור-אחר נחסם).
  *
- * שאר-הכותרות אוכפות מיד: nosniff · referrer-policy · permissions-policy
- * · X-Frame-Options DENY — כולן בטוחות-שחרור ונמדדות ע"י חיישן
- * headers ב-src/lib/saos/redteam.ts.
+ * מדיניות-ה-CSP המלאה ממשיכה מדורגת (v111 doctrine): Report-Only בלבד —
+ * האכיפה-המלאה צעד-עצמאי אחרי סקירת-ההפרות.
  */
 
 export function proxy(req: NextRequest) {
@@ -24,7 +24,10 @@ export function proxy(req: NextRequest) {
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  res.headers.set("X-Frame-Options", "DENY");
+
+  // v121 — הגנת-המסגור בלבד, מאוכפת, עם-רשימת-היתר-לפלטפורמה:
+  // (XFO הוסר — הוא חסם גם את תצוגת-הבעלים; frame-ancestors מדויק-יותר)
+  res.headers.set("Content-Security-Policy", "frame-ancestors https://*.space-z.ai");
 
   // ── CSP מדורג: Report-Only תחילה (v111 doctrine) — המלאי נאסף, האכיפה בצעד-הבא ──
   const csp = [
@@ -34,7 +37,7 @@ export function proxy(req: NextRequest) {
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "connect-src 'self'",
-    "frame-ancestors 'none'",
+    "frame-ancestors https://*.space-z.ai", // v121 — הבעלים-דרך-הפלטפורמה; שאר-העולם נחסם
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'"

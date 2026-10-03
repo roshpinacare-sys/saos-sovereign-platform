@@ -262,7 +262,10 @@ async function probeHeaders(ctx: RedteamCtx): Promise<RedteamProbeResult> {
     // HSTS: על לופבק-http אינו רלוונטי (רק-בטלס) — עובדה, לא ממצא
     const missing: Array<[string, string, string]> = [];
     if (!measured.csp && !measured.cspReportOnly) missing.push(["Content-Security-Policy", "medium", "CSP — הגנת-תוכן-פעילה/מדווחת חסרה"]);
-    if (!measured.xFrameOptions) missing.push(["X-Frame-Options", "medium", "X-Frame-Options — הגנת-קליק-ג'קינג חסרה"]);
+    // v121 — הגנת-המסגור בשתי-צורות-קבילות: XFO קלאסי או frame-ancestors מאוכף (CSP אוכף — לא Report-Only).
+    // XFO הוסר מ-proxy.ts ב-v121 (הוא חסם את תצוגת-המקדימה של הבעלים) — המאוכף הוא frame-ancestors https://*.space-z.ai.
+    const enforcingFrameAncestors = (measured.csp ?? "").includes("frame-ancestors");
+    if (!measured.xFrameOptions && !enforcingFrameAncestors) missing.push(["frame-ancestors (או X-Frame-Options)", "medium", "הגנת-קליק-ג'קינג חסרה — גם X-Frame-Options וגם frame-ancestors-מאוכף לא נמדדו בתשובה"]);
     if (!measured.xContentTypeOptions) missing.push(["X-Content-Type-Options", "medium", "X-Content-Type-Options: nosniff חסר"]);
     if (!measured.referrerPolicy) missing.push(["Referrer-Policy", "medium", "Referrer-Policy חסרה"]);
     if (!measured.permissionsPolicy) missing.push(["Permissions-Policy", "medium", "Permissions-Policy חסרה"]);
