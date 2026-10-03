@@ -485,10 +485,24 @@
  *    הצפה). הרוטציה עצמה — חומר-בעלים; הצופה מדווח, לעולם לא מסובב.
  */
 
-export const SAOS_VERSION = "107.0.0";
+/**
+ * v108 מיחזור-המעבדה (LAB RECYCLE) — סגירת-שני-הנותרים של wave-19.5 במדידה-חיה:
+ *
+ * 1. שער-11 MINI-PARSE ב-verify.sh: bun build fail-closed לכל קבצי ה-src של כל
+ *    ה-mini-services (8/8 נמדדו-נקי לפני-הקומיט) — מחלקת-ה-SyntaxError-הלטנטי (tsconfig-סקופ +
+ *    bun --hot שקט) סתומה לתמיד. VERDICT=pass 11/11.
+ * 2. השסתום-הנמדד של שרשרת-המעבדה: anvil 924MB אחרי 2:20ש' מול ~82MB טרי מאותו
+ *    load-state (state רזה 27.9MB — הזיכרון צבירה-ריצתית, לא המצב) → LAB RECYCLE:
+ *    סף-RSS 700MB · כפתור-force · רצפה 10 דק' · דריסה-חיה state/lab-recycle.json ·
+ *    SIGTERM→exit-dump→RESUME · נעול-על RT.busy (v62) מול cycles/watchdog ·
+ *    דריל-חי: 2 מיחזורים × 0.5ש' · השרשרת צועדת · זמין-במכונה 1154→1931MB.
+ *    מקור-ה-0.9GB האמיתי של מלחמת-ה-OOM עכשיו שסתום-מתוכנן-מתועד.
+ */
+
+export const SAOS_VERSION = "108.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "המשמר-הבלתי-נראה (THE INVISIBLE GUARD)";
+export const SAOS_CODENAME = "מיחזור-המעבדה (LAB RECYCLE)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;
