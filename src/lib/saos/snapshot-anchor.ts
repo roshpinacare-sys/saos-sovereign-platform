@@ -476,19 +476,23 @@ async function broadcastOpViaHttps(
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "condenser_api.broadcast_transaction",
+        // תיקון-שורש (v124): broadcast_transaction מטבעו אינו מחזיר txid —
+        // הצומת אוכל את ה-op והקוד סימן "failed" שקרי 7-פעמים/יום.
+        // הגרסה ה-synchronous מחזירה {id, block_num, expired} — ואם עדיין
+        // אין id, ההוכחה-לפי-digest בהיסטוריה-החיה תקבע (מתחת).
+        method: "condenser_api.broadcast_transaction_synchronous",
         params: [{ ...signed, signatures }]
       }),
       signal: AbortSignal.timeout(30_000)
     });
     const j = (await res.json().catch(() => null)) as {
-      result?: { id?: string };
+      result?: { id?: string; block_num?: number };
       error?: { message?: string };
     } | null;
     if (!j) return { txid: null, error: "node answered without parseable JSON (honest)" };
     if (j.error) return { txid: null, error: j.error.message ?? "node rejected without a message" };
     const txid = j.result?.id ?? null;
-    if (!txid) return { txid: null, error: "node accepted the op but answered without a transaction id (honest)" };
+    if (!txid) return { txid: null, error: null }; // accepted-no-id: ההוכחה-לפי-digest תקבע את האמת
     return { txid, error: null };
   } catch (e) {
     return { txid: null, error: e instanceof Error ? e.message : String(e) };
@@ -648,6 +652,32 @@ export async function anchorSnapshotOnSteem(source: "manual" | "auto"): Promise<
 
   // הוכחת-הכללה מההיסטוריה החיה
   const inclusion = await verifySnapshotInclusion(account, digest);
+
+  // שער-כנות (v124): אין txid ואין הוכחת-הכללה — זהו כישלון אמת, לא עיגון
+  if (!txid && !inclusion.confirmed) {
+    const failedRow = await db.anchorTx.create({
+      data: {
+        network: "STEEM",
+        kind: "snapshot",
+        txid: null,
+        status: "failed",
+        gate: "accepted-without-id-and-unconfirmed: הצומת קיבל את ה-op בלי txid וההיסטוריה לא הוכיחה את ה-digest — כנות מעל הכל",
+        meta: JSON.stringify({ digest, source, snapshotAt: new Date().toISOString(), payloadBytes })
+      }
+    });
+    await logOp("snapshot-anchor", { ok: false, gate: "accepted-unconfirmed", anchorId: failedRow.id, digest, source });
+    return {
+      ok: true,
+      action: "anchor",
+      source,
+      digest,
+      anchored: false,
+      error: "accepted-without-id-and-unconfirmed",
+      gate: "הצומת קיבל בלי txid וההוכחה-לפי-digest לא מצאה — נרשם כישלון כנה (לא עיגון שקרי)",
+      payloadBytes,
+      snapshot
+    };
+  }
 
   const row = await db.anchorTx.create({
     data: {
