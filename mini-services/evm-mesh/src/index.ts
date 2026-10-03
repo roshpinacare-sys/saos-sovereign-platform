@@ -225,6 +225,69 @@ function stateFileExists(): boolean {
   }
 }
 
+// v119 — RESUME HEALTH GATE: two live-proven failure classes (2026-10-03):
+//  (a) a TORN state file (OOM/SIGKILL mid-dump) fails the JSON parse, and
+//  (b) a FAT dump that anvil itself cannot load back — the roundtrip bug:
+//      5356 blocks + 96 kept transactions + historical_states serialized a
+//      tx variant the 1.8.4 loader refuses (error at column 6721192) —
+//      9 futile revives against it. The loadable truth is accounts + the
+//      block header (54 accounts incl. every deployed contract — PROVEN:
+//      lean resume answered block 0x4bd4 = the exact death block); replay
+//      bodies are ephemeral. Every resume therefore NORMALIZES to the lean
+//      form (atomic tmp+rename); a torn file falls back to the v35-validated
+//      mirror home, then honest fresh genesis. The 30s dump rewrites lean.
+function leanLoadableState(raw: string): string | null {
+  try {
+    const d = JSON.parse(raw) as Record<string, unknown>;
+    const accounts = d.accounts as Record<string, unknown> | undefined;
+    if (!accounts || typeof accounts !== "object" || Object.keys(accounts).length === 0) return null;
+    const block = (d.block ?? null) as Record<string, unknown> | null;
+    return JSON.stringify({
+      block,
+      accounts,
+      best_block_number: d.best_block_number ?? block?.number ?? "0x0",
+      blocks: [],
+      transactions: [],
+      historical_states: []
+    });
+  } catch { return null; }
+}
+
+function tryResumeFrom(src: string, label: string): boolean {
+  try {
+    const st = fs.statSync(src);
+    if (st.size === 0) return false;
+    const raw = fs.readFileSync(src, "utf8");
+    const lean = leanLoadableState(raw);
+    if (lean === null) return false;
+    if (src !== ANVIL_STATE) {
+      fs.mkdirSync(path.dirname(ANVIL_STATE), { recursive: true });
+      fs.copyFileSync(src, ANVIL_STATE);
+    }
+    if (lean.length !== raw.length) {
+      fs.writeFileSync(`${ANVIL_STATE}.lean.tmp`, lean);
+      fs.renameSync(`${ANVIL_STATE}.lean.tmp`, ANVIL_STATE);
+      console.log(`[evm-mesh] v119 RESUME GATE: normalized ${(raw.length / 1e6).toFixed(1)}MB → ${(lean.length / 1e3).toFixed(0)}KB lean loadable state (from ${label}) — replay bodies are ephemeral, accounts are the truth`);
+    }
+    return true;
+  } catch { return false; }
+}
+
+function stateFileResumable(): boolean {
+  if (!stateFileExists()) return false;
+  if (tryResumeFrom(ANVIL_STATE, "primary")) return true;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  try { fs.renameSync(ANVIL_STATE, `${ANVIL_STATE}.corrupt-${stamp}`); } catch { /* evidence kept */ }
+  console.log(`[evm-mesh] v119 RESUME GATE: primary unloadable/torn — moved to .corrupt-${stamp}`);
+  try {
+    if (fs.statSync(MIRROR_STATE).size > 0 && tryResumeFrom(MIRROR_STATE, "mirror")) {
+      console.log(`[evm-mesh] v119 RESUME GATE: resumed from the mirror home — the chain continues`);
+      return true;
+    }
+  } catch { /* no valid mirror — honest fresh genesis */ }
+  return false;
+}
+
 /** v33 → v35 — mirrors the chain state to the survivable home.
  *  v35: copy-on-change + validated + atomic (see STATE_MIRROR_MS note). */
 let lastStateMirrorSig = ""; // `${mtimeMs}:${size}` of the last mirrored dump
@@ -548,7 +611,7 @@ function spawnAnvil(): ReturnType<typeof Bun.spawn> {
   // v54 מכוונן-הרשת — --transaction-block-keeper: anvil שומר נתוני-עסקה
   // ל-96 הבלוקים האחרונים בלבד; ה-dump הבא כבר ייכתב רזה וישאר רזה.
   const args = ["--port", String(PORT), "--chain-id", String(MESH_CHAIN_ID), "--dump-state", ANVIL_STATE, "--state-interval", String(STATE_DUMP_SECONDS), "--transaction-block-keeper", String(SURGERY_KEEP_BLOCKS)];
-  const resume = stateFileExists();
+  const resume = stateFileResumable(); // v119 — parse-gated resume (torn file → mirror → genesis, never a futile loop)
   if (resume) args.unshift("--load-state", ANVIL_STATE);
   console.log(`[evm-mesh] starting anvil on :${PORT} (chainId ${MESH_CHAIN_ID})${resume ? " — RESUMING persisted state" : " — fresh genesis"}${" · v54 keeper=" + SURGERY_KEEP_BLOCKS}`);
   fs.mkdirSync(path.dirname(ANVIL_STATE), { recursive: true });

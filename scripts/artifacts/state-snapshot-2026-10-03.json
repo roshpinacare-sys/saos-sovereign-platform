@@ -1,14 +1,14 @@
 {
   "format": "saos-state-snapshot",
   "version": 1,
-  "exportedAt": "2026-10-03T19:16:43.764Z",
+  "exportedAt": "2026-10-03T20:17:59.891Z",
   "source": "keeper-tick",
   "counts": {
     "agentRole": 3,
-    "opLog": 827,
-    "economyRun": 5
+    "opLog": 945,
+    "economyRun": 7
   },
-  "digest": "bab08abe1ac785d56409742e5a7509dab8b4cfbf4fb5b0937cbdcd6202d8a394",
+  "digest": "6d8632bb177bd7fb6ad988ca01a84d0acdff02470ae4618a70788bc3ca67837c",
   "tables": {
     "agentRole": [
       {
@@ -55,6 +55,714 @@
       }
     ],
     "opLog": [
+      {
+        "id": "cmusu36u5000vkghd71kq9k9j",
+        "op": "authority",
+        "detail": "סריקה 7 (keeper-tick): 9 שאלות · 3 מבוצעות · 0 מאושרות · 6 בצפייה · 0 נדחות · 0 ישנות-פתוחות — כל תשובה עם חוק ובסיס · חדשות 3 · מתעדכנות 6 · לבעלים 0 · 24ms",
+        "createdAt": "2026-10-03T20:17:50.429Z"
+      },
+      {
+        "id": "cmusu2bdm000pkghd3dvc40p5",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":12079700,\"ema\":11983800,\"amountIn\":\"3.449e-7 WETH\",\"txid\":\"0x989a14de23289490ebc76923a37b1e690d40e14a529b997b0a1e26f50820bf3b\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T20:17:09.659Z"
+      },
+      {
+        "id": "cmusu2bdm000okghdvd5xxs0b",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.4488636126931004e-7,\"ok\":true,\"txid\":\"0x989a14de23289490ebc76923a37b1e690d40e14a529b997b0a1e26f50820bf3b\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0948 wSAOS\"}",
+        "createdAt": "2026-10-03T20:17:09.658Z"
+      },
+      {
+        "id": "cmusu2b33000nkghdm8cl00x5",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T20:17:09.279Z"
+      },
+      {
+        "id": "cmusu2b19000mkghdne3ehbst",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":1375.58,\"ema\":1364.66,\"amountIn\":\"0.0007666 WTRX\",\"txid\":\"0x6ead3e318b81a94241cc341ba5c36b2de55d728468ec4250ef8b0f3023ad23de\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T20:17:09.213Z"
+      },
+      {
+        "id": "cmusu2b18000lkghdq9zvi4r6",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007665922393670757,\"ok\":true,\"txid\":\"0x6ead3e318b81a94241cc341ba5c36b2de55d728468ec4250ef8b0f3023ad23de\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0258 wSAOS\"}",
+        "createdAt": "2026-10-03T20:17:09.212Z"
+      },
+      {
+        "id": "cmusu2arv000kkghdjreq0bz6",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T20:17:08.875Z"
+      },
+      {
+        "id": "cmusu2aq2000ikghdo5flu2hg",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.4488636126931004e-7,\"ok\":true,\"txid\":\"0xfcc03d361c878b9f693b7f8a6fb6e0ef61665e1b2a8f8a3d84ed7c14ceeca875\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.1766 wSAOS\"}",
+        "createdAt": "2026-10-03T20:17:08.810Z"
+      },
+      {
+        "id": "cmusu2aq2000jkghd5ap5i3uf",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":12031700,\"ema\":11983800,\"amountIn\":\"3.449e-7 WETH\",\"txid\":\"0xfcc03d361c878b9f693b7f8a6fb6e0ef61665e1b2a8f8a3d84ed7c14ceeca875\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T20:17:08.810Z"
+      },
+      {
+        "id": "cmusu2afh000hkghdcgji4kwe",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T20:17:08.429Z"
+      },
+      {
+        "id": "cmusu2adn000fkghdaree7iqm",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007665922393670757,\"ok\":true,\"txid\":\"0x976d878b0e4f48d1035fda643001443412dac658ce61a5b53929f9afff69ac34\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0463 wSAOS\"}",
+        "createdAt": "2026-10-03T20:17:08.364Z"
+      },
+      {
+        "id": "cmusu2adn000gkghd0l4gjzmp",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":1370.12,\"ema\":1364.66,\"amountIn\":\"0.0007666 WTRX\",\"txid\":\"0x976d878b0e4f48d1035fda643001443412dac658ce61a5b53929f9afff69ac34\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T20:17:08.364Z"
+      },
+      {
+        "id": "cmusu28f7000ekghd4soz43qi",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T20:17:05.827Z"
+      },
+      {
+        "id": "cmusu265w000ckghdc1uypwv6",
+        "op": "market-brain",
+        "detail": "מחזור 7 (keeper-tick): 8 זרמים · 2 מוגדלים · 0 רצפה · 3 בפארק-תשואה — כל החלטה עם סיבה נמדדת · ריצה #7",
+        "createdAt": "2026-10-03T20:17:02.900Z"
+      },
+      {
+        "id": "cmusu2632000bkghd5vh0pytf",
+        "op": "snapshot-anchor",
+        "detail": "{\"ok\":false,\"gate\":\"broadcast-rejected\",\"anchorId\":\"cmusu2631000akghdve4seo1e\",\"digest\":\"91a51685f3e16ad82a89fe5f886c6edaa2cc036b22d8ee432c82a3ce5d4c51ab\",\"source\":\"auto\",\"error\":\"node accepted the op but answered without a transaction id (honest)\"}",
+        "createdAt": "2026-10-03T20:17:02.798Z"
+      },
+      {
+        "id": "cmusu25050009kghd8fmd23ai",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T20:17:01.397Z"
+      },
+      {
+        "id": "cmusu23x80008kghdybqsjpk0",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:16:59.996Z"
+      },
+      {
+        "id": "cmusu1rz50006kghd135qaazi",
+        "op": "workers.sweep",
+        "detail": "{\"ok\":true,\"active\":0,\"ran\":0,\"artifacts\":0,\"unwiredActive\":[],\"by\":\"bearer:e41e2b78\"}",
+        "createdAt": "2026-10-03T20:16:44.513Z"
+      },
+      {
+        "id": "cmusu10qn0005kghd6qlx8qhd",
+        "op": "economy-run",
+        "detail": "{\"actor\":\"hq\",\"runId\":7,\"stage\":1,\"mode\":\"measured\",\"totalPerDayUsdMicro\":311877,\"txids\":0}",
+        "createdAt": "2026-10-03T20:16:09.215Z"
+      },
+      {
+        "id": "cmusu0tnz0003kghdbpuh298u",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:16:00.048Z"
+      },
+      {
+        "id": "cmusu078l0001kghd8edbk7ay",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":1232896,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 1204KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-03T20:15:30.982Z"
+      },
+      {
+        "id": "cmusu07840000kghdx1qoj2uu",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T20:15:30.964Z"
+      },
+      {
+        "id": "cmustz9va0002kg5hdnha4lj0",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T20:14:47.734Z"
+      },
+      {
+        "id": "cmustz2z90001kg5hdf6o00o5",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:14:38.806Z"
+      },
+      {
+        "id": "cmustxsgc000dkgw4ju35hb5t",
+        "op": "state-snapshot.export",
+        "detail": "{\"ok\":true,\"file\":\"state-snapshot-2026-10-03.json\",\"bytes\":364323,\"counts\":{\"agentRole\":3,\"opLog\":920,\"economyRun\":6},\"digest\":\"109e724ad2b859a6\"}",
+        "createdAt": "2026-10-03T20:13:38.509Z"
+      },
+      {
+        "id": "cmustxjxo000bkgw4gmf7c428",
+        "op": "authority",
+        "detail": "סריקה 6 (keeper-tick): 9 שאלות · 3 מבוצעות · 0 מאושרות · 6 בצפייה · 0 נדחות · 0 ישנות-פתוחות — כל תשובה עם חוק ובסיס · חדשות 3 · מתעדכנות 6 · לבעלים 0 · 45ms",
+        "createdAt": "2026-10-03T20:13:27.469Z"
+      },
+      {
+        "id": "cmustwly80009kgw4ax25drok",
+        "op": "market-brain",
+        "detail": "מחזור 6 (keeper-tick): 8 זרמים · 2 מוגדלים · 0 רצפה · 3 בפארק-תשואה — כל החלטה עם סיבה נמדדת · ריצה #6",
+        "createdAt": "2026-10-03T20:12:43.424Z"
+      },
+      {
+        "id": "cmustwlv60008kgw420xfstex",
+        "op": "snapshot-anchor",
+        "detail": "{\"ok\":false,\"gate\":\"broadcast-rejected\",\"anchorId\":\"cmustwlv50007kgw40fgn832p\",\"digest\":\"38747a9fc27bc8ae5c535a5a4da0e15d9669160475dd9963c1a90d32b43955b1\",\"source\":\"auto\",\"error\":\"node accepted the op but answered without a transaction id (honest)\"}",
+        "createdAt": "2026-10-03T20:12:43.315Z"
+      },
+      {
+        "id": "cmustwjl70006kgw48r6xiler",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:12:40.364Z"
+      },
+      {
+        "id": "cmustw7pw0004kgw4ueoikxgk",
+        "op": "workers.sweep",
+        "detail": "{\"ok\":true,\"active\":0,\"ran\":0,\"artifacts\":0,\"unwiredActive\":[],\"by\":\"bearer:e41e2b78\"}",
+        "createdAt": "2026-10-03T20:12:24.980Z"
+      },
+      {
+        "id": "cmustve6k0003kgw47fyi2lus",
+        "op": "economy-run",
+        "detail": "{\"actor\":\"hq\",\"runId\":6,\"stage\":0,\"mode\":\"sim\",\"totalPerDayUsdMicro\":0,\"txids\":0}",
+        "createdAt": "2026-10-03T20:11:46.700Z"
+      },
+      {
+        "id": "cmustv82n0001kgw4lbwudyga",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:11:38.784Z"
+      },
+      {
+        "id": "cmustspzq0001kgkwv93yb6a4",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:09:42.038Z"
+      },
+      {
+        "id": "cmustq5f80001kg9birr70irg",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:07:42.068Z"
+      },
+      {
+        "id": "cmustnksw0005kg3gab7471mk",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:05:42.032Z"
+      },
+      {
+        "id": "cmustlmbo0003kg3goer4kacz",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":1220608,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 1192KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-03T20:04:10.693Z"
+      },
+      {
+        "id": "cmustlmb50002kg3gbc6xr3ze",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T20:04:10.674Z"
+      },
+      {
+        "id": "cmustl09x0001kg3gl210z1f2",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:03:42.118Z"
+      },
+      {
+        "id": "cmustigz30001kgzawg32cbir",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T20:01:43.791Z"
+      },
+      {
+        "id": "cmustfuzw0003kgu8edvcynf0",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:59:41.996Z"
+      },
+      {
+        "id": "cmustdaf20001kgu8er2fcki1",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:57:42.015Z"
+      },
+      {
+        "id": "cmustar480001kgq5i8hzrqd9",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:55:43.688Z"
+      },
+      {
+        "id": "cmust857i0003kgmgt40y49ry",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:53:41.982Z"
+      },
+      {
+        "id": "cmust5kos0001kgmg2xv6qq3h",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:51:42.076Z"
+      },
+      {
+        "id": "cmust31en0001kghp2hevuwri",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:49:43.775Z"
+      },
+      {
+        "id": "cmust0fgk0003kgeijcrznsja",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:47:42.020Z"
+      },
+      {
+        "id": "cmussxuwx0001kgeiknzaka7x",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:45:42.081Z"
+      },
+      {
+        "id": "cmussvwep0003kg7z7ejy7ngk",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":1212416,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 1184KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-03T19:44:10.705Z"
+      },
+      {
+        "id": "cmussvwe00002kg7zs222ks32",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:44:10.680Z"
+      },
+      {
+        "id": "cmussvbk40001kg7zmqg68zdj",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:43:43.684Z"
+      },
+      {
+        "id": "cmusssppa0007kg16p7oxh09p",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:41:42.046Z"
+      },
+      {
+        "id": "cmussrp7s0004kg16l1t7ttfz",
+        "op": "agents.inbox.order",
+        "detail": "{\"ok\":false,\"agent\":\"night-scout\",\"difficulty\":3,\"reward\":9}",
+        "createdAt": "2026-10-03T19:40:54.761Z"
+      },
+      {
+        "id": "cmussrp750002kg16wj8599ji",
+        "op": "perm.post-work.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: פרסום פקודה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:40:54.738Z"
+      },
+      {
+        "id": "cmussq6dc0004kgifly36y0c5",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:39:43.680Z"
+      },
+      {
+        "id": "cmussnko50001kgif7wmjxhz8",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:37:42.245Z"
+      },
+      {
+        "id": "cmussmzqo0014kg81igdf53j3",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":11798100,\"ema\":11893200,\"amountIn\":\"4.1439 wSAOS\",\"txid\":\"0x2b1ba601fb5890e2e5754af9ff000b8d57fb63c5fd4de89df7e956230b73e0bc\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:37:15.121Z"
+      },
+      {
+        "id": "cmussmzqo0013kg810wmvxfg9",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"buy\",\"amount\":4.143940592011265,\"ok\":true,\"txid\":\"0x2b1ba601fb5890e2e5754af9ff000b8d57fb63c5fd4de89df7e956230b73e0bc\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"3.408e-7 WETH\"}",
+        "createdAt": "2026-10-03T19:37:15.120Z"
+      },
+      {
+        "id": "cmussmz870010kg81lpnthtx6",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":1.0381259154696947,\"ok\":true,\"txid\":\"0xf9c3f9ed5bef78bae4f75cc592a82a525c524983ec12c24114c39c0f261a08c4\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0007575 WTRX\"}",
+        "createdAt": "2026-10-03T19:37:14.456Z"
+      },
+      {
+        "id": "cmussmz870011kg81xlbeperw",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:37:14.456Z"
+      },
+      {
+        "id": "cmussmz880012kg81a0oqfcfe",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":1348.25,\"ema\":1359.12,\"amountIn\":\"1.0381 wSAOS\",\"txid\":\"0xf9c3f9ed5bef78bae4f75cc592a82a525c524983ec12c24114c39c0f261a08c4\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:37:14.456Z"
+      },
+      {
+        "id": "cmussmyn7000xkg812xg2mw6o",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":11845700,\"ema\":11893200,\"amountIn\":\"4.1439 wSAOS\",\"txid\":\"0x96de0d055b667773683187844883359a1266a31577125ef88c43863d86feff31\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:37:13.700Z"
+      },
+      {
+        "id": "cmussmyn8000ykg81qp8gocgp",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:37:13.700Z"
+      },
+      {
+        "id": "cmussmyn8000zkg81wnmcf04k",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"buy\",\"amount\":4.143940592011265,\"ok\":true,\"txid\":\"0x96de0d055b667773683187844883359a1266a31577125ef88c43863d86feff31\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"3.476e-7 WETH\"}",
+        "createdAt": "2026-10-03T19:37:13.700Z"
+      },
+      {
+        "id": "cmussmy4c000ukg815qvhc967",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":1.0381259154696947,\"ok\":true,\"txid\":\"0xf7ff729cfb22f451661b349bd2fc020f414f60c74156d5a31f418848e3126028\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0007726 WTRX\"}",
+        "createdAt": "2026-10-03T19:37:13.021Z"
+      },
+      {
+        "id": "cmussmy4d000vkg81dqlm3pg2",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:37:13.021Z"
+      },
+      {
+        "id": "cmussmy4d000wkg81zgca29p7",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":1353.69,\"ema\":1359.12,\"amountIn\":\"1.0381 wSAOS\",\"txid\":\"0xf7ff729cfb22f451661b349bd2fc020f414f60c74156d5a31f418848e3126028\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:37:13.021Z"
+      },
+      {
+        "id": "cmussmxn1000tkg81yxdfbysx",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:37:12.398Z"
+      },
+      {
+        "id": "cmussmxes000rkg81twt2tvyd",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"buy\",\"amount\":42.76080888048665,\"ok\":true,\"txid\":\"0xc3e6f92cebc352e93bb59e13c0b1c1543deca428620faec1d1cf9ba2865c129b\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"0.01490 WRXP\"}",
+        "createdAt": "2026-10-03T19:37:12.101Z"
+      },
+      {
+        "id": "cmussmxet000skg81svsjo3hh",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"buy\",\"devPct\":-3.009,\"ema\":2894.84,\"amountIn\":\"42.7608 wSAOS\",\"txid\":\"0xc3e6f92cebc352e93bb59e13c0b1c1543deca428620faec1d1cf9ba2865c129b\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:37:12.101Z"
+      },
+      {
+        "id": "cmussmwra000qkg81cuginpdk",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:37:11.254Z"
+      },
+      {
+        "id": "cmusslqlr000jkg81ndqziegm",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.4487955656103003e-7,\"ok\":true,\"txid\":\"0x97bb7b031884da8a8e20a49f50d863c74d554c6d9248e04222aacd06938a09c6\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0948 wSAOS\"}",
+        "createdAt": "2026-10-03T19:36:16.624Z"
+      },
+      {
+        "id": "cmusslqlr000kkg81wvtju1v3",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":12026300,\"ema\":11930900,\"amountIn\":\"3.449e-7 WETH\",\"txid\":\"0x97bb7b031884da8a8e20a49f50d863c74d554c6d9248e04222aacd06938a09c6\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:36:16.624Z"
+      },
+      {
+        "id": "cmusslq4f000ikg81ndwf2hxk",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:36:15.999Z"
+      },
+      {
+        "id": "cmusslq2l000gkg81mm9nssx4",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007665771335783557,\"ok\":true,\"txid\":\"0xb76718e8794760312dfd4f595c793c6a65cce00dcc8a64c040a5475cb6afeb0a\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0258 wSAOS\"}",
+        "createdAt": "2026-10-03T19:36:15.934Z"
+      },
+      {
+        "id": "cmusslq2l000hkg81d2u4nfos",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":1380.55,\"ema\":1369.59,\"amountIn\":\"0.0007666 WTRX\",\"txid\":\"0xb76718e8794760312dfd4f595c793c6a65cce00dcc8a64c040a5475cb6afeb0a\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:36:15.934Z"
+      },
+      {
+        "id": "cmusslpmm000fkg813otnmn24",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:36:15.359Z"
+      },
+      {
+        "id": "cmusslpks000ekg81ojxg1zrv",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11978600,\"ema\":11930900,\"amountIn\":\"3.449e-7 WETH\",\"txid\":\"0x8b5d04f9d0b8690f06e9ca0abb8634c7e96cab8658fadc8d8e81ab5271e44042\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:36:15.293Z"
+      },
+      {
+        "id": "cmusslpks000dkg819xxhm83q",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.4487955656103003e-7,\"ok\":true,\"txid\":\"0x8b5d04f9d0b8690f06e9ca0abb8634c7e96cab8658fadc8d8e81ab5271e44042\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.1765 wSAOS\"}",
+        "createdAt": "2026-10-03T19:36:15.292Z"
+      },
+      {
+        "id": "cmusslp3n000ckg81ty1tgue9",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:36:14.675Z"
+      },
+      {
+        "id": "cmusslp1q000akg8145879h4s",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"sell\",\"amount\":0.0007665771335783557,\"ok\":true,\"txid\":\"0x4fecc65dd55b156fa92bd56686ab32ce5b68d24629ff9c9c5e6f319091b90f2c\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"1.0463 wSAOS\"}",
+        "createdAt": "2026-10-03T19:36:14.606Z"
+      },
+      {
+        "id": "cmusslp1q000bkg81px27opol",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":1375.07,\"ema\":1369.59,\"amountIn\":\"0.0007666 WTRX\",\"txid\":\"0x4fecc65dd55b156fa92bd56686ab32ce5b68d24629ff9c9c5e6f319091b90f2c\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:36:14.606Z"
+      },
+      {
+        "id": "cmusslotn0009kg817xeaahbg",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:36:14.315Z"
+      },
+      {
+        "id": "cmusslokf0007kg81mc1gtd6h",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":6.762476780820601e-7,\"ok\":true,\"txid\":\"0xffe8f16d8a6fae8bf9c125cf5712d0aeff19c68582293e9cf13dd6ce2d5251b3\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"8.4364 wSAOS\"}",
+        "createdAt": "2026-10-03T19:36:13.983Z"
+      },
+      {
+        "id": "cmusslokf0008kg81o617gq22",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"devPct\":6.274,\"ema\":11997100,\"amountIn\":\"6.762e-7 WETH\",\"txid\":\"0xffe8f16d8a6fae8bf9c125cf5712d0aeff19c68582293e9cf13dd6ce2d5251b3\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:36:13.983Z"
+      },
+      {
+        "id": "cmusslmhk0006kg81498zewfl",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:36:11.288Z"
+      },
+      {
+        "id": "cmussl1770005kg814lfllf1t",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:35:43.699Z"
+      },
+      {
+        "id": "cmussifa70007kgn8lpdn3yjz",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:33:41.983Z"
+      },
+      {
+        "id": "cmussfwrt0001kgn8ux9miob4",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:31:44.682Z"
+      },
+      {
+        "id": "cmussfher000ckg4k37z2syzp",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":1.0381054591008385,\"ok\":true,\"txid\":\"0x97a0fd414b0862b0819dc3c6f34e7e0b58bcb285a2577c63978d3ddc22c73b13\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0007575 WTRX\"}",
+        "createdAt": "2026-10-03T19:31:24.772Z"
+      },
+      {
+        "id": "cmussfher000dkg4k5yrilupy",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.8,\"level\":1354.78,\"ema\":1365.7,\"amountIn\":\"1.0381 wSAOS\",\"txid\":\"0x97a0fd414b0862b0819dc3c6f34e7e0b58bcb285a2577c63978d3ddc22c73b13\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:31:24.772Z"
+      },
+      {
+        "id": "cmussfgjy0009kg4kfh9uhl2n",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":1.0381054591008385,\"ok\":true,\"txid\":\"0x43064edc507cb4c8e5da3761d82dc3ae0ddd24240c9c7b7935aaeac7253b1bdc\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.0007726 WTRX\"}",
+        "createdAt": "2026-10-03T19:31:23.663Z"
+      },
+      {
+        "id": "cmussfgjy000akg4k07z5dlmi",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:31:23.663Z"
+      },
+      {
+        "id": "cmussfgjz000bkg4kqxjrwxhh",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"levelPct\":-0.4,\"level\":1360.24,\"ema\":1365.7,\"amountIn\":\"1.0381 wSAOS\",\"txid\":\"0x43064edc507cb4c8e5da3761d82dc3ae0ddd24240c9c7b7935aaeac7253b1bdc\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:31:23.663Z"
+      },
+      {
+        "id": "cmussffld0008kg4kkjvuh1m1",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:31:22.417Z"
+      },
+      {
+        "id": "cmussfetl0007kg4klwvjldz3",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WTRX\",\"dir\":\"buy\",\"devPct\":-5.988,\"ema\":1357.51,\"amountIn\":\"2.0355 wSAOS\",\"txid\":\"0xad4958cbe8214af4f5715acb4cca445b497a40521303921ae0ff1e0a17659cec\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:31:21.418Z"
+      },
+      {
+        "id": "cmussfetl0006kg4kglgwa488",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WTRX\",\"dir\":\"buy\",\"amount\":2.0355408127626724,\"ok\":true,\"txid\":\"0xad4958cbe8214af4f5715acb4cca445b497a40521303921ae0ff1e0a17659cec\",\"pair\":\"WTRX/wSAOS\",\"amountOut\":\"0.001561 WTRX\"}",
+        "createdAt": "2026-10-03T19:31:21.417Z"
+      },
+      {
+        "id": "cmussf72t0005kg4kw69hh88j",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:31:11.382Z"
+      },
+      {
+        "id": "cmussda560001kg4kjtutd54h",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:29:42.042Z"
+      },
+      {
+        "id": "cmussaqwv0005kgu15uot2ntx",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:27:43.807Z"
+      },
+      {
+        "id": "cmuss6l520002kgm2qy7fvlhd",
+        "op": "llm_chain.exhausted",
+        "detail": "{\"purpose\":\"probe:duplicate\",\"kind\":\"chain\",\"attempts\":2,\"errorClass\":\"duplicate\",\"ms\":0}",
+        "createdAt": "2026-10-03T19:24:29.703Z"
+      },
+      {
+        "id": "cmuss6l4z0000kgm26obljowj",
+        "op": "llm_chain.exhausted",
+        "detail": "{\"purpose\":\"probe:exhaustion\",\"kind\":\"chain\",\"attempts\":3,\"errorClass\":\"network\",\"ms\":1}",
+        "createdAt": "2026-10-03T19:24:29.699Z"
+      },
+      {
+        "id": "cmuss66hj0003kgj93fios8kd",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":1196032,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 1168KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-03T19:24:10.711Z"
+      },
+      {
+        "id": "cmuss66gw0002kgj9kg1809t3",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:24:10.688Z"
+      },
+      {
+        "id": "cmuss5kct0001kgj9mij5tuo2",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:23:42.029Z"
+      },
+      {
+        "id": "cmuss4ruy001hkg5924iw2nfp",
+        "op": "review.run",
+        "detail": "{\"runId\":\"cmuss3zon000rkg590lds5u7c\",\"terminal\":\"success\",\"findings\":11,\"rejected\":0,\"skill\":null,\"tokensIn\":33068,\"tokensOut\":3108,\"ms\":36543,\"llmCalls\":2,\"refusedBeforeTouch\":false}",
+        "createdAt": "2026-10-03T19:23:05.098Z"
+      },
+      {
+        "id": "cmuss3f49000pkg59zgdbw9tt",
+        "op": "review.run",
+        "detail": "{\"runId\":\"cmuss2o650009kg590ibk6pk4\",\"terminal\":\"success\",\"findings\":5,\"rejected\":0,\"skill\":null,\"tokensIn\":32975,\"tokensOut\":2636,\"ms\":34958,\"llmCalls\":2,\"refusedBeforeTouch\":false}",
+        "createdAt": "2026-10-03T19:22:01.930Z"
+      },
+      {
+        "id": "cmuss316q000dkg5947llrh5a",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:21:43.875Z"
+      },
+      {
+        "id": "cmuss2i8l0005kg59ykzwrsav",
+        "op": "llm_chain.flush",
+        "detail": "{\"flushed\":0,\"by\":\"bearer:e41e2b78\"}",
+        "createdAt": "2026-10-03T19:21:19.318Z"
+      },
+      {
+        "id": "cmuss1o330001kg59nipr5vxe",
+        "op": "llm_chain.drill",
+        "detail": "{\"ok\":true,\"candidate\":\"drill-provider-1t\",\"attempts\":2,\"errorClass\":null,\"ms\":381}",
+        "createdAt": "2026-10-03T19:20:40.239Z"
+      },
+      {
+        "id": "cmuss0fb10007kgwajat39psg",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:19:42.206Z"
+      },
+      {
+        "id": "cmusrxul70001kgwasg54bqin",
+        "op": "hive-grid.tick",
+        "detail": "{\"fills\":0,\"noop\":\"spread\",\"mid\":0.056106115110399174}",
+        "createdAt": "2026-10-03T19:17:42.043Z"
+      },
+      {
+        "id": "cmusrwrhg000xkgitvl3bwb24",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.8,\"level\":12021400,\"ema\":11926000,\"amountIn\":\"3.482e-7 WETH\",\"txid\":\"0xcbc22d22181db0d6c7b2d749b91c561f2f8547a0f82346827ee2ad929c53fcd5\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:16:51.365Z"
+      },
+      {
+        "id": "cmusrwrhg000wkgitv9gvxpx4",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.4817441116764004e-7,\"ok\":true,\"txid\":\"0xcbc22d22181db0d6c7b2d749b91c561f2f8547a0f82346827ee2ad929c53fcd5\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.0556 wSAOS\"}",
+        "createdAt": "2026-10-03T19:16:51.364Z"
+      },
+      {
+        "id": "cmusrwr09000vkgitnc9oxxz3",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:16:50.745Z"
+      },
+      {
+        "id": "cmusrwqyg000ukgitpla9uiru",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WETH\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":11973700,\"ema\":11926000,\"amountIn\":\"3.482e-7 WETH\",\"txid\":\"0x0d34be2fe4858ad4490a926aeb3b4e2112cd1f06e8dabc08a0db54e6b48f79cd\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-03T19:16:50.681Z"
+      },
+      {
+        "id": "cmusrwqyg000tkgit6vxkjirr",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WETH\",\"dir\":\"sell\",\"amount\":3.4817441116764004e-7,\"ok\":true,\"txid\":\"0x0d34be2fe4858ad4490a926aeb3b4e2112cd1f06e8dabc08a0db54e6b48f79cd\",\"pair\":\"WETH/wSAOS\",\"amountOut\":\"4.1366 wSAOS\"}",
+        "createdAt": "2026-10-03T19:16:50.680Z"
+      },
+      {
+        "id": "cmusrwox6000skgit7jern0xd",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-03T19:16:48.043Z"
+      },
+      {
+        "id": "cmusrwlmi000rkgitpuz1l7yg",
+        "op": "state-snapshot.export",
+        "detail": "{\"ok\":true,\"file\":\"state-snapshot-2026-10-03.json\",\"bytes\":331407,\"counts\":{\"agentRole\":3,\"opLog\":827,\"economyRun\":5},\"digest\":\"bab08abe1ac785d5\"}",
+        "createdAt": "2026-10-03T19:16:43.770Z"
+      },
       {
         "id": "cmusrwbt9000pkgitzaxyxw22",
         "op": "authority",
@@ -5088,6 +5796,34 @@
         "receiptDigest": "2006cab7705c3b52a7f4db94a24189d4171fb13ad7332104a9b845e685318398",
         "notes": "מחיר-SAOS-M $0.001 (SAOS_M_USD_POLICY מהבורסה החיה) · גלגל-החור 30% (מדיניות DEFAULT_ECONOMY) — הוצהר, לא נמדד כתנועה · זרמים מצטברים (potHarvested/sweptPnl/paidOut) מתויגים cumulative — לא פוצלו ל-24h שרירותית · trading-pnl-24h הוא קצב-הפרש-24h (לא מצטבר) — נגזר מהפנקס עצמו · trigger=manual",
         "at": "2026-10-03T19:14:51.332Z"
+      },
+      {
+        "id": 6,
+        "stage": 0,
+        "mode": "sim",
+        "trigger": "manual",
+        "streams": "[{\"name\":\"exchange-harvest\",\"he\":\"קציר-בורסה (קופת-הקציר של הבריכות)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"exchange-live.exchangeStatus()\",\"note\":\"הבורסה לא זמינה כרגע (connect ECONNREFUSED 127.0.0.1:8545) — אפס-כנה\"},{\"name\":\"grid-sweeps\",\"he\":\"שטיפות-מיקרו-גריד לקופת-העבודה (גלגל-החור)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"microgrid-live.microgridStatus().totals.sweptPnl\",\"note\":\"המיקרו-גריד לא זמין כרגע (connect ECONNREFUSED 127.0.0.1:8545) — אפס-כנה\"},{\"name\":\"work-orders-paid\",\"he\":\"פקודות-עבודה ששולמו (SAOS-M מקופת-העבודה)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"mesh-client.meshBoard() (SAOSWorkBoard חי) + WorkDeliverable (DB)\",\"note\":\"לוח-העבודה לא זמין (mesh לא פרוס) — אפס-כנה · WorkDeliverable-DB בן-24h: 0 (txid = עיגוני SAOS-WORK של המסירות)\"},{\"name\":\"xrp-anchors\",\"he\":\"פעימות/עיגוני-XRPL (לייבנט — חתימות r3Tq66)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"AnchorTx (DB) — network=XRPL · נרשם על-ידי anchor-xrp / physical-move\",\"note\":\"אין פעימות XRPL בן-24h (ה-DB נולד-מחדש באיפוס-הסנדבוקס; עוגנים היסטוריים-מאומתים אינם נספרים כנה) — הערך כאן עדות-txid, לא הכנסה\"},{\"name\":\"steem-anchors\",\"he\":\"עיגוני-STEEM (auto-anchor — custom_json חי)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"AnchorTx (DB) — network=STEEM · נרשם על-ידי auto-anchor\",\"note\":\"אין עיגוני STEEM בן-24h — העיגון נמדד ב-RC (אין עלות-USD נמדדת); הערך עדות-txid מיינטנט\"},{\"name\":\"inbound-harvest-rail\",\"he\":\"מסילת-harvest נכנסת (memo saos:harvest/v1)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"— אין פנקס-קליטה (liquidity-radar/treasury מדווחים יתרות, לא קליטות)\",\"note\":\"לא נמדד — אין פנקס שמזרים קליטות saos:harvest/v1; אפס-כנה ולא התחייבות\"},{\"name\":\"liquidity-inflow\",\"he\":\"נזילות-נכנסת (הפרש-24h: TVL בורסה + הפקדות wSAOS, מחיר-מדיניות)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"exchange-live.exchangeStatus() (SAOSExchange · SAOS-EVM): totals.tvlUsd + assets[WSAOS].totalMinted − poolBal\",\"note\":\"הבורסה לא זמינה כרגע (connect ECONNREFUSED 127.0.0.1:8545) — אפס-כנה (cumulative/24h-delta as measured)\"},{\"name\":\"trading-pnl-24h\",\"he\":\"רווח-מסחר 24ש' (הפרש: קציר-בורסה + שטיפות-גריד — קצב, לא מצטבר)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"הפרש-24h מפנקס EconomyRun: Δexchange-harvest (potHarvested × מחיר-מדיניות) + Δgrid-sweeps (sweptPnl × מחיר-מדיניות) מול הריצה-הקודמת בחלון\",\"note\":\"הפרש-24h as measured — קצב (rate), לא cumulative; הזרמים-המצטברים נותרו בסימונם · בסיס: ריצה #5 לפני 57 דק' · Δקציר-בורסה -10385µ$ (שלילי→0 כנה) · Δשטיפות-גריד -39µ$ (שלילי→0 כנה) · הפרש-שלילי נשמר-באפס (cumulative לא אמור לרדת — נמדד כנה) · אין txid — זהו הפרש-פנקס בין מדידות, לא עסקה\"}]",
+        "totalPerDayUsdMicro": 0,
+        "reinvestedUsdMicro": 0,
+        "retainedUsdMicro": 0,
+        "proofTxids": "[]",
+        "receiptDigest": "a114982de891990033d60b7a115166cb1eca76270fde8c69f3c233c8f43db30b",
+        "notes": "מחיר-SAOS-M לא זמין (הבורסה לא חיה) — המרות SAOS-M נשארות 0 כנה · גלגל-החור 30% (מדיניות DEFAULT_ECONOMY) — הוצהר, לא נמדד כתנועה · זרמים מצטברים (potHarvested/sweptPnl/paidOut) מתויגים cumulative — לא פוצלו ל-24h שרירותית · trading-pnl-24h הוא קצב-הפרש-24h (לא מצטבר) — נגזר מהפנקס עצמו · trigger=manual",
+        "at": "2026-10-03T20:11:46.696Z"
+      },
+      {
+        "id": 7,
+        "stage": 1,
+        "mode": "measured",
+        "trigger": "manual",
+        "streams": "[{\"name\":\"exchange-harvest\",\"he\":\"קציר-בורסה (קופת-הקציר של הבריכות)\",\"amountUsdMicro\":10476,\"txids\":[],\"source\":\"exchange-live.exchangeStatus().totals.harvestedUsd (potHarvested × מדיניות/אורקל)\",\"note\":\"cumulative מאז-פריסה (לא 24h) · 1674 swaps אמת · TVL $4.20\"},{\"name\":\"grid-sweeps\",\"he\":\"שטיפות-מיקרו-גריד לקופת-העבודה (גלגל-החור)\",\"amountUsdMicro\":39,\"txids\":[],\"source\":\"microgrid-live.microgridStatus().totals.sweptPnl (SAOS-M × מחיר-מדיניות)\",\"note\":\"cumulative מאז-פריסה · realized 0.039 SAOS-M · 27 מילויים · txid = מילויים-אחרונים שהניבו את הרווח · אין מילויים טריים (swept יכול להיות 0 בצדק)\"},{\"name\":\"work-orders-paid\",\"he\":\"פקודות-עבודה ששולמו (SAOS-M מקופת-העבודה)\",\"amountUsdMicro\":275000,\"txids\":[],\"source\":\"mesh-client.meshBoard() (SAOSWorkBoard חי) + WorkDeliverable (DB)\",\"note\":\"cumulative-שרשרת: 1132 נמסרו · 7634 SAOS-M שולמו · בן-24h (עד 40 פקודות אחרונות): 40 שולמו · WorkDeliverable-DB בן-24h: 0 (txid = עיגוני SAOS-WORK של המסירות)\"},{\"name\":\"xrp-anchors\",\"he\":\"פעימות/עיגוני-XRPL (לייבנט — חתימות r3Tq66)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"AnchorTx (DB) — network=XRPL · נרשם על-ידי anchor-xrp / physical-move\",\"note\":\"אין פעימות XRPL בן-24h (ה-DB נולד-מחדש באיפוס-הסנדבוקס; עוגנים היסטוריים-מאומתים אינם נספרים כנה) — הערך כאן עדות-txid, לא הכנסה\"},{\"name\":\"steem-anchors\",\"he\":\"עיגוני-STEEM (auto-anchor — custom_json חי)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"AnchorTx (DB) — network=STEEM · נרשם על-ידי auto-anchor\",\"note\":\"אין עיגוני STEEM בן-24h — העיגון נמדד ב-RC (אין עלות-USD נמדדת); הערך עדות-txid מיינטנט\"},{\"name\":\"inbound-harvest-rail\",\"he\":\"מסילת-harvest נכנסת (memo saos:harvest/v1)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"— אין פנקס-קליטה (liquidity-radar/treasury מדווחים יתרות, לא קליטות)\",\"note\":\"לא נמדד — אין פנקס שמזרים קליטות saos:harvest/v1; אפס-כנה ולא התחייבות\"},{\"name\":\"liquidity-inflow\",\"he\":\"נזילות-נכנסת (הפרש-24h: TVL בורסה + הפקדות wSAOS, מחיר-מדיניות)\",\"txids\":[],\"source\":\"exchange-live.exchangeStatus() (SAOSExchange · SAOS-EVM): totals.tvlUsd + assets[WSAOS].totalMinted − poolBal\",\"note\":\"cumulative/24h-delta as measured · נוכחי: TVL $4.1983 + הפקדות-wSAOS-מחוץ-לבריכות 399079.01 SAOS-M = $399.0790 · בסיס-השוואה 2026-10-03T14:41:47.181Z (הישנה בחלון-24h) · הפרש נמדד +$0.026362 · אין txid — זהו הפרש-מצב, לא עסקה\",\"amountUsdMicro\":26362},{\"name\":\"trading-pnl-24h\",\"he\":\"רווח-מסחר 24ש' (הפרש: קציר-בורסה + שטיפות-גריד — קצב, לא מצטבר)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"הפרש-24h מפנקס EconomyRun: Δexchange-harvest (potHarvested × מחיר-מדיניות) + Δgrid-sweeps (sweptPnl × מחיר-מדיניות) מול הריצה-הקודמת בחלון\",\"note\":\"הפרש-24h as measured — קצב (rate), לא cumulative; הזרמים-המצטברים נותרו בסימונם · בסיס: ריצה #6 לפני 4 דק' · Δקציר-בורסה: אין בסיס-השוואה כנה בריצה-הקודמת (אפס/חסר) — הרכיב לא נספר · Δשטיפות-גריד: אין בסיס-השוואה כנה בריצה-הקודמת (אפס/חסר) — הרכיב לא נספר · אין txid — זהו הפרש-פנקס בין מדידות, לא עסקה\"}]",
+        "totalPerDayUsdMicro": 311877,
+        "reinvestedUsdMicro": 93563,
+        "retainedUsdMicro": 218314,
+        "proofTxids": "[]",
+        "receiptDigest": "94d6399a484798567627607f3a3c63539d8fe18733365fa94fb4f98e7b19bb29",
+        "notes": "מחיר-SAOS-M $0.001 (SAOS_M_USD_POLICY מהבורסה החיה) · גלגל-החור 30% (מדיניות DEFAULT_ECONOMY) — הוצהר, לא נמדד כתנועה · זרמים מצטברים (potHarvested/sweptPnl/paidOut) מתויגים cumulative — לא פוצלו ל-24h שרירותית · trading-pnl-24h הוא קצב-הפרש-24h (לא מצטבר) — נגזר מהפנקס עצמו · trigger=manual",
+        "at": "2026-10-03T20:16:09.210Z"
       }
     ]
   }

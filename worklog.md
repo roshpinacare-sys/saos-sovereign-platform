@@ -1630,3 +1630,23 @@ Stage Summary:
 - The network can now SEE its own live market-making (the observatory closed the biggest awareness gap: the fleet ladder was invisible to its own dashboard), survive LLM provider failures by design, defend its memory three layers deep, and own v4-style hook economics on its own chain
 - The honest blockers are named with cures: HIVE keys await owner material; VP exhaustion awaits the orchestra→queue wiring (next wave, zero-cost); XRP awaits a one-line doc fix
 - Standing laws held: worklog-first, disjoint sets, no-commit for agents, direct-tsc, honest failures recorded (foundryup panic, silent agent forensics), commit+PUSH per wave
+---
+Task ID: 119
+Agent: Z.ai Code (main session — the resume valve wave)
+Task: תמשיך — verify the v118 estate ground-truth after context compaction, then kill the LIVE anvil death-spiral discovered during verification (×9 futile revives, chain down ~35min), structurally, on BOTH owners, with live proofs; commit+PUSH.
+
+Work Log:
+- VERIFICATION PASS (v118 estate, distrust-and-check): 52 views on disk incl. review/system1/resilience/steem-market/soldiers; shell.tsx ViewId union + descriptions wired for all five; tsc DIRECT 0; lint 0; web :3000 200; keeper v49.0.0 (320 checks, web revives:1 — the OOM cure WORKING in production); laya :3037 v112.0.0 alive with honest abstain. ONE unpushed commit found (a86743a keeper churn) — queued for push.
+- THE LIVE INCIDENT: keeper /status showed anvil alive:false deadStreak:5 revives:9 recycles:1 procSeen:false, RPC :8545 silent — despite ×9 revives. ROOT CAUSE (two layers deep): (1) anvil was OOM-killed mid-dump → every revive respawned with --load-state against a state file anvil ITSELF cannot load back — NOT torn JSON (python json.load passes) but the anvil 1.8.4 ROUNDTRIP BUG: 5356 blocks + 96 kept transactions + historical_states contained a tx variant the loader refuses ("data did not match any variant of untagged enum SerializableTransactionType at line 1 column 6721192") → instant exit → death-streak → revive → instant exit… the futile loop, runner watchdog + keeper revive BOTH trapped. ~35min chain-down.
+- THE PROVEN CURE (empirically, before wiring): the loadable truth is accounts + block header (54 accounts incl. every deployed contract). Built a lean state {block, accounts, best_block_number, blocks:[], transactions:[], historical_states:[]} → booted a TEST anvil on :8546 with --load-state → eth_blockNumber answered 0x4bd4 = 19412 = the EXACT death block — zero loss, contracts intact. Test instance killed cleanly.
+- THE STRUCTURAL FIX (both owners, same doctrine): runner stateFileResumable() → leanLoadableState() + tryResumeFrom(): EVERY resume normalized to the lean form (atomic tmp+rename, logged); unloadable/torn primary → evidence .corrupt-<ts> → v35-validated mirror home → honest fresh genesis last. Keeper anvilStateResumable(): identical normalization + journal rows anvil-state-lean / anvil-state-corrupt (the futile loop is now STRUCTURALLY impossible — the gate cannot return "resume" without the file being lean-and-parseable, and lean is PROVEN loadable).
+- NORMALIZED THE PRIMARY STATE in place (15.5MB → 6.5MB lean, block 0x4bd4, 54 accounts) — kept full evidence at /tmp/anvil-state-full-evidence-*.json.
+- LIVE RECOVERY PROOF: runner watchdog respawned anvil (pid 23625) WITH --load-state against the normalized state → eth_blockNumber 0x4be7 (19431) within 90s → 19460+ minutes later; keeper /status: anvil alive:true deadStreak:0 rssMb:74 (fresh, vs the 900+ corpse) · web alive 200 · availableMb 2269.
+- VERSION: 118.0.0 תזמורת → 119.0.0 שסתום-ההמשך with the full incident+cure Hebrew docket in version.ts.
+- VERIFICATION: tsc DIRECT 0 · lint 0 · keeper build 0 · mesh build 0 · live curls (anvil RPC block-advancing, keeper status alive, web 200).
+
+Stage Summary:
+- The chain-death class is CLOSED: OOM-mid-dump and anvil-roundtrip-unloadable are both caught at the resume gate on BOTH owners; the loop that burned 9 revives cannot recur — the gate physically cannot hand anvil an unloadable state.
+- The estate survived its worst infra incident yet with zero chain loss: 19412 → 19460+ live, every contract, every balance — because accounts-are-the-truth was proven before it was wired.
+- Honest note: the mirror home (MIRROR_STATE) may hold a fat dump too — harmless: the gate normalizes whatever it resumes from, mirror included.
+- Discipline held: distrust-and-check caught the incident the status counters were screaming about; evidence files kept; worklog-first; commit+PUSH per wave.
