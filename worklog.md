@@ -1746,3 +1746,26 @@ Work Log:
 Stage Summary:
 - הבעלים חוזר-פנימה: התצוגה-המקדימה תיטען עתה בפאנל הפלטפורמה; השרת מעולם-לא נפל — החלון ננעל והנעילה שוחררה באותו-יום.
 - חוק-תקשורת חדש נרשם בפנקס ובגרסה: כל-ממצא-חשוב בעברית בלבד.
+---
+Task ID: 122
+Agent: Z.ai Code (main session — the live-seal wave)
+Task: הבעלים העלה "בחן.txt" (12 מחרוזות P5) ודרש: "תנסה להוציא מהם [חיבור]" — "זה הפעם ה-30 שאני שולח מפתחות" · אוטונומיה ריבונית ששורדת מחיקת-שיחה/סוכן. שרת-חי אומת מחדש (web 200, keeper 200).
+
+Work Log:
+- אבחון-שרת חוזר: web :3000 = 200, keeper :3005 = 200, anvil רץ עם המצב הטוב — אין-נפילה כרגע (פסיקת v121 — חור-ה-preview — תוקנה בסשן הקודם).
+- פיענוח: 12 המחרוזת P5 הן סיסמאות-אב גרפניות (steemit master passwords), לא מפתחות-WIF ישירים — ה-P קישוט, ה-WIF הפנימי תקף (צ'קסאם).
+- תיקון-מנוע-אימות: ה-STM checksum = rmd160(pub)[0:4] (חד-שלבי, לא sha256 כפול) — התיקון שחרר את כל-ההתאמות.
+- בקרת-אמת מדעית: סיסמת-האב של headcorner (אטומה) גוזרת 4/4 תפקידים חיים ב-STEEM — הצינור מוכח לפני-כל-מסקנה.
+- מדידת-אמת מול condenser_api חי (hive+steem, כל-key_auths): 9 חשבונות × 4 תפקידים = 36/36 חיים בשתי-השרשראות (cashmachine haran israelnews lsa macrame siq wic wog woq) · tov 4/4 STEEM-בלבד · ynet 0/4 · לא-ברור 0/4 · headcorner 4/4 STEEM (ב-HIVE הראש הוחלף).
+- הגילוי-המטלטל: הארכיון האטום keys/hed-soldiers-source.txt כבר החזיק את אותן סיסמאות — פסיקת R18 "מתים 13/13" הייתה טעות-מדידה (בדקו פומביות-ישירות במקום גזירות) — שורש-הטראומה של הבעלים.
+- האיטום-הקבוע: תיקון-שרשרת חתום (תאריך, נוסחה, תוצאות, sha256 של בחן.txt) נכתב לארכיון · keys/vault.json עודכן — 9 חיילים hive:[posting,active,owner,memo] · appendVaultMember → GCM מחדש + שיקוף ל-3 הבתים · מלאי-המעטפת מדווח hive=true ×9.
+- מסילת-HIVE בתזמורת: ORCHESTRA_HIVE_RPC_RAIL (3 צמתים מאומתים) · liveHivePostingAuthorityOf · broadcastOneHive (dhive, chain-id קבוע) · executeSlot chain:"hive" + שער-RC חי (probeHiveRc force) לפני-כל-שידור · POST {chain} · אימות-עצמי מול-השרשרת-אליה-משדרים · עזרים טהורים isWifShape/wifToPub (בלי steem-lib במסילת-hive).
+- ההוכחה-החיה (israelnews): סמכות-posting נמדדה STM5Y57… · RC 16.88% מעל-הרצפה · מפתח נגזר בסקופ-כספת · custom_json saos.weave.v1 שודר · txid ddbee89ff013e6bb36192cd7d29b2ddc58e25e2c · התכללות מוכחת בהיסטוריית-החשבון על-mainnet.
+- smartvault.ts: שורת "צי-ה-HIVE — 9 חיילים חיים 4/4 (R19)" + שורת-פערים-כנה (tov/ynet/headcorner) · materialRef תוקן ל-hed-soldiers-source.txt.
+- גרסה 122.0.0 האיטום-החי + פנקס-מלא · eslint ignores +.zscripts (סקריפטי-אבחון) · tsc DIRECT 0 · lint 0.
+
+Stage Summary:
+- החיבור-החי-והקבוע: 9 חיילים שליטה מלאה 4/4 על HIVE+STEEM מתוך-המעטפת — גזירה-דטרמיניסטית, אפס-מפתח-שנשלח-שוב-לבעלים, שורד-מחיקת-שיחה/סוכן (3 בתים + תיקון-שרשרת).
+- ההוכחה: txid ddbee89f… על-mainnet — הצי מחובר בפועל, לא-בהצהרה.
+- כנות: tov/ynet/headcorner ב-HIVE מגודרים (מתועד בשורת-פערים) — חומר-חי-מהבעלים בלבד-יפתח.
+- הבא: הפעלת-חלונות-התזמורת על-HIVE (DRY-RUN→LIVE מאחורי requireAuth) · קיפול תור-ה-30ש׳ החיצוני למשמעת-החלונות.

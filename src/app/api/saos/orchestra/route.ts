@@ -203,6 +203,13 @@ export async function POST(req: NextRequest) {
     typeof windowIndexRaw === "number" && Number.isInteger(windowIndexRaw) && windowIndexRaw >= 0 && windowIndexRaw <= 11
       ? windowIndexRaw
       : undefined;
+  // v121 — chain param: "steem" (default) | "hive" (the R19 live fleet keys rail)
+  const chainRaw = String(body.chain ?? "steem").toLowerCase();
+  if (chainRaw !== "steem" && chainRaw !== "hive") {
+    await logOp("orchestra.post", `chain לא-מוכר נדחה: ${chainRaw}`);
+    return NextResponse.json({ ok: false, error: `chain לא מוכר: "${chainRaw}" — החוקי: steem (ברירת-מחדל) | hive` }, { status: 400 });
+  }
+  const chain = chainRaw as "steem" | "hive";
 
   // ── op:"refresh" — bust discovery cache + re-measure (read-only, no broadcast) ──
   if (op === "refresh") {
@@ -254,19 +261,20 @@ export async function POST(req: NextRequest) {
 
   // ── op:"execute" — dryrun (default, zero broadcast) | live (real votes, audited) ──
   try {
-    const result = await executeSlot({ live: modeRaw === "live", windowIndex });
+    const result = await executeSlot({ live: modeRaw === "live", windowIndex, chain });
     await audit({
       kind: "orchestra",
       actor: auth.actorRef,
       action: `POST /api/saos/orchestra execute ${result.mode}`,
       allowed: true,
       req,
-      detail: `windowIndex=${result.windowIndex} ops=${result.results.length} broadcasted=${result.broadcasted}${result.abstained ? " abstained" : ""}`
+      detail: `chain=${chain} windowIndex=${result.windowIndex} ops=${result.results.length} broadcasted=${result.broadcasted}${result.abstained ? " abstained" : ""}`
     });
     const schedule = await scheduleVotes();
     return NextResponse.json({
       ok: result.ok,
       mode: result.mode,
+      chain,
       windowIndex: result.windowIndex,
       broadcasted: result.broadcasted,
       results: result.results,

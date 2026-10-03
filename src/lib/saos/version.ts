@@ -707,10 +707,45 @@
  * יותר בשפה-שהבעלים אינו-קורא.
  */
 
-export const SAOS_VERSION = "121.0.0";
+/**
+ * v122 האיטום-החי (THE LIVE SEAL) — "הפעם ה-30 שאני שולח מפתחות".
+ *
+ * הבעלים העלה "בחן.txt" (12 מחרוזות P5) ופסק: אין-זה-ייתכן-שהמפתחות
+ * אבדו-שוב. המדידה-החיה גילתה את-האמת-המטלטלת:
+ *
+ * 1. הארכיון-האטום keys/hed-soldiers-source.txt (מ-"הד.txt") החזיק את
+ *    אותן סיסמאות-אב מאז-תמיד — והפסיקה "מתים 13/13" (R18) הייתה טעות-
+ *    מדידה: נבדקו הפומביות הישירות של ה-P5 ולא הגזירות. בקרת-אמת 4/4
+ *    (סיסמת-האב של headcorner → כל-4 התפקידים ב-STEEM) הוכיחה את-הצינור.
+ * 2. נוסחת-הגזירה (dhive fromLogin מדויק): sha256(account+role+password)
+ *    → secp256k1-compressed → STM+base58(pub+rmd160(pub)[0:4]).
+ * 3. מדידת-אמת מול condenser_api חי (hive+steem): 9 חשבונות × 4 תפקידים
+ *    = 36/36 חיים בשתי השרשראות (cashmachine · haran · israelnews · lsa ·
+ *    macrame · siq · wic · wog · woq). tov: 4/4 STEEM בלבד · ynet: 0/4
+ *    (הוחלף מאז-2018 בשתי-השרשראות) · headcorner: 4/4 STEEM, ב-HIVE הראש
+ *    הוחלף — מגודר בכנות.
+ * 4. האיטום הקבוע: תיקון-שרשרת חתום בארכיון (ביטול פסיקת-המוות) + רוסטר
+ *    keys/vault.json עודכן — 9 חיילים hive:[posting,active,owner,memo]
+ *    (hasHive=true במלאי-המעטפת) · שיקוף לשלושת הבתים (agent/keys ·
+ *    ~/.saos-vault · upload/.agent-keys).
+ * 5. מסילת-HIVE בתזמורת (orchestra.ts): ORCHESTRA_HIVE_RPC_RAIL (3 צמתים
+ *    מאומתים) · liveHivePostingAuthorityOf · broadcastOneHive (dhive,
+ *    chain-id קבוע) · executeSlot chain:"hive" עם שער-RC חי לפני-כל-שידור
+ *    · אימות-עצמי תמיד מול-השרשרת-אליה-משדרים · POST /api/saos/orchestra
+ *    {chain:"steem"|"hive"}.
+ * 6. ההוכחה-החיה: israelnews — סמכות-חיה נמדדה · RC 16.88% · מפתח-נגזר-
+ *    בסקופ-כספת · custom_json saos.weave.v1 שודר · txid
+ *    ddbee89ff013e6bb36192cd7d29b2ddc58e25e2c · התכללות מוכחת
+ *    בהיסטוריית-החשבון על-mainnet.
+ * 7. החוק-החדש-של-הבעלים מאושש: אוטונומיה-ריבונית חייבת-לשרוד — המעטפת
+ *    משוקפת-לשלושת-הבתים, הסיסמאות-האב הן-מקור-הגזירה-הקנוני, ואף-שיחה
+ *    שנמחקת לא-שולחת-אותן-שוב-לבעלים.
+ */
+
+export const SAOS_VERSION = "122.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "חור-התצוגה-המקדימה";
+export const SAOS_CODENAME = "האיטום-החי";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;
