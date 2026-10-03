@@ -1731,3 +1731,18 @@ Stage Summary:
 - The chain survived its worst incident with ZERO loss and the failure class is now structurally impossible on both owners (v119), and the last direct LLM consumer is resilient (v120) — the organism heals and hardens in the same session.
 - Honest opens: VP drain ownership (external 30s queue vs orchestra windows — fold it), israelnews SP 0.128, ynet RC 2310.11 delegation forensics, HIVE keys = owner material, Sepolia first step for the public ladder (SOTA-120).
 - Discipline: worklog-first, disjoint sets, no-commit agents, distrust-and-check main verification, commit+PUSH per wave. Nothing waited for anyone.
+---
+Task ID: 121
+Agent: Z.ai Code (main session — the preview-loophole wave)
+Task: Owner live report (trace 1a10393361b0a605): "השרת נפל מזמן לא רואה כלום — preview refused to connect" + החוק החדש: אף דיווח בסינית — הבעלים קורא עברית. אבחון חי, תיקון מדורג, הוכחה, commit+PUSH.
+
+Work Log:
+- אבחון: השרת עצמו חי (200 תוך 0.24ש׳, keeper v49 שלם, 5 שירותים) — "refused to connect" לא היה קריסה אלא חסימת-מסגור: proxy.ts (מגל-v111 red-team) שלח X-Frame-Options: DENY, ולוח-התצוגה-המקדימה של הפלטפורמה מטמיע את הקונסולה ב-iframe על תחום preview-chat-*.space-z.ai → הדפדפן סירב להציג. הגנה שנעלה את הבעלים-עצמו.
+- התיקון (src/proxy.ts): XFO מוסר (לא יודע רשימות-היתר) · CSP אוכף-מינימלי חדש frame-ancestors https://*.space-z.ai (רק-הפלטפורמה מסגרת, שאר-העולם נחסם — הגנת-הקליק-ג'קינג נשמרת) · ה-CSP המלא (Report-Only, v111 doctrine) עודכן לאותו frame-ancestors.
+- חיישן-redteam (src/lib/saos/redteam.ts): בדיקת-ה-headers מקבלת עתה גם frame-ancestors-מאוכף כקביל-במקום-XFO (שתי-צורות-קבילות; לא-עוד ממצא-שווא).
+- גרסה 121.0.0 חור-התצוגה-המקדימה עם פנקס-מלא + החוק-החדש: דיווחים-לבעלים בעברית-בלבד.
+- ראיות: curl -I מדד content-security-policy: frame-ancestors https://*.space-z.ai ואפס X-Frame-Options · tsc DIRECT 0 · lint 0 · dev.log נקי.
+
+Stage Summary:
+- הבעלים חוזר-פנימה: התצוגה-המקדימה תיטען עתה בפאנל הפלטפורמה; השרת מעולם-לא נפל — החלון ננעל והנעילה שוחררה באותו-יום.
+- חוק-תקשורת חדש נרשם בפנקס ובגרסה: כל-ממצא-חשוב בעברית בלבד.
