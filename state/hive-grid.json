@@ -66,14 +66,14 @@
   "hbd": 91.5184
  },
  "kpi": {
-  "ticks": 35,
+  "ticks": 36,
   "fillBuy": 3,
   "fillSell": 0,
   "realizedHbd": 0,
   "avgCost": 0.056544000000000004,
   "regrids": 4,
-  "noopSpread": 0,
-  "lastTickAt": "2026-10-03T18:46:48.748Z"
+  "noopSpread": 1,
+  "lastTickAt": "2026-10-03T18:50:48.667Z"
  },
  "fills": [
   {
@@ -161,8 +161,13 @@
    "at": "2026-10-03T17:31:23.202Z",
    "kind": "regrid",
    "he": "סטייה 132bps > סף 120bps — סולם הוזז למרכז 0.056247"
+  },
+  {
+   "at": "2026-10-03T18:50:50.030Z",
+   "kind": "noop-spread",
+   "he": "פיזור 9.3bps < רצפת-המינימום 10bps — no-op (אדוורס-סלקשן)"
   }
  ],
- "updatedAt": "2026-10-03T18:46:50.110Z",
+ "updatedAt": "2026-10-03T18:50:50.030Z",
  "startedAt": "2026-10-03T17:28:52.290Z"
 }
