@@ -1,14 +1,14 @@
 {
   "format": "saos-state-snapshot",
   "version": 1,
-  "exportedAt": "2026-10-02T23:30:02.056Z",
+  "exportedAt": "2026-10-02T23:48:06.555Z",
   "source": "keeper-tick",
   "counts": {
     "agentRole": 8,
-    "opLog": 540,
-    "economyRun": 2
+    "opLog": 569,
+    "economyRun": 3
   },
-  "digest": "4af5def74111c882f3982a98ffec5d15d431fb7c5cb09e3d3fdf3dd402a67f93",
+  "digest": "7066053e81a325af7f6045c250f091982e80f2a37f8568203e36d65c4d429838",
   "tables": {
     "agentRole": [
       {
@@ -78,7 +78,7 @@
         "proposedBy": "gap-detector",
         "activatedAt": "2026-10-02T22:58:39.756Z",
         "lastArtifactAt": "2026-10-02T22:58:39.756Z",
-        "artifactNote": "v107 activation — wired executor proven (role-worker-run measured)",
+        "artifactNote": "harness-audit → detached run triggered (pid 22874); evidence lands in scripts/artifacts/harness-verify-*.json + harness-audit-*.json",
         "at": "2026-10-02T22:10:02.285Z"
       },
       {
@@ -125,6 +125,180 @@
       }
     ],
     "opLog": [
+      {
+        "id": "cmurm5i0b0001ob67cl6z2yzw",
+        "op": "authority",
+        "detail": "סריקה 5 (keeper-tick): 5 שאלות · 0 מבוצעות · 0 מאושרות · 5 בצפייה · 0 נדחות · 0 ישנות-פתוחות — כל תשובה עם חוק ובסיס · חדשות 0 · מתעדכנות 5 · לבעלים 0 · 40ms",
+        "createdAt": "2026-10-02T23:47:55.115Z"
+      },
+      {
+        "id": "cmurm4jjo0000ob673a940g2f",
+        "op": "one-net.beat",
+        "detail": "דחייה: גוף לא-JSON",
+        "createdAt": "2026-10-02T23:47:10.453Z"
+      },
+      {
+        "id": "cmurm39vm0004obz09gogg2qa",
+        "op": "economy-run",
+        "detail": "{\"actor\":\"hq\",\"runId\":3,\"stage\":1,\"mode\":\"measured\",\"totalPerDayUsdMicro\":316853,\"txids\":0}",
+        "createdAt": "2026-10-02T23:46:11.267Z"
+      },
+      {
+        "id": "cmurm2njr0002obz0yxbpoctn",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":827392,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 808KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-02T23:45:42.327Z"
+      },
+      {
+        "id": "cmurm2nj60001obz0tppgj5l9",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:45:42.306Z"
+      },
+      {
+        "id": "cmurm2ly40000obz0b4ybztkr",
+        "op": "one-net.beat",
+        "detail": "דחייה: גוף לא-JSON",
+        "createdAt": "2026-10-02T23:45:40.252Z"
+      },
+      {
+        "id": "cmurlshl40001obtq23tnfiz3",
+        "op": "market-brain",
+        "detail": "מחזור 4 (keeper-tick): 8 זרמים · 0 מוגדלים · 0 רצפה · 0 בפארק-תשואה — כל החלטה עם סיבה נמדדת · ריצה #2",
+        "createdAt": "2026-10-02T23:37:48.040Z"
+      },
+      {
+        "id": "cmurls5970000obtqv3hy0nd9",
+        "op": "workers.sweep",
+        "detail": "{\"ok\":true,\"active\":5,\"ran\":0,\"artifacts\":0,\"unwiredActive\":[],\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T23:37:32.060Z"
+      },
+      {
+        "id": "cmurlrdn50004obexceojvbtf",
+        "op": "workers.run",
+        "detail": "{\"ok\":true,\"slug\":\"harness-sentinel\",\"executor\":\"harness-audit\",\"mode\":\"detached\",\"pid\":22874,\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T23:36:56.274Z"
+      },
+      {
+        "id": "cmurlr04g0002obexdkmtq2hr",
+        "op": "backup.snapshot",
+        "detail": "{\"trigger\":\"keeper\",\"ok\":true,\"kind\":\"db+chain\",\"dbBytes\":806912,\"chainBytes\":0,\"note\":\"צילום עקבי (VACUUM INTO) · 788KB · מראה בבית-השורד ✓ (upload/.db-mirror)\"}",
+        "createdAt": "2026-10-02T23:36:38.752Z"
+      },
+      {
+        "id": "cmurlqzen0001obex6ihqrx08",
+        "op": "perm.measure.allow",
+        "detail": "{\"actor\":\"sovereign-user\",\"reason\":\"מוסמך: מדידה חיה · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:36:37.823Z"
+      },
+      {
+        "id": "cmurllbhm0001obe8tiw66xaf",
+        "op": "workers.run",
+        "detail": "{\"ok\":true,\"slug\":\"harness-sentinel\",\"executor\":\"harness-audit\",\"mode\":\"detached\",\"pid\":21377,\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T23:32:13.546Z"
+      },
+      {
+        "id": "cmurlkrb00000obe828jtqika",
+        "op": "workers.run",
+        "detail": "{\"ok\":false,\"slug\":\"harness-sentinel\",\"executor\":\"harness-audit\",\"error\":\"Bun is not defined\",\"by\":\"bearer:c0cc48d6\"}",
+        "createdAt": "2026-10-02T23:31:47.388Z"
+      },
+      {
+        "id": "cmurljf24001rob17or45b00d",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"sell\",\"amount\":0.007640280625442095,\"ok\":true,\"txid\":\"0x99fd9b7f408f054fe31ffd0a87ca12724aeef145b1d6bccd4b21694f4edcab56\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"21.0307 wSAOS\"}",
+        "createdAt": "2026-10-02T23:30:44.861Z"
+      },
+      {
+        "id": "cmurljf25001sob17dm19qtd8",
+        "op": "exchange.grid-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"sell\",\"levelPct\":0.4,\"level\":2782.41,\"ema\":2771.33,\"amountIn\":\"0.007640 WRXP\",\"txid\":\"0x99fd9b7f408f054fe31ffd0a87ca12724aeef145b1d6bccd4b21694f4edcab56\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:30:44.861Z"
+      },
+      {
+        "id": "cmurljerk001qob17jlnf3t5y",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:30:44.480Z"
+      },
+      {
+        "id": "cmurljei3001oob17b2itmvjd",
+        "op": "exchange.swap",
+        "detail": "{\"actor\":\"hq\",\"asset\":\"WRXP\",\"dir\":\"sell\",\"amount\":0.014981236152547251,\"ok\":true,\"txid\":\"0xf82609de669c90ca3bf1e2ab95f50262dbee8eb991b8b85c2c90f721333ab4c4\",\"pair\":\"WRXP/wSAOS\",\"amountOut\":\"42.4812 wSAOS\"}",
+        "createdAt": "2026-10-02T23:30:44.140Z"
+      },
+      {
+        "id": "cmurljei4001pob17t04ngu3a",
+        "op": "exchange.mr-sweep",
+        "detail": "{\"actor\":\"hq\",\"symbol\":\"WRXP\",\"dir\":\"sell\",\"devPct\":3.516,\"ema\":2799.59,\"amountIn\":\"0.01498 WRXP\",\"txid\":\"0xf82609de669c90ca3bf1e2ab95f50262dbee8eb991b8b85c2c90f721333ab4c4\",\"trigger\":\"engine-tick\"}",
+        "createdAt": "2026-10-02T23:30:44.140Z"
+      },
+      {
+        "id": "cmurlj8yv001nob170mdoxayt",
+        "op": "broadcast-queue-publish-git",
+        "detail": "{\"published\":0,\"failed\":7,\"results\":[{\"slug\":\"yield-governor-economics\",\"ok\":false,\"message\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"sha\":null},{\"slug\":\"the-living-harness\",\"ok\":false,\"message\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"sha\":null},{\"slug\":\"sovereign-network-ladder\",\"ok\":false,\"message\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"sha\":null},{\"slug\":\"sovereign-manager-zero-wait\",\"ok\":false,\"message\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"sha\":null},{\"slug\":\"sovereign-decision-authority\",\"ok\":false,\"message\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"sha\":null},{\"slug\":\"pee",
+        "createdAt": "2026-10-02T23:30:36.967Z"
+      },
+      {
+        "id": "cmurlj8yt001mob174s3jk3cl",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"measured-agent-economy\",\"rail\":\"git-public\",\"error\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T23:30:36.964Z\"}",
+        "createdAt": "2026-10-02T23:30:36.966Z"
+      },
+      {
+        "id": "cmurlj8a1001lob17ngsfsunz",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"peer-cross-audit\",\"rail\":\"git-public\",\"error\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T23:30:36.072Z\"}",
+        "createdAt": "2026-10-02T23:30:36.074Z"
+      },
+      {
+        "id": "cmurlj7np001kob177zwvu6b9",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-decision-authority\",\"rail\":\"git-public\",\"error\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T23:30:35.268Z\"}",
+        "createdAt": "2026-10-02T23:30:35.270Z"
+      },
+      {
+        "id": "cmurlj71n001job17t7zimq1p",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-manager-zero-wait\",\"rail\":\"git-public\",\"error\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T23:30:34.474Z\"}",
+        "createdAt": "2026-10-02T23:30:34.476Z"
+      },
+      {
+        "id": "cmurlj6es001iob17fyavzy7n",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"sovereign-network-ladder\",\"rail\":\"git-public\",\"error\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T23:30:33.651Z\"}",
+        "createdAt": "2026-10-02T23:30:33.653Z"
+      },
+      {
+        "id": "cmurlj5sa001hob17f5vxq5y9",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"the-living-harness\",\"rail\":\"git-public\",\"error\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T23:30:32.841Z\"}",
+        "createdAt": "2026-10-02T23:30:32.843Z"
+      },
+      {
+        "id": "cmurlj5cr001gob173b2l22h2",
+        "op": "perm.flow-liquidity.allow",
+        "detail": "{\"actor\":\"hq\",\"reason\":\"מוסמך: זרימת נזילות · ללא מגבלת-קצב\"}",
+        "createdAt": "2026-10-02T23:30:32.284Z"
+      },
+      {
+        "id": "cmurlj54z001fob17t3iac3bd",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"failed\",\"slug\":\"yield-governor-economics\",\"rail\":\"git-public\",\"error\":\"git push נכשל: To https://github.com/roshpinacare-sys/saos-sovereign-platform.git\\n ! [rejected]        HEAD -> main (non-fast-forward)\\nerror: failed to push some refs to 'https://github.com/roshpinacare-sys/saos-sovereign-platform.git'\\nhint: Updates were rejected because the tip of your current branch is behind\\nhi\",\"by\":\"bearer:c0cc48d6:keeper-tick\",\"at\":\"2026-10-02T23:30:32.002Z\"}",
+        "createdAt": "2026-10-02T23:30:32.003Z"
+      },
+      {
+        "id": "cmurlj49z001eob17utxzagwt",
+        "op": "broadcast-queue",
+        "detail": "{\"e\":\"queued\",\"slug\":\"yield-governor-economics\",\"titleHe\":\"המוח-הכלכלי: איך רשת-סוכנים מקצה מאמץ לפי תשואה נמדדת — ולא לפי תקציב\",\"titleEn\":\"The yield governor: how an autonomous agent network allocates effort by measured yield — not by budget\",\"rail\":\"git-public\",\"bodyRef\":\"2026-10-02-yield-governor-economics.md\",\"sha\":\"1ec564b70f3abe4eb44afcb0efa06ae195597b1e4c240ccf1950edc16b3e9b54\",\"bytes\":6943,\"rev\":1,\"gate\":\"vault-sealed\",\"at\":\"2026-10-02T23:30:30.886Z\"}",
+        "createdAt": "2026-10-02T23:30:30.887Z"
+      },
+      {
+        "id": "cmurlii190018ob172qm28neq",
+        "op": "state-snapshot.export",
+        "detail": "{\"ok\":true,\"file\":\"state-snapshot-2026-10-02.json\",\"bytes\":215806,\"counts\":{\"agentRole\":8,\"opLog\":540,\"economyRun\":2},\"digest\":\"4af5def74111c882\"}",
+        "createdAt": "2026-10-02T23:30:02.062Z"
+      },
       {
         "id": "cmurli9d00016ob17myrtfvik",
         "op": "authority",
@@ -3394,6 +3568,20 @@
         "receiptDigest": "c210410a998a135e5b087258931b7349694e22b4e93f08112bcb04f5978bb8ce",
         "notes": "מחיר-SAOS-M $0.001 (SAOS_M_USD_POLICY מהבורסה החיה) · גלגל-החור 30% (מדיניות DEFAULT_ECONOMY) — הוצהר, לא נמדד כתנועה · זרמים מצטברים (potHarvested/sweptPnl/paidOut) מתויגים cumulative — לא פוצלו ל-24h שרירותית · trading-pnl-24h הוא קצב-הפרש-24h (לא מצטבר) — נגזר מהפנקס עצמו · trigger=manual",
         "at": "2026-10-02T23:21:15.309Z"
+      },
+      {
+        "id": 3,
+        "stage": 1,
+        "mode": "measured",
+        "trigger": "manual",
+        "streams": "[{\"name\":\"exchange-harvest\",\"he\":\"קציר-בורסה (קופת-הקציר של הבריכות)\",\"amountUsdMicro\":7129,\"txids\":[],\"source\":\"exchange-live.exchangeStatus().totals.harvestedUsd (potHarvested × מדיניות/אורקל)\",\"note\":\"cumulative מאז-פריסה (לא 24h) · 955 swaps אמת · TVL $4.15\"},{\"name\":\"grid-sweeps\",\"he\":\"שטיפות-מיקרו-גריד לקופת-העבודה (גלגל-החור)\",\"amountUsdMicro\":27,\"txids\":[],\"source\":\"microgrid-live.microgridStatus().totals.sweptPnl (SAOS-M × מחיר-מדיניות)\",\"note\":\"cumulative מאז-פריסה · realized 0.027 SAOS-M · 22 מילויים · txid = מילויים-אחרונים שהניבו את הרווח · אין מילויים טריים (swept יכול להיות 0 בצדק)\"},{\"name\":\"work-orders-paid\",\"he\":\"פקודות-עבודה ששולמו (SAOS-M מקופת-העבודה)\",\"amountUsdMicro\":266000,\"txids\":[],\"source\":\"mesh-client.meshBoard() (SAOSWorkBoard חי) + WorkDeliverable (DB)\",\"note\":\"cumulative-שרשרת: 698 נמסרו · 4702 SAOS-M שולמו · בן-24h (עד 40 פקודות אחרונות): 40 שולמו · WorkDeliverable-DB בן-24h: 0 (txid = עיגוני SAOS-WORK של המסירות)\"},{\"name\":\"xrp-anchors\",\"he\":\"פעימות/עיגוני-XRPL (לייבנט — חתימות r3Tq66)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"AnchorTx (DB) — network=XRPL · נרשם על-ידי anchor-xrp / physical-move\",\"note\":\"אין פעימות XRPL בן-24h (ה-DB נולד-מחדש באיפוס-הסנדבוקס; עוגנים היסטוריים-מאומתים אינם נספרים כנה) — הערך כאן עדות-txid, לא הכנסה\"},{\"name\":\"steem-anchors\",\"he\":\"עיגוני-STEEM (auto-anchor — custom_json חי)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"AnchorTx (DB) — network=STEEM · נרשם על-ידי auto-anchor\",\"note\":\"אין עיגוני STEEM בן-24h — העיגון נמדד ב-RC (אין עלות-USD נמדדת); הערך עדות-txid מיינטנט\"},{\"name\":\"inbound-harvest-rail\",\"he\":\"מסילת-harvest נכנסת (memo saos:harvest/v1)\",\"amountUsdMicro\":0,\"txids\":[],\"source\":\"— אין פנקס-קליטה (liquidity-radar/treasury מדווחים יתרות, לא קליטות)\",\"note\":\"לא נמדד — אין פנקס שמזרים קליטות saos:harvest/v1; אפס-כנה ולא התחייבות\"},{\"name\":\"liquidity-inflow\",\"he\":\"נזילות-נכנסת (הפרש-24h: TVL בורסה + הפקדות wSAOS, מחיר-מדיניות)\",\"txids\":[],\"source\":\"exchange-live.exchangeStatus() (SAOSExchange · SAOS-EVM): totals.tvlUsd + assets[WSAOS].totalMinted − poolBal\",\"note\":\"cumulative/24h-delta as measured · נוכחי: TVL $4.1531 + הפקדות-wSAOS-מחוץ-לבריכות 399161.33 SAOS-M = $399.1613 · בסיס-השוואה 2026-10-02T21:39:38.408Z (הישנה בחלון-24h) · הפרש נמדד +$0.043546 · אין txid — זהו הפרש-מצב, לא עסקה\",\"amountUsdMicro\":43546},{\"name\":\"trading-pnl-24h\",\"he\":\"רווח-מסחר 24ש' (הפרש: קציר-בורסה + שטיפות-גריד — קצב, לא מצטבר)\",\"amountUsdMicro\":151,\"txids\":[],\"source\":\"הפרש-24h מפנקס EconomyRun: Δexchange-harvest (potHarvested × מחיר-מדיניות) + Δgrid-sweeps (sweptPnl × מחיר-מדיניות) מול הריצה-הקודמת בחלון\",\"note\":\"הפרש-24h as measured — קצב (rate), לא cumulative; הזרמים-המצטברים נותרו בסימונם · בסיס: ריצה #2 לפני 25 דק' · Δקציר-בורסה +151µ$ · Δשטיפות-גריד +0µ$ · אין txid — זהו הפרש-פנקס בין מדידות, לא עסקה\"}]",
+        "totalPerDayUsdMicro": 316853,
+        "reinvestedUsdMicro": 95056,
+        "retainedUsdMicro": 221797,
+        "proofTxids": "[]",
+        "receiptDigest": "7c3509af229ced1694c0aa1f9b602266ee3ebde30acaa8aa59a635a4c8c8f8ba",
+        "notes": "מחיר-SAOS-M $0.001 (SAOS_M_USD_POLICY מהבורסה החיה) · גלגל-החור 30% (מדיניות DEFAULT_ECONOMY) — הוצהר, לא נמדד כתנועה · זרמים מצטברים (potHarvested/sweptPnl/paidOut) מתויגים cumulative — לא פוצלו ל-24h שרירותית · trading-pnl-24h הוא קצב-הפרש-24h (לא מצטבר) — נגזר מהפנקס עצמו · trigger=manual",
+        "at": "2026-10-02T23:46:11.258Z"
       }
     ]
   }
