@@ -56,6 +56,7 @@ import { RosesView } from "@/components/saos/views/roses";
 import { ViewEconomy } from "@/components/saos/views/economy";
 import { RecoveryView } from "@/components/saos/views/recovery";
 import { ViewResearch } from "@/components/saos/views/research";
+import { AxView } from "@/components/saos/views/ax";
 
 const TITLES: Record<ViewId, string> = {
   overview: "לוח בקרה",
@@ -98,7 +99,8 @@ const TITLES: Record<ViewId, string> = {
   roses: "שושנים",
   economy: "כלכלה",
   recovery: "התאוששות — מארב headcorner",
-  research: "מחקר ומפת-דרך"
+  research: "מחקר ומפת-דרך",
+  ax: "הכרזה — תזמון דקלרטיבי (AX)"
 };
 
 export default function Home() {
@@ -194,6 +196,7 @@ export default function Home() {
         {view === "economy" && <ViewEconomy />}
         {view === "recovery" && <RecoveryView />}
         {view === "research" && <ViewResearch />}
+        {view === "ax" && <AxView />}
       </AppShell>
     </ToastProvider>
   );

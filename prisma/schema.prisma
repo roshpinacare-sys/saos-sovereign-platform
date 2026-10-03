@@ -446,6 +446,70 @@ model AgriDecision {
   @@index([createdAt])
 }
 
+// ─── v113 · הכרזה (AX) — declarative agentic orchestration (אימוץ google/ax) ──
+// הסמנטיקה של kubectl לסוכנים: YAML-מניפסט ax.saos/v1alpha1 (Task/Workspace/
+// Model), apply/get/describe/suspend/resume/delete, רץ-יחיד (reconcile), חוקי-
+// תקציב לפני כל שלב, suspend/checkpoint/resume, סוויפ-זומבים. מה שלא נלקח
+// (docs/AX-ADOPTION.md): מישור-השליטה של K8s (נדחה כנה בבחינה), redis, רץ-GCR.
+// אדיטיבי בלבד — אפס שינוי בטבלאות-קיימות.
+model AxTask {
+  id             String    @id @default(cuid())
+  name           String    @unique // RFC1123-סגנון: קטן-אנגלית+מספרים+מקף, ≤63
+  apiVersion     String // "ax.saos/v1alpha1" — נאכף בשער
+  workspaceId    String?
+  modelId        String?
+  goal           String // ≤2000 תווים, נאכף בשער
+  status         String    @default("Pending") // Pending | Running | Suspended | Succeeded | Failed | Terminating | RunnerLost
+  conditionsJson String    @default("[]") // [{type,status,reason,message,at}]
+  stepsUsed      Int       @default(0)
+  msUsed         Int       @default(0)
+  maxSteps       Int // תקרת-שלבים (≤12, נאכף בשער)
+  maxMs          Int // תקרת-זמן (≤300000, נאכף בשער)
+  checkpointJson String? // {stepsUsed,msUsed,historyDigest} — המשך-מדויק
+  oplogRef       String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  steps          AxStep[]
+
+  @@index([status, createdAt])
+}
+
+model AxStep {
+  id        String  @id @default(cuid())
+  taskId    String
+  task      AxTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  index     Int
+  kind      String // work | finish | abort | repair
+  status    String // ok | fail
+  summary   String?
+  rawOutput String? // מגוזר ל-8KB — לעולם לא מלא
+  tokensIn  Int? // 0 כנה כשה-SDK לא חושף — אף-פעם לא מוערך
+  tokensOut Int?
+  ms        Int
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, index])
+  @@index([taskId])
+}
+
+model AxWorkspace {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  root        String // נתיב-מוחלט בתוך עץ-הריפו
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model AxModel {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  maxTokens   Int
+  temperature Float?
+  note        String?
+  createdAt   DateTime @default(now())
+}
+
 // ─── Auth plane (2026-09-29 — ported from foundry, fail-closed) ──────────────
 // P0: every sensitive POST on this repo now passes requireAuth. These two
 // tables back the same session-revocation + audit discipline as foundry.

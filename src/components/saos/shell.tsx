@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, ChevronDown, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, Hand, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, ChevronDown, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, Hand, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Workflow, Zap, Gauge } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { cn, LiveDot, Pill, useToast } from "./ui";
@@ -20,7 +20,7 @@ import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/ver
 import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax";
 
 export interface ViewDef {
   id: ViewId;
@@ -359,6 +359,14 @@ export const VIEWS: ViewDef[] = [
     short: "מחקר",
     desc: "פסק-הדין של מחקר-העומק והשלבים הבאים",
     icon: <GitBranch size={16} />,
+    group: "מחקר"
+  },
+  {
+    id: "ax",
+    label: "הכרזה — תזמון דקלרטיבי (AX)",
+    short: "הכרזה",
+    desc: "מישור-ההכרזה הדקלרטיבי לסוכנים (אימוץ google/ax): מניפסטי ax.saos/v1alpha1, שער-מחמיר, רץ-יחיד reconcile, חוקי-תקציב, suspend/resume, סוויפ-זומבים",
+    icon: <Workflow size={16} />,
     group: "מחקר"
   }
 ];

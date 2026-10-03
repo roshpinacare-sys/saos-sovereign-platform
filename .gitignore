@@ -57,6 +57,8 @@ server.log
 !skills/grill-me/
 !skills/swarm-discipline/
 !skills/aeo-answer-engine-optimization/
+# SAOS-adoption playbooks (rebuild-v113 הכרזה AX) — house artifact, tracked:
+!skills/ax-orchestrator/
 # ── SOVEREIGN KEY HYGIENE (v92) — key material never crosses the git boundary ──
 /upload/
 /agent/
