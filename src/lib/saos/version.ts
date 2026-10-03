@@ -544,10 +544,29 @@
  *    אומץ de-facto עם מטא-ייחוס (adapted-from + saos-adoption).
  */
 
-export const SAOS_VERSION = "110.0.0";
+/**
+ * v113 הכרזה (AX — DECLARATIVE AGENT ORCHESTRATION) — גל-השיקום-הראשון אחרי
+ * תקרית-הרולבק (recovery-v110): ההכרזה שאבדה נבנתה-מחדש מהמפרט המשומר.
+ *
+ * 1. בחינת google/ax (נערכה בגל המקורי, העובדות נשמרו במפרט): ריצת-תזמון
+ *    דקלרטיבית לסוכנים, Apache-2.0; סמנטיקה בצורת-kubectl: מניפסטי-YAML
+ *    ax.io/v1alpha1 (Task/Workspace/Model), apply/get/describe/suspend/
+ *    resume/delete; מישור-השליטה נעול-מאחורי-K8s — נדחה כנה על התיבה הזו.
+ *    נגנבת הסמנטיקה, לא התשתית: שער-מניפסט מחמיר (apiVersion מדויק ·
+ *    דחיית-שדות-לא-מוצהרים = דיסציפלינת-protojson · שם RFC1123 · רב-מסמכים
+ *    נדחה), רץ-יחיד reconcile, חוק-תקציב לפני כל שלב, suspend/checkpoint/
+ *    resume, וסוויפ-זומבים.
+ * 2. src/lib/saos/ax.ts + /api/saos/ax + תצוגת "הכרזה" בקבוצת מחקר —
+ *    prisma +AxTask/AxStep/AxWorkspace/AxModel (אדיטיבי). חוק-הקצה הכנה
+ *    (v110): תקציב-אזול = Failed + תנאי BudgetExhausted=True (לעולם לא
+ *    Succeeded); הצלחה רק על action:finish; abort = Failed TaskAborted;
+ *    אנליסט-חסום-JSON עם צעד-תיקון אחד מתוקצב ופסק-זמן 75ש׳.
+ */
+
+export const SAOS_VERSION = "113.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "בית-המלאכה-לכישורים (SKILL FOUNDRY)";
+export const SAOS_CODENAME = "הכרזה (AX)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

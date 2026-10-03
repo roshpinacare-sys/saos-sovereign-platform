@@ -215,6 +215,18 @@
       ],
       "evidence": "measured 2026-10-03: shallow-clone numbers quoted from the clone itself (65MB · 3104 md · 41 domains) · tsc --noEmit clean after hands.ts additive rewire (TrajectoryCore split, no runner self-verdicts) · terminal state flows through /api/saos/hands POST trajectory and hands-bench-*.json artifacts · docs/CLAUDE-SKILLS-ADOPTION.md roast + 8-row decision table (6 adopted with landing points, rejections named) · 5 skills/ folders with adapted-from provenance",
       "done_when": "run conclusions are named terminal states (never error-as-success) enforced in code and visible on the hands board, and the fleet's constitution skills (loop doctor, swarm discipline, grill, zero-hallucination, AEO-stealth) are loadable playbooks with honest lineage"
+    },
+    {
+      "id": "ax-orchestrator-v113",
+      "name": "AX Orchestrator (google/ax adoption)",
+      "title": "הכרזה v113 — מישור-ההכרזה הדקלרטיבי לסוכנים (אימוץ google/ax)",
+      "description": "Rebuilt-from-spec wave (recovery-v110): kubectl-shaped declarative agent orchestration stolen from google/ax (Apache-2.0) — strict manifest gate (ax.saos/v1alpha1 exact, zod-strict protojson unknown-field rejection, RFC1123 name port, multi-doc refused, undeclared workspace/model refs refused, maxSteps<=12/maxMs<=300s gate caps), single-runner reconcile (2-core law), budget enforced before every step, blocked-JSON analyst with 75s step timeout and one budgeted repair step (second strike = RunnerInvalidOutput fail-closed), honest terminals (Succeeded only on action:finish; budget exhaustion = Failed + BudgetExhausted=True condition), suspend/checkpoint/resume exact continuation, delete=Terminating runner teardown, 10min zombie sweep -> RunnerLost; /api/saos/ax (GET reconcile+describe+example, POST apply/suspend/resume/delete with requireAuth, 64KB cap, 4s rate-limit, oplog per POST); view הכרזה in the מחקר group",
+      "status": "done",
+      "dependencies": [
+        "skill-foundry-v110"
+      ],
+      "evidence": "measured live: gate-refusal curls (unknown field / bad apiVersion / bad name / multi-doc YAML) all 422 with explicit Hebrew reasons · live Task run to terminal with per-step tokens journaled · suspend mid-run checkpoint {stepsUsed,msUsed,historyDigest} + resume continues exactly · delete proof + zombie sweep in code · docs/AX-ADOPTION.md roast + decision table",
+      "done_when": "an owner-declared manifest is gated strictly then reconciled by a single runner to an honest named terminal, with exact-continuation suspend/resume and zombie honesty, provable from /api/saos/ax GET alone"
     }
   ]
 }
