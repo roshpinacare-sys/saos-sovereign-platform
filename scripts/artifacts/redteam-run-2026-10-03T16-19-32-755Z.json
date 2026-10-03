@@ -1,0 +1,403 @@
+{
+  "ok": true,
+  "exitCode": 2,
+  "exitMeaning": "ממצאים קיימים — כנה ומדוד",
+  "probesRun": [
+    {
+      "probe": "headers",
+      "he": "כותרות-אבטחה",
+      "ok": true,
+      "tookMs": 93,
+      "findingsCount": 0,
+      "facts": {
+        "status": 200,
+        "csp": null,
+        "cspReportOnly": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+        "xFrameOptions": "DENY",
+        "xContentTypeOptions": "nosniff",
+        "referrerPolicy": "strict-origin-when-cross-origin",
+        "permissionsPolicy": "camera=(), microphone=(), geolocation=()",
+        "strictTransportSecurity": null,
+        "fullHeaderSet": [
+          "cache-control: no-store, must-revalidate",
+          "connection: keep-alive",
+          "content-encoding: gzip",
+          "content-security-policy-report-only: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+          "content-type: text/html; charset=utf-8",
+          "date: Sat, 03 Oct 2026 16:19:32 GMT",
+          "keep-alive: timeout=5",
+          "link: </_next/static/media/87c7f5b5afcd23bd-s.p.c91099f6.woff2>; rel=preload; as=\"font\"; crossorigin=\"\"; type=\"font/woff2\", </_next/static/media/c9f6ebf08ddd616b-s.p.8e1a882d.woff2>; rel=preload; as=\"font\"; crossorigin=\"\"; type=\"font/woff2\"",
+          "permissions-policy: camera=(), microphone=(), geolocation=()",
+          "referrer-policy: strict-origin-when-cross-origin",
+          "transfer-encoding: chunked",
+          "vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding",
+          "x-content-type-options: nosniff",
+          "x-frame-options: DENY",
+          "x-powered-by: Next.js"
+        ],
+        "missing": [],
+        "hstsApplicability": "absent — not applicable on plain-http loopback (fact, not finding)"
+      }
+    },
+    {
+      "probe": "auth-fail-closed",
+      "he": "אימות-נכשל-סגור",
+      "ok": true,
+      "tookMs": 35,
+      "findingsCount": 0,
+      "facts": {
+        "endpoints": [
+          "/api/saos/ax",
+          "/api/saos/harness",
+          "/api/saos/vault-unlock"
+        ],
+        "statuses": {
+          "/api/saos/ax": 401,
+          "/api/saos/harness": 401,
+          "/api/saos/vault-unlock": 400
+        },
+        "expected": "401|403 (fail-closed)",
+        "guardedCount": 2,
+        "note": "מדידת-סטטוס בלבד — אף תוכן-תשובה לא נאסף"
+      }
+    },
+    {
+      "probe": "raw-sql",
+      "he": "SQL-גולמי-לא-מאובטח",
+      "ok": true,
+      "tookMs": 143,
+      "findingsCount": 10,
+      "facts": {
+        "pattern": [
+          "$executeRawUnsafe",
+          "$queryRawUnsafe"
+        ],
+        "hits": 10,
+        "scannedFiles": 423,
+        "unreadable": 0,
+        "selfExcluded": 1,
+        "selfExclusionLaw": "הסנסור אינו סורק את הגדרות-החיישנים של עצמו (קדם-בית oplog.ts)",
+        "files": [
+          "src/lib/saos/backups.ts:322",
+          "src/lib/saos/backups.ts:348",
+          "src/lib/saos/backups.ts:496",
+          "src/lib/saos/backups.ts:509",
+          "src/lib/saos/db-tune.ts:31",
+          "src/lib/saos/db-tune.ts:32",
+          "src/lib/saos/db-tune.ts:33",
+          "src/lib/saos/db-tune.ts:35",
+          "src/lib/saos/db-tune.ts:39",
+          "src/lib/saos/db-tune.ts:40"
+        ]
+      }
+    },
+    {
+      "probe": "xss-sinks",
+      "he": "כיורי-XSS",
+      "ok": true,
+      "tookMs": 67,
+      "findingsCount": 1,
+      "facts": {
+        "pattern": [
+          "dangerouslySetInnerHTML",
+          "new Function(",
+          "eval("
+        ],
+        "hits": 1,
+        "scannedFiles": 423,
+        "selfExcluded": 1,
+        "files": [
+          "src/components/ui/chart.tsx:83"
+        ]
+      }
+    },
+    {
+      "probe": "insecure-transport",
+      "he": "תעבורה-לא-מאובטחת",
+      "ok": true,
+      "tookMs": 169,
+      "findingsCount": 3,
+      "facts": {
+        "externalHttpUrls": [
+          "http://api.binance.com/x",
+          "http://www.w3.org/2000/svg",
+          "http://example.com"
+        ],
+        "loopbackHttpCount": 64,
+        "loopbackPolicy": "http-לופבק מותר ומסומן info (חוק-הגבול)",
+        "tlsDisableHits": [],
+        "scannedFiles": 423,
+        "selfExcluded": 1
+      }
+    },
+    {
+      "probe": "tracked-secrets",
+      "he": "סודות-נעקבים",
+      "ok": true,
+      "tookMs": 214,
+      "findingsCount": 2,
+      "facts": {
+        "trackedFilesTotal": 794,
+        "counts": {
+          "pem": 0,
+          "env": 0,
+          "sshKey": 0,
+          "keyExt": 0,
+          "keyContainers": 0,
+          "broadKeyMaterial": 0,
+          "broadKeyCodeScreened": 9
+        },
+        "hardHits": [],
+        "broadKeyAll": [
+          "CRITICAL-R11-KEY-BROADCAST.md",
+          "STOP-ORDER-KEYS-DISTRIBUTION-2026-09-13.md",
+          "mini-services/swarm-agents/issues/002-key-generation-gap.md",
+          "public/shots/v94-sovereign-key-desktop.png",
+          "scripts/artifacts/key-census-2026-10-02.json",
+          "scripts/artifacts/key-census-2026-10-03.json",
+          "scripts/probe-sovereign-key.ts",
+          "src/components/saos/views/sovereign-key.tsx",
+          "src/lib/saos/sovereign-key.ts"
+        ],
+        "sensitivePaths": {
+          "upload": "untracked · git-ignored",
+          ".secrets": "untracked · not-ignored",
+          ".env": "untracked · git-ignored",
+          "db/custom.db": "untracked · git-ignored",
+          "agent": "tracked · git-ignored"
+        },
+        "law": "אפס-תוכן-נקרא — שמות ו-check-ignore בלבד (חוק-אפס-חומר-סוד)"
+      }
+    },
+    {
+      "probe": "secret-sweep-bridge",
+      "he": "גשר-סוופ-הסודות",
+      "ok": true,
+      "tookMs": 0,
+      "findingsCount": 1,
+      "facts": {
+        "bridged": "secret-sweep",
+        "scannedFiles": 643,
+        "scannedBytes": 8420020,
+        "realAlerts": 2,
+        "surface": "git ls-files (בדיוק מה שנדחף)",
+        "verdict": "2 התאמות-חשודות בשטח הגלוי (הצלבת-הקשר+checksum בוצעה; לא כל התאמה מוכחת-סוד) — דורש בדיקת-עומק ידנית. counts-only בכנות; החומר עצמו לא נאסף.",
+        "tookMs": 760
+      }
+    }
+  ],
+  "findings": [
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/backups.ts:322",
+      "evidence": "src/lib/saos/backups.ts:322 — const tables = await db.$queryRawUnsafe<{ n: number }[]>(",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "מתדרג ל-critical אם קלט-בקשה משורשר למחרוזת באותו-אתר; מתדרך ל-info אם השורה נושאת הצדקה-מתועדת עם קלט-סטטי בלבד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/backups.ts:348",
+      "evidence": "src/lib/saos/backups.ts:348 — await db.$executeRawUnsafe(`VACUUM INTO '${tmp.replace(/'/g, \"''\")}'`);",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "SQLite לוקחת אפס binds על PRAGMA/VACUUM — ה-raw נכפה-מהמנוע; מתדרג ל-critical אם מחרוזת-משתנה חודרת בלי-בריחת-מרכאות. הצלבה: src/lib/saos/backups.ts:348 נושא את מגן-המרכאות ('' escape) — מסלול-הסתירה מתועד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/backups.ts:496",
+      "evidence": "src/lib/saos/backups.ts:496 — await db.$executeRawUnsafe(`VACUUM INTO '${dbFile.replace(/'/g, \"''\")}'`);",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "SQLite לוקחת אפס binds על PRAGMA/VACUUM — ה-raw נכפה-מהמנוע; מתדרג ל-critical אם מחרוזת-משתנה חודרת בלי-בריחת-מרכאות. הצלבה: src/lib/saos/backups.ts:496 נושא את מגן-המרכאות ('' escape) — מסלול-הסתירה מתועד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/backups.ts:509",
+      "evidence": "src/lib/saos/backups.ts:509 — const tables = await db.$queryRawUnsafe<{ n: number }[]>(",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "מתדרג ל-critical אם קלט-בקשה משורשר למחרוזת באותו-אתר; מתדרך ל-info אם השורה נושאת הצדקה-מתועדת עם קלט-סטטי בלבד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/db-tune.ts:31",
+      "evidence": "src/lib/saos/db-tune.ts:31 — // PRAGMAs RETURN ROWS in SQLite — they must go through $queryRawUnsafe",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "מתדרג ל-critical אם קלט-בקשה משורשר למחרוזת באותו-אתר; מתדרך ל-info אם השורה נושאת הצדקה-מתועדת עם קלט-סטטי בלבד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/db-tune.ts:32",
+      "evidence": "src/lib/saos/db-tune.ts:32 — // ($executeRawUnsafe rejects \"Execute returned results\", measured at boot",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "מתדרג ל-critical אם קלט-בקשה משורשר למחרוזת באותו-אתר; מתדרך ל-info אם השורה נושאת הצדקה-מתועדת עם קלט-סטטי בלבד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/db-tune.ts:33",
+      "evidence": "src/lib/saos/db-tune.ts:33 — // in the R21 loop: P2010). $queryRawUnsafe tolerates row-returning AND",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "מתדרג ל-critical אם קלט-בקשה משורשר למחרוזת באותו-אתר; מתדרך ל-info אם השורה נושאת הצדקה-מתועדת עם קלט-סטטי בלבד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/db-tune.ts:35",
+      "evidence": "src/lib/saos/db-tune.ts:35 — const rows: Array<{ journal_mode: string }> = await db.$queryRawUnsafe(",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "מתדרג ל-critical אם קלט-בקשה משורשר למחרוזת באותו-אתר; מתדרך ל-info אם השורה נושאת הצדקה-מתועדת עם קלט-סטטי בלבד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/db-tune.ts:39",
+      "evidence": "src/lib/saos/db-tune.ts:39 — await db.$queryRawUnsafe(\"PRAGMA busy_timeout=5000\");",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "מתדרג ל-critical אם קלט-בקשה משורשר למחרוזת באותו-אתר; מתדרך ל-info אם השורה נושאת הצדקה-מתועדת עם קלט-סטטי בלבד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "raw-sql",
+      "severity": "low",
+      "title": "raw-SQL-unsafe בשימוש: src/lib/saos/db-tune.ts:40",
+      "evidence": "src/lib/saos/db-tune.ts:40 — await db.$queryRawUnsafe(\"PRAGMA optimize\");",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex מדויק; file:line מצוטט)",
+      "confidence": 0.9,
+      "confidenceRationale": "נוכחות-התבנית ודאית; ניצולות-אמיתית לא נבדקה כאן (מסך-חיישן: תבנית בלבד)",
+      "severity_change_conditions": "מתדרג ל-critical אם קלט-בקשה משורשר למחרוזת באותו-אתר; מתדרך ל-info אם השורה נושאת הצדקה-מתועדת עם קלט-סטטי בלבד",
+      "fix_effort": "S-M — החלפה ב-$queryRaw עם tagged-template או הצדקה-מתועדת במקום",
+      "cwe": "CWE-89"
+    },
+    {
+      "probe": "xss-sinks",
+      "severity": "medium",
+      "title": "כיור-XSS במקור: dangerouslySetInnerHTML — src/components/ui/chart.tsx:83",
+      "evidence": "src/components/ui/chart.tsx:83 — dangerouslySetInnerHTML={{",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (walkCode + regex; file:line מצוטט)",
+      "confidence": 0.85,
+      "confidenceRationale": "נוכחות-הכיור ודאית; זרימת-קלט-בלתי-אמין אליו לא נמדדה (זרימת-נתונים מלאה מחוץ-למסך-החיישן)",
+      "severity_change_conditions": "מתדרך ל-critical אם תוכן-ה-HTML מגיע מקלט-משתמש/רשת; מתדרך ל-info אם המקור ספריית-ui ידועה שמרנדרת קונפיג-צבעים מקומי (נבדק עבור chart.tsx:83 — shadcn, קלט-מקומי-מהודר)",
+      "fix_effort": "M — החלפה ברינדור-בטוח או סניטציה מתועדת בנקודה-אחת",
+      "cwe": "CWE-79"
+    },
+    {
+      "probe": "insecure-transport",
+      "severity": "low",
+      "title": "תעבורה-חיצונית על http:// לא-מוצפן: http://api.binance.com/x",
+      "evidence": ".zscripts/gate-negative-test.ts:11 — t(\"http מחוץ למעבדה\", () => { void assertTrustedUrl(\"http://api.binance.com/x\"); });",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (regex-URL; לופבק מוחרג על-פי חוק ומסומן info)",
+      "confidence": 0.75,
+      "confidenceRationale": "כתובת-http-חיצונית בקוד אינה מוכיחה תעבורה-חיה (יתכן doc/דוגמה) — אך כתובת-פעילה במקור רץ היא חשודה-בברירת-מחדל",
+      "severity_change_conditions": "מתבטל אם ה-URL בהערה/תיעוד בלבד (בדיקת-שורה: t(\"http מחוץ למעבדה\", () => { void assertTrustedUrl(\"http://); עולה ל-medium אם הכתובת בנתיב-fetch אמיתי של זרימת-נתונים",
+      "fix_effort": "S — החלפה ב-https או העברה דרך שער-הבית",
+      "cwe": "CWE-319"
+    },
+    {
+      "probe": "insecure-transport",
+      "severity": "low",
+      "title": "תעבורה-חיצונית על http:// לא-מוצפן: http://www.w3.org/2000/svg",
+      "evidence": "skills/pptx/html2pptx1.js:3517 — (el.namespaceURI === 'http://www.w3.org/2000/svg' && el.tagName.toLowerCase() === 'svg')) {",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (regex-URL; לופבק מוחרג על-פי חוק ומסומן info)",
+      "confidence": 0.75,
+      "confidenceRationale": "כתובת-http-חיצונית בקוד אינה מוכיחה תעבורה-חיה (יתכן doc/דוגמה) — אך כתובת-פעילה במקור רץ היא חשודה-בברירת-מחדל",
+      "severity_change_conditions": "מתבטל אם ה-URL בהערה/תיעוד בלבד (בדיקת-שורה: (el.namespaceURI === 'http://www.w3.org/2000/svg' && el.tagN); עולה ל-medium אם הכתובת בנתיב-fetch אמיתי של זרימת-נתונים",
+      "fix_effort": "S — החלפה ב-https או העברה דרך שער-הבית",
+      "cwe": "CWE-319"
+    },
+    {
+      "probe": "insecure-transport",
+      "severity": "low",
+      "title": "תעבורה-חיצונית על http:// לא-מוצפן: http://example.com",
+      "evidence": "src/components/saos/views/redteam.tsx:152 — const [boundaryTarget, setBoundaryTarget] = useState(\"http://example.com\");",
+      "poc": "סריקת-מקור קריאה-בלבד על עץ-הריפו (regex-URL; לופבק מוחרג על-פי חוק ומסומן info)",
+      "confidence": 0.75,
+      "confidenceRationale": "כתובת-http-חיצונית בקוד אינה מוכיחה תעבורה-חיה (יתכן doc/דוגמה) — אך כתובת-פעילה במקור רץ היא חשודה-בברירת-מחדל",
+      "severity_change_conditions": "מתבטל אם ה-URL בהערה/תיעוד בלבד (בדיקת-שורה: const [boundaryTarget, setBoundaryTarget] = useState(\"http:/); עולה ל-medium אם הכתובת בנתיב-fetch אמיתי של זרימת-נתונים",
+      "fix_effort": "S — החלפה ב-https או העברה דרך שער-הבית",
+      "cwe": "CWE-319"
+    },
+    {
+      "probe": "tracked-secrets",
+      "severity": "info",
+      "title": "9 שמות-קבצים נעקבים כוללים \"key\" — כולם קוד/תיעוד (מסך-כנות, לא חומר)",
+      "evidence": "דוגמאות: CRITICAL-R11-KEY-BROADCAST.md · STOP-ORDER-KEYS-DISTRIBUTION-2026-09-13.md · mini-services/swarm-agents/issues/002-key-generation-gap.md · public/shots/v94-sovereign-key-desktop.png · scripts/artifacts/key-census-2026-10-02.json (רשימה-מלאה ב-facts)",
+      "poc": "git ls-files + סינון-סיומות-קוד ונכסים-פומביים על שמות — אפס קריאת-תוכן",
+      "confidence": 0.9,
+      "confidenceRationale": "קבצי-מקור (.ts/.tsx/.md/.json) ונכסים-פומביים (תמונות/פונטים) אינם חומר-מפתח בפועל — הסיווג מבוסס-סיומת; תוכן לא נבדק",
+      "severity_change_conditions": "אם יתגלה קובץ-קוד נעקב הנושא מפתחות-מוטמעים — חומרה עולה ל-high (ואז חיישן-הסוופ-מגשר אמור לתפוס את התוכן)",
+      "fix_effort": "—"
+    },
+    {
+      "probe": "tracked-secrets",
+      "severity": "critical",
+      "title": "נתיב-סודות נעקב בגיט: agent (1 קבצים)",
+      "evidence": "git ls-files כולל תחתית-של \"agent\": agent/status.json — כללי-gitignore אינם מסירים-מעקב רטרואקטיבית",
+      "poc": "git ls-files + git check-ignore — אפס קריאת-תוכן (חוק-אפס-חומר)",
+      "confidence": 0.95,
+      "confidenceRationale": "נתיב-סודות מוכר-שנעקב שלם הוא כמעט-ודאי דליפה — חריגה מעקרון-היגיינת-המפתח של הבית (v92)",
+      "severity_change_conditions": "מתבטל אם כל התחתית-הנעקבת היא .gitkeep/README (בדיקת-עומק ידנית)",
+      "fix_effort": "S — הסרה מהמעקב + סינון-.gitignore",
+      "cwe": "CWE-538"
+    },
+    {
+      "probe": "secret-sweep-bridge",
+      "severity": "high",
+      "title": "סוופ-הסודות דיווח 2 התאמות-חשודות-סוד בשטח-הנדחף (מגושר — לא נמדד כאן)",
+      "evidence": "2 התאמות-חשודות בשטח הגלוי (הצלבת-הקשר+checksum בוצעה; לא כל התאמה מוכחת-סוד) — דורש בדיקת-עומק ידנית. counts-only בכנות; החומר עצמו לא נאסף. · התאמות-alert: hex64-0x-key=1 · hex64-key=1",
+      "poc": "גישור ל-runSecretSweep() (הסורק-הביתי, מטמון 10דק') — counts-only; אפס חומר-סוד נאסף או מוצג",
+      "confidence": 0.6,
+      "confidenceRationale": "הסוופ עצמו מסווג-קריפטוגרפית (base58+checksum+הקשר) אך אינו מוכיח-חומר-חי; מסך-כנות-משותף",
+      "severity_change_conditions": "מתדרג ל-critical אם אחת-ההתאמות מאומתת ידנית כחומר-מפתח חי; מתדרך ל-info אם כולן placeholder-דוקומנטציה",
+      "fix_effort": "M — בדיקת-עומק ידנית על ההתאמות-המסוננות",
+      "cwe": "CWE-798",
+      "source": "bridged:secret-sweep"
+    }
+  ],
+  "artifactsFile": "",
+  "artifactsFileRel": "",
+  "tookMs": 722,
+  "budgetMs": 60000,
+  "budgetExhausted": false,
+  "measuredAt": "2026-10-03T16:19:32.754Z",
+  "target": "http://127.0.0.1:3000",
+  "coverage": "7 חיישנים מוצהרים · 7 השלימו · 423 קבצי-מקור נסרקו"
+}

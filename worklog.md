@@ -1458,3 +1458,21 @@ Stage Summary:
 - v113.0.0 הכרזה re-materialized: declarative ax.saos/v1alpha1 manifests with six gate proofs, single-runner with honest 429 fail-closed terminals, exact suspend/checkpoint/resume continuity, Terminating teardown, zombie sweep law in code
 - The recovery doctrine held: dispatch-channel death ≠ agent death (silent agent built 90% of the wave); browser E2E remains the only true verifier (caught crash + envelope violation that tsc/lint/curl all missed); flat-envelope is now explicitly written into the route as law-comment
 - Open honest items: Succeeded terminal pending provider-throttle clearance (fail-closed path proven in its place); ax runner LLM calls NOT yet on llm-chain (v115 rebuild will wire failover for exactly this 429 class)
+---
+Task ID: rebuild-v111 (main session verified)
+Agent: full-stack-developer (silent subagent — dispatch channel failed ×1 but agent ran ~35min writing all files + 3 live runs, died before worklog) + Z.ai Code (main session verification)
+Task: Rebuild lost wave v111.0.0 RED TEAM (usestrix/strix) after the rollback incident
+
+Work Log:
+- Subagent delivered (verified complete): src/lib/saos/redteam.ts (894 — engine + 7 probes + strix evidence schema + boundary wall), src/proxy.ts (50 — Next16 PROXY rename, security headers), api/saos/redteam/route.ts (176), views/redteam.tsx (459, id "redteam", Hebrew), shell+page wiring, skills/strix-pentest/SKILL.md + .gitignore exception, docs/STRIX-ADOPTION.md, feature_list +red-team-v111-rebuild; version.ts UNTOUCHED (113.0.0 line — correct sequencing decision)
+- ORCHESTRATOR VERIFICATION: tsc DIRECT exit 0 · lint exit 0 · THREE live artifacts on disk (16:14/16:19×2)
+- LIVE findings (run 16:19:32, exitCode 2 = findings-present honest): headers probe → ALL FIVE security headers MEASURED PRESENT (CSP Report-Only full policy · X-Frame-Options DENY · nosniff · referrer-policy · permissions-policy; missing:[]) — proxy.ts was hot-loaded by Next 16 dev, no recycle needed; HSTS honestly "not applicable on plain-http loopback (fact, not finding)" · auth-fail-closed → 401/401/400 all fail-closed, 0 findings (vault-unlock 400 = bad-request-without-body, still closed) · raw-sql → 10 low findings, real hits (backups.ts×4, db-tune.ts×4+), 423 files scanned, self-exclusion law coded · xss-sinks → 1 · insecure-transport → 3 (64 loopback-http marked info per boundary law) · tracked-secrets → 2 broad-name matches, ZERO CONTENT READ (names+check-ignore only — zero-secret-material law) · secret-sweep-bridge → 2 real alerts bridged with dedup discipline, counts-only honesty
+- BOUNDARY WALL PROOF (main session curl): POST run target=http://example.com → {"ok":false,"refusedBeforeTouch":true,"error":"יעד מחוץ-לגבול … סירוב לפני כל נגיעת-רשת (strix authorization wall)"} — refuses BEFORE any network touch
+- Browser E2E: #redteam hash-nav renders findings board with real counts (10/2/3/1/0), probe names, exit banner; page errors clean
+- Main session appended this entry (subagent's channel died before it could)
+
+Stage Summary:
+- v111 RED TEAM re-materialized and BETTER-verified than the original: the authorization wall now has a live before-touch refusal proof, and the headers probe re-measured 5/5 present (original v111 shipped 4 + staged CSP; the rebuild shipped all 5 with CSP Report-Only staged)
+- The silent-agent protocol is now doctrine: dispatch failure ≠ agent death; orchestrator watches file churn → quiescence → verifies everything itself (tsc/eslint direct, live curls, browser) → worklog attribution honest → commit+push
+- Estate now carries red-team capability again: exit-code taxonomy (0/1/2), mandatory counterevidence schema, boundary law — the "systems & networks auditor" seat is re-crewed
+- Committed and PUSHED (standing law: every wave lands on origin immediately)

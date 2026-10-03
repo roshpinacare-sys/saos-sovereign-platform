@@ -227,6 +227,18 @@
       ],
       "evidence": "measured live: gate-refusal curls (unknown field / bad apiVersion / bad name / multi-doc YAML) all 422 with explicit Hebrew reasons · live Task run to terminal with per-step tokens journaled · suspend mid-run checkpoint {stepsUsed,msUsed,historyDigest} + resume continues exactly · delete proof + zombie sweep in code · docs/AX-ADOPTION.md roast + decision table",
       "done_when": "an owner-declared manifest is gated strictly then reconciled by a single runner to an honest named terminal, with exact-continuation suspend/resume and zombie honesty, provable from /api/saos/ax GET alone"
+    },
+    {
+      "id": "red-team-v111-rebuild",
+      "name": "Red Team (usestrix/strix adoption)",
+      "title": "אדום v111.0.0-content — צוות-האדום על הפלטפורמה עצמה (אימוץ usestrix/strix; תוכן-הגל נבנה-מחדש לאחר-השיקום, קו-המהדורה נשאר v113.0.0)",
+      "description": "Rebuilt-from-spec wave (recovery-v110): the autonomous security-audit member discipline stolen from usestrix/strix — assertInBoundary authorization wall (loopback 127.0.0.1/localhost + repo tree /home/z/my-project ONLY, foreign targets refuse in Hebrew BEFORE any network/fs touch, wall gates house targets too), 7 measured probes against the platform itself (headers · auth-fail-closed credential-less POSTs to ax/harness/vault-unlock · raw-sql $executeRawUnsafe/$queryRawUnsafe file:line hits incl. the VACUUM quote-escape guard · xss-sinks dangerouslySetInnerHTML/eval/new Function · insecure-transport external http:// + TLS-killers · tracked-secrets git ls-files x key-material name patterns + git check-ignore with ZERO content reads · secret-sweep-bridge to runSecretSweep with source:bridged dedup), mandatory counterevidence finding schema enforced at build time by mkFinding (evidence/poc/confidence+rationale/severity_change_conditions/fix_effort/cwe), strix exit taxonomy 0=clean-within-declared-coverage / 1=fatal / 2=findings, budget 60s whole-run + 8s per-probe with honest skipped-probe ledger, artifacts JSON per run (scripts/artifacts/redteam-run-<ts>.json); Next16 proxy.ts (middleware RENAME — the file Next actually loads) shipping X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera=()/microphone=()/geolocation=(), X-Frame-Options DENY, CSP staged as Content-Security-Policy-Report-Only per v111 doctrine; /api/saos/redteam (GET flat board, POST run with requireAuth/64KB/4s-rate-limit/oplog/403 refusedBeforeTouch on foreign targets); view אדום in the מחקר group",
+      "status": "done",
+      "dependencies": [
+        "ax-orchestrator-v113"
+      ],
+      "evidence": "measured live: boundary refusal curl 403 refusedBeforeTouch:true Hebrew (zero packets to the foreign host) · credential-less POSTs to the 3 sensitive endpoints measured 401/403 by the auth-fail-closed probe · headers probe quotes the exact pre-proxy header set (baseline: 8 plain headers, no security headers) and flips to PRESENT after proxy.ts loads on server boot · raw-sql/xss hits are real file:line measurements from the repo tree · artifacts redteam-run-<ts>.json on disk per run · exit code 2 honest with findings, 0 legal only with info-within-coverage · docs/STRIX-ADOPTION.md roast + 8-row decision table",
+      "done_when": "a loopback-only self-audit runs 7 probes with per-probe raw facts, every finding carries its counterevidence path, foreign targets refuse before any touch, the exit code never blurs, and the whole run is bounded 60s with artifacts on disk"
     }
   ]
 }
