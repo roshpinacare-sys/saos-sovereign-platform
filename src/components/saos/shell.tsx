@@ -20,7 +20,7 @@ import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/ver
 import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "hive-grid" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam" | "review" | "system1";
 
 export interface ViewDef {
   id: ViewId;
@@ -330,6 +330,14 @@ export const VIEWS: ViewDef[] = [
     group: "כלכלה ואנרגיה"
   },
   {
+    id: "hive-grid",
+    label: "גריד-השוק",
+    short: "הגריד",
+    desc: "v116 השתלטות — גריד-הריבון על השוק הפנימי HBD:HIVE: סולמות-סוכנים על ספר-פקודות חי · מילויי-נייר על מחירים אמיתיים · שער-חיים fail-closed (חותם+active+armed) · טיק-שומר כל 2דק'",
+    icon: <ArrowLeftRight size={16} />,
+    group: "כלכלה ואנרגיה"
+  },
+  {
     id: "flow",
     label: "נזילות וזרימה",
     short: "נזילות",
@@ -374,6 +382,22 @@ export const VIEWS: ViewDef[] = [
     label: "אדום — צוות-האדום על הפלטפורמה (RED TEAM)",
     short: "אדום",
     desc: "חבר-הצוות-האוטונומי לביקורת-אבטחה (אימוץ usestrix/strix): 7 חיישנים נגד הפלטפורמה עצמה בלופבק, חומת-הסמכה (לופבק+עץ-ריפו בלבד, סירוב לפני-מגע), סכמת-ממצא עם מסלול-סתירה, טקסונומיית-קודי-יציאה 0/1/2",
+    icon: <Crosshair size={16} />,
+    group: "מחקר"
+  },
+  {
+    id: "review",
+    label: "ביקורת — הסקירה-העצמית (openreview)",
+    short: "ביקורת",
+    desc: "v114 ביקורת (אימוץ vercel-labs/openreview): סקירה-עצמית דו-שלבית עם ספריית-כישורים נעולת-sha256 (סטייה fail-closed), הפרכה-עצמית חובה לכל ממצא, החלה בהסכמת-בעלים בהתאמה מדויקת בלבד",
+    icon: <Crosshair size={16} />,
+    group: "מחקר"
+  },
+  {
+    id: "system1",
+    label: "רפלקס — System-1 (laya)",
+    short: "רפלקס",
+    desc: "v112 רפלקס (אימוץ NandhaKishorM/laya): מנוע-הכרעות-זריז עם חוקי-זיכרון מקודדים (שער-טעינה 2000MB · השלכה אחרי-החלטה <700MB · ווטצדוג <250MB exit(99)) · הימנעות-אף-פעם-לא-שקטה = הסלמת System-2",
     icon: <Crosshair size={16} />,
     group: "מחקר"
   }

@@ -1,0 +1,168 @@
+{
+ "version": 1,
+ "mode": "paper",
+ "armed": false,
+ "config": {
+  "levelsPerSide": 4,
+  "spacingBps": 40,
+  "sizeHive": 50,
+  "minSpreadBps": 10,
+  "maxNotionalHbd": 100,
+  "recenterBps": 120
+ },
+ "center": 0.056247270792315965,
+ "levels": [
+  {
+   "side": "sell",
+   "price": 0.05647225987548523,
+   "sizeHive": 50,
+   "filled": 0
+  },
+  {
+   "side": "buy",
+   "price": 0.0560222817091467,
+   "sizeHive": 50,
+   "filled": 0
+  },
+  {
+   "side": "sell",
+   "price": 0.056697248958654495,
+   "sizeHive": 50,
+   "filled": 0
+  },
+  {
+   "side": "buy",
+   "price": 0.055797292625977435,
+   "sizeHive": 50,
+   "filled": 0
+  },
+  {
+   "side": "sell",
+   "price": 0.05692223804182376,
+   "sizeHive": 50,
+   "filled": 0
+  },
+  {
+   "side": "buy",
+   "price": 0.05557230354280817,
+   "sizeHive": 50,
+   "filled": 0
+  },
+  {
+   "side": "sell",
+   "price": 0.05714722712499302,
+   "sizeHive": 50,
+   "filled": 0
+  },
+  {
+   "side": "buy",
+   "price": 0.05534731445963891,
+   "sizeHive": 50,
+   "filled": 0
+  }
+ ],
+ "inventory": {
+  "hive": 150,
+  "hbd": 91.5184
+ },
+ "kpi": {
+  "ticks": 16,
+  "fillBuy": 3,
+  "fillSell": 0,
+  "realizedHbd": 0,
+  "avgCost": 0.056544000000000004,
+  "regrids": 4,
+  "noopSpread": 0,
+  "lastTickAt": "2026-10-03T18:00:50.327Z"
+ },
+ "fills": [
+  {
+   "at": "2026-10-03T17:31:21.845Z",
+   "side": "buy",
+   "price": 0.056772,
+   "sizeHive": 50,
+   "hbd": 2.8386,
+   "mode": "paper"
+  },
+  {
+   "at": "2026-10-03T17:31:21.845Z",
+   "side": "buy",
+   "price": 0.056544000000000004,
+   "sizeHive": 50,
+   "hbd": 2.8272000000000004,
+   "mode": "paper"
+  },
+  {
+   "at": "2026-10-03T17:31:21.845Z",
+   "side": "buy",
+   "price": 0.056316,
+   "sizeHive": 50,
+   "hbd": 2.8158,
+   "mode": "paper"
+  }
+ ],
+ "log": [
+  {
+   "at": "2026-10-03T17:28:53.684Z",
+   "kind": "regrid-init",
+   "he": "סולם ראשוני נבנה סביב 0.056249 — 8 מדרגות"
+  },
+  {
+   "at": "2026-10-03T17:29:33.244Z",
+   "kind": "config",
+   "he": "תצורה עודכנה: 4×2 מדרגות · 40bps · 50 HIVE · רצפה 10bps"
+  },
+  {
+   "at": "2026-10-03T17:30:14.711Z",
+   "kind": "regrid-manual",
+   "he": "סולם נבנה מחדש ידנית סביב 0.057000"
+  },
+  {
+   "at": "2026-10-03T17:30:21.253Z",
+   "kind": "cap-skip",
+   "he": "מדרגת-קנייה דילגה — תקרת-notional (2.84 HBD > נותר 0.00)"
+  },
+  {
+   "at": "2026-10-03T17:30:21.253Z",
+   "kind": "cap-skip",
+   "he": "מדרגת-קנייה דילגה — תקרת-notional (2.83 HBD > נותר 0.00)"
+  },
+  {
+   "at": "2026-10-03T17:30:21.253Z",
+   "kind": "cap-skip",
+   "he": "מדרגת-קנייה דילגה — תקרת-notional (2.82 HBD > נותר 0.00)"
+  },
+  {
+   "at": "2026-10-03T17:30:21.253Z",
+   "kind": "regrid",
+   "he": "סטייה 132bps > סף 120bps — סולם הוזז למרכז 0.056248"
+  },
+  {
+   "at": "2026-10-03T17:31:16.803Z",
+   "kind": "regrid-manual",
+   "he": "סולם נבנה מחדש ידנית סביב 0.057000"
+  },
+  {
+   "at": "2026-10-03T17:31:23.202Z",
+   "kind": "fill-buy",
+   "he": "קניית-נייר 50 HIVE @ 0.056772 (2.839 HBD)"
+  },
+  {
+   "at": "2026-10-03T17:31:23.202Z",
+   "kind": "fill-buy",
+   "he": "קניית-נייר 50 HIVE @ 0.056544 (2.827 HBD)"
+  },
+  {
+   "at": "2026-10-03T17:31:23.202Z",
+   "kind": "fill-buy",
+   "he": "קניית-נייר 50 HIVE @ 0.056316 (2.816 HBD)"
+  },
+  {
+   "at": "2026-10-03T17:31:23.202Z",
+   "kind": "regrid",
+   "he": "סטייה 132bps > סף 120bps — סולם הוזז למרכז 0.056247"
+  }
+ ],
+ "updatedAt": "2026-10-03T18:00:51.673Z",
+ "startedAt": "2026-10-03T17:28:52.290Z"
+}

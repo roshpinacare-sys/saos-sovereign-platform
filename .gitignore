@@ -91,3 +91,7 @@ tool-results/
 .cache/
 # SAOS-adoption playbook (rebuild-v111 RED TEAM strix) — house artifact, tracked:
 !skills/strix-pentest/
+# SAOS-adoption playbook (rebuild-v114 ביקורת openreview) — house artifact, tracked:
+!skills/openreview-review/
+# SAOS-adoption playbook (rebuild-v112 רפלקס laya) — house artifact, tracked:
+!skills/laya-system1/

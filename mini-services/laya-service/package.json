@@ -1,0 +1,9 @@
+{
+  "name": "laya-service",
+  "private": true,
+  "version": "112.0.0",
+  "description": "רפלקס (v112.0.0) — System-1 של SAOS (אימוץ NandhaKishorM/laya): שירות-הכרעות Python-stdlib על 127.0.0.1:3037 עם חוקי-זיכרון מקודדים (lazy single-flight · idle-15m · load-gate 2000MB · post-decision shed 700MB · watchdog 250MB exit99). // house law: every mini-service carries its own package.json; the dev script launches python3 (NOT bun) so the supervisor's existing spawn('bun','run','dev') pattern works unchanged on this Python service.",
+  "scripts": {
+    "dev": "python3 main.py"
+  }
+}

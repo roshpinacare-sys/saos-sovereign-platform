@@ -22,6 +22,11 @@
  *                             AUTO-RUNNER (work orders / microgrid / exchange)
  *   gate-herald      :3006  — first external agent at the gate
  *   swarm-agents     :3007  — herald/gold-scout/night-scout
+ *   laya (רפלקס)     :3037  — v112 System-1 reflex (NandhaKishorM/laya
+ *                             adoption): Python-stdlib decision service with
+ *                             coded memory laws; its os._exit(99) watchdog is
+ *                             BY DESIGN — laya dies honestly under pressure,
+ *                             this supervisor revives it, the web never dies.
  */
 
 import net from "net";
@@ -77,6 +82,10 @@ const SERVICES: ManagedService[] = [
   },
   { name: "gate-herald", dirName: "gate-agent", port: 3006, note: "gate-herald :3006" },
   { name: "swarm-agents", dirName: "swarm-agents", port: 3007, note: "herald + gold-scout + night-scout" },
+  // v112.0.0 רפלקס — System-1 decision reflex. package.json dev script launches
+  // `python3 main.py` (house law: mini-services own their package.json), so the
+  // exact spawn("bun", ["run", "dev"]) pattern below works unchanged.
+  { name: "laya", dirName: "laya-service", port: 3037, note: "System-1 reflex (NandhaKishorM/laya adoption) — coded memory laws; exit(99) watchdog is by design, revived here" },
 ];
 
 const SPAWN_COOLDOWN_MS = 45_000;
