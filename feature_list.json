@@ -203,6 +203,18 @@
       ],
       "evidence": "measured live 2026-10-03: bun scripts/hands-run.ts all → 4/4 pass in 6.5s (browser-self-view read v108 stamp off the live page + screenshot + session closed; evm-lab-head chain 14417; guarded-shell deny-proof alive; git-truth HEAD 5579203) · artifact hands-bench-2026-10-03.json · POST unauth 401 fail-closed · docs/CUA-ADOPTION.md",
       "done_when": "the fleet can see and operate its own platform through a guarded typed surface with a trajectory artifact per run, and the verify gate proves the hands layer parses and the browser surface answers"
+    },
+    {
+      "id": "skill-foundry-v110",
+      "name": "Skill Foundry (claude-skills adoption)",
+      "title": "בית-המלאכה-לכישורים v110 — משמעת-הלולאה בקוד + חמש מדבקות (אימוץ alirezarezvani/claude-skills)",
+      "description": "Measured adoption of alirezarezvani/claude-skills (65MB clone, 3104 md files, 388 skills): code-level theft of loop-library named terminal states (7 states, error-never-success, fail-closed) and agent-harness vague-goal refusal (compileGoal with reasons) into src/lib/saos/loop-discipline.ts; every bench trajectory now ends in a named terminal state derived uniformly at the runBenchTask choke point and displayed as a badge on the hands board; five SAOS-adapted skill playbooks vendored with full attribution (zero-hallucination-coder, loop-doctor, grill-me, swarm-discipline, aeo with the public-story/stealth dual policy)",
+      "status": "done",
+      "dependencies": [
+        "sovereign-hands-v109"
+      ],
+      "evidence": "measured 2026-10-03: shallow-clone numbers quoted from the clone itself (65MB · 3104 md · 41 domains) · tsc --noEmit clean after hands.ts additive rewire (TrajectoryCore split, no runner self-verdicts) · terminal state flows through /api/saos/hands POST trajectory and hands-bench-*.json artifacts · docs/CLAUDE-SKILLS-ADOPTION.md roast + 8-row decision table (6 adopted with landing points, rejections named) · 5 skills/ folders with adapted-from provenance",
+      "done_when": "run conclusions are named terminal states (never error-as-success) enforced in code and visible on the hands board, and the fleet's constitution skills (loop doctor, swarm discipline, grill, zero-hallucination, AEO-stealth) are loadable playbooks with honest lineage"
     }
   ]
 }

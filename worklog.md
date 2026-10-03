@@ -1387,3 +1387,29 @@ Stage Summary:
 - האימוץ-מ-cua-הוא-נמדד-ולא-קוסמטי: 4 דפוסים נגנבו-נכון (פעולה-מטופסת · bench+trajectory · סשן-נסגר · תצפית-מחייבת-פעולה) ושניים נדחו-בכנות (VM-תשתית · מודל-כפול) — עם-הנימוק-המדוד-ב-docs
 - הפלטפורמה: v109.0.0 · 12 שערי-אמת · VERDICT=pass 12/12 · היכולת-חיה-במצבת (פועל+API+תצוגה+שער+חוק) · הצבא-חי-לאורך-כל-הגל — כולל-החייאה-העצמית-של-הווב-בלי-איש
 - פתוח-כנה-לגל-הבא: קליק-והקלדה-מושמרים-בעמוד-החי · capture_id-מלא (קישור-תצפית→פעולה) · קדנציית-שומר-ל-hands-bench · dcg allow-once-מווסת (התור)
+
+---
+Task ID: 22 (wave-22 — v110.0.0 SKILL FOUNDRY)
+Agent: Orchestrator (Z.ai Code — הריבונות המנהלת)
+Task: הוראת הבעלים: "מה לגבי זה https://github.com/alirezarezvani/claude-skills"
+
+Work Log:
+- בזלינה-נמדדת: main=origin/main be4b2fb 0/0 (wave-21 v109) · הצבא חי · שרשרת-המעבדה חיה
+- בחינת alirezarezvani/claude-skills: shallow-clone מלא ל-/tmp — מדוד: 65MB · 3104 קבצי-markdown · 41 דומיינים-עליונים · 388 כישורים + 118 סוכנים + 7 פרסונות + 150 פקודות · 706 כלי-Python-stdlib · עצי-מראה ל-13 כלי-סוכן (.claude/.codex/.gemini/.vibe/.hermes)
+- נקראו-בעומק: README · orchestration/ORCHESTRATION.md (דפוסי-persona/skill/phase-handoff) · loop-library/SKILL.md (מחזור-המשוב + מצבי-קצה מכוננים) · agent-harness/README (goal_compiler-דוחה-מטרות-עמומות + loop_controller) · hivemind/SKILL.md (5 אינווריאנטים + סולם-נפילה + טבלת-אנטי-דפוסים) · grill-me · zero-hallucination-coder (5-פאזות + KNOWN/INFERRED/UNKNOWN + YAGNI) · agent-launcher/SPEC · aeo/SKILL (E-E-A-T + דפוסי-ציטוט) · מבנה-ה-SEO/C-level
+- הרוסט (מלא ב-docs/CLAUDE-SKILLS-ADOPTION.md): מחצבה לא יסוד — אריזה-מעולה, צפיפות-משמעות בינונית, אפס-כמעט שערי-אימות-ריצניים לכישורים עצמם; מסת-הפדידה (3104 קבצים) מיועדת-לנוכחות-חיפוש; 706 הכלים הם צל של המשמעות ברנטאיים-אחר; המראות-ל-13-פלטפורמות תיאטרון-הפצה; "The human decides" כחוק-סיום סותר את עמדות-הריבונות-הקבועות — הדפוס אומץ, החוק הוחלף בחוקי-הבית
+- **src/lib/saos/loop-discipline.ts** — שתי-הגניבות-בקוד: (א) TERMINAL_STATES — 7 מצבי-קצה מכוננים (success · no-op · blocked · approval-required · exhausted · stagnated · fail) + isTerminalState + classifyRunOutcome: שגיאה לעולם לא הצלחה, חוסר-עדות=fail (fail-closed), אפס-פעולות+ok=no-op; (ב) compileGoal — מהדר-מטרות דוחה-עמימות fail-closed עם סיבות (בלי-פועל-מהמילון העברי-אנגלי · סמני-עמימות · בלי-קריטריון-אימות) + terminalFromBench
+- **hands.ts** — חיווט-אדיטיבי: terminal על BenchTrajectory; TrajectoryCore-split כך שאף רץ לא פוסק-על-עצמו — המצב נגזר-אחיד בשער runBenchTask (pass→success · שלב-runner→exhausted · אחרת→fail · חריגת-תקציב-בחריגה→exhausted); API + artifacts יורשים אוטומטית
+- **hands.tsx (UI)** — TerminalBadge: מצב-הקצה מוצג ב-badge-עברי לצד פסק-הדין — הכנות נראית-לעין
+- **skills/ +5** מדבקות-משמעת מותאמות-SAOS בפורמט SKILL.md-הסטנדרטי עם מטא-ייחוס (adapted-from + saos-adoption + חוקי-בית): zero-hallucination-coder · loop-doctor · grill-me (ייחוס Matt Pocock) · swarm-discipline (התלות-ב-opencode נדחתה; 5 האינווריאנטים אומצו) · aeo-answer-engine-optimization (עם הדו-מדיניות: AEO-לסיפור-הפומבי · חיסיון-מוחלט לפנים-הצבא ולמפתחות — ציטוט-LLM של פרט-פנימי = דליפה)
+- **עדויות-חיות**: מבחן-יחידה 10/10 PASS (T1 מטרה-עמומה-נדחית-עם-3-סיבות · T10 השער-דוחה "pending כנראה") · bench git-truth חי: HEAD=be4b2fb עם `"terminal":"success"` בפלט-האמיתי · lint 0 · tsc 0 · VERDICT=pass 12/12 (gate-park + web-resume + hands-probe על-הקובץ-הנוגע)
+- תיעוד: docs/CLAUDE-SKILLS-ADOPTION.md (ה-roast + טבלת-החלטות 8 שורות: 6 אומצו עם נקודות-נחיתה, הדחיות מנומקות) · feature_list +skill-foundry-v110 (done-עם-ראיות) · session-handoff/progress רועננו ל-wave-22 · version.ts v110.0.0 + רישום-מהדורה
+
+Stage Summary:
+- התשובה-ל"מה לגבי זה": זו מחצבה — ולקחנו ממנה אבנים ספציפיות, לא את-ההר: 6 משמעויות מתוך 388 כישורים, כש-2 הן כבר קוד-אנוס בליבת-הפלטפורמה ולא קריאה-מומלצת
+- שינוי-המשמעות-האמיתי: עד-היום ריצה נגמרה ב-pass/fail; מהיום כל ריצה מסתיימת במצב-קצה שקרוי (success/no-op/blocked/approval-required/exhausted/stagnated/fail) — נאכף-בקוד, נגזר-בשער-אחד, מוצג-בלוח — "כנראה עבד" כבר-לא-מצב-חוקי
+- כנות-ה-non-goal: compileGoal מיוצא ונבחן אך טרם-חובר לפועלים-החיים (חיווט = wave-23, דורש-שינוי-חוזה-מדוד מול-צבא-חי); stagnated/approval-required מוגדרים-ומוצגים אך טרם-מיוצרים-על-ידי לולאה-חיה
+- פתוח-לגל-הבא: שער-המטרה-לפועלים · לולאות-חיות-עם-מצבי-קצה-כנים · הרחבת-הידיים (קליק+הקלדה+capture_id) · dcg allow-once
+
+### Task-22 addendum (הסגירה)
+- `.gitignore`: `/skills/` → `/skills/*` + 5 יוצאי-מפתח (המדבקות-שלנו נעקבות-בגיט כנכסי-בית עם ייחוס; 60 כישורי-הפלטפורמה נשארים-מחוץ-למעקב)

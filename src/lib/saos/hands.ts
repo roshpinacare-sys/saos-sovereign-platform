@@ -28,6 +28,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { guardedBash, guardStatus, type GuardStatus } from "./guard";
+import { terminalFromBench, type TerminalState } from "./loop-discipline";
 
 // ─── פני-שטח (Surfaces) — מה יש לנו בידיים, נמדד-חי ─────────────────────
 
@@ -154,10 +155,15 @@ export interface BenchTrajectory {
   ms: number;
   steps: BenchStep[];
   verdict: "pass" | "fail";
+  /** מצב-קצה מכונן (loop-discipline · v110) — success/exhausted/fail; שגיאה לעולם לא הצלחה */
+  terminal: TerminalState;
   /** מה שנתפס-חי באימות — האמת, גם-כשנכשלים */
   evidence: string;
   screenshot: string | null;
 }
+
+/** ה-trajectory שהרצים בונים — מצב-הקצה נגזר-אחיד בשער (runBenchTask), לא ידנית */
+type TrajectoryCore = Omit<BenchTrajectory, "terminal">;
 
 const OUT_CAP = 300;
 
@@ -183,7 +189,7 @@ function abRun(session: string, args: string[], timeoutMs: number): { ok: boolea
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** המשימה-הדגל: הצבא רואה את הפלטפורמה שלו — computer-use אמיתי, סשן-משלו, סגירה-מובטחת */
-async function taskBrowserSelfView(): Promise<BenchTrajectory> {
+async function taskBrowserSelfView(): Promise<TrajectoryCore> {
   const def = BENCH_TASKS[0]!;
   const steps: BenchStep[] = [];
   const session = `hands-${Date.now().toString(36)}`;
@@ -212,7 +218,7 @@ async function taskBrowserSelfView(): Promise<BenchTrajectory> {
   }
 }
 
-async function taskEvmLabHead(): Promise<BenchTrajectory> {
+async function taskEvmLabHead(): Promise<TrajectoryCore> {
   const def = BENCH_TASKS[1]!;
   const steps: BenchStep[] = [];
   const t0 = Date.now();
@@ -237,7 +243,7 @@ async function taskEvmLabHead(): Promise<BenchTrajectory> {
   return { task: def.id, he: def.he, surface: def.surface, verify: def.verify, startedAt: new Date(t0).toISOString(), ms: Date.now() - t0, steps, verdict, evidence, screenshot: null };
 }
 
-async function taskGuardedShell(): Promise<BenchTrajectory> {
+async function taskGuardedShell(): Promise<TrajectoryCore> {
   const def = BENCH_TASKS[2]!;
   const steps: BenchStep[] = [];
   const t0 = Date.now();
@@ -257,7 +263,7 @@ async function taskGuardedShell(): Promise<BenchTrajectory> {
   return { task: def.id, he: def.he, surface: def.surface, verify: def.verify, startedAt: new Date(t0).toISOString(), ms: Date.now() - t0, steps, verdict, evidence, screenshot: null };
 }
 
-async function taskGitTruth(): Promise<BenchTrajectory> {
+async function taskGitTruth(): Promise<TrajectoryCore> {
   const def = BENCH_TASKS[3]!;
   const steps: BenchStep[] = [];
   const t0 = Date.now();
@@ -271,7 +277,7 @@ async function taskGitTruth(): Promise<BenchTrajectory> {
   return { task: def.id, he: def.he, surface: def.surface, verify: def.verify, startedAt: new Date(t0).toISOString(), ms: Date.now() - t0, steps, verdict, evidence, screenshot: null };
 }
 
-const RUNNERS: Record<string, () => Promise<BenchTrajectory>> = {
+const RUNNERS: Record<string, () => Promise<TrajectoryCore>> = {
   "browser-self-view": taskBrowserSelfView,
   "evm-lab-head": taskEvmLabHead,
   "guarded-shell": taskGuardedShell,
@@ -293,16 +299,19 @@ export async function runBenchTask(id: string): Promise<BenchTrajectory> {
   if (!runner) throw new Error(`משימה לא-רשומה: ${id} (הרשימה: ${Object.keys(RUNNERS).join(", ")})`);
   const t0 = Date.now();
   try {
-    return await Promise.race([
+    const tr = await Promise.race([
       runner(),
-      new Promise<BenchTrajectory>((_, rej) => setTimeout(() => rej(new Error(`תקציב-הרצה חרג (${BENCH_TASKS.find((t) => t.id === id)?.budgetMs ?? 120_000}ms)`)), BENCH_TASKS.find((t) => t.id === id)?.budgetMs ?? 120_000))
+      new Promise<TrajectoryCore>((_, rej) => setTimeout(() => rej(new Error(`תקציב-הרצה חרג (${BENCH_TASKS.find((t) => t.id === id)?.budgetMs ?? 120_000}ms)`)), BENCH_TASKS.find((t) => t.id === id)?.budgetMs ?? 120_000))
     ]);
+    // v110 loop-discipline: כל trajectory מסתיים במצב-קצה מכונן — נגזר אחיד, לא ידני
+    return { ...tr, terminal: terminalFromBench(tr) };
   } catch (e) {
     const def = BENCH_TASKS.find((t) => t.id === id)!;
+    const msg = e instanceof Error ? e.message : String(e);
     return {
       task: id, he: def.he, surface: def.surface, verify: def.verify, startedAt: new Date(t0).toISOString(),
-      ms: Date.now() - t0, steps: [{ verb: "runner", detail: "חריגה-נתפסת", ok: false, ms: Date.now() - t0, output: (e instanceof Error ? e.message : String(e)).slice(0, OUT_CAP) }],
-      verdict: "fail", evidence: `חריגה: ${e instanceof Error ? e.message.slice(0, 160) : "unknown"}`, screenshot: null
+      ms: Date.now() - t0, steps: [{ verb: "runner", detail: "חריגה-נתפסת", ok: false, ms: Date.now() - t0, output: msg.slice(0, OUT_CAP) }],
+      verdict: "fail", terminal: msg.includes("תקציב") ? "exhausted" : "fail", evidence: `חריגה: ${msg.slice(0, 160)}`, screenshot: null
     };
   }
 }

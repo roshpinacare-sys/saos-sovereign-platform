@@ -53,6 +53,26 @@ function VerdictBadge({ v }: { v: "pass" | "fail" }) {
     : <Badge className="bg-red-500/15 text-red-300 border-red-500/30 text-[9px]"><XCircle size={10} className="me-1" />fail</Badge>;
 }
 
+/** מצב-קצה מכונן (v110 loop-discipline) — כל ריצה מסתיימת בשם, לא ב"כנראה עבד" */
+const TERMINAL_LABEL: Record<string, string> = {
+  success: "הצלחה-נמדדת",
+  "no-op": "אין-פעולה",
+  blocked: "נחסם",
+  "approval-required": "נדרש-אישור",
+  exhausted: "תקציב-אזול",
+  stagnated: "אין-התקדמות",
+  fail: "כישלון"
+};
+
+function TerminalBadge({ t }: { t: string }) {
+  const tone = t === "success"
+    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+    : t === "no-op"
+      ? "bg-zinc-500/15 text-zinc-300 border-zinc-500/30"
+      : "bg-amber-500/15 text-amber-300 border-amber-500/30";
+  return <Badge className={`${tone} text-[9px]`}>{TERMINAL_LABEL[t] ?? t}</Badge>;
+}
+
 export function HandsView() {
   const { data, error, loading, updatedAt, refresh } = useLive<HandsPeek>("/api/saos/hands", 45000);
   const { push: toast } = useToast();
@@ -179,6 +199,7 @@ export function HandsView() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm text-zinc-100">
               <VerdictBadge v={lastTrajectory.verdict} />
+              <TerminalBadge t={lastTrajectory.terminal} />
               <span className="font-mono" dir="ltr">{lastTrajectory.task}</span>
               <span className="text-[10px] font-normal text-zinc-500">{lastTrajectory.ms}ms · {timeAgo(lastTrajectory.startedAt)}</span>
             </CardTitle>

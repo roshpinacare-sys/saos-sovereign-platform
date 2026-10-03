@@ -521,10 +521,33 @@
  *    + פועל hands-operator ב-role-worker-run.ts — היכולת-קבועה-במצבת, לא-דמו.
  */
 
-export const SAOS_VERSION = "109.0.0";
+/**
+ * v110 בית-המלאכה-לכישורים (SKILL FOUNDRY) — הוראת הבעלים: "מה לגבי זה
+ * https://github.com/alirezarezvani/claude-skills".
+ *
+ * 1. בחינה-נמדדת (shallow-clone מלא: 65MB · 3104 קבצי-markdown · 41 דומיינים ·
+ *    388 כישורים + 118 סוכנים + 7 פרסונות + 150 פקודות · 706 כלי-Python):
+ *    מחצבה, לא יסוד — איכות-האריזה גבוהה, צפיפות-המשמעות בינונית, וכמעט-אפס
+ *    אימות-ריצני לכישורים עצמם. נגנבו 6 משמעויות; המדף נשאר בחוץ
+ *    (ה-roast המלא: docs/CLAUDE-SKILLS-ADOPTION.md).
+ * 2. loop-discipline.ts — שתי-הגניבות-בקוד: (א) מ-loop-library — שבעת מצבי-הקצה
+ *    המכוננים (success · no-op · blocked · approval-required · exhausted ·
+ *    stagnated · fail) עם classifyRunOutcome: שגיאה לעולם לא הצלחה, חוסר-עדות =
+ *    fail (fail-closed); (ב) מ-agent-harness — compileGoal: מטרה-עמומה נדחית
+ *    בשער עם סיבות (בלי פועל / סמני-עמימות / בלי קריטריון-אימות).
+ * 3. hands.ts — כל trajectory מסתיימת במצב-קצה מכונן, נגזר-אחיד בשער
+ *    runBenchTask (תקציב→exhausted · pass→success · אחרת→fail) — אף רץ לא
+ *    פוסק-על-עצמו; ולוח-הידיים מציג את מצב-הקצה ב-badge עברי (TerminalBadge).
+ * 4. skills/ +5 מדבקות-משמעת מותאמות-SAOS עם ייחוס מלא (zero-hallucination-coder ·
+ *    loop-doctor · grill-me · swarm-discipline · aeo — הדו-מדיניות: AEO-לסיפור-
+ *    הפומבי, חיסיון-מוחלט לפנים-הצבא ולמפתחות). פורמט SKILL.md-הסטנדרטי
+ *    אומץ de-facto עם מטא-ייחוס (adapted-from + saos-adoption).
+ */
+
+export const SAOS_VERSION = "110.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "ידיים-ריבוניות (SOVEREIGN HANDS)";
+export const SAOS_CODENAME = "בית-המלאכה-לכישורים (SKILL FOUNDRY)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;
