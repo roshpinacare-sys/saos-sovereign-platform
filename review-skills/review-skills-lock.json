@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "algorithm": "sha256(path+null+content+null per file, sorted by relative path)",
+  "vendoredAt": "2026-10-03T16:34:30.118Z",
+  "license": "MIT (vercel-labs/openreview README); skills originate from vercel-labs/next-skills + vercel-labs/agent-skills — provenance recorded, internal use",
+  "skills": {
+    "next-best-practices": {
+      "source": "vercel-labs/openreview (.agents/skills)",
+      "sourceType": "github-vendored",
+      "sourceCommit": "672deb21e70e471e0536d5ad7a67c14b8359e97e",
+      "computedHash": "3603fdb4f514710a7855ce04174f1d55729754dff5512daa6af48b4ecb9eb0a9",
+      "fileCount": 20,
+      "bytes": 80582
+    },
+    "next-cache-components": {
+      "source": "vercel-labs/openreview (.agents/skills)",
+      "sourceType": "github-vendored",
+      "sourceCommit": "672deb21e70e471e0536d5ad7a67c14b8359e97e",
+      "computedHash": "1369bb3bbf14bb2b12de928248cdb9a259291b7c3aa58592e24f28bd4c8a7a90",
+      "fileCount": 1,
+      "bytes": 9362
+    },
+    "next-upgrade": {
+      "source": "vercel-labs/openreview (.agents/skills)",
+      "sourceType": "github-vendored",
+      "sourceCommit": "672deb21e70e471e0536d5ad7a67c14b8359e97e",
+      "computedHash": "11e5045c5f102316c986d54cbb4d4046c0d78c9225edd903207bf08abe9b8af6",
+      "fileCount": 1,
+      "bytes": 2009
+    },
+    "vercel-composition-patterns": {
+      "source": "vercel-labs/openreview (.agents/skills)",
+      "sourceType": "github-vendored",
+      "sourceCommit": "672deb21e70e471e0536d5ad7a67c14b8359e97e",
+      "computedHash": "9ba625dd26db316c39cff483e7e74eee99122ea007eefff90a5b7f84dc0d6709",
+      "fileCount": 11,
+      "bytes": 48651
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/openreview (.agents/skills)",
+      "sourceType": "github-vendored",
+      "sourceCommit": "672deb21e70e471e0536d5ad7a67c14b8359e97e",
+      "computedHash": "5ebefd036d0ddebffae582e261f1c32981536305f0aed169e987222caa0f183e",
+      "fileCount": 61,
+      "bytes": 179011
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/openreview (.agents/skills)",
+      "sourceType": "github-vendored",
+      "sourceCommit": "672deb21e70e471e0536d5ad7a67c14b8359e97e",
+      "computedHash": "1e72e3add04f9953189bc3de15b2ebb761c65252a6fd766efdbe2f13fe9efb3a",
+      "fileCount": 1,
+      "bytes": 1231
+    }
+  }
+}
