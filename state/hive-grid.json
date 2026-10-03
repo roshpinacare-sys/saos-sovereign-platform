@@ -66,14 +66,14 @@
   "hbd": 91.5184
  },
  "kpi": {
-  "ticks": 121,
+  "ticks": 123,
   "fillBuy": 3,
   "fillSell": 0,
   "realizedHbd": 0,
   "avgCost": 0.056544000000000004,
   "regrids": 4,
   "noopSpread": 84,
-  "lastTickAt": "2026-10-03T21:42:58.815Z"
+  "lastTickAt": "2026-10-03T21:46:58.818Z"
  },
  "fills": [
   {
@@ -403,6 +403,6 @@
    "he": "פיזור 9.1bps < רצפת-המינימום 10bps — no-op (אדוורס-סלקשן)"
   }
  ],
- "updatedAt": "2026-10-03T21:43:00.151Z",
+ "updatedAt": "2026-10-03T21:47:00.179Z",
  "startedAt": "2026-10-03T17:28:52.290Z"
 }
