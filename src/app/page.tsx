@@ -57,6 +57,7 @@ import { System1View } from "@/components/saos/views/system1";
 import { ResilienceView } from "@/components/saos/views/resilience";
 import { SteemMarketView } from "@/components/saos/views/steem-market";
 import { SoldiersView } from "@/components/saos/views/soldiers";
+import { OrchestraView } from "@/components/saos/views/orchestra";
 import { FlowView } from "@/components/saos/views/flow";
 import { RosesView } from "@/components/saos/views/roses";
 import { ViewEconomy } from "@/components/saos/views/economy";
@@ -115,6 +116,7 @@ const TITLES: Record<ViewId, string> = {
   resilience: "חוסן — שרשרת-ה-LLM עם failover ומסלול-מהיר (v117)",
   "steem-market": "שוק-חי (STEEM) — מצפה-השוק הפנימי (v118)",
   soldiers: "חיילים — תזמורת-הצי 12-חשבונות (v118)",
+  orchestra: "תזמורת-חיה — מנוע-ההפעלה של המכפיל ×12 (v120)",
 };
 
 export default function Home() {
@@ -218,6 +220,7 @@ export default function Home() {
         {view === "resilience" && <ResilienceView />}
         {view === "steem-market" && <SteemMarketView />}
         {view === "soldiers" && <SoldiersView />}
+        {view === "orchestra" && <OrchestraView />}
       </AppShell>
     </ToastProvider>
   );

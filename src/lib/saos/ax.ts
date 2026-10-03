@@ -24,6 +24,11 @@
  *  · חוק-8: האנליסט עובד רק על הקשר שנמסר-לו-בפנייה (מדיד-מהדיסק, מגוזר) —
  *    אין גישה-חופשית למערכת-הקבצים.
  *  · כנות-טוקנים: usage אמיתי כשה-SDK חושף, 0 כנה כשחסר — אף-פעם לא מוערך.
+ *  · v120 חוסן: קריאת-ה-LLM של האנליסט עוברת דרך שרשרת-המועמדים (llm-chain
+ *    v115) — primary (פרומפט-מלא, אותו-maxTokens) → compact-retry (הקשר קטוץ,
+ *    ~60% טוקנים); failover אמצע-תפנית בלי אתחול-המשימה — התרופה המעוצבת
+ *    לתקרית-v113 (provider-429 הרג את הרץ). אזילת-השרשרת = RunnerError
+ *    fail-closed כנה כמקודם; פנקס-השרשרת מטא-בלבד (kind:"chain").
  */
 
 import * as fs from "node:fs";
@@ -33,6 +38,7 @@ import YAML from "yaml";
 import { z } from "zod";
 import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
+import { runLlmChain, type LlmCandidateRichOutput } from "@/lib/saos/llm-chain";
 
 // ─── קבועי-השער (gate constants) ────────────────────────────────────────────
 
@@ -54,6 +60,11 @@ export const AX_MAX_TOKENS = 4000;
 export const AX_RAW_OUTPUT_CAP = 8192;
 export const AX_ZOMBIE_MS = 10 * 60_000;
 export const AX_MAX_TASK_STEPS_REPORTED = 60;
+
+/** v120 חוסן — מועמד-הקומפקט בשרשרת-השלב: תקציב-פלט ~60% מ-AX_MAX_TOKENS,
+ *  וגזירת-הקשר לתקרה-זו (אותו-חוק של selfreview פאזה-B: 4000→2000, כאן 4000→2400) */
+export const AX_COMPACT_MAX_TOKENS = 2400;
+export const AX_COMPACT_CONTEXT_CHARS = 6000;
 
 /** מצבי-המשימה — כמו ax.io/v1alpha1, בתרגום-הבית */
 export const AX_STATUSES = ["Pending", "Running", "Suspended", "Succeeded", "Failed", "Terminating", "RunnerLost"] as const;
@@ -565,14 +576,12 @@ interface StepExec {
   error: string | null; // חריגת-SDK/פסק-זמן — כישלון-קשה של-השלב
 }
 
-/** שלב-אחד = קריאת-LLM אחת (house pattern) עם פסק-זמן 75s ב-Promise.race */
-async function executeStepCall(userContent: string): Promise<StepExec> {
-  const t0 = Date.now();
-  let raw = "";
-  // שיעור-v68 החי ב-realwork.ts: 429 אינו כישלון-עבודה אלא מגבלת-קצב —
-  // "לא נפתר בלחץ, נפתר בהמתנה": עד-3 ניסיונות בתוך אותו שלב עם המתנה
-  // מתארכת (5ש׳ → 20ש׳) — הכל בתוך פסק-הזמן-שלב; ה-ms המתועד כולל את
-  // כל ההמתנות (כנות מלאה), וכשל-אחרי-השלישי = RunnerError כנה
+/** קריאת-SDK ישירה אחת (מסילת-הבית) — המועמדים בשרשרת חולקים אותה בדיוק.
+ *  שיעור-v68 החי ב-realwork.ts: 429 אינו כישלון-עבודה אלא מגבלת-קצב —
+ *  "לא נפתר בלחץ, נפתר בהמתנה": עד-3 ניסיונות עם המתנה מתארכת (5ש׳ → 20ש׳);
+ *  פסק-זמן 75s לניסיון ב-Promise.race (מזהה-שמור מהריצה-הישירה); כנות-טוקנים:
+ *  usage אמיתי כשה-SDK חושף, 0 כנה כשחסר — אף-פעם לא מוערך. */
+async function axDirectCall(userContent: string, maxTokens: number): Promise<LlmCandidateRichOutput> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const zai = await ZAI.create();
@@ -582,21 +591,17 @@ async function executeStepCall(userContent: string): Promise<StepExec> {
             { role: "assistant", content: AX_SYSTEM_PROMPT },
             { role: "user", content: userContent }
           ],
-          max_tokens: AX_MAX_TOKENS,
+          max_tokens: maxTokens,
           thinking: { type: "disabled" }
         }),
         new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`פסק-זמן-שלב נחצה (${AX_STEP_TIMEOUT_MS / 1000}ש׳)`)), AX_STEP_TIMEOUT_MS))
       ]);
-      raw = completion.choices[0]?.message?.content ?? "";
-      // כנות-טוקנים: usage אמיתי כשה-SDK חושף, 0 כנה כשחסר — אף-פעם לא מוערך
+      const raw = completion.choices[0]?.message?.content ?? "";
       const usage = (completion as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
       return {
-        ms: Date.now() - t0,
+        output: raw,
         tokensIn: typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : 0,
-        tokensOut: typeof usage?.completion_tokens === "number" ? usage.completion_tokens : 0,
-        raw,
-        parsed: raw.trim() ? extractMachineJson(raw).parsed ?? null : null,
-        error: raw.trim() ? null : "האנליסט החזיר תשובה ריקה — אין פסק, אין המצאה"
+        tokensOut: typeof usage?.completion_tokens === "number" ? usage.completion_tokens : 0
       };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -605,11 +610,57 @@ async function executeStepCall(userContent: string): Promise<StepExec> {
         await new Promise((r) => setTimeout(r, attempt === 1 ? 5000 : 20000));
         continue;
       }
-      return { ms: Date.now() - t0, tokensIn: 0, tokensOut: 0, raw, parsed: null, error: msg.slice(0, 300) };
+      throw new Error(msg.slice(0, 300));
     }
   }
   // לא יגיע — הלולאה חוזרת-או-זורקת; fail-closed על-כל-מקרה
-  return { ms: Date.now() - t0, tokensIn: 0, tokensOut: 0, raw, parsed: null, error: "לולאת-הניסיונות נסגרה בלי תשובה (fail-closed)" };
+  throw new Error("לולאת-הניסיונות נסגרה בלי תשובה (fail-closed)");
+}
+
+/** שלב-אחד = קריאת-LLM אחת דרך שרשרת-החוסן (v120): primary (הפרומפט-המלא,
+ *  אותו-maxTokens — זהה לקריאה-הישירה שקדמה) → compact-retry (הקשר קטוץ,
+ *  ~60% טוקנים) — failover אמצע-תפנית בלי אתחול-המשימה. אין שער-validate
+ *  מותאם כאן בכוונה: פלט-לא-JSON נשאר בדיסציפלינת-צעד-התיקון הקיימת
+ *  (2-מכות ב-runTaskLoop) — השרשרת מרפאת זריקה/429/פסק-זמן/ריק בלבד, ואזילה
+ *  נשארת כישלון-קשה כנה של-השלב (RunnerError fail-closed כמקודם).
+ *  withFastPath לא כאן בכוונה: הפרומפט דינמי-פר-צעד (מוני-תקציב חיים,
+ *  digest-היסטוריה, הקשר-דיסק שנקרא מחדש) — מפתח-מטמון לעולם לא חוזר, והחלטת
+ *  לולאה (work/finish/abort) מהמטמון היא שקר-ירוק; הדילוג כנה (worklog 120-b).
+ *  פנקס-השרשרת מטא-בלבד: purpose:"ax:analyst-step", kind:"chain" — אף פרומפט
+ *  ואף פלט-מודל לא נרשמים. */
+async function executeStepCall(userContent: string): Promise<StepExec> {
+  const t0 = Date.now();
+  // מועמד-הקומפקט: גזירה מהראש + הצמדת חוזה-ה-JSON מחדש בזנב (הוראות-המענה
+  // חיות בסוף-הפרומפט — לא נגזרות בגזירה), בדיוק ברוח selfreview פאזה-B
+  const compactUserContent = `${userContent.slice(0, AX_COMPACT_CONTEXT_CHARS)}\n(מועמד-קומפקט: ההקשר קטוץ ל-${AX_COMPACT_CONTEXT_CHARS} תווים — ענה רק על מה שנשאר בתחום)\nהשב ב-JSON בלבד: {"action":"work"|"finish"|"abort","summary":"...","findings":["..."]}`;
+  const chain = await runLlmChain({
+    purpose: "ax:analyst-step",
+    candidates: [
+      { name: "primary", maxTokens: AX_MAX_TOKENS, call: () => axDirectCall(userContent, AX_MAX_TOKENS) },
+      { name: "compact-retry", maxTokens: AX_COMPACT_MAX_TOKENS, call: () => axDirectCall(compactUserContent, AX_COMPACT_MAX_TOKENS) }
+    ]
+  });
+  if (!chain.ok || chain.output === null) {
+    // אזילה-כנה: מחלקת-השגיאה והמועמדים בלבד חוצים (מטא — אף תוכן-שגיאה-גולמי);
+    // הטוקנים שנשרפו בניסיונות האמת נרשמים כהוויים (לא 0-מומצא)
+    return {
+      ms: Date.now() - t0,
+      tokensIn: chain.tokensIn ?? 0,
+      tokensOut: chain.tokensOut ?? 0,
+      raw: "",
+      parsed: null,
+      error: (chain.error ?? "שרשרת-ה-LLM אזלה — אין פלט, אין המצאה (fail-closed)").slice(0, 300)
+    };
+  }
+  const raw = chain.output;
+  return {
+    ms: Date.now() - t0,
+    tokensIn: chain.tokensIn ?? 0,
+    tokensOut: chain.tokensOut ?? 0,
+    raw,
+    parsed: raw.trim() ? extractMachineJson(raw).parsed ?? null : null,
+    error: null
+  };
 }
 
 // ─── לולאת-הרץ — המשימה-היחידה-הרצה ─────────────────────────────────────────

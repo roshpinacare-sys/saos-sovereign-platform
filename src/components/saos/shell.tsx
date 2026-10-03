@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, ChevronDown, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, Hand, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Workflow, Zap, Gauge } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, ChevronDown, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, Hand, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Workflow, Zap, Gauge, Play } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { cn, LiveDot, Pill, useToast } from "./ui";
@@ -20,7 +20,7 @@ import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/ver
 import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "hive-grid" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam" | "review" | "system1" | "resilience" | "steem-market" | "soldiers";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "hive-grid" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam" | "review" | "system1" | "resilience" | "steem-market" | "soldiers" | "orchestra";
 
 export interface ViewDef {
   id: ViewId;
@@ -423,6 +423,14 @@ export const VIEWS: ViewDef[] = [
     short: "חיילים",
     desc: "v118 חיילים: מפקד-הצי מהכספת החתומה (שמות-בלבד חוצים-גבול) · מפקד-שרשרת חי (SP · VP · RC לכל חייל) · תזמורת-הצבעות 12-חלונות (הפצת-עומס כדי ש-VP לא יישחק) · כנות: מה חסר-מימון",
     icon: <Swords size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "orchestra",
+    label: "תזמורת-חיה — הפעלת-המכפיל (v120)",
+    short: "תזמורת-חיה",
+    desc: "v120 תזמורת-חיה: מנוע-ההצבעה הריבוני — גילוי-מועמדים מהשרשרת עם נימוקי-דחיה שקופים · חלונות-12×2ש׳ · כשירות VP/RC כנה · DRY-RUN כברירת-מחדל · שידור-חי רק מאחורי requireAuth · פנקס OrchestraVote",
+    icon: <Play size={16} />,
     group: "תפעול"
   }
 ];
