@@ -89,3 +89,5 @@ tool-results/
 /db/observe.db-wal
 /db/observe.db-shm
 .cache/
+# SAOS-adoption playbook (rebuild-v111 RED TEAM strix) — house artifact, tracked:
+!skills/strix-pentest/

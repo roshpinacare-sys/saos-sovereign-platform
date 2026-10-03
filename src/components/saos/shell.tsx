@@ -20,7 +20,7 @@ import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/ver
 import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam";
 
 export interface ViewDef {
   id: ViewId;
@@ -367,6 +367,14 @@ export const VIEWS: ViewDef[] = [
     short: "הכרזה",
     desc: "מישור-ההכרזה הדקלרטיבי לסוכנים (אימוץ google/ax): מניפסטי ax.saos/v1alpha1, שער-מחמיר, רץ-יחיד reconcile, חוקי-תקציב, suspend/resume, סוויפ-זומבים",
     icon: <Workflow size={16} />,
+    group: "מחקר"
+  },
+  {
+    id: "redteam",
+    label: "אדום — צוות-האדום על הפלטפורמה (RED TEAM)",
+    short: "אדום",
+    desc: "חבר-הצוות-האוטונומי לביקורת-אבטחה (אימוץ usestrix/strix): 7 חיישנים נגד הפלטפורמה עצמה בלופבק, חומת-הסמכה (לופבק+עץ-ריפו בלבד, סירוב לפני-מגע), סכמת-ממצא עם מסלול-סתירה, טקסונומיית-קודי-יציאה 0/1/2",
+    icon: <Crosshair size={16} />,
     group: "מחקר"
   }
 ];
