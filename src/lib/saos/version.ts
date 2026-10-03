@@ -545,28 +545,35 @@
  */
 
 /**
- * v113 הכרזה (AX — DECLARATIVE AGENT ORCHESTRATION) — גל-השיקום-הראשון אחרי
- * תקרית-הרולבק (recovery-v110): ההכרזה שאבדה נבנתה-מחדש מהמפרט המשומר.
+ * v116 השתלטות (THE TAKEOVER) — גריד-הריבון על השוק הפנימי של Hive.
  *
- * 1. בחינת google/ax (נערכה בגל המקורי, העובדות נשמרו במפרט): ריצת-תזמון
- *    דקלרטיבית לסוכנים, Apache-2.0; סמנטיקה בצורת-kubectl: מניפסטי-YAML
- *    ax.io/v1alpha1 (Task/Workspace/Model), apply/get/describe/suspend/
- *    resume/delete; מישור-השליטה נעול-מאחורי-K8s — נדחה כנה על התיבה הזו.
- *    נגנבת הסמנטיקה, לא התשתית: שער-מניפסט מחמיר (apiVersion מדויק ·
- *    דחיית-שדות-לא-מוצהרים = דיסציפלינת-protojson · שם RFC1123 · רב-מסמכים
- *    נדחה), רץ-יחיד reconcile, חוק-תקציב לפני כל שלב, suspend/checkpoint/
- *    resume, וסוויפ-זומבים.
- * 2. src/lib/saos/ax.ts + /api/saos/ax + תצוגת "הכרזה" בקבוצת מחקר —
- *    prisma +AxTask/AxStep/AxWorkspace/AxModel (אדיטיבי). חוק-הקצה הכנה
- *    (v110): תקציב-אזול = Failed + תנאי BudgetExhausted=True (לעולם לא
- *    Succeeded); הצלחה רק על action:finish; abort = Failed TaskAborted;
- *    אנליסט-חסום-JSON עם צעד-תיקון אחד מתוקצב ופסק-זמן 75ש׳.
+ * 1. בחינת-עומק (צו הבעלים: מה מצב הרשת מול שיא-הטכנולוגיה · שווקים-פנימיים
+ *    ל-Steem/Hive · אוטומציות-ריבוניות): EIP-7702 חי מאז-Pectra (מאי-2025),
+ *    Uniswap-v4 hooks בסדר-גודל של ~$355B נפח-מצטבר (DefiLlama, יוני-2026),
+ *    Hummingbot = תקן-OSS למסחררת-טהורה. השוק הפנימי HBD:HIVE חי ואמיתי:
+ *    פיזור ~17bps · נפח ~71k HIVE/24ש׳ · עומק אמיתי בספר.
+ * 2. src/lib/saos/hive-grid.ts — מנוע-הגריד: ספר-פקודות חי (condenser_api
+ *    get_order_book/get_ticker על רכבת-hiveRpc המוכחת) · סולמות סימטריים
+ *    (מדרגות 1..6 לכל-צד, מרווח 5..500bps) · מילויי-נייר על מחירים אמיתיים
+ *    (מסומנים נייר — לעולם לא רווח-חי) · מאזן-תקציב כנה (הקנייה לא חורגת
+ *    מהמאזן) · עלות-ממוצעת משוקללת · הזזת-סולם לפי-סטייה · רצפת-פיזור
+ *    (no-op כנה מול אדוורס-סלקשן).
+ * 3. שער-החיים fail-closed: הנפקת limit_order_create אמת דורשת חותם-כספת
+ *    פתוח + מפתח-active + armed + RC — כרגע הכספת חתומה (פקודת-השמד
+ *    2026-09-08) והשער מסרב בעברית בשער-חי מדוד. תצוגה-מקדימה שקופה של
+ *    הפקודות המדויקות זמינה תמיד — אפס הפתעות בפתיחה.
+ * 4. /api/saos/hive-grid (GET לוח שטוח · POST tick/arm/disarm/config/regrid
+ *    64KB/4ש׳/OpLog+audit) · תצוגת "גריד-השוק" בקבוצת כלכלה · השומר מטיק
+ *    את הגריד כל ≈2דק׳ (GRID_EVERY=12 — journal grid-tick/grid-fill/grid-error).
+ * 5. השומר-מחייה-את-הרשת: במהלך הגל הוכח חי — מיחזור-מתוכנן #96, החייאה
+ *    אוטומטית #2 אחרי OOM-קרנל רביעי (1647MB), והטיק-האוטונומי הראשון
+ *    של הגריד נרשם ביומן בלי-מגע-אנושי.
  */
 
-export const SAOS_VERSION = "113.0.0";
+export const SAOS_VERSION = "116.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "הכרזה (AX)";
+export const SAOS_CODENAME = "השתלטות";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

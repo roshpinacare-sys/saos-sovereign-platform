@@ -51,6 +51,9 @@ import { ViewEnergy } from "@/components/saos/views/energy";
 import { MicrogridView } from "@/components/saos/views/microgrid";
 import CoinView from "@/components/saos/views/coin";
 import { ExchangeView } from "@/components/saos/views/exchange";
+import HiveGridView from "@/components/saos/views/hive-grid";
+import { ReviewView } from "@/components/saos/views/review";
+import { System1View } from "@/components/saos/views/system1";
 import { FlowView } from "@/components/saos/views/flow";
 import { RosesView } from "@/components/saos/views/roses";
 import { ViewEconomy } from "@/components/saos/views/economy";
@@ -102,7 +105,10 @@ const TITLES: Record<ViewId, string> = {
   recovery: "התאוששות — מארב headcorner",
   research: "מחקר ומפת-דרך",
   ax: "הכרזה — תזמון דקלרטיבי (AX)",
-  redteam: "אדום — צוות-האדום על הפלטפורמה (RED TEAM)"
+  redteam: "אדום — צוות-האדום על הפלטפורמה (RED TEAM)",
+  review: "ביקורת — הסקירה-העצמית עם ספריית-הכישורים (v114)",
+  "hive-grid": "גריד-השוק — השתלטות על השוק הפנימי HBD:HIVE (v116)",
+  system1: "רפלקס — System-1 המיידי עם חוקי-זיכרון (v112)",
 };
 
 export default function Home() {
@@ -193,6 +199,7 @@ export default function Home() {
         {view === "microgrid" && <MicrogridView />}
         {view === "coin" && <CoinView />}
         {view === "exchange" && <ExchangeView />}
+        {view === "hive-grid" && <HiveGridView />}
         {view === "flow" && <FlowView />}
         {view === "roses" && <RosesView />}
         {view === "economy" && <ViewEconomy />}
@@ -200,6 +207,8 @@ export default function Home() {
         {view === "research" && <ViewResearch />}
         {view === "ax" && <AxView />}
         {view === "redteam" && <RedteamView />}
+        {view === "review" && <ReviewView />}
+        {view === "system1" && <System1View />}
       </AppShell>
     </ToastProvider>
   );

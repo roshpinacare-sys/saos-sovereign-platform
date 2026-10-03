@@ -669,3 +669,57 @@ model SovereignDecision {
   @@index([domain, at])
   @@index([sweep])
 }
+
+// ─── v114.0.0 ביקורת (vercel-labs/openreview adoption) — פנקס-הביקורת-העצמית ─
+// ריצת-ביקורת-עצמית דו-פאזית: פאזה-A בוחר-כישור (מטא-דאטה בלבד), פאזה-B מפיק
+// ממצאים לפי סכמת-ראיה מחייבת (counterevidence חובה — בליה מודחת ונספרת).
+// כל ריצה נשמרת עם טרמינל כנה, טוקנים אמיתיים, וסטטוס-מנעול-השלמות.
+model ReviewRun {
+  id            String   @id @default(cuid())
+  status        String // running | done | failed
+  terminal      String // success | no-op | blocked | approval-required | exhausted | stagnated | fail
+  phaseAJson    String? // {skill, rationale, abstained, raw...}
+  scopeJson     String // [{file, bytes}] + caps + tripped-cap if any
+  skillSelected String?
+  findingsCount Int      @default(0)
+  tokensIn      Int      @default(0)
+  tokensOut     Int      @default(0)
+  msElapsed     Int      @default(0)
+  driftStatus   String   @default("clean") // clean | drift
+  llmCalls      Int      @default(0)
+  error         String?
+  startedAt     DateTime @default(now())
+  finishedAt    DateTime?
+  findings      ReviewFinding[]
+
+  @@index([startedAt])
+}
+
+// ממצא-ביקורת: ראיה + הפרכה-עצמית (counterEvidence — חובה, בליה בליה-נדחית)
+// + מסלול-הסכמה: אישור-בעלים (reaction=approved) לפני כל החלה, והחלה
+// exact-match בלבד (0 או ≥2 הופעות של הבלוק הישן = סטייה, fail-closed).
+model ReviewFinding {
+  id                      String    @id @default(cuid())
+  runId                   String
+  run                     ReviewRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  file                    String
+  title                   String
+  severity                String // critical | high | medium | low
+  evidence                String
+  poc                     String?
+  confidence              String // high | medium | low
+  rationale               String
+  counterEvidence         String
+  severityChangeConditions String?
+  fixEffort               String?
+  cwe                     String?
+  fixSuggestion           String?
+  reaction                String    @default("none") // none | approved | rejected
+  reactedAt               DateTime?
+  appliedAt               DateTime?
+  driftStatus             String? // applied | drift | null
+  createdAt               DateTime  @default(now())
+
+  @@index([runId])
+  @@index([severity])
+}

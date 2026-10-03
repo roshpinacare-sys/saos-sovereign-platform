@@ -205,6 +205,7 @@ const RSS_SETTLE_MS = 30_000;
 const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror freshness ×3 for sovereign recovery)
 const RESTORE_DRILL_EVERY = 144; // v45.1 — restore drill every 144th cycle (≈24min)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
+const GRID_EVERY = 12; // v116 — השתלטות: grid tick every 12th cycle (≈2min) — the ladder lives on the real book
 const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
 
 // v66 — auto-expansion scout (התפשטות-אוטומטית). The web tier owns the engine
@@ -585,7 +586,11 @@ interface KeeperEvent {
     // v107 — THE INVISIBLE GUARD (dcg adoption: the fleet's blast-radius cap)
     | "revive-guard-deny"
     | "revive-guard-warn"
-    | "revive-guard-absent";
+    | "revive-guard-absent"
+    // v116 — גריד-הריבון (the sovereign grid on the Hive internal market)
+    | "grid-tick"
+    | "grid-fill"
+    | "grid-error";
   detail: string;
 }
 
@@ -984,6 +989,30 @@ function recycleWeb(reason = "pre-OOM"): void {
  *  triggered over loopback on the web tier; rotation 48 db + 7 chain.
  *  The keeper never touches the DB itself — the web tier owns the write,
  *  the keeper owns the schedule. Journaled either way. */
+// v116 — גריד-הריבון: one honest tick against the real book. A miss is data:
+// the next cadence retries; the engine's own state is the ledger of record.
+async function runHiveGridTick(): Promise<void> {
+  try {
+    const res = await fetch("http://127.0.0.1:3000/api/saos/hive-grid", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ action: "tick" }),
+      signal: AbortSignal.timeout(30_000)
+    });
+    const j = (await res.json()) as { ok?: boolean; he?: string; noop?: string | null; fills?: unknown[] };
+    if (res.ok && j.ok) {
+      const n = Array.isArray(j.fills) ? j.fills.length : 0;
+      if (n > 0) journal("grid-fill", `${n} מילויי-גריד — ${j.he ?? ""}`);
+      else if (j.noop === "spread") journal("grid-tick", `no-op כנה (פיזור-שוק צר) — ${j.he ?? ""}`);
+      else journal("grid-tick", `טיק נקי — ${j.he ?? ""}`);
+    } else {
+      journal("grid-error", `HTTP ${res.status} — ${(j.he ?? "").slice(0, 120)}`);
+    }
+  } catch (e) {
+    journal("grid-error", String(e).slice(0, 140));
+  }
+}
+
 async function runBackup(): Promise<void> {
   try {
     const res = await fetch("http://127.0.0.1:3000/api/saos/backup", {
@@ -2554,6 +2583,12 @@ async function cycle(): Promise<void> {
   // hypothesis; the drill turns it into a measured fact, on a schedule.
   if (RT.cycle % RESTORE_DRILL_EVERY === 0) {
     runRestoreDrill();
+  }
+  // v116 השתלטות — גריד-הריבון: every ≈2min the ladder ticks on the REAL HBD:HIVE
+  // order book (paper fills on real prices; live orders only behind the vault seal
+  // + armed + active key — the arming law lives in the engine, fail-closed).
+  if (RT.cycle === 6 || (RT.cycle > 6 && RT.cycle % GRID_EVERY === 0)) {
+    await runHiveGridTick();
   }
   // v93 — sovereignty census every ≈15min (first 60s after boot): 17 git
   // folders + key layer measured over loopback; verdict journaled either way.
