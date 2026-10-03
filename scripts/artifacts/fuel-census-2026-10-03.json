@@ -2,7 +2,7 @@
   "kind": "fuel-report",
   "role": "evm-fuel-attendant",
   "executor": "fuel-census",
-  "measuredAt": "2026-10-03T00:25:48.916Z",
+  "measuredAt": "2026-10-03T01:36:08.918Z",
   "measured": true,
   "doors": 1,
   "fundedDoors": 1,
@@ -11,14 +11,14 @@
       "chain": "eth",
       "endpoint": "ethereum-rpc.publicnode.com",
       "measured": true,
-      "block": 26108209,
-      "gasPriceGwei": 0.076236475
+      "block": 26108558,
+      "gasPriceGwei": 0.061789484
     },
     {
       "chain": "bsc",
       "endpoint": "bsc-rpc.publicnode.com",
       "measured": true,
-      "block": 125388053,
+      "block": 125397427,
       "gasPriceGwei": 0.05
     }
   ],

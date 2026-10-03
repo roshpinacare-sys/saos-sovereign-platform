@@ -1,7 +1,7 @@
 {
   "version": 3,
   "doctrine": "feature_list.json — harness primitive (adopted v106, merged across parallel waves). One active feature at a time. No feature is done without evidence (command + measured result). Status values: done | in_progress | todo | blocked | owner-gated. dependencies = feature ids that must be done first. The Task-19 parallel wave's kernel lineage rows (feat-001..006) live in git history (01a144e) — the measured economy rows below are this ledger's source of truth; do not import rows without evidence.",
-  "updated": "2026-10-03T01:25:00Z",
+  "updated": "2026-10-03T01:45:00Z",
   "active_feature": null,
   "rules": [
     "one-feature-at-a-time: exactly one in_progress",
@@ -191,6 +191,18 @@
       ],
       "evidence": "measured live 2026-10-03: anvil 924MB after 2h20m with a lean 27.9MB state vs ~82MB fresh-resume (RSS is runtime accumulation, not state) · drill: 2 live recycles, 0.5s each (136→40MB · 50→40MB), chain advanced 0x374b→0x378d through the windows · machine available 1154→1931MB · verify VERDICT=pass 11/11",
       "done_when": "anvil memory is reclaimed by planned logged recycles, never a kernel kill; the valve is operator-tunable live via state/lab-recycle.json"
+    },
+    {
+      "id": "sovereign-hands-v109",
+      "name": "Sovereign Hands (cua-inspired capability layer)",
+      "title": "ידיים-ריבוניות v109 — שכבת-היכולות לאוטונומיה (אימוץ trycua/cua)",
+      "description": "Measured adoption of trycua/cua patterns: typed action surfaces (browser via agent-browser CDP, guarded shell via dcg, git, anvil lab chain, fs), bench tasks with verification criteria and full trajectory export, sessioned-and-closed browser usage, gate-12 hands-probe in verify.sh, /api/saos/hands (GET board, POST fail-closed), hands-operator role worker, and house law 8 (every hand through the guard)",
+      "status": "done",
+      "dependencies": [
+        "mini-parse-gate"
+      ],
+      "evidence": "measured live 2026-10-03: bun scripts/hands-run.ts all → 4/4 pass in 6.5s (browser-self-view read v108 stamp off the live page + screenshot + session closed; evm-lab-head chain 14417; guarded-shell deny-proof alive; git-truth HEAD 5579203) · artifact hands-bench-2026-10-03.json · POST unauth 401 fail-closed · docs/CUA-ADOPTION.md",
+      "done_when": "the fleet can see and operate its own platform through a guarded typed surface with a trajectory artifact per run, and the verify gate proves the hands layer parses and the browser surface answers"
     }
   ]
 }

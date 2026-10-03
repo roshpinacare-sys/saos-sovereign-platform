@@ -499,10 +499,32 @@
  *    מקור-ה-0.9GB האמיתי של מלחמת-ה-OOM עכשיו שסתום-מתוכנן-מתועד.
  */
 
-export const SAOS_VERSION = "108.0.0";
+/**
+ * v109 ידיים-ריבוניות (SOVEREIGN HANDS) — הוראת הבעלים: "בוא נבין מה יש לנו בידיים
+ * וננסה לתת לאוטונומיה הריבונית עוד יכולות ועוד כוח — trycua/cua לדוגמא".
+ *
+ * 1. בחינה-נמדדת של trycua/cua (shallow-clone מלא — 8001 קבצים, README + libs/
+ *    cua-driver + cua-bench + spacesd): ארבעה רעיונות שנגנבו-נכון — שכבת-פעולה
+ *    מטופסת על מחשב-אמיתי (Driver) · משימות-עם-קריטריון-ושביל-ראיות (Bench) ·
+ *    סשן-מנותק-ושמור (spacesd) · פעולה-המחייבת-תצפית (capture_id). מה-לא-נלקח:
+ *    תשתית-VM (Lume/kasm/qemu — דורש KVM/macOS שאין; לקיחתה היתה שקר-ירוק).
+ * 2. hands.ts — היכולת-החדשה: 5 פני-שטח נמדדים-חי (agent-browser 0.38.1 — עיניים
+ *    וידיים על דפדפן-CDP אמיתי · bash מושמר-dcg · גיט · anvil:8545 · מערכת-קבצים)
+ *    + 4 משימות-bench עם trajectory (כל שלב, כל פלט-מגוזר, פסק-דין) + עדות-כתובה
+ *    scripts/artifacts/hands-bench-*.json. הרצה-חיה ראשונה: 4/4 pass ב-6.5ש' —
+ *    הצבא ראה את הפלטפורמה שלו בעצמו (קרא v108 בסרגל, צילם, סגר-סשן).
+ * 3. חוק-8 (AGENTS.md): כל-יד-עוברת-משמר — דרך dcg או סשן-מנוהל-ונסגר; אין
+ *    פעולה-חופשית-על-מחרוזת. פגמים-עצמיים שנתפסו-חי בהרצה-הראשונה (guardedBash
+ *    בלי-await · ms-שהראה-תקציב-ולא-זמן) תוקנו — הסוויטה דיווחה fail כנה ולא
+ *    שקר-ירוק, בדיוק-כמתוכנן.
+ * 4. API /api/saos/hands (GET לוח · POST הרצה fail-closed) + תצוגת "ידיים" בסרגל
+ *    + פועל hands-operator ב-role-worker-run.ts — היכולת-קבועה-במצבת, לא-דמו.
+ */
+
+export const SAOS_VERSION = "109.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "מיחזור-המעבדה (LAB RECYCLE)";
+export const SAOS_CODENAME = "ידיים-ריבוניות (SOVEREIGN HANDS)";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

@@ -7,7 +7,7 @@
  * + כותרת-תחתונה דביקה.
  */
 
-import { Anchor, ArrowLeftRight, Boxes, ChevronDown, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
+import { Anchor, ArrowLeftRight, Boxes, ChevronDown, Coins, Crosshair, Droplets, ExternalLink, Flame, Flower2, Gem, GitBranch, Globe2, Hammer, Hand, HardHat, HeartPulse, KeyRound, Landmark, Lightbulb, Link2, MessagesSquare, Radar, RadioTower, RefreshCcw, Scale, ShieldCheck, Sprout, Swords, Users, Waypoints, Zap, Gauge } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { cn, LiveDot, Pill, useToast } from "./ui";
@@ -20,7 +20,7 @@ import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/ver
 import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "flow" | "roses" | "economy" | "recovery" | "research";
 
 export interface ViewDef {
   id: ViewId;
@@ -254,6 +254,14 @@ export const VIEWS: ViewDef[] = [
     short: "ריבונות",
     desc: "הוראת הבעלים 'לחזק את האוטונומיה והריבונות על כלל תיקיות הגיט' (v93) — מפקד חי: ענף/HEAD/סנכרון/ניקיון-עץ לכל ריפו · שכבת-המפתחות (כספת · חתימת-STEEM 4/4 · חנות-PAT) · פערים מגושרים · פסקי-טענות v96 למסמכי-הקנון",
     icon: <ShieldCheck size={16} />,
+    group: "תפעול"
+  },
+  {
+    id: "hands",
+    label: "ידיים-ריבוניות — הצבא שנוגע בעולם",
+    short: "ידיים",
+    desc: "הוראת הבעלים 'עוד יכולות ועוד כוח לאוטונומיה הריבונית' (v109, אימוץ trycua/cua) — פני-שטח נמדדים-חי (דפדפן · משמר-dcg · גיט · שרשרת · מערכת-קבצים) · משימות-bench עם trajectory מתועד · היסטוריית-עדויות בגיט",
+    icon: <Hand size={16} />,
     group: "תפעול"
   },
   {

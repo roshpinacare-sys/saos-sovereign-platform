@@ -13,6 +13,7 @@
 
 import { runFuelCensus, runEstateCensus, runRotationWatch, writeArtifactFile, isWired, WORKER_BINDINGS } from "@/lib/saos/role-workers";
 import { runHarnessVerify } from "@/lib/saos/harness";
+import { runBenchSuite } from "@/lib/saos/hands";
 
 async function main(): Promise<number> {
   const op = process.argv[2] ?? "all";
@@ -83,10 +84,27 @@ async function main(): Promise<number> {
     if (!report.ok) failures += 1;
   };
 
+  // v109 — ידיים-ריבוניות: פועל-ה-bench מריץ את סוויטת-המשימות (דפדפן · שרשרת ·
+  // משמר · גיט) וכותב trajectory-עדות — הפעם-הראשונה שלצבא יש יד-על-מחשב אמיתי.
+  const runHandsBench = async (): Promise<void> => {
+    const suite = await runBenchSuite();
+    results.push({
+      executor: "hands-bench",
+      role: "hands-operator",
+      measured: suite.ok,
+      file: "scripts/artifacts/hands-bench-" + new Date().toISOString().slice(0, 10) + ".json",
+      bytes: 0,
+      digest: "see-artifact",
+      extra: { pass: suite.pass, fail: suite.fail, ms: suite.ms, tasks: suite.trajectories.map((t) => ({ task: t.task, verdict: t.verdict, ms: t.ms })) }
+    });
+    if (!suite.ok) failures += 1;
+  };
+
   if (op === "fuel" || op === "all") await runFuel();
   if (op === "estate" || op === "all") await runEstate();
   if (op === "r12" || op === "all") await runR12();
   if (op === "harness-sentinel") await runHarnessSentinel();
+  if (op === "hands-bench") await runHandsBench();
 
   const wiredSlugs = Object.keys(WORKER_BINDINGS).filter((s) => isWired(s));
   console.log(JSON.stringify({ ok: failures === 0, op, wiredSlugs, results, failures }, null, 2));

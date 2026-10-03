@@ -2,7 +2,7 @@
   "kind": "vault-report",
   "role": "vault-auditor",
   "executor": "vault-census",
-  "measuredAt": "2026-10-03T00:25:48.770Z",
+  "measuredAt": "2026-10-03T01:36:08.722Z",
   "measured": true,
   "vaultPresent": true,
   "sealState": "sealed",
@@ -33,7 +33,7 @@
   ],
   "envelopeBytes": 222356,
   "envelopeShaPrefix": "1f5084c99dd37726",
-  "envelopeAgeHours": 3,
+  "envelopeAgeHours": 4,
   "metaExternalPass": true,
   "metaMigratedAt": "2026-09-30T16:32:39.925Z"
 }

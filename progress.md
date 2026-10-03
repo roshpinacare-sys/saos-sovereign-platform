@@ -6,14 +6,13 @@
 
 ## Last Updated
 
-2026-10-03T01:25Z · **גרסה**: 108.0.0 (LAB RECYCLE + MINI-PARSE) + wave-20 · **git**: main = origin/main, 0/0
+2026-10-03T01:45Z · **גרסה**: 109.0.0 (SOVEREIGN HANDS) · **git**: main = origin/main לפני-wave-21, 0/0
 
 ## Current Objective
 
-**invisible-guard** (v107) — הוראת הבעלים: "בחן כיצד ניתן לייעל את הריבונות
-והאוטונומיה של הסוכנים בעזרת זה" (destructive_command_guard). התשובה-הנמדדת:
-ריבונות מתרחבת רק כשטווח-הפיצוץ מוגבל — dcg הוא האסם-המכני; הצבא מקבל יותר
-אוטונומיה בגלל שהפקודות-הקטסטרופיות בלתי-אפשריות.
+**sovereign-hands** (v109) — הוראת הבעלים: "בוא נבין מה יש לנו בידיים וננסה
+לתת לאוטונומיה הריבונית עוד יכולות ועוד כוח" (trycua/cua לדוגמא). התשובה-הנמדדת:
+הצבא קיבל יד-אמיתית על מחשב אמיתי — מושמרת, מתועדת-trajectory, ועם שער-אימות משלה.
 
 ## Current State
 
@@ -55,6 +54,22 @@
       **דריל-חי: 2 מיחזורים × 0.5ש' (136→40MB · 50→40MB) · השרשרת המשיכה לצעוד 0x374b→0x378d ·
       זמין-במכונה 1154→1931MB**
 
+### What is done (wave-21 additions — v109 SOVEREIGN HANDS)
+
+- [x] **בחינת trycua/cua נמדדת** (shallow-clone מלא 8001 קבצים) — ארבעה רעיונות אומצו,
+      VM-תשתית נדחתה-בכנות (דורש KVM/macOS — לקיחתה היתה שקר-ירוק) · docs/CUA-ADOPTION.md
+- [x] **src/lib/saos/hands.ts — שכבת-הידיים**: 5 פני-שטח נמדדים-חי (browser 0.38.1 · shell-dcg ·
+      git · anvil:8545 · fs) + 4 משימות-bench עם קריטריון-אימות ו-trajectory מלא (כל שלב/זמן/פלט-מגוזר)
+- [x] **הרצה-חיה ראשונה: 4/4 pass ב-6.5ש'** — browser-self-view קרא את v108-מהעמוד-החי,
+      צילם, וסגר-סשן · evm-lab-head ראש-14417 · guarded-shell deny-proof-חי · git-truth HEAD
+      · artifact hands-bench-2026-10-03.json · שני-פגמים-עצמיים נתפסו-חי-בהרצה-הראשונה ותוקנו
+      (guardedBash-בלי-await · ms-שהראה-תקציב) — הסוויטה דיווחה fail-כנה, לא שקר-ירוק
+- [x] **API /api/saos/hands** (GET לוח-חי · POST fail-closed-401 + whitelist) · **תצוגת "ידיים"
+      בסרגל** (פני-שטח · משימות-עם-כפתור-הרצה · trajectory · היסטוריית-עדויות)
+- [x] **פועל hands-operator** ב-role-worker-run.ts (bun scripts/role-worker-run.ts hands-bench)
+- [x] **שער-12 hands-probe** ב-verify.sh (hands.ts fail-closed-parse + agent-browser-עונה) ·
+      **חוק-8 ב-AGENTS.md** (כל-יד-עוברת-משמר)
+
 ### What is left (הגל-הבא)
 
 - [ ] **מדידת-השארית של סערת-הקדנציות** (השארית הקטנה אחרי-שסתום-anvil): יומן-קדנציות מול
@@ -62,12 +77,14 @@
       stagger-פולרים נשאר רעיון-מדידה, לא דחוף (המקור-האמיתי נסגר בשסתום)
 - [ ] **dcg allow-once מווסת** לשעות-חירום (מתועד-OpLog) — מהתור המתוכנן
 - [ ] **FUSE-upload** (owner-only) — דורש-הזזת-עגינה-פיזית, לא חוסם כלום
+- [ ] **hands-הרחבה-המושמרת**: קליק-והקלדה בעמוד-החי (כרגע קריאה-בלבד) + capture_id-מלא
+      (קישור-תצפית→פעולה בתוך-ה-trajectory) + קדנציית-hands-bench-קבועה-בשומר
 
 ## Recommended Next Step
 
-1. dcg allow-once מווסת (התור-המתוכנן) או מדידת-שארית-הקדנציות — לפי-מה-שהגל-הבא יבחר
+1. הרצת-הסוויטה-החיה: `bun scripts/role-worker-run.ts hands-bench` (הפועל-החדש) או הרצה-מהעמוד #hands
 2. `git pull --rebase` → commit → push → ורדקט `git log origin/main -1` (0/0)
-3. סבב-השומר ימשיך: השסתום-חמוש (700MB), שער-11 בסוללה, 8 תפקידים-חיים במצבת
+3. סבב-השומר ימשיך: השסתום-חמוש (700MB), שער-12 בסוללה, יד-ריבונית-חיה-במצבת
 
 ## Blockers (כנים)
 
