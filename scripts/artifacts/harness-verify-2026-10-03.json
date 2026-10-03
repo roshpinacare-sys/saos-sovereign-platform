@@ -1,12 +1,12 @@
 {
   "kind": "harness-verify",
   "date": "2026-10-03",
-  "measuredAt": "2026-10-03T00:38:49Z",
+  "measuredAt": "2026-10-03T01:05:02Z",
   "verdict": "pass",
-  "pass": 10,
+  "pass": 11,
   "fail": 0,
   "failFast": false,
-  "gates": ["toolchain","gate-clear","deps","tsc","lint","db-sync","harness-files","web-resume","live-api","guard"],
-  "stages": [{"stage":"toolchain","status":"pass","detail":"bun+node present","ms":3},{"stage":"gate-clear","status":"pass","detail":"web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap)","ms":4},{"stage":"deps","status":"pass","detail":"node_modules present","ms":2},{"stage":"tsc","status":"pass","detail":"","ms":5163},{"stage":"lint","status":"pass","detail":"$ eslint . --cache --cache-location .cache/eslint --cache-strategy content","ms":4111},{"stage":"db-sync","status":"pass","detail":" The database is already in sync with the Prisma schema.","ms":1450},{"stage":"harness-files","status":"pass","detail":"6/6 harness files present","ms":3},{"stage":"web-resume","status":"pass","detail":"web resumed and warm (8s)","ms":7020},{"stage":"live-api","status":"pass","detail":"status API live (200)","ms":18},{"stage":"guard","status":"pass","detail":"guard functional: deny-proof + allow-proof + .dcg.toml in-repo","ms":18}],
+  "gates": ["toolchain","gate-clear","deps","tsc","lint","db-sync","harness-files","web-resume","live-api","guard","mini-parse"],
+  "stages": [{"stage":"toolchain","status":"pass","detail":"bun+node present","ms":3},{"stage":"gate-clear","status":"pass","detail":"web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap)","ms":2},{"stage":"deps","status":"pass","detail":"node_modules present","ms":2},{"stage":"tsc","status":"pass","detail":"","ms":5348},{"stage":"lint","status":"pass","detail":"$ eslint . --cache --cache-location .cache/eslint --cache-strategy content","ms":3815},{"stage":"db-sync","status":"pass","detail":" The database is already in sync with the Prisma schema.","ms":1347},{"stage":"harness-files","status":"pass","detail":"6/6 harness files present","ms":3},{"stage":"web-resume","status":"pass","detail":"web resumed and warm (8s)","ms":6981},{"stage":"live-api","status":"pass","detail":"status API live (200)","ms":18},{"stage":"guard","status":"pass","detail":"guard functional: deny-proof + allow-proof + .dcg.toml in-repo","ms":19},{"stage":"mini-parse","status":"pass","detail":"8/8 mini-service sources parse clean","ms":201}],
   "doctrine": "no done without runnable proof (harness engineering, adopted v106)"
 }

@@ -6,7 +6,7 @@
 
 ## Last Updated
 
-2026-10-03T00:45Z · **גרסה**: 107.0.0 (THE INVISIBLE GUARD) + wave-19.5 OOM-doctrine-v49 · **git**: main = origin/main a07c244, 0/0
+2026-10-03T01:25Z · **גרסה**: 108.0.0 (LAB RECYCLE + MINI-PARSE) + wave-20 · **git**: main = origin/main, 0/0
 
 ## Current Objective
 
@@ -43,20 +43,31 @@
 - [x] AGENTS.md חוק-7 · docs/DCG-ADOPTION.md (הבחינה+ה-roast) · broadcast בתור
 - [x] E2E-דפדפן של הגל-הקודם (desktop+mobile, v107 בסרגל, אפס-שגיאות) — נסגר ב-Task-6; push+origin 0/0 מאומת
 
-### What is left
+### What is done (wave-20 additions)
 
-- [ ] **שער-פארס-ל-mini-services ב-verify.sh** — החוק-החדש-שנלמד (הסינטקס-הלטנטי
-      היה-נתפס-ע"י-שער-כזה; tsconfig-השורש לא-מכסה את mini-services)
-- [ ] **מקור-הטיפוס-של-סערת-ה-RSS** (~10MB/s-אחרי-החייאה): קדנציות-שנערו-בתור +
-      פולרים-מקביליים; מועמדים-מדידים: stagger-פולרים · NODE_OPTIONS-cap-על-הווב ·
-      עצירת-anvil-בהמתנה (=0.9GB-מקור-אמת, הפיה-אמיתית-למכונה-בת-4GB)
+- [x] **שער-פארס-ל-mini-services ב-verify.sh — נסגר (wave-20)**: gate 11 fail-closed
+      (bun build לכל src/*.ts בכל שירות · 8/8 נמדדו-נקי לפני-הקומיט · VERDICT=pass 11/11) —
+      מחלקת-ה-SyntaxError-הלטנטי (tsconfig-סקופ + bun --hot שקט) לא-יכולה-עוד להגיע-בשקט לשירות-חי
+- [x] **מקור-הסערה — השסתום-האמיתי נסגר (v108 LAB RECYCLE)**: המדידה — anvil 924MB אחרי 2:20ש'
+      עם state רזה 27.9MB מול ~82MB טרי-מאותו-load-state (הזיכרון = צבירה-ריצתית, לא המצב) →
+      שסתום-RSS-נמדד (ברירת-מחדל 700MB · כפתור-force · רצפה 10 דק' · דריסה-חיה דרך state/lab-recycle.json) —
+      יציאה-חיננית (exit-dump) → RESUME · נעול-על RT.busy (v62) מול cycles/watchdog ·
+      **דריל-חי: 2 מיחזורים × 0.5ש' (136→40MB · 50→40MB) · השרשרת המשיכה לצעוד 0x374b→0x378d ·
+      זמין-במכונה 1154→1931MB**
+
+### What is left (הגל-הבא)
+
+- [ ] **מדידת-השארית של סערת-הקדנציות** (השארית הקטנה אחרי-שסתום-anvil): יומן-קדנציות מול
+      עליית-RSS לכל-חייאה — הפולרים כבר מכוסים-חלקית ע"י cap-768MB + recycle-קווים;
+      stagger-פולרים נשאר רעיון-מדידה, לא דחוף (המקור-האמיתי נסגר בשסתום)
+- [ ] **dcg allow-once מווסת** לשעות-חירום (מתועד-OpLog) — מהתור המתוכנן
+- [ ] **FUSE-upload** (owner-only) — דורש-הזזת-עגינה-פיזית, לא חוסם כלום
 
 ## Recommended Next Step
 
-1. שער-פארס-ל-mini-services (`bun build src/index.ts` לכל-שירות — gate 11 fail-closed)
-2. מדידת-מקור-הסערה: יומן-קדנציות-מול-עליית-RSS-לכל-חיים (הנתונים-כבר-ביומן)
-3. `git pull --rebase` → commit → push → ורדקט `git log origin/main -1`
-4. סבב-השומר ימשיך: 8 תפקידים-חיים במצבת, מיחזור-מתוכנן-בלבד
+1. dcg allow-once מווסת (התור-המתוכנן) או מדידת-שארית-הקדנציות — לפי-מה-שהגל-הבא יבחר
+2. `git pull --rebase` → commit → push → ורדקט `git log origin/main -1` (0/0)
+3. סבב-השומר ימשיך: השסתום-חמוש (700MB), שער-11 בסוללה, 8 תפקידים-חיים במצבת
 
 ## Blockers (כנים)
 

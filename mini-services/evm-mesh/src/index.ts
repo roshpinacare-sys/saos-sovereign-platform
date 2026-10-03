@@ -22,6 +22,14 @@
  *      known microgrid pairs are kept as live grids ("לסדר את הבריכות").
  *   4. WATCHDOG: respawn anvil + redeploy if the chain dies
  *   5. ARTIFACT WATCHER: redeploy when the canonical SAOSMesh.json changes
+ *   6. v108 LAB RECYCLE (the planned-death doctrine applied to the lab
+ *      chain): anvil's RSS is runtime accumulation, not state — measured
+ *      live 2026-10-03: 924MB after 2h20m with a LEAN 27.9MB state file,
+ *      vs ~82MB on a fresh resume from the same state. When RSS crosses
+ *      the measured trigger (700MB default) with NO real cycle in flight,
+ *      anvil exits gracefully (exit-dump) and RESUMES from its own dump —
+ *      ~700MB freed on the 4GB box, the real 0.9GB valve of the OOM war.
+ *      Operational lever: state/lab-recycle.json read every tick.
  *
  * bun run dev  →  bun --hot src/index.ts (hot reload with clean child
  * process handover through globalThis).
@@ -329,6 +337,8 @@ interface MeshRuntime {
   timers: ReturnType<typeof setInterval>[];
   artifactMtime: number;
   busy: boolean;
+  recycling: boolean;
+  lastRecycleAt: number;
 }
 // v62 מכנס הדורות (THE GENERATION CONVERGENCE) — כל הערכה מחדש של המודול
 // היא "דור" חדש. האמת שנתפסה חי ביומן (tick=63: 5×, tick=64 ואילך: 7×):
@@ -366,7 +376,7 @@ if (G.__meshRuntime) {
     /* fresh boot */
   }
 }
-const RT: MeshRuntime = { anvil: null, timers: [], artifactMtime: 0, busy: false };
+const RT: MeshRuntime = { anvil: null, timers: [], artifactMtime: 0, busy: false, recycling: false, lastRecycleAt: 0 };
 G.__meshRuntime = RT;
 
 /** v62 — טיימר ממוגן-דור: נרשם בשני הספרים (מקומי + גלובלי) ובודק בכל
@@ -446,6 +456,90 @@ function compactAnvilState(): void {
     console.log(`[evm-mesh] v54 STATE SURGERY: ${(before / 1048576).toFixed(1)}MB → ${(after / 1048576).toFixed(1)}MB · blocks ${parsed.blocks?.length ?? 0}→${blocks.length} · txs ${parsed.transactions?.length ?? 0}→${txs.length} · best=${best} · backup anvil-state.pre-v54.json`);
   } catch (e) {
     console.log(`[evm-mesh] v54 surgery skipped (honest): ${e instanceof Error ? e.message.slice(0, 120) : "unknown"} — ה-keeper בדגלים ירזה את ה-dump הבא בכל מקרה`);
+  }
+}
+
+// ─── v108 מפעל-המעבדה — LAB RECYCLE (המוות-המתוכנן של anvil) ──────────────
+// המדידה-החיה (2026-10-03): anvil חי 2:20ש' עם state רזה 27.9MB — RSS 924MB.
+// מולו anvil טרי מאותו --load-state: ~82MB בעלייה. הזיכרון = צבירה-ריצתית
+// (journal/tx-history), לא המצב המומס — מיחזור-מתוכנן משחרר ~700MB על מכונה
+// בת 4GB (מקור-ה-0.9GB האמיתי של מלחמת-ה-OOM, wave-19.5). החוקים:
+// (1) רק בלי מחזור-אמת בטיסה ובלי מיחזור בטיסה — RT.busy מוחזק לאורך
+//     החלון (אותה נעילת-טיסה-יחידה של v62), ה-watchdog מדלג בכנות;
+// (2) סף-RSS מנומק (ברירת-מחדל 700MB) + מרווח-מינימום 10 דק' בין מיחזורים;
+// (3) SIGTERM חינני — anvil כותב exit-dump לקובץ-המצב, החייאה RESUMES ממנו
+//     (אפס-אובדן-מצב מעבר לחלון-ה-30ש' המוכר); לא-יוצא ב-20ש' → SIGKILL
+//     (ה-dump של ה-30ש' הוא הרשת, זהה לחלון-קריסה — כנה);
+// (4) דריסה-תפעולית חיה: state/lab-recycle.json {enabled, rssTriggerMb,
+//     minIntervalMs} נקרא בכל-טיק — בלי-הפעלה-מחדש; קובץ-חסר/שבור =
+//     ברירות-המחדל. כך הואנדד חי (הדגל: rssTriggerMb 200 → מיחזור-נצפה).
+
+const LAB_RECYCLE_CFG_PATH = path.resolve(import.meta.dir, "..", "state", "lab-recycle.json");
+const LAB_RECYCLE_DEFAULTS = { enabled: true, rssTriggerMb: 700, minIntervalMs: 10 * 60_000 } as const;
+
+function readVmRSSMb(pid: number): number {
+  try {
+    const status = fs.readFileSync(`/proc/${pid}/status`, "utf8");
+    const m = /VmRSS:\s+(\d+)\s+kB/.exec(status);
+    return m ? Math.round(Number(m[1]) / 1024) : -1;
+  } catch {
+    return -1; // התהליך נעלם/יצא — אמת-לא-זמינה
+  }
+}
+
+function readLabRecycleConfig(): { enabled: boolean; rssTriggerMb: number; minIntervalMs: number; force: boolean } {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(LAB_RECYCLE_CFG_PATH, "utf8")) as Partial<{ enabled: boolean; rssTriggerMb: number; minIntervalMs: number; force: boolean }>;
+    return {
+      enabled: parsed.enabled !== false,
+      rssTriggerMb: typeof parsed.rssTriggerMb === "number" && parsed.rssTriggerMb >= 100 ? parsed.rssTriggerMb : LAB_RECYCLE_DEFAULTS.rssTriggerMb,
+      minIntervalMs: typeof parsed.minIntervalMs === "number" && parsed.minIntervalMs >= 60_000 ? parsed.minIntervalMs : LAB_RECYCLE_DEFAULTS.minIntervalMs,
+      force: parsed.force === true, // כפתור-חירום-תפעולי: מיחזור-מיידי בלי-תלות-בסף
+    };
+  } catch {
+    return { ...LAB_RECYCLE_DEFAULTS, force: false };
+  }
+}
+
+async function labRecycleTick(): Promise<void> {
+  const cfg = readLabRecycleConfig();
+  if (!cfg.enabled || RT.recycling) return;
+  if (RT.busy) return; // מחזור-אמת או watchdog בטיסה — לא נוגעים בשרשרת
+  let pid: number | null = null;
+  if (RT.anvil && RT.anvil.exitCode === null) pid = RT.anvil.pid;
+  if (pid === null) pid = findAnvilPid();
+  if (pid === null) return;
+  const rssMb = readVmRSSMb(pid);
+  if (!cfg.force) {
+    if (rssMb < 0 || rssMb < cfg.rssTriggerMb) return;
+  } else if (rssMb < 0) {
+    console.log("[evm-mesh] v108 LAB RECYCLE force: RSS unreadable — proceeding on the operator's word");
+  }
+  if (RT.lastRecycleAt > 0 && Date.now() - RT.lastRecycleAt < cfg.minIntervalMs) return;
+
+  RT.recycling = true;
+  RT.busy = true; // הנעילה-המשותפת — autoCycle/watchdog מדלגים על החלון
+  try {
+    const t0 = Date.now();
+    console.log(`[evm-mesh] v108 LAB RECYCLE: anvil pid ${pid} rss ${rssMb}MB ≥ ${cfg.rssTriggerMb}MB (אין-מחזור-בטיסה) — יציאה-חיננית (exit-dump) → RESUME מהמצב`);
+    try { process.kill(pid, "SIGTERM"); } catch { /* כבר מת */ }
+    let exited = false;
+    for (let i = 0; i < 200; i++) {
+      try { fs.statSync(`/proc/${pid}`); await Bun.sleep(100); } catch { exited = true; break; }
+    }
+    if (!exited) console.log("[evm-mesh] v108 LAB RECYCLE: לא-יצא ב-20ש' — SIGKILL (חלון-ה-dump של ה-30ש' הוא הרשת — כנה)");
+    try { process.kill(pid, "SIGKILL"); } catch { /* כבר מת */ }
+    RT.anvil = null;
+    spawnAnvil(); // --load-state מה-exit-dump הטרי
+    await waitRpc();
+    RT.lastRecycleAt = Date.now();
+    const fresh = RT.anvil ? readVmRSSMb(RT.anvil.pid) : -1;
+    console.log(`[evm-mesh] v108 LAB RECYCLE done in ${((Date.now() - t0) / 1000).toFixed(1)}s — rss ${rssMb}MB → ${fresh >= 0 ? fresh + "MB" : "?"} (השרשרת חיה, ה-mesh מאומץ)`);
+  } catch (e) {
+    console.log(`[evm-mesh] v108 LAB RECYCLE נכשל (כנה): ${e instanceof Error ? e.message.slice(0, 140) : "לא-ידוע"} — ה-watchdog ירפא`);
+  } finally {
+    RT.busy = false;
+    RT.recycling = false;
   }
 }
 
@@ -1977,6 +2071,7 @@ async function main(): Promise<void> {
   void autoCycle();
   genTimer("auto-cycle", () => void autoCycle(), 120_000);
   genTimer("watchdog", () => void watchdog(), 10_000);
+  genTimer("lab-recycle", () => void labRecycleTick(), 10_000); // v108 — השסתום-הנמדד של שרשרת-המעבדה
   genTimer("artifact-watcher", () => void artifactWatcher(), 5_000);
   // v33 שחזור — chain-state mirror to the survivable home (first copy now,
   // then every 5 min; anvil dumps every 30s so the mirror lags ≤5min of

@@ -1,7 +1,7 @@
 {
   "version": 3,
   "doctrine": "feature_list.json — harness primitive (adopted v106, merged across parallel waves). One active feature at a time. No feature is done without evidence (command + measured result). Status values: done | in_progress | todo | blocked | owner-gated. dependencies = feature ids that must be done first. The Task-19 parallel wave's kernel lineage rows (feat-001..006) live in git history (01a144e) — the measured economy rows below are this ledger's source of truth; do not import rows without evidence.",
-  "updated": "2026-10-02T23:59:00Z",
+  "updated": "2026-10-03T01:25:00Z",
   "active_feature": null,
   "rules": [
     "one-feature-at-a-time: exactly one in_progress",
@@ -167,6 +167,30 @@
       ],
       "evidence": "dmesg: kernel killed next-server at anon-rss 1761/1813/1945/1960MB (00:12-00:30Z), oom_kill=43 · live-caught: v43 veto (1351MB passed, kernel killed 1min later) · latent SyntaxError in keeper Bun.serve fetch (await×2 in sync fn — hidden by tsconfig scope + bun --hot silent reload failure) · post-fix combat proof: override fired at 1761MB with window-override marker, web back in 12s, ZERO kernel kills since 00:30:26 · verify.sh VERDICT=pass 10/10 incl. web-resume exercising the fixed endpoint",
       "done_when": "kernel OOM kills of the web tier stop recurring: every web restart is a PLANNED recycle journaled with its trigger, and the lines track the measured kernel floor minus a reading margin"
+    },
+    {
+      "id": "mini-parse-gate",
+      "name": "Mini-Service Parse Gate",
+      "title": "שער-הפארס ל-mini-services — gate 11 fail-closed ב-verify.sh (wave-20)",
+      "description": "Every mini-service source (and its import graph) must bun-build clean: the latent keeper SyntaxError class (hidden by root-tsconfig scope + bun --hot silent reload) can never reach the running service silently again",
+      "status": "done",
+      "dependencies": [
+        "oom-doctrine-v49"
+      ],
+      "evidence": "measured 8/8 parse-clean BEFORE commit (2026-10-03) · verify VERDICT=pass 11/11 incl. mini-parse (201ms)",
+      "done_when": "a mini-service syntax defect fails the battery fail-closed with the exact file named"
+    },
+    {
+      "id": "lab-recycle-v108",
+      "name": "Lab Recycle v108",
+      "title": "מיחזור-המעבדה v108 — השסתום-הנמדד של anvil (המוות-המתוכנן על שרשרת-המעבדה)",
+      "description": "The planned-death doctrine applied to the lab chain: measured RSS valve (700MB default trigger, force emergency lever, 10min floor, config-file live override) — graceful exit-dump → fresh --load-state resume, guarded by the v62 shared busy-lock so cycles/watchdog never race the recycle window",
+      "status": "done",
+      "dependencies": [
+        "oom-doctrine-v49"
+      ],
+      "evidence": "measured live 2026-10-03: anvil 924MB after 2h20m with a lean 27.9MB state vs ~82MB fresh-resume (RSS is runtime accumulation, not state) · drill: 2 live recycles, 0.5s each (136→40MB · 50→40MB), chain advanced 0x374b→0x378d through the windows · machine available 1154→1931MB · verify VERDICT=pass 11/11",
+      "done_when": "anvil memory is reclaimed by planned logged recycles, never a kernel kill; the valve is operator-tunable live via state/lab-recycle.json"
     }
   ]
 }

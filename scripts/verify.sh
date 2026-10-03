@@ -139,6 +139,32 @@ run_stage "live-api" bash -c 'for i in $(seq 1 10); do code=$(curl -s --max-time
 export GUARD_BIN="${DCG_BIN:-$HOME/.local/bin/dcg}"
 run_stage "guard" bash -c '"$GUARD_BIN" --robot test "rm -rf /" | grep -q "\"decision\": \"deny\"" && "$GUARD_BIN" --robot test "echo saos-gate-probe" | grep -q "\"decision\": \"allow\"" && [ -f .dcg.toml ] && echo "guard functional: deny-proof + allow-proof + .dcg.toml in-repo"'
 
+# ── Stage 11 (wave-20 · MINI-PARSE): every mini-service source (and its
+#    import graph) must PARSE. Caught live (v107-final): a latent SyntaxError
+#    inside the keeper's Bun.serve handler was invisible to the root tsconfig
+#    scope (mini-services are unchecked by tsc) AND to bun --hot, which fails
+#    silently on reload — the running keeper served OLD code from memory.
+#    bun build fail-closed per file: a service that cannot parse cannot
+#    claim to run. Evidence-first: every file measured 2026-10-03 (8/8 pass)
+#    BEFORE the gate was committed.
+run_stage "mini-parse" bash -c '
+  rc=0; n=0
+  root="$PWD"; mkdir -p "$root/.cache/parse"
+  for d in mini-services/*/; do
+    [ -d "$d/src" ] || continue
+    for f in "$d"src/*.ts; do
+      [ -f "$f" ] || continue
+      n=$((n+1))
+      name="$(basename "${d%/}")-$(basename "$f" .ts)"
+      if ! (cd "$d" && bun build "src/$(basename "$f")" --target bun --outfile "$root/.cache/parse/$name.js" >/dev/null 2>&1); then
+        echo "parse FAIL: $f"
+        rc=1
+      fi
+    done
+  done
+  [ "$rc" = "0" ] && echo "$n/$n mini-service sources parse clean" || exit 1
+'
+
 STAGES_JSON="$STAGES_JSON]"
 
 # Fail-fast means: stages after the first failure were SKIPPED (not passed)
@@ -158,7 +184,7 @@ cat > "$TMP" <<EOF
   "pass": $PASS_COUNT,
   "fail": $FAIL_COUNT,
   "failFast": $( [ "$VERDICT" = "fail" ] && echo true || echo false ),
-  "gates": ["toolchain","gate-clear","deps","tsc","lint","db-sync","harness-files","web-resume","live-api","guard"],
+  "gates": ["toolchain","gate-clear","deps","tsc","lint","db-sync","harness-files","web-resume","live-api","guard","mini-parse"],
   "stages": $STAGES_JSON,
   "doctrine": "no done without runnable proof (harness engineering, adopted v106)"
 }
