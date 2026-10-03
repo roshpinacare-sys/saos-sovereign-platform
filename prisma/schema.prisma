@@ -748,3 +748,27 @@ model LlmChainCall {
   @@index([kind])
   @@index([createdAt])
 }
+
+// ─── 120-a — תזמורת-החיילים בהפעלה (SOLDIER ORCHESTRA ACTIVATION ENGINE) ─────
+// פנקס-ההצבעות של מנוע-התזמורת: כל חריץ-הצבעה (מתוכנן או משודר) נרשם כנה —
+// מצב dryrun (אפס שידור, תוכנית-חתימה בלבד) או live (txid מהצומת).
+// חוק-האמת: כישלון שידור נרשם ok=false + מחלקת-שגיאה (לעולם לא נשתק);
+// אפס חומר-סוד כאן — voter/author/permlink/weight/txid בלבד (שמות ומספרים).
+model OrchestraVote {
+  id          String   @id @default(cuid())
+  voter       String // חייל-המצביע (שם-חשבון בלבד)
+  author      String // מחבר-הפוסט
+  permlink    String
+  weight      Int // יחידות-שרשרת (10000 = 100%) — תקף-בקבוע ORCHESTRA_VOTE_WEIGHT
+  mode        String // dryrun | live
+  ok          Boolean // planned:true ב-dryrun · אמת-שידור ב-live
+  txid        String? // מהצומת ב-live בלבד
+  errorClass  String? // מחלקת-השגיאה בכישלון-שידור: timeout | rpc | auth | rejected | …
+  windowIndex Int // חלון-התזמורת 0..11 (i×2h UTC)
+  createdAt   DateTime @default(now())
+
+  @@index([voter, createdAt])
+  @@index([mode])
+  @@index([windowIndex, createdAt])
+  @@index([createdAt])
+}
