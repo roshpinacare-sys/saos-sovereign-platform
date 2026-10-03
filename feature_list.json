@@ -1,268 +1,285 @@
 {
- "version": 3,
- "doctrine": "feature_list.json — harness primitive (adopted v106, merged across parallel waves). One active feature at a time. No feature is done without evidence (command + measured result). Status values: done | in_progress | todo | blocked | owner-gated. dependencies = feature ids that must be done first. The Task-19 parallel wave's kernel lineage rows (feat-001..006) live in git history (01a144e) — the measured economy rows below are this ledger's source of truth; do not import rows without evidence.",
- "updated": "2026-10-03",
- "active_feature": null,
- "rules": [
-  "one-feature-at-a-time: exactly one in_progress",
-  "evidence-or-it-did-not-happen: every done carries a runnable proof string",
-  "no-secrets-in-artifacts: evidence strings never contain key material",
-  "scope-gate: new work = new feature row first; never rewrite rows to hide unfinished work",
-  "sibling-waves: git pull --rebase before every push; the parallel lineage (Task 18/19) is real and its BLOC-STATE map is the one language map"
- ],
- "features": [
-  {
-   "id": "economy-truth-ladder",
-   "name": "Economy Truth Ladder",
-   "title": "סולם-האמת הכלכלי — EconomyRun מ-6 מקורות חיים + ריצות מהשומר",
-   "description": "Honest economy collector measuring 6 live engines into chained EconomyRun rows, produced by the keeper itself",
-   "status": "done",
-   "dependencies": [],
-   "evidence": "POST /api/saos/economy action:run → run#1 stage-1 measured 8 streams $0.277212/day (v105.1, git 3e3b55d); keeper hourly tick",
-   "done_when": "a run exists with mode=measured + rooted proof, produced by the keeper itself"
-  },
-  {
-   "id": "economic-mind",
-   "name": "Economic Mind",
-   "title": "המוח-הכלכלי — yield-governor + P&L + ventures (clodfarm postmortem)",
-   "description": "Pure-function yield governor allocating effort by measured yield-per-unit, role P&L attribution, venture ladder with kill rules",
-   "status": "done",
-   "dependencies": [
-    "economy-truth-ladder"
-   ],
-   "evidence": "GET /api/saos/market-brain → cycle#1+ live on run#1; docs/CLODFARM-POSTMORTEM-ROAST.md (7 measured findings)",
-   "done_when": "brain cycle reads the freshest EconomyRun and records decisions with reasons"
-  },
-  {
-   "id": "economic-dojo",
-   "name": "Economic Dojo",
-   "title": "בית-הספר-הכלכלי — שיעורים/תרגילים שנולדים מהמדידה ונבדקים מול המושל",
-   "description": "Self-generating deterministic lessons and drills from measured brain cycles, verified against allocateEffort",
-   "status": "done",
-   "dependencies": [
-    "economic-mind"
-   ],
-   "evidence": "AgentLesson rows live; drill verified against allocateEffort (v103 measured cycle#3/#4)",
-   "done_when": "a cycle births lessons/drills and a drill contradicting the governor is never born"
-  },
-  {
-   "id": "sovereign-authority",
-   "name": "Sovereign Authority",
-   "title": "הרשות-הריבונית — פנקס-הכרעות, אפס-המתנה, self-managed declarations",
-   "description": "Decision ledger answering management questions from written rules with measured basis; owner-edge only within declared risk-cap",
-   "status": "done",
-   "dependencies": [
-    "economic-mind"
-   ],
-   "evidence": "GET /api/saos/authority → escalationsOpen=0; sweep#1 3 decisions executed (v105.1)",
-   "done_when": "every verdict answered+executed in-domain; owner-edge only within declared risk-cap"
-  },
-  {
-   "id": "living-workers",
-   "name": "Living Workers",
-   "title": "העובדים-החיים — תפקידים→מבצעים (fuel/estate/key/vault census), artifacts בגיט",
-   "description": "Every active role wired to a real read-only executor writing daily JSON artifacts committed to git",
-   "status": "done",
-   "dependencies": [],
-   "evidence": "agents-roles API wiring 3/3 wired, 0 unwired; artifacts fuel-census/estate-census/key-census/vault-census committed",
-   "done_when": "every ACTIVE role has a wired read-only executor writing a daily JSON artifact"
-  },
-  {
-   "id": "git-public-rail",
-   "name": "Git Public Rail",
-   "title": "הקול-הציבורי — מסילת git-public, 6 פרסומי SEO עם sha אמיתי",
-   "description": "Public voice publishing itself: targeted commit+push to the public origin, txid = real commit sha",
-   "status": "done",
-   "dependencies": [],
-   "evidence": "commits 217f74e..9fd5573 on origin verified via git show origin/main (v105 measured)",
-   "done_when": "published rows carry real post-push shas; no duplicate publishes across the 70s sync window"
-  },
-  {
-   "id": "state-snapshot-durability",
-   "name": "State Snapshot Durability",
-   "title": "זיכרון-החיים — snapshot/restore if-empty, המצבת שורדת איפוס-סנדבוקס",
-   "description": "AgentRole+OpLog+EconomyRun snapshotted to committed JSON; if-empty restore with digest verification",
-   "status": "done",
-   "dependencies": [],
-   "evidence": "state-snapshot-2026-10-02.json committed (4 roles, 44 OpLogs, digest cea1fb89); if-empty refusal measured when roster self-regenerated",
-   "done_when": "roundtrip export→wipe→restore yields identical counts + verified digest"
-  },
-  {
-   "id": "one-net-mobile",
-   "name": "One Net + Mobile",
-   "title": "רשת-אחת + מהפכת-המובייל — 7/7 שירותים, אפס-גלילה-אופקית 390",
-   "description": "One coordinated unit view across all live services; mobile-390 zero horizontal scroll with natural footer push",
-   "status": "done",
-   "dependencies": [],
-   "evidence": "browser E2E wave17: mobile-390 scrollWidth 390=390, footer 6642=6642, zero console errors (v105.1)",
-   "done_when": "one-net view shows the coordinated unit; 390px has zero horizontal scroll"
-  },
-  {
-   "id": "harness-engineering-adoption",
-   "name": "Harness Engineering Adoption",
-   "title": "המסגרת-החיה — AGENTS.md + feature_list + verify.sh + init.sh + lifecycle + harness-audit executor + keeper loop (merged: Task-19 landing protocol folded in)",
-   "description": "Adopt the five harness subsystems (instructions/state/verification/scope/lifecycle) as running code: fails-fast gate, session lifecycle with structure sanity, self-recruited checker role, keeper loop, adoption report + roast; merged with the parallel Task-19 wave (AGENTS landing protocol + BLOC-STATE routing + sibling-waves rule)",
-   "status": "done",
-   "dependencies": [
-    "living-workers",
-    "git-public-rail"
-   ],
-   "evidence": "validator 20→100/100 (their own tool) · verify VERDICT=pass · v106.0.0 add6d3d pushed 0/0 with origin · merged Task-18/19 lineage (surgical 5-conflict superset)",
-   "done_when": "validator re-measures ≥90/100 AND verify.sh verdict=pass AND keeper harness loop journaled AND merged lineage pushed to origin"
-  },
-  {
-   "id": "vault-passphrase-arm",
-   "name": "Vault Passphrase Arm",
-   "title": "חימוש-הכספת במילות-הבעלים (עיגוני-24h → סולם-שלב-2 · תור-steem)",
-   "description": "Owner arms the vault once with the passphrase (owner-only by design); unlocks stage-2 anchors and the steem rail",
-   "status": "owner-gated",
-   "dependencies": [],
-   "evidence": "vaultPassState=missing measured live on /api/saos/status; the door is ready (POST /api/saos/vault-unlock op:arm)",
-   "done_when": "owner arms once — by design the ONLY thing that can ever wait, and it does not block anything else (zero-wait doctrine)"
-  },
-  {
-   "id": "r12-key-rotation-watch",
-   "name": "Key Rotation Watch",
-   "title": "צפיית-רוטציית-מפתחות — key-census מזין גיל-מדוד; הצעת-רוטציה מעל סף",
-   "description": "Deterministic detector proposing key rotation when the measured key age (from key-census) crosses the policy threshold",
-   "status": "done",
-   "dependencies": [
-    "living-workers"
-   ],
-   "evidence": "rotation-watch-2026-10-02.json: 11 key files measured, maxAge 54h (ok), permDrift 5 (FUSE-mount staging — chmod-ignored environment, canonical homes 0600/0700) · role key-rotation-watch activated via gap-detector source-8 + API · executor rotation-watch (24h cadence), thresholds watch 720h / breach 2160h",
-   "done_when": "a detector proposes rotation when measured key age crosses the policy threshold"
-  },
-  {
-   "id": "keeper-feat-006-observation",
-   "name": "Keeper Live Observation Windows",
-   "title": "חלונות-תצפית-חיים-של-השומר (מהשורה-המקבילה Task-19 feat-006 — זמן, לא קוד)",
-   "description": "The parallel Task-19 wave's open row: keeper gates need live observation windows to accumulate — time, not code (imported honestly from lineage 01a144e)",
-   "status": "done",
-   "dependencies": [
-    "living-workers"
-   ],
-   "evidence": "OBSERVED 2026-10-02T22:34Z (Z-37): headless registry-tick through the SAME call chain as the keeper hourly GET — sweepStale ok:true, empty-state census 0/0/0, 48h/72h arithmetic executed on real SQLite. Receipt: docs/FEAT-006-keeper-tick-observation.md · script: scripts/registry-tick-observe.ts (bunx tsx — bun trips on xrpl interop, honestly noted). Hourly live cadence stays with keeper v48 in its ops env.",
-   "done_when": "keeper observation windows measured over time and the row graduates with evidence"
-  },
-  {
-   "id": "invisible-guard",
-   "name": "Invisible Guard",
-   "title": "המשמר-הבלתי-נראה — destructive_command_guard כאסם-טווח-הפיצוץ של הצבא (v107)",
-   "description": "dcg robot-mode adoption: guardTest/guardedBash primitive, .dcg.toml in-repo enforcement packs, guard-selftest battery (13 cases), verify.sh gate 10 fail-closed, keeper+gate-agent spawn wiring, house law 7 — autonomy scales because the blast radius is mechanically capped",
-   "status": "done",
-   "dependencies": [
-    "harness-engineering-adoption"
-   ],
-   "evidence": "guard-selftest-2026-10-02.json 13/13 (17ms probes) · verify VERDICT=pass 10/10 incl. guard gate (deny-proof rm -rf / + allow-proof + .dcg.toml) · live-caught contract fix (warn exits 0; JSON decision is truth) · 6× OOM caught live → gate-park/resume + sentinel detached + tsc --incremental + eslint --cache (lint 36s→2s) + turbopackMemoryLimit 640MB + keeper 48.2.0 recycle lines 1250/1350",
-   "done_when": "every fleet shell-string passes the guard; the gate proves deny-proof+allow-proof every run; no destructive known pattern can execute without a git-recorded allowlist change"
-  },
-  {
-   "id": "oom-doctrine-v49",
-   "name": "OOM Doctrine v49",
-   "title": "דוקטרינת-הזיכרון v49 — קווים-שגדלו-עם-הגוף + דריסת-לחץ + צפייה-בקצב-הסערה",
-   "description": "The live-caught death-loop fix: kill-line overrides the revive window under machine pressure (30s settle floor), page-check skips the settle window, memory watch every cycle (10s), lines recalibrated to the MEASURED kernel floor (1761-1960MB dmesg evidence) — planned recycles replaced kernel kills",
-   "status": "done",
-   "dependencies": [
-    "invisible-guard"
-   ],
-   "evidence": "dmesg: kernel killed next-server at anon-rss 1761/1813/1945/1960MB (00:12-00:30Z), oom_kill=43 · live-caught: v43 veto (1351MB passed, kernel killed 1min later) · latent SyntaxError in keeper Bun.serve fetch (await×2 in sync fn — hidden by tsconfig scope + bun --hot silent reload failure) · post-fix combat proof: override fired at 1761MB with window-override marker, web back in 12s, ZERO kernel kills since 00:30:26 · verify.sh VERDICT=pass 10/10 incl. web-resume exercising the fixed endpoint",
-   "done_when": "kernel OOM kills of the web tier stop recurring: every web restart is a PLANNED recycle journaled with its trigger, and the lines track the measured kernel floor minus a reading margin"
-  },
-  {
-   "id": "mini-parse-gate",
-   "name": "Mini-Service Parse Gate",
-   "title": "שער-הפארס ל-mini-services — gate 11 fail-closed ב-verify.sh (wave-20)",
-   "description": "Every mini-service source (and its import graph) must bun-build clean: the latent keeper SyntaxError class (hidden by root-tsconfig scope + bun --hot silent reload) can never reach the running service silently again",
-   "status": "done",
-   "dependencies": [
-    "oom-doctrine-v49"
-   ],
-   "evidence": "measured 8/8 parse-clean BEFORE commit (2026-10-03) · verify VERDICT=pass 11/11 incl. mini-parse (201ms)",
-   "done_when": "a mini-service syntax defect fails the battery fail-closed with the exact file named"
-  },
-  {
-   "id": "lab-recycle-v108",
-   "name": "Lab Recycle v108",
-   "title": "מיחזור-המעבדה v108 — השסתום-הנמדד של anvil (המוות-המתוכנן על שרשרת-המעבדה)",
-   "description": "The planned-death doctrine applied to the lab chain: measured RSS valve (700MB default trigger, force emergency lever, 10min floor, config-file live override) — graceful exit-dump → fresh --load-state resume, guarded by the v62 shared busy-lock so cycles/watchdog never race the recycle window",
-   "status": "done",
-   "dependencies": [
-    "oom-doctrine-v49"
-   ],
-   "evidence": "measured live 2026-10-03: anvil 924MB after 2h20m with a lean 27.9MB state vs ~82MB fresh-resume (RSS is runtime accumulation, not state) · drill: 2 live recycles, 0.5s each (136→40MB · 50→40MB), chain advanced 0x374b→0x378d through the windows · machine available 1154→1931MB · verify VERDICT=pass 11/11",
-   "done_when": "anvil memory is reclaimed by planned logged recycles, never a kernel kill; the valve is operator-tunable live via state/lab-recycle.json"
-  },
-  {
-   "id": "sovereign-hands-v109",
-   "name": "Sovereign Hands (cua-inspired capability layer)",
-   "title": "ידיים-ריבוניות v109 — שכבת-היכולות לאוטונומיה (אימוץ trycua/cua)",
-   "description": "Measured adoption of trycua/cua patterns: typed action surfaces (browser via agent-browser CDP, guarded shell via dcg, git, anvil lab chain, fs), bench tasks with verification criteria and full trajectory export, sessioned-and-closed browser usage, gate-12 hands-probe in verify.sh, /api/saos/hands (GET board, POST fail-closed), hands-operator role worker, and house law 8 (every hand through the guard)",
-   "status": "done",
-   "dependencies": [
-    "mini-parse-gate"
-   ],
-   "evidence": "measured live 2026-10-03: bun scripts/hands-run.ts all → 4/4 pass in 6.5s (browser-self-view read v108 stamp off the live page + screenshot + session closed; evm-lab-head chain 14417; guarded-shell deny-proof alive; git-truth HEAD 5579203) · artifact hands-bench-2026-10-03.json · POST unauth 401 fail-closed · docs/CUA-ADOPTION.md",
-   "done_when": "the fleet can see and operate its own platform through a guarded typed surface with a trajectory artifact per run, and the verify gate proves the hands layer parses and the browser surface answers"
-  },
-  {
-   "id": "skill-foundry-v110",
-   "name": "Skill Foundry (claude-skills adoption)",
-   "title": "בית-המלאכה-לכישורים v110 — משמעת-הלולאה בקוד + חמש מדבקות (אימוץ alirezarezvani/claude-skills)",
-   "description": "Measured adoption of alirezarezvani/claude-skills (65MB clone, 3104 md files, 388 skills): code-level theft of loop-library named terminal states (7 states, error-never-success, fail-closed) and agent-harness vague-goal refusal (compileGoal with reasons) into src/lib/saos/loop-discipline.ts; every bench trajectory now ends in a named terminal state derived uniformly at the runBenchTask choke point and displayed as a badge on the hands board; five SAOS-adapted skill playbooks vendored with full attribution (zero-hallucination-coder, loop-doctor, grill-me, swarm-discipline, aeo with the public-story/stealth dual policy)",
-   "status": "done",
-   "dependencies": [
-    "sovereign-hands-v109"
-   ],
-   "evidence": "measured 2026-10-03: shallow-clone numbers quoted from the clone itself (65MB · 3104 md · 41 domains) · tsc --noEmit clean after hands.ts additive rewire (TrajectoryCore split, no runner self-verdicts) · terminal state flows through /api/saos/hands POST trajectory and hands-bench-*.json artifacts · docs/CLAUDE-SKILLS-ADOPTION.md roast + 8-row decision table (6 adopted with landing points, rejections named) · 5 skills/ folders with adapted-from provenance",
-   "done_when": "run conclusions are named terminal states (never error-as-success) enforced in code and visible on the hands board, and the fleet's constitution skills (loop doctor, swarm discipline, grill, zero-hallucination, AEO-stealth) are loadable playbooks with honest lineage"
-  },
-  {
-   "id": "ax-orchestrator-v113",
-   "name": "AX Orchestrator (google/ax adoption)",
-   "title": "הכרזה v113 — מישור-ההכרזה הדקלרטיבי לסוכנים (אימוץ google/ax)",
-   "description": "Rebuilt-from-spec wave (recovery-v110): kubectl-shaped declarative agent orchestration stolen from google/ax (Apache-2.0) — strict manifest gate (ax.saos/v1alpha1 exact, zod-strict protojson unknown-field rejection, RFC1123 name port, multi-doc refused, undeclared workspace/model refs refused, maxSteps<=12/maxMs<=300s gate caps), single-runner reconcile (2-core law), budget enforced before every step, blocked-JSON analyst with 75s step timeout and one budgeted repair step (second strike = RunnerInvalidOutput fail-closed), honest terminals (Succeeded only on action:finish; budget exhaustion = Failed + BudgetExhausted=True condition), suspend/checkpoint/resume exact continuation, delete=Terminating runner teardown, 10min zombie sweep -> RunnerLost; /api/saos/ax (GET reconcile+describe+example, POST apply/suspend/resume/delete with requireAuth, 64KB cap, 4s rate-limit, oplog per POST); view הכרזה in the מחקר group",
-   "status": "done",
-   "dependencies": [
-    "skill-foundry-v110"
-   ],
-   "evidence": "measured live: gate-refusal curls (unknown field / bad apiVersion / bad name / multi-doc YAML) all 422 with explicit Hebrew reasons · live Task run to terminal with per-step tokens journaled · suspend mid-run checkpoint {stepsUsed,msUsed,historyDigest} + resume continues exactly · delete proof + zombie sweep in code · docs/AX-ADOPTION.md roast + decision table",
-   "done_when": "an owner-declared manifest is gated strictly then reconciled by a single runner to an honest named terminal, with exact-continuation suspend/resume and zombie honesty, provable from /api/saos/ax GET alone"
-  },
-  {
-   "id": "red-team-v111-rebuild",
-   "name": "Red Team (usestrix/strix adoption)",
-   "title": "אדום v111.0.0-content — צוות-האדום על הפלטפורמה עצמה (אימוץ usestrix/strix; תוכן-הגל נבנה-מחדש לאחר-השיקום, קו-המהדורה נשאר v113.0.0)",
-   "description": "Rebuilt-from-spec wave (recovery-v110): the autonomous security-audit member discipline stolen from usestrix/strix — assertInBoundary authorization wall (loopback 127.0.0.1/localhost + repo tree /home/z/my-project ONLY, foreign targets refuse in Hebrew BEFORE any network/fs touch, wall gates house targets too), 7 measured probes against the platform itself (headers · auth-fail-closed credential-less POSTs to ax/harness/vault-unlock · raw-sql $executeRawUnsafe/$queryRawUnsafe file:line hits incl. the VACUUM quote-escape guard · xss-sinks dangerouslySetInnerHTML/eval/new Function · insecure-transport external http:// + TLS-killers · tracked-secrets git ls-files x key-material name patterns + git check-ignore with ZERO content reads · secret-sweep-bridge to runSecretSweep with source:bridged dedup), mandatory counterevidence finding schema enforced at build time by mkFinding (evidence/poc/confidence+rationale/severity_change_conditions/fix_effort/cwe), strix exit taxonomy 0=clean-within-declared-coverage / 1=fatal / 2=findings, budget 60s whole-run + 8s per-probe with honest skipped-probe ledger, artifacts JSON per run (scripts/artifacts/redteam-run-<ts>.json); Next16 proxy.ts (middleware RENAME — the file Next actually loads) shipping X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera=()/microphone=()/geolocation=(), X-Frame-Options DENY, CSP staged as Content-Security-Policy-Report-Only per v111 doctrine; /api/saos/redteam (GET flat board, POST run with requireAuth/64KB/4s-rate-limit/oplog/403 refusedBeforeTouch on foreign targets); view אדום in the מחקר group",
-   "status": "done",
-   "dependencies": [
-    "ax-orchestrator-v113"
-   ],
-   "evidence": "measured live: boundary refusal curl 403 refusedBeforeTouch:true Hebrew (zero packets to the foreign host) · credential-less POSTs to the 3 sensitive endpoints measured 401/403 by the auth-fail-closed probe · headers probe quotes the exact pre-proxy header set (baseline: 8 plain headers, no security headers) and flips to PRESENT after proxy.ts loads on server boot · raw-sql/xss hits are real file:line measurements from the repo tree · artifacts redteam-run-<ts>.json on disk per run · exit code 2 honest with findings, 0 legal only with info-within-coverage · docs/STRIX-ADOPTION.md roast + 8-row decision table",
-   "done_when": "a loopback-only self-audit runs 7 probes with per-probe raw facts, every finding carries its counterevidence path, foreign targets refuse before any touch, the exit code never blurs, and the whole run is bounded 60s with artifacts on disk"
-  },
-  {
-   "id": "hive-grid-v116",
-   "name": "Sovereign Grid on the Hive internal market (v116 השתלטות)",
-   "title": "גריד-הריבון על השוק הפנימי HBD:HIVE — סולמות-סוכנים על ספר-פקודות חי, מילויי-נייר על מחירים אמיתיים, שער-חיים fail-closed (חותם+active+armed), טיק-שומר כל 2ד׳, תצוגה-מקדימה שקופה של פקודות ה-limit_order_create שיונפקו בפתיחת-השער",
-   "status": "live-paper",
-   "evidence": "live book mid=0.05625 spread=17.25bps vol=71,697 HIVE/24h · 3 paper fills measured (50 HIVE @ 0.056772/0.056544/0.056316, avgCost=0.056544, budget 91.52/100 HBD) · arm refused fail-closed (seal sealed, roleActive=false) · first autonomous keeper grid-tick journaled 17:37:50 · web revive #2 autonomous after 4th kernel OOM",
-   "wave": "v116.0.0"
-  },
-  {
-   "id": "self-review-v114-rebuild",
-   "name": "Self-review loop (vercel-labs/openreview adoption) — rebuilt",
-   "title": "ביקורת v114.0.0 — סקירה-עצמית דו-שלבית עם ספריית-כישורים נעולת-sha256 (6 כישורים, tookMs=2, סטייה fail-closed), הפרכה-עצמית חובה, החלה בהסכמת-בעלים בהתאמה מדויקת; נבנתה-מחדש אחרי הרולבק (סוכן-שקט בנה ~95%, המפקד תיקן 4 tsc + באג-סכימה llmCalls)",
-   "status": "live",
-   "evidence": "integrity ok drift=[] · real run 74,464/6,187 tokens 3 calls → honest fail (JSON double-strike, zero invented findings) · ledger completes after llmCalls column fix · browser E2E + screenshots",
-   "wave": "v114.0.0-rebuild"
-  },
-  {
-   "id": "system1-v112-rebuild",
-   "name": "System-1 reflex (NandhaKishorM/laya adoption) — rebuilt",
-   "title": "רפלקס v112.0.0 — מנוע-הכרעות Python-stdlib :3037 עם חמשת חוקי-הזיכרון (load-gate 2000MB · shed <700MB · watchdog <250MB exit(99) · idle-unload 15m · single-flight), הימנעות-אף-פעם-לא-שקטה → הסלמת System-2",
-   "status": "live",
-   "evidence": "/health ok rssMb=11 3 presets · /decide abstain with Hebrew System-2 escalation · /guard unknown→block fail-closed · supervisor child #5 with revive-on-exit99 · uptime 46min+",
-   "wave": "v112.0.0-rebuild"
-  }
- ]
+  "version": 3,
+  "doctrine": "feature_list.json — harness primitive (adopted v106, merged across parallel waves). One active feature at a time. No feature is done without evidence (command + measured result). Status values: done | in_progress | todo | blocked | owner-gated. dependencies = feature ids that must be done first. The Task-19 parallel wave's kernel lineage rows (feat-001..006) live in git history (01a144e) — the measured economy rows below are this ledger's source of truth; do not import rows without evidence.",
+  "updated": "2026-10-03",
+  "active_feature": null,
+  "rules": [
+    "one-feature-at-a-time: exactly one in_progress",
+    "evidence-or-it-did-not-happen: every done carries a runnable proof string",
+    "no-secrets-in-artifacts: evidence strings never contain key material",
+    "scope-gate: new work = new feature row first; never rewrite rows to hide unfinished work",
+    "sibling-waves: git pull --rebase before every push; the parallel lineage (Task 18/19) is real and its BLOC-STATE map is the one language map"
+  ],
+  "features": [
+    {
+      "id": "economy-truth-ladder",
+      "name": "Economy Truth Ladder",
+      "title": "סולם-האמת הכלכלי — EconomyRun מ-6 מקורות חיים + ריצות מהשומר",
+      "description": "Honest economy collector measuring 6 live engines into chained EconomyRun rows, produced by the keeper itself",
+      "status": "done",
+      "dependencies": [],
+      "evidence": "POST /api/saos/economy action:run → run#1 stage-1 measured 8 streams $0.277212/day (v105.1, git 3e3b55d); keeper hourly tick",
+      "done_when": "a run exists with mode=measured + rooted proof, produced by the keeper itself"
+    },
+    {
+      "id": "economic-mind",
+      "name": "Economic Mind",
+      "title": "המוח-הכלכלי — yield-governor + P&L + ventures (clodfarm postmortem)",
+      "description": "Pure-function yield governor allocating effort by measured yield-per-unit, role P&L attribution, venture ladder with kill rules",
+      "status": "done",
+      "dependencies": [
+        "economy-truth-ladder"
+      ],
+      "evidence": "GET /api/saos/market-brain → cycle#1+ live on run#1; docs/CLODFARM-POSTMORTEM-ROAST.md (7 measured findings)",
+      "done_when": "brain cycle reads the freshest EconomyRun and records decisions with reasons"
+    },
+    {
+      "id": "economic-dojo",
+      "name": "Economic Dojo",
+      "title": "בית-הספר-הכלכלי — שיעורים/תרגילים שנולדים מהמדידה ונבדקים מול המושל",
+      "description": "Self-generating deterministic lessons and drills from measured brain cycles, verified against allocateEffort",
+      "status": "done",
+      "dependencies": [
+        "economic-mind"
+      ],
+      "evidence": "AgentLesson rows live; drill verified against allocateEffort (v103 measured cycle#3/#4)",
+      "done_when": "a cycle births lessons/drills and a drill contradicting the governor is never born"
+    },
+    {
+      "id": "sovereign-authority",
+      "name": "Sovereign Authority",
+      "title": "הרשות-הריבונית — פנקס-הכרעות, אפס-המתנה, self-managed declarations",
+      "description": "Decision ledger answering management questions from written rules with measured basis; owner-edge only within declared risk-cap",
+      "status": "done",
+      "dependencies": [
+        "economic-mind"
+      ],
+      "evidence": "GET /api/saos/authority → escalationsOpen=0; sweep#1 3 decisions executed (v105.1)",
+      "done_when": "every verdict answered+executed in-domain; owner-edge only within declared risk-cap"
+    },
+    {
+      "id": "living-workers",
+      "name": "Living Workers",
+      "title": "העובדים-החיים — תפקידים→מבצעים (fuel/estate/key/vault census), artifacts בגיט",
+      "description": "Every active role wired to a real read-only executor writing daily JSON artifacts committed to git",
+      "status": "done",
+      "dependencies": [],
+      "evidence": "agents-roles API wiring 3/3 wired, 0 unwired; artifacts fuel-census/estate-census/key-census/vault-census committed",
+      "done_when": "every ACTIVE role has a wired read-only executor writing a daily JSON artifact"
+    },
+    {
+      "id": "git-public-rail",
+      "name": "Git Public Rail",
+      "title": "הקול-הציבורי — מסילת git-public, 6 פרסומי SEO עם sha אמיתי",
+      "description": "Public voice publishing itself: targeted commit+push to the public origin, txid = real commit sha",
+      "status": "done",
+      "dependencies": [],
+      "evidence": "commits 217f74e..9fd5573 on origin verified via git show origin/main (v105 measured)",
+      "done_when": "published rows carry real post-push shas; no duplicate publishes across the 70s sync window"
+    },
+    {
+      "id": "state-snapshot-durability",
+      "name": "State Snapshot Durability",
+      "title": "זיכרון-החיים — snapshot/restore if-empty, המצבת שורדת איפוס-סנדבוקס",
+      "description": "AgentRole+OpLog+EconomyRun snapshotted to committed JSON; if-empty restore with digest verification",
+      "status": "done",
+      "dependencies": [],
+      "evidence": "state-snapshot-2026-10-02.json committed (4 roles, 44 OpLogs, digest cea1fb89); if-empty refusal measured when roster self-regenerated",
+      "done_when": "roundtrip export→wipe→restore yields identical counts + verified digest"
+    },
+    {
+      "id": "one-net-mobile",
+      "name": "One Net + Mobile",
+      "title": "רשת-אחת + מהפכת-המובייל — 7/7 שירותים, אפס-גלילה-אופקית 390",
+      "description": "One coordinated unit view across all live services; mobile-390 zero horizontal scroll with natural footer push",
+      "status": "done",
+      "dependencies": [],
+      "evidence": "browser E2E wave17: mobile-390 scrollWidth 390=390, footer 6642=6642, zero console errors (v105.1)",
+      "done_when": "one-net view shows the coordinated unit; 390px has zero horizontal scroll"
+    },
+    {
+      "id": "harness-engineering-adoption",
+      "name": "Harness Engineering Adoption",
+      "title": "המסגרת-החיה — AGENTS.md + feature_list + verify.sh + init.sh + lifecycle + harness-audit executor + keeper loop (merged: Task-19 landing protocol folded in)",
+      "description": "Adopt the five harness subsystems (instructions/state/verification/scope/lifecycle) as running code: fails-fast gate, session lifecycle with structure sanity, self-recruited checker role, keeper loop, adoption report + roast; merged with the parallel Task-19 wave (AGENTS landing protocol + BLOC-STATE routing + sibling-waves rule)",
+      "status": "done",
+      "dependencies": [
+        "living-workers",
+        "git-public-rail"
+      ],
+      "evidence": "validator 20→100/100 (their own tool) · verify VERDICT=pass · v106.0.0 add6d3d pushed 0/0 with origin · merged Task-18/19 lineage (surgical 5-conflict superset)",
+      "done_when": "validator re-measures ≥90/100 AND verify.sh verdict=pass AND keeper harness loop journaled AND merged lineage pushed to origin"
+    },
+    {
+      "id": "vault-passphrase-arm",
+      "name": "Vault Passphrase Arm",
+      "title": "חימוש-הכספת במילות-הבעלים (עיגוני-24h → סולם-שלב-2 · תור-steem)",
+      "description": "Owner arms the vault once with the passphrase (owner-only by design); unlocks stage-2 anchors and the steem rail",
+      "status": "owner-gated",
+      "dependencies": [],
+      "evidence": "vaultPassState=missing measured live on /api/saos/status; the door is ready (POST /api/saos/vault-unlock op:arm)",
+      "done_when": "owner arms once — by design the ONLY thing that can ever wait, and it does not block anything else (zero-wait doctrine)"
+    },
+    {
+      "id": "r12-key-rotation-watch",
+      "name": "Key Rotation Watch",
+      "title": "צפיית-רוטציית-מפתחות — key-census מזין גיל-מדוד; הצעת-רוטציה מעל סף",
+      "description": "Deterministic detector proposing key rotation when the measured key age (from key-census) crosses the policy threshold",
+      "status": "done",
+      "dependencies": [
+        "living-workers"
+      ],
+      "evidence": "rotation-watch-2026-10-02.json: 11 key files measured, maxAge 54h (ok), permDrift 5 (FUSE-mount staging — chmod-ignored environment, canonical homes 0600/0700) · role key-rotation-watch activated via gap-detector source-8 + API · executor rotation-watch (24h cadence), thresholds watch 720h / breach 2160h",
+      "done_when": "a detector proposes rotation when measured key age crosses the policy threshold"
+    },
+    {
+      "id": "keeper-feat-006-observation",
+      "name": "Keeper Live Observation Windows",
+      "title": "חלונות-תצפית-חיים-של-השומר (מהשורה-המקבילה Task-19 feat-006 — זמן, לא קוד)",
+      "description": "The parallel Task-19 wave's open row: keeper gates need live observation windows to accumulate — time, not code (imported honestly from lineage 01a144e)",
+      "status": "done",
+      "dependencies": [
+        "living-workers"
+      ],
+      "evidence": "OBSERVED 2026-10-02T22:34Z (Z-37): headless registry-tick through the SAME call chain as the keeper hourly GET — sweepStale ok:true, empty-state census 0/0/0, 48h/72h arithmetic executed on real SQLite. Receipt: docs/FEAT-006-keeper-tick-observation.md · script: scripts/registry-tick-observe.ts (bunx tsx — bun trips on xrpl interop, honestly noted). Hourly live cadence stays with keeper v48 in its ops env.",
+      "done_when": "keeper observation windows measured over time and the row graduates with evidence"
+    },
+    {
+      "id": "invisible-guard",
+      "name": "Invisible Guard",
+      "title": "המשמר-הבלתי-נראה — destructive_command_guard כאסם-טווח-הפיצוץ של הצבא (v107)",
+      "description": "dcg robot-mode adoption: guardTest/guardedBash primitive, .dcg.toml in-repo enforcement packs, guard-selftest battery (13 cases), verify.sh gate 10 fail-closed, keeper+gate-agent spawn wiring, house law 7 — autonomy scales because the blast radius is mechanically capped",
+      "status": "done",
+      "dependencies": [
+        "harness-engineering-adoption"
+      ],
+      "evidence": "guard-selftest-2026-10-02.json 13/13 (17ms probes) · verify VERDICT=pass 10/10 incl. guard gate (deny-proof rm -rf / + allow-proof + .dcg.toml) · live-caught contract fix (warn exits 0; JSON decision is truth) · 6× OOM caught live → gate-park/resume + sentinel detached + tsc --incremental + eslint --cache (lint 36s→2s) + turbopackMemoryLimit 640MB + keeper 48.2.0 recycle lines 1250/1350",
+      "done_when": "every fleet shell-string passes the guard; the gate proves deny-proof+allow-proof every run; no destructive known pattern can execute without a git-recorded allowlist change"
+    },
+    {
+      "id": "oom-doctrine-v49",
+      "name": "OOM Doctrine v49",
+      "title": "דוקטרינת-הזיכרון v49 — קווים-שגדלו-עם-הגוף + דריסת-לחץ + צפייה-בקצב-הסערה",
+      "description": "The live-caught death-loop fix: kill-line overrides the revive window under machine pressure (30s settle floor), page-check skips the settle window, memory watch every cycle (10s), lines recalibrated to the MEASURED kernel floor (1761-1960MB dmesg evidence) — planned recycles replaced kernel kills",
+      "status": "done",
+      "dependencies": [
+        "invisible-guard"
+      ],
+      "evidence": "dmesg: kernel killed next-server at anon-rss 1761/1813/1945/1960MB (00:12-00:30Z), oom_kill=43 · live-caught: v43 veto (1351MB passed, kernel killed 1min later) · latent SyntaxError in keeper Bun.serve fetch (await×2 in sync fn — hidden by tsconfig scope + bun --hot silent reload failure) · post-fix combat proof: override fired at 1761MB with window-override marker, web back in 12s, ZERO kernel kills since 00:30:26 · verify.sh VERDICT=pass 10/10 incl. web-resume exercising the fixed endpoint",
+      "done_when": "kernel OOM kills of the web tier stop recurring: every web restart is a PLANNED recycle journaled with its trigger, and the lines track the measured kernel floor minus a reading margin"
+    },
+    {
+      "id": "mini-parse-gate",
+      "name": "Mini-Service Parse Gate",
+      "title": "שער-הפארס ל-mini-services — gate 11 fail-closed ב-verify.sh (wave-20)",
+      "description": "Every mini-service source (and its import graph) must bun-build clean: the latent keeper SyntaxError class (hidden by root-tsconfig scope + bun --hot silent reload) can never reach the running service silently again",
+      "status": "done",
+      "dependencies": [
+        "oom-doctrine-v49"
+      ],
+      "evidence": "measured 8/8 parse-clean BEFORE commit (2026-10-03) · verify VERDICT=pass 11/11 incl. mini-parse (201ms)",
+      "done_when": "a mini-service syntax defect fails the battery fail-closed with the exact file named"
+    },
+    {
+      "id": "lab-recycle-v108",
+      "name": "Lab Recycle v108",
+      "title": "מיחזור-המעבדה v108 — השסתום-הנמדד של anvil (המוות-המתוכנן על שרשרת-המעבדה)",
+      "description": "The planned-death doctrine applied to the lab chain: measured RSS valve (700MB default trigger, force emergency lever, 10min floor, config-file live override) — graceful exit-dump → fresh --load-state resume, guarded by the v62 shared busy-lock so cycles/watchdog never race the recycle window",
+      "status": "done",
+      "dependencies": [
+        "oom-doctrine-v49"
+      ],
+      "evidence": "measured live 2026-10-03: anvil 924MB after 2h20m with a lean 27.9MB state vs ~82MB fresh-resume (RSS is runtime accumulation, not state) · drill: 2 live recycles, 0.5s each (136→40MB · 50→40MB), chain advanced 0x374b→0x378d through the windows · machine available 1154→1931MB · verify VERDICT=pass 11/11",
+      "done_when": "anvil memory is reclaimed by planned logged recycles, never a kernel kill; the valve is operator-tunable live via state/lab-recycle.json"
+    },
+    {
+      "id": "sovereign-hands-v109",
+      "name": "Sovereign Hands (cua-inspired capability layer)",
+      "title": "ידיים-ריבוניות v109 — שכבת-היכולות לאוטונומיה (אימוץ trycua/cua)",
+      "description": "Measured adoption of trycua/cua patterns: typed action surfaces (browser via agent-browser CDP, guarded shell via dcg, git, anvil lab chain, fs), bench tasks with verification criteria and full trajectory export, sessioned-and-closed browser usage, gate-12 hands-probe in verify.sh, /api/saos/hands (GET board, POST fail-closed), hands-operator role worker, and house law 8 (every hand through the guard)",
+      "status": "done",
+      "dependencies": [
+        "mini-parse-gate"
+      ],
+      "evidence": "measured live 2026-10-03: bun scripts/hands-run.ts all → 4/4 pass in 6.5s (browser-self-view read v108 stamp off the live page + screenshot + session closed; evm-lab-head chain 14417; guarded-shell deny-proof alive; git-truth HEAD 5579203) · artifact hands-bench-2026-10-03.json · POST unauth 401 fail-closed · docs/CUA-ADOPTION.md",
+      "done_when": "the fleet can see and operate its own platform through a guarded typed surface with a trajectory artifact per run, and the verify gate proves the hands layer parses and the browser surface answers"
+    },
+    {
+      "id": "skill-foundry-v110",
+      "name": "Skill Foundry (claude-skills adoption)",
+      "title": "בית-המלאכה-לכישורים v110 — משמעת-הלולאה בקוד + חמש מדבקות (אימוץ alirezarezvani/claude-skills)",
+      "description": "Measured adoption of alirezarezvani/claude-skills (65MB clone, 3104 md files, 388 skills): code-level theft of loop-library named terminal states (7 states, error-never-success, fail-closed) and agent-harness vague-goal refusal (compileGoal with reasons) into src/lib/saos/loop-discipline.ts; every bench trajectory now ends in a named terminal state derived uniformly at the runBenchTask choke point and displayed as a badge on the hands board; five SAOS-adapted skill playbooks vendored with full attribution (zero-hallucination-coder, loop-doctor, grill-me, swarm-discipline, aeo with the public-story/stealth dual policy)",
+      "status": "done",
+      "dependencies": [
+        "sovereign-hands-v109"
+      ],
+      "evidence": "measured 2026-10-03: shallow-clone numbers quoted from the clone itself (65MB · 3104 md · 41 domains) · tsc --noEmit clean after hands.ts additive rewire (TrajectoryCore split, no runner self-verdicts) · terminal state flows through /api/saos/hands POST trajectory and hands-bench-*.json artifacts · docs/CLAUDE-SKILLS-ADOPTION.md roast + 8-row decision table (6 adopted with landing points, rejections named) · 5 skills/ folders with adapted-from provenance",
+      "done_when": "run conclusions are named terminal states (never error-as-success) enforced in code and visible on the hands board, and the fleet's constitution skills (loop doctor, swarm discipline, grill, zero-hallucination, AEO-stealth) are loadable playbooks with honest lineage"
+    },
+    {
+      "id": "ax-orchestrator-v113",
+      "name": "AX Orchestrator (google/ax adoption)",
+      "title": "הכרזה v113 — מישור-ההכרזה הדקלרטיבי לסוכנים (אימוץ google/ax)",
+      "description": "Rebuilt-from-spec wave (recovery-v110): kubectl-shaped declarative agent orchestration stolen from google/ax (Apache-2.0) — strict manifest gate (ax.saos/v1alpha1 exact, zod-strict protojson unknown-field rejection, RFC1123 name port, multi-doc refused, undeclared workspace/model refs refused, maxSteps<=12/maxMs<=300s gate caps), single-runner reconcile (2-core law), budget enforced before every step, blocked-JSON analyst with 75s step timeout and one budgeted repair step (second strike = RunnerInvalidOutput fail-closed), honest terminals (Succeeded only on action:finish; budget exhaustion = Failed + BudgetExhausted=True condition), suspend/checkpoint/resume exact continuation, delete=Terminating runner teardown, 10min zombie sweep -> RunnerLost; /api/saos/ax (GET reconcile+describe+example, POST apply/suspend/resume/delete with requireAuth, 64KB cap, 4s rate-limit, oplog per POST); view הכרזה in the מחקר group",
+      "status": "done",
+      "dependencies": [
+        "skill-foundry-v110"
+      ],
+      "evidence": "measured live: gate-refusal curls (unknown field / bad apiVersion / bad name / multi-doc YAML) all 422 with explicit Hebrew reasons · live Task run to terminal with per-step tokens journaled · suspend mid-run checkpoint {stepsUsed,msUsed,historyDigest} + resume continues exactly · delete proof + zombie sweep in code · docs/AX-ADOPTION.md roast + decision table",
+      "done_when": "an owner-declared manifest is gated strictly then reconciled by a single runner to an honest named terminal, with exact-continuation suspend/resume and zombie honesty, provable from /api/saos/ax GET alone"
+    },
+    {
+      "id": "red-team-v111-rebuild",
+      "name": "Red Team (usestrix/strix adoption)",
+      "title": "אדום v111.0.0-content — צוות-האדום על הפלטפורמה עצמה (אימוץ usestrix/strix; תוכן-הגל נבנה-מחדש לאחר-השיקום, קו-המהדורה נשאר v113.0.0)",
+      "description": "Rebuilt-from-spec wave (recovery-v110): the autonomous security-audit member discipline stolen from usestrix/strix — assertInBoundary authorization wall (loopback 127.0.0.1/localhost + repo tree /home/z/my-project ONLY, foreign targets refuse in Hebrew BEFORE any network/fs touch, wall gates house targets too), 7 measured probes against the platform itself (headers · auth-fail-closed credential-less POSTs to ax/harness/vault-unlock · raw-sql $executeRawUnsafe/$queryRawUnsafe file:line hits incl. the VACUUM quote-escape guard · xss-sinks dangerouslySetInnerHTML/eval/new Function · insecure-transport external http:// + TLS-killers · tracked-secrets git ls-files x key-material name patterns + git check-ignore with ZERO content reads · secret-sweep-bridge to runSecretSweep with source:bridged dedup), mandatory counterevidence finding schema enforced at build time by mkFinding (evidence/poc/confidence+rationale/severity_change_conditions/fix_effort/cwe), strix exit taxonomy 0=clean-within-declared-coverage / 1=fatal / 2=findings, budget 60s whole-run + 8s per-probe with honest skipped-probe ledger, artifacts JSON per run (scripts/artifacts/redteam-run-<ts>.json); Next16 proxy.ts (middleware RENAME — the file Next actually loads) shipping X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera=()/microphone=()/geolocation=(), X-Frame-Options DENY, CSP staged as Content-Security-Policy-Report-Only per v111 doctrine; /api/saos/redteam (GET flat board, POST run with requireAuth/64KB/4s-rate-limit/oplog/403 refusedBeforeTouch on foreign targets); view אדום in the מחקר group",
+      "status": "done",
+      "dependencies": [
+        "ax-orchestrator-v113"
+      ],
+      "evidence": "measured live: boundary refusal curl 403 refusedBeforeTouch:true Hebrew (zero packets to the foreign host) · credential-less POSTs to the 3 sensitive endpoints measured 401/403 by the auth-fail-closed probe · headers probe quotes the exact pre-proxy header set (baseline: 8 plain headers, no security headers) and flips to PRESENT after proxy.ts loads on server boot · raw-sql/xss hits are real file:line measurements from the repo tree · artifacts redteam-run-<ts>.json on disk per run · exit code 2 honest with findings, 0 legal only with info-within-coverage · docs/STRIX-ADOPTION.md roast + 8-row decision table",
+      "done_when": "a loopback-only self-audit runs 7 probes with per-probe raw facts, every finding carries its counterevidence path, foreign targets refuse before any touch, the exit code never blurs, and the whole run is bounded 60s with artifacts on disk"
+    },
+    {
+      "id": "hive-grid-v116",
+      "name": "Sovereign Grid on the Hive internal market (v116 השתלטות)",
+      "title": "גריד-הריבון על השוק הפנימי HBD:HIVE — סולמות-סוכנים על ספר-פקודות חי, מילויי-נייר על מחירים אמיתיים, שער-חיים fail-closed (חותם+active+armed), טיק-שומר כל 2ד׳, תצוגה-מקדימה שקופה של פקודות ה-limit_order_create שיונפקו בפתיחת-השער",
+      "status": "live-paper",
+      "evidence": "live book mid=0.05625 spread=17.25bps vol=71,697 HIVE/24h · 3 paper fills measured (50 HIVE @ 0.056772/0.056544/0.056316, avgCost=0.056544, budget 91.52/100 HBD) · arm refused fail-closed (seal sealed, roleActive=false) · first autonomous keeper grid-tick journaled 17:37:50 · web revive #2 autonomous after 4th kernel OOM",
+      "wave": "v116.0.0"
+    },
+    {
+      "id": "self-review-v114-rebuild",
+      "name": "Self-review loop (vercel-labs/openreview adoption) — rebuilt",
+      "title": "ביקורת v114.0.0 — סקירה-עצמית דו-שלבית עם ספריית-כישורים נעולת-sha256 (6 כישורים, tookMs=2, סטייה fail-closed), הפרכה-עצמית חובה, החלה בהסכמת-בעלים בהתאמה מדויקת; נבנתה-מחדש אחרי הרולבק (סוכן-שקט בנה ~95%, המפקד תיקן 4 tsc + באג-סכימה llmCalls)",
+      "status": "live",
+      "evidence": "integrity ok drift=[] · real run 74,464/6,187 tokens 3 calls → honest fail (JSON double-strike, zero invented findings) · ledger completes after llmCalls column fix · browser E2E + screenshots",
+      "wave": "v114.0.0-rebuild"
+    },
+    {
+      "id": "system1-v112-rebuild",
+      "name": "System-1 reflex (NandhaKishorM/laya adoption) — rebuilt",
+      "title": "רפלקס v112.0.0 — מנוע-הכרעות Python-stdlib :3037 עם חמשת חוקי-הזיכרון (load-gate 2000MB · shed <700MB · watchdog <250MB exit(99) · idle-unload 15m · single-flight), הימנעות-אף-פעם-לא-שקטה → הסלמת System-2",
+      "status": "live",
+      "evidence": "/health ok rssMb=11 3 presets · /decide abstain with Hebrew System-2 escalation · /guard unknown→block fail-closed · supervisor child #5 with revive-on-exit99 · uptime 46min+",
+      "wave": "v112.0.0-rebuild"
+    },
+    {
+      "id": "sovereign-keys-v117",
+      "title": "Sovereign keys reissued — vault rebuilt from R11 estate, owner-derived 4/4 STEEM authorities, live market drill proven",
+      "status": "done",
+      "evidence": [
+        "v99 recovery: 975 candidates GCM-verified NO-MATCH (honest dead end)",
+        "R11 archive (partner repo steem, agent/vault/*) decrypted in-memory: 14-member vault restored",
+        "platform openSeal gcmVerified=true, 14 members, fleet=12, wallets=13, 3/3 homes 0600",
+        "steem-rearm: 13 candidates, first password derives ALL FOUR live STEEM authorities 4/4 MATCH, verify-then-write into sealed .env, 4 recovery homes mirrored",
+        "roleWifAvailable(active)=true posting=true measured",
+        "live STEEM market drill: limit_order_create signed+accepted (txid 0c65d79f...), limit_order_cancel clean, balance verified",
+        "fleet soldier ladder already live since 13:59 (7-op limit_order_create2 at 18:05:33) — deterministic derivation = every soldier with owner signs",
+        "curation/broadcast queue unblocked 3min after rearm (30s cadence votes on chain)",
+        "cornerstone: EVM triple-verified, SOL+TRON reproduce, XRP honest fail-closed",
+        "HIVE sweep: 52 derivations honest zero — chain keys not derivable from sealed sources, stays blocked until owner material"
+      ]
+    }
+  ]
 }
