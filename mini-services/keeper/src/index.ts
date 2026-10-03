@@ -1272,6 +1272,55 @@ function anvilProc(): { found: boolean; pid: number | null; rss: number } {
   return { found: false, pid: null, rss: 0 };
 }
 
+/** v119 — RESUME HEALTH GATE (mirror of the runner's stateFileResumable):
+ *  two live-proven failure classes (2026-10-03): (a) a TORN state file
+ *  (OOM/SIGKILL mid-dump) fails the JSON parse, (b) a FAT dump anvil itself
+ *  cannot load back — the roundtrip bug (5356 blocks + kept transactions +
+ *  historical_states serialized a tx variant the 1.8.4 loader refuses,
+ *  error at column 6721192) — ×9 futile revives against it. The loadable
+ *  truth is accounts + block header (PROVEN: lean resume answered the exact
+ *  death block 0x4bd4). Normalize EVERY resume to the lean form (atomic
+ *  tmp+rename); torn → evidence + journal, honest fresh genesis. */
+function leanLoadableState(raw: string): string | null {
+  try {
+    const d = JSON.parse(raw) as Record<string, unknown>;
+    const accounts = d.accounts as Record<string, unknown> | undefined;
+    if (!accounts || typeof accounts !== "object" || Object.keys(accounts).length === 0) return null;
+    const block = (d.block ?? null) as Record<string, unknown> | null;
+    return JSON.stringify({
+      block,
+      accounts,
+      best_block_number: d.best_block_number ?? block?.number ?? "0x0",
+      blocks: [],
+      transactions: [],
+      historical_states: []
+    });
+  } catch { return null; }
+}
+
+function anvilStateResumable(): boolean {
+  try {
+    const st = fs.existsSync(ANVIL_STATE_PATH) ? fs.statSync(ANVIL_STATE_PATH) : null;
+    if (!st || st.size === 0) return false;
+    const raw = fs.readFileSync(ANVIL_STATE_PATH, "utf8");
+    const lean = leanLoadableState(raw);
+    if (lean === null) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      try { fs.renameSync(ANVIL_STATE_PATH, `${ANVIL_STATE_PATH}.corrupt-${stamp}`); } catch { /* evidence path */ }
+      journal("anvil-state-corrupt", `torn/unloadable anvil-state caught before resume — moved to .corrupt-${stamp} — spawning fresh genesis instead of the futile --load-state loop`);
+      return false;
+    }
+    if (lean.length !== raw.length) {
+      fs.writeFileSync(`${ANVIL_STATE_PATH}.lean.tmp`, lean);
+      fs.renameSync(`${ANVIL_STATE_PATH}.lean.tmp`, ANVIL_STATE_PATH);
+      journal("anvil-state-lean", `normalized ${(raw.length / 1e6).toFixed(1)}MB → ${(lean.length / 1e3).toFixed(0)}KB lean loadable state before resume — replay bodies are ephemeral, accounts are the truth`);
+    }
+    return true;
+  } catch {
+    return false; // stat/read race — honest no-resume, the runner owns primary
+  }
+}
+
 /** v118 — mirror of the mesh runner's spawnAnvil(): the SAME binary-search
  *  chain (foundry → local → the v34 survivable mirror), the SAME state
  *  file, the SAME flags (v54 keeper=96). Guard-checked + detached exactly
@@ -1291,7 +1340,7 @@ function spawnAnvilDetached(): boolean {
     journal("anvil-down", "anvil binary not found in any known path (foundry → local → mirror) — no spawn, honest fail; next cadence retries");
     return false;
   }
-  const resume = fs.existsSync(ANVIL_STATE_PATH);
+  const resume = anvilStateResumable(); // v119 — parse-gated resume (torn file → evidence + genesis, never a futile loop)
   const args = [
     ...(resume ? ["--load-state", ANVIL_STATE_PATH] : []),
     "--port", "8545", "--chain-id", "31337", "--dump-state", ANVIL_STATE_PATH,

@@ -631,10 +631,36 @@
  *    (0x95db…646a) · 50bps התקבל במדידת-שמורות מדויקת · סוויטה 78+5 ירוקה.
  */
 
-export const SAOS_VERSION = "118.0.0";
+/**
+ * v119 שסתום-ההמשך (THE RESUME VALVE) — מפלת-המוות של anvil נרפאה מבנית.
+ *
+ * התאונה שנמדדה-חי (2026-10-03): אנוויל נהרג-ידי-ה-OOM בזמן dump-state →
+ * קובץ-מצב ש-anvil עצמו לא-מצליח לטעון-חזרה — לא JSON שבור (ה-parse עבר)
+ * אלא bug-ה-roundtrip של-1.8.4: 5356 בלוקים + 96 עסקאות-שנשמרו +
+ * historical_states כוללים סוג-עסקה שה-loader מסרב לו (שגיאה בעמודה
+ * 6721192). כל-החייאה עם --load-state = מוות-מיידי → ×9 החייאות-עקרות
+ * (runner watchdog + keeper revive יחד) — השרשרת מתה ~35 דקות.
+ *
+ * התרופה שהוכחה-באש: האמת-הטעינה = accounts + כותרת-הבלוק (54 חשבונות
+ * עם כל-החוזים-הפרוסים) — גופי-ה-replay הם חומר-זמני. נירמול לצורה
+ * הרזה (atomic tmp+rename) → resume ענה 0x4bd4 = בדיוק בלוק-המוות,
+ * אפס-אובדן, והשרשרת המשיכה לחתוך בלוקים מיד.
+ *
+ * 1. שער-ההמשך ב-runner (stateFileResumable → leanLoadableState +
+ *    tryResumeFrom): כל-resume מנורמל לצורה-הרזה; קובץ-קרוע →
+ *    ראיות (.corrupt-<ts>) → מראת-הבית המאומתת-v35 → genesis-כנה בסוף.
+ * 2. שער-תאום ב-keeper (anvilStateResumable + anvil-state-lean/anvil-state-
+ *    corrupt journal): אותו-נירמול בדיוק — שני-הבעלים מרופאים, ה-loop
+ *    העקר בלתי-אפשרי מבנית.
+ * 3. ראיות-חיות: watchdog חיה את-השרשרת מהקובץ-המנורמל (pid 23625,
+ *    --load-state) → בלוק 19412→19460+ תוך-דקות · keeper מדווח alive
+ *    deadStreak:0 · anvil טרי 74MB במקום 900+.
+ */
+
+export const SAOS_VERSION = "119.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "תזמורת";
+export const SAOS_CODENAME = "שסתום-ההמשך";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;
