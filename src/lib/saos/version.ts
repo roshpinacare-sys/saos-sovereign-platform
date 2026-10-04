@@ -759,10 +759,32 @@
  *    2-מודלי-פריזמה-מתים (מושהים-מדעת — db:push-בזמן-ריצה מסוכן).
  */
 
-export const SAOS_VERSION = "124.0.0";
+/* v125.0.0 — פיקוח-הריבונות (עברית בלבד לפני-הבעלים):
+ * 1. ביקורת-גיט-מלאה (2026-10-04) — סריקת-עומק: 101 routes, 5 מיני-שירותים,
+ *    docs, worklog — כל-הטענות נבדקו מול-הקוד ומול-השרשרת.
+ * 2. ההפתעה-הריבונית: הצבעת-העדות הראשונה על STEEM mainnet — 10/10 חיילים
+ *    (כולל tov) עם txids והכללות מאומתות בלתי-תלוי · חותם-עצמי טהור-JS
+ *    (dhive קורס תחת bun — מודול-NAN · הסריאלייזר-הטהור של dhive הוא האורקל)
+ *    · שער-RC סטימיאני אמת (rc_api) · שני-שיעורי-סריאליזציה קריטיים:
+ *    expiration=uint32-epoch · ref_block_prefix=readUInt32LE(4)-של-ה-id.
+ * 3. פיקוח-הריבונות: לולאה-אוטונומית כל-5ד׳ (איברים·כספת·גיט·ממסר·דופק·רעש)
+ *    + לוח-חי בויו-הביקורת + סריקה-רגעית מאובטחת.
+ * 4. איטום-אבטחה (CRITICAL מהביקורת): 4 POSTs פתוחים נסגרו מאחורי requireAuth
+ *    (agents-gateway say/suspend/resume/remove · agents-issues · microgrid) ·
+ *    join נשאר-מישור-המכונות עם מגבלת-קצב.
+ * 5. ריפוי-משמעת-הראיות: 8 ההצבעות-החיות של-v124 נרשמו רטרואקטיבית
+ *    ב-AuditEvent עם actor גלוי + מדיניות-מחייבת (orchestra.evidence.policy).
+ * 6. חיבור-5-routes-יתומים למסכים (cheap-routes/supervisor/memory-house/
+ *    rearm-steem/revoke-all) · ממסר-הלולאה /api/saos/mesh/rpc — טענת
+ *    "השרת-על-הרשת-שלנו" חוזרת-לחיים בכנות · שער-קצב-מתמשך ל-autodrive
+ *    (היה-טיק-כל-2ד׳ במקום-30) · תיקון-אינדקס-פסולת בסכמה · CSP frame-ancestors
+ *    מורחב ל-*.z.ai (שורש "refused to connect" השני).
+ */
+
+export const SAOS_VERSION = "125.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "הצבעת-העדות";
+export const SAOS_CODENAME = "פיקוח-הריבונות";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

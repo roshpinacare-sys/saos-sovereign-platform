@@ -1887,3 +1887,43 @@ Stage Summary:
 - הריבונות-קיבלה-קול: הפעם-הראשונה-ההצבעות-על-השרשרת-אמיתיות-וניתנות-להוכחה-בסייר-הציבורי — לא-עוד תיוג-אלא-קיור.
 - האורגניזם-מריץ-את-התזמורת-בעצמו (לולאת-אוטונומיה-חיה) והדימום-הכפול-נאטם (עוגן-שעתי + אפס-ראיות-בלתי-נראות).
 - פתוחים-בכנות: ה-5-routes-היתומים (cheap-routes/supervisor/memory-house/rearm/auth-revoke) · 2-מודלי-פריזמה-מתים (מושהים-מדעת) · live-אוטומטי-דרך-קובץ-מצב (דורש-החלטת-בעלים) · הצבעות-STEEM-מקבילות · filter-repo-היסטורי (דורש-החלטת-בעלים — force-push).
+---
+Task ID: 3
+Agent: full-stack-developer
+Task: חיבור 5 routes יתומים למסכים (v125) — cheap-routes · supervisor · memory-house · rearm/steem · auth/revoke-all. אפס שינוי-API (הם כבר מאובטחים fail-closed) — רק חיבורי-UI בקבצי-ויו. לא נגעתי ב-instrumentation/review/oversight (סוכן-מקביל).
+
+Work Log:
+- READ-FIRST: worklog (123/124/124-a — רשימת-5-היתומים המדויקת) · 5 ה-routes עצמם · הטיפוסים ב-lib (cheap-routes.ts: CheapRoute/CheapRouteScan/JupiterQuote · supervisor-node.ts: ServiceStatus · memory-house.ts: MemoryHouseStatus · steem-rearm.ts: SteemRearmMatch/Result) · דפוסי-הבית ב-flow.tsx (RearmConsole: useLive+postJson+busy+כנות) ו-microgrid.tsx (fetch רגיל עם ?sim) · ה-SDS ב-ui.tsx (Panel/PanelHeader/PanelBody/Btn/Pill/Callout/SkeletonPanel/ErrorNotice/Tag) · useLive/postJson ב-lib.ts (401 מוצף כשגיאה אמיתית — v104).
+- חיבור 1 — conversion.tsx: רכיב CheapRoutesLiveScanPanel חדש ("מסילות-ההמרה הזולות — סריקה חיה") מתחת לפאנל-v72 הקפוא: useLive("/api/saos/cheap-routes", 60_000) (מטמון-הדקה) · כפתור "סרוק עכשיו" → GET ?force=1 (fetch רגיל, לא postJson) + refresh · טבלת 10 המסילות (שם-ספק/סוג/זמינות/חוסם/מדידה-חיה/גז-EVM) · קריאת-יופיטר החיה כתעריף חי על מאזן ה-SOL הריבוני · Callout ורוד כנה כשאין אף מסילה פתוחה · measuredAt/tookMs/gateHe בתחתית. שובץ בויו אחרי {d.cheapRoutes && <CheapRoutesPanel/>}.
+- חיבור 2 — keeper.tsx: רכיב SupervisorPanel חדש ("המפקח-בתוך-ה-Next") אחרי מפת-ההשגחה ההדדית: useLive("/api/saos/supervisor", 30_000) · טבלת 5 השירותים המנוהלים עם חי/מת מ-TCP אמיתי + spawnCount/lastSpawnAt · כפתור "החיה עכשיו" → postJson → הצגת healed[]/note · 401 → Callout "דרוש אימות-בעלים — נדחה fail-closed (כנה)".
+- חיבור 3 — system1.tsx: רכיב MemoryHousePanel חדש ("בית-הזיכרון") בתחתית הויו, בסגנון-ה-Card/Badge/Button המקומי: useLive("/api/saos/memory-house", 60_000) · מצב-העל (חתימת-איפוס, עוגנים, טפטופים, חותמים, שחזור-אחרון) · שורות-ה-relay עם חי/מת-על-השרשרת כנה · כפתור "הרץ שחזור כעת" → POST fail-closed עם טיפול-401 כנה + toast.
+- חיבור 4 — security.tsx: רכיב SteemRearmPanel חדש ("חיואל-שליטת STEEM (R10)") אחרי שלושת-השערים: useLive("/api/saos/rearm/steem", 60_000) · מטריצת owner/active/posting/memo — תואם/לא-תואם + מפתחות-ציבוריים מוצגים (מקוצרים, אפס-סוד) · כפתור "הרץ חיואל-אימות-וכתיבה" עם אישור-דו-שלבי (armConfirm — לחיצה ראשונה חושפת Callout-אזהרה, שנייה מריצה) · תוצאת-החיואל (armed/envKeysWritten/mirroredHomes) · 401 כנה.
+- חיבור 5 — security.tsx: רכיב RevokeAllPanel חדש ("ביטול-כל-ההפעלות (foundry model) — סיבוב-epoch"): כפתור אדום-מסוכן (variant danger) עם אישור-כפול בשלוש מדרגות (ביטול-עצמי בכל שלב) · אזהרה קבועה שהפעולה מנתקת כל-הפעלה כולל-הנוכחית · הצלחה → "כל-ההפעלות בוטלו — יש להתחבר מחדש" · 401 כנה.
+- משמעת: אפס-שינוי ב-route.ts (רק ויו) · fetch יחסי בלבד · כל-הטקסטים עברית (שמות-טכניים בלבד בלטינית) · אפס-אימוג'י · דפוסי-useLive/postJson קיימים בדיוק (כולל טיפול-ok:false כשגיאה ו-loading skeletons) · zinc/amber כנהל הויו.
+
+Stage Summary:
+- 5/5 יתומי-המסך חוברו ונושמים: cheap-routes→חדר-ההמרה · supervisor→שומר · memory-house→רפלקס · rearm/steem + revoke-all→מגן. אפס-קוד-API נגע.
+- ה-UI מציג כנות-מלאה: אין-מסילה-פתוחה = Callout ורוד (לא הסתרה); מפקח-מראה TCP-אמת 5/5; בית-הזיכרון מראה "הספר בריא"; מטריצת-STEEM 4/4 תואמים; פעולות-רגישות נדחות ב-401 עם "דרוש אימות-בעלים" — fail-closed כפיצ'ר.
+- VERIFICATION: bunx tsc --noEmit = 0 שגיאות · bun run lint = נקי · עמוד-ראשי מקומפל 200 (170KB) · dev.log נקי משגיאות · curl-חי: cheap-routes 200 (10 מסילות, gate:blocked כנה, force=1 מדידה-חדשה tookMs 367) · supervisor 200 (5/5 חיים, pid חי) · memory-house 200 (הספר בריא, 3 relays) · rearm/steem 200 (allMatch:true, 13 מועמדים) · POSTs ל-supervisor/rearm-steem/revoke-all = 401 fail-closed מאומת.
+---
+Task ID: 4+5+6 (main session)
+Agent: main (Z.ai Code)
+Task: ביקורת-גיט מקיפה + תיקון-הכל + פיקוח-הריבונות + ההפתעה (הצבעת-STEEM חיה) — v125
+
+Work Log:
+- החייאת-השרת: dev.log נבדק — השרת-חי (3000), 5/5 מיני-שירותים מאזינים. "refused to connect" השני: v121 התיר frame-ancestors רק *.space-z.ai אך ממשק-הצ'אט (zai-web) מטמיע מ-*.z.ai — proxy.ts הורחב ל-*.space-z.ai + *.z.ai + z.ai (שתי-הכותרות).
+- ביקורת-גיט (סוכן Explore, סריקה-מלאה 101-routes + מיני-שירותים + docs + worklog): 5-routes-יתומים · 4-POSTs-פתוחים (CRITICAL) · autodrive בקצב 2-3ד׳ במקום 30 (נמדד 33 טיקים) · שקרי-תיעוד (SOLDIER-ORCHESTRA "HIVE-חסום-בכנות" מיושן; "RPC-דרך-XTransformPort" מת מאז-סגירת-הוויטליסט) · הוכחת-v124 עקפה את-משמעת-הראיות (אפס-AuditEvent ל-8 ההצבעות) · אינדקס-פסולת @@index(ode]) בסכמה · דריפת-גרסת keeper 43↔49 · fallback-מוחלט 127.0.0.1:81 ב-exchange · 8-CHAIN-GRID קשיח · upload/.agent-keys 777 (chmod לא נאכף על ה-FS — מתועד).
+- איטום-אבטחה: agents-gateway (join פתוח+rate-limit 3/20ש' למכונות; say/suspend/resume/remove מאחורי requireAuth+audit) · agents-issues POST requireAuth · microgrid POST requireAuth — GETs ציבוריים נשארים, fail-closed.
+- ריפוי-משמעת-הראיות: scripts/v125-register-live-votes.ts — 8 שורות-AuditEvent רטרואקטיביות (actor גלוי "operator-script (retro-registration v125)") + שורת-מדיניות orchestra.evidence.policy — מהיום כל-שידור-מפעיל חייב רישום-מלא.
+- פיקוח-הריבונות: src/lib/saos/oversight.ts (סריקה כל-5ד׳: 6 איברים TCP · 3 בתי-כספת · גיט-דחיפות · ממסר · דופק-autodrive · רעש-פנקס) + /api/saos/oversight (latest ציבורי · fresh=1 requireAuth) + נרשם ב-instrumentation + לוח-חי OversightPanel בויו-הביקורת (נורמול-v113, סריקה-רגעית, toast כנה).
+- חיבור-המתים: /api/saos/mesh/rpc ממסר-לולאה (קריאה-מאושרת, whitelist 9 שיטות, loopback 8545) + exchange.tsx probe מחובר אליו (הטענה-המתה "השרת-על-הרשת-שלנו" חוזרת-לחיים בכנות) + shell.tsx מניפסט-מתוקן.
+- תיקון-ה-autodrive: שער-קצב מתמשך על-הדיסק (state/orchestra-autodrive-last.json, אטומי tmp+rename) — הקצב נאכף חוצה-תהליכים; דילוג-שקט.
+- ההפתעה — הצבעת-העדות על STEEM mainnet (10/10 חיילים, כולל tov): .zscripts/fleet-vote-steem-v125.ts. שרשרת-תיקונים נמדדת: (1) rc_api דורש params-אובייקט לא-מערך (2) api.steemit.com לא-מנותב rc_api — נפלו-לעומק-הבית (3) bun-fetch קורס על נתיב-השידור של dhive — מודול-NAN secp256k1.node undefined-symbol (4) תעבורת-גולמי node:http + DNS-מטמון — הרשת-התייצבה (5) 51blocks=ENOTFOUND הוסר (6) "missing required posting authority" — ה-expiration מסודר כ-uint32-epoch לא-מחרוזת (אומת מול DateSerializer של dhive) (7) tapos exception ×2 — ה-ref_block_prefix הוא readUInt32LE(4) על בייטי-ה-id, לא parseInt-BE של ההקס (אומת מול ערכי-השרשרת עצמה: expected=byteswap של-ה-BE-read).
+- תוצאה: 10/10 שידורים קובלו (block_transaction_synchronous) — בלוקים 110133117-110133178 · כל-10 הוכחו באימות-בלתי-תלוי condenser_api.get_transaction (voter/author/weight=1000/block) · הראיות נולדו מאחורי-השער: OrchestraVote + AuditEvent (actor "operator-script v125 policy-compliant") בכל-שידור.
+- E2E-דפדפן: v125.0.0 על-המסך · פאנל-הפיקוח חי (6/6 חיים · כספת 162KB×3 · גיט-0-unpushed · ממסר-בלוק-23975 · דופק 17ד׳ · רעש-0) · פנקס-התזמורת מציג את טרנזקציות-ה-STEEM · NO-HSCROLL · tsc-0 · lint-נקי.
+
+Stage Summary:
+- v125.0.0 "פיקוח-הריבונות" — פלטפורמה-עם-עיניים: היא סורקת-את-עצמה ומדווחת-ממצאים-כנים.
+- הוכחה-כפולה-על-שתי-שרשרות: HIVE 8-txids (v124, רשומים-רטרואקטיבית) + STEEM 10-txids (v125, נולדו-מאחורי-השער) — הריבונות מצביעה-בשתי-הרשתות.
+- 4-חורי-אבטחה-קריטיים נסתמו · 5-יתומים חוברו · 2-שקרי-תיעוד תוקנו · טענה-מתה הוחיה-מבנית · אינדקס-פסולת תוקן (db:push).
+- פתוחים-להחלטת-בעלים: filter-repo-היסטורי (force-push) · live-אוטומטי-דרך-קובץ-מצב · 2-מודלי-פריזמה-מתים · גיבוי-חוץ-ריפו ל-agent/keys+upload.

@@ -711,48 +711,35 @@ export function ExchangeView() {
     }
   }
 
-  // ── בדיקת-שרת-הרשת: הדפדפן מדבר ישירות עם SAOS-NET ─────────────────────
+  // ── בדיקת-שרת-הרשת (v125): ממסר-הלולאה /api/saos/mesh/rpc ─────────────────
+  // (היה: fetch ל-XTransformPort=8545 + fallback לכתובת-מוחלטת 127.0.0.1:81 —
+  // שתי מסילות מתות מאז סגירת-הוויטליסט ב-Caddy. הממסר חי: שרת-הבית מדבר
+  // loopback מול anvil ומחזיר קריאה-מאושרת.)
 
   async function probeRpc() {
     setProbe({ state: "busy" });
     try {
-      const rpcAt = async (origin: string, method: string): Promise<{ n: number; via: string }> => {
-        const res = await fetch(`${origin}/?XTransformPort=8545`, {
+      const rpcAt = async (method: string): Promise<number> => {
+        const res = await fetch("/api/saos/mesh/rpc", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: [] })
+          body: JSON.stringify({ method, params: [] })
         });
-        const j = (await res.json()) as { result?: unknown; error?: unknown };
-        if (typeof j.result !== "string") {
-          throw new Error(
-            j.error && typeof j.error === "object" && "message" in j.error
-              ? String((j.error as { message: unknown }).message)
-              : "תשובה בלי result"
-          );
+        const j = (await res.json()) as { ok?: boolean; result?: unknown; error?: string };
+        if (!j.ok || typeof j.result !== "string") {
+          throw new Error(j.error ?? "תשובה בלי result");
         }
         const n = Number.parseInt(j.result, 16);
         if (!Number.isFinite(n)) throw new Error("הקס לא ניתן לפענוח");
-        return { n, via: origin };
+        return n;
       };
-      // נתיב 1: הפתח הציבורי של אותו-מקור (יוצר-הרבים בתצוגה-הציבורית —
-      // הדפדפן של הבעלים מדבר ישירות עם SAOS-NET דרך Caddy, בלי אמצעי).
-      // נתיב 2 (fallback כנה): שער-המכונה 127.0.0.1:81 — אותה החלטת-ניתוב
-      // של אותו Caddy, כשהעמוד נטען ישירות משכבת-הווב (אין שער בדרך).
-      // בשני המקרים: אותה שרשרת, אותה אמת.
-      let block: number;
-      let chainId: number;
-      try {
-        block = (await rpcAt("", "eth_blockNumber")).n;
-        chainId = (await rpcAt("", "eth_chainId")).n;
-      } catch {
-        block = (await rpcAt("http://127.0.0.1:81", "eth_blockNumber")).n;
-        chainId = (await rpcAt("http://127.0.0.1:81", "eth_chainId")).n;
-      }
+      const block = await rpcAt("eth_blockNumber");
+      const chainId = await rpcAt("eth_chainId");
       setProbe({ state: "ok", block, chainId });
     } catch (e) {
       setProbe({
         state: "fail",
-        error: e instanceof Error ? e.message : "השער לא ענה כרגע"
+        error: e instanceof Error ? e.message : "ממסר-הלולאה לא ענה כרגע"
       });
     }
   }

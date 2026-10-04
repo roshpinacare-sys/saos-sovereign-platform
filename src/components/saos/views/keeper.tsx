@@ -23,7 +23,7 @@
 
 import { useState } from "react";
 import {
-  HeartPulse, Server, Cpu, RefreshCcw, CheckCircle2, AlertTriangle,
+  HeartPulse, Server, ServerCog, Cpu, RefreshCcw, CheckCircle2, AlertTriangle,
   ArrowLeftRight, Activity, MemoryStick, Eye, Clock, DatabaseBackup, HardDriveDownload
 } from "lucide-react";
 import { useLive, timeAgo, postJson, fmtInt } from "../lib";
@@ -161,6 +161,151 @@ const EVENT_HE: Record<string, string> = {
   "backup-miss": "גיבוי הוחמץ",
   probe: "בדיקה ידנית"
 };
+
+// ─── המפקח-בתוך-ה-Next (חיבור-הנתיב /api/saos/supervisor) ─────────────────
+
+interface SupervisorServiceDto {
+  name: string;
+  dirName: string;
+  port: number;
+  note: string;
+  alive: boolean;
+  lastSpawnAt: string | null;
+  spawnCount: number;
+}
+
+interface SupervisorPayload {
+  ok: boolean;
+  supervisor?: string;
+  pid?: number;
+  managed?: number;
+  services?: SupervisorServiceDto[];
+  note?: string;
+  healed?: string[];
+  error?: string;
+}
+
+const SUPERVISOR_LABEL: Record<string, string> = {
+  "keeper-shomer": "השומר (keeper)",
+  "evm-mesh-runner": "הראנר (evm-mesh)",
+  "gate-herald": "שליח-השער (gate-agent)",
+  "swarm-agents": "נחיל-הריבונים (swarm-agents)",
+  laya: "הרפלקס (laya)"
+};
+
+/**
+ * המפקח-בתוך-ה-Next: GET מחזיר סטטוס-TCP כנה של השירותים המנוהלים,
+ * POST (requireAuth — fail-closed) מחיה-מתים כילדי-תהליך-הווב.
+ * 401 = הודעה כנה "דרוש אימות-בעלים" — התנהגות נכונה, לא תקלה.
+ */
+function SupervisorPanel() {
+  const live = useLive<SupervisorPayload>("/api/saos/supervisor", 30_000);
+  const [healing, setHealing] = useState(false);
+  const [healTone, setHealTone] = useState<"green" | "rose">("green");
+  const [healMsg, setHealMsg] = useState<string | null>(null);
+
+  const services = live.data?.services ?? [];
+  const aliveCount = services.filter((s) => s.alive).length;
+
+  const heal = async () => {
+    setHealing(true);
+    setHealMsg(null);
+    try {
+      const res = await postJson<SupervisorPayload>("/api/saos/supervisor", {});
+      if (res.ok && res.data) {
+        const healed = res.data.healed ?? [];
+        setHealTone("green");
+        setHealMsg(
+          healed.length
+            ? `הוחיו ${healed.length} שירותים כילדי-תהליך-הווב (שורדים את-המלקוח של הסנדבוקס): ${healed.join(" · ")}`
+            : (res.data.note ?? "אין-מה להחיה — הכל חי או בקירור-החייאה")
+        );
+        live.refresh();
+      } else {
+        setHealTone("rose");
+        setHealMsg(
+          (res.error ?? "").includes("auth")
+            ? "דרוש אימות-בעלים — ההחיאה היא פעולה רגישה ונדחית fail-closed (כנה)"
+            : `ההחיאה נדחתה — ${res.error ?? "לא ידוע"}`
+        );
+      }
+    } catch (e) {
+      setHealTone("rose");
+      setHealMsg(e instanceof Error ? `שגיאת-רשת בהחיאה — ${e.message}` : "שגיאת-רשת בהחיאה");
+    } finally {
+      setHealing(false);
+    }
+  };
+
+  if (live.error && !live.data) return <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />;
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<ServerCog size={15} />}
+        title="המפקח-בתוך-ה-Next — סטטוס-TCP כנה של השירותים המנוהלים"
+        sub="עוד מפקח חי בתוך תהליך-הווב עצמו (עמדת roast-62): בדיקת-שקע אמיתית לכל שירות, והחיאה של מתים כילדי-תהליך-הווב — ילדים כאלה שורדים את-המלקוח של הסנדבוקס, בניגוד לשירותים שנראו-מקלות-מקליפות-צ׳אט ומתים בתוך דקות (נמדד). המפקח לעולם לא הורג ולא נוגע במפתחות."
+        actions={
+          <>
+            <Pill tone={services.length > 0 && aliveCount === services.length ? "green" : "gold"}>
+              {live.data ? `${aliveCount}/${services.length} חיים` : "—"}
+            </Pill>
+            <Pill tone="zinc">pid {live.data?.pid ?? "—"}</Pill>
+            <Btn onClick={heal} disabled={healing} loading={healing}>
+              {healing ? "מחיה…" : "החיה עכשיו"}
+            </Btn>
+          </>
+        }
+      />
+      <PanelBody className="space-y-3">
+        {healMsg && (
+          <Callout tone={healTone} icon={healTone === "green" ? <HeartPulse size={14} /> : <AlertTriangle size={14} />}>
+            {healMsg}
+          </Callout>
+        )}
+        {services.length === 0 ? (
+          <p className="text-[11.5px] text-zinc-500">
+            אין רשימת-שירותים מהמפקח — הנתיב לא נענה עדיין (כנה; ייבדק שוב ברענון-החי הבא).
+          </p>
+        ) : (
+          <div className="overflow-x-auto -mx-1 px-1">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>שירות</Th>
+                  <Th>יציאה</Th>
+                  <Th>מצב (TCP אמיתי)</Th>
+                  <Th>החיות</Th>
+                  <Th>תפקיד</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {services.map((s) => (
+                  <tr key={s.name}>
+                    <Td className="whitespace-nowrap font-medium">{SUPERVISOR_LABEL[s.name] ?? s.name}</Td>
+                    <Td className="font-mono text-[11px] text-zinc-400" dir="ltr">:{s.port}</Td>
+                    <Td>
+                      {s.alive ? <Tag tone="green">חי</Tag> : <Tag tone="rose">מת</Tag>}
+                    </Td>
+                    <Td className="whitespace-nowrap text-[11px] text-zinc-400">
+                      {s.spawnCount > 0
+                        ? `הוחיו ×${s.spawnCount}${s.lastSpawnAt ? ` · אחרון ${timeAgo(s.lastSpawnAt)}` : ""}`
+                        : "טרם הוחיה — חי מלידה"}
+                    </Td>
+                    <Td className="text-[11px] text-zinc-500">{s.note}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+        <p className="text-[10px] leading-relaxed text-zinc-600">
+          {live.data?.note ?? "POST דורש אימות-בעלים (fail-closed) — מחיה-מתים בלבד, לעולם לא הריגה, לעולם לא מפתחות."}
+        </p>
+      </PanelBody>
+    </Panel>
+  );
+}
 
 // ─── הוויו ─────────────────────────────────────────────────────────────────
 
@@ -480,6 +625,9 @@ export function KeeperView() {
           </PanelBody>
         </Panel>
       </div>
+
+      {/* ─── המפקח-בתוך-ה-Next — חיבור /api/saos/supervisor ─────────────── */}
+      <SupervisorPanel />
 
       {/* ─── סיפור התקרית ───────────────────────────────────────────────── */}
       <Panel>

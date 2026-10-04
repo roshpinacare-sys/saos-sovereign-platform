@@ -265,7 +265,7 @@ export function ViewOverview({
       <Panel>
         <PanelHeader
           icon={<Network size={15} />}
-          title="רשת-הרשתות הריבונית · 8-CHAIN GRID"
+          title={`רשת-הרשתות הריבונית · 8-CHAIN GRID · ${MESH_CONTRACT_COUNT} חוזים`} // v125 — הספירה-החיה ממפת-החוזים (היה "8" קשיח שדרדר מהאמת)
           sub="SAOS-NET (ריבונית) + STEEM · BLURT · HIVE · TRON (מסילות-עגינה) + ETHEREUM · BSC · SOLANA (רכבי mainnet) — BSC נפתח ב-v14: אותו מפתח EVM, שתי שרשראות"
           actions={
             <Btn variant="ghost" size="xs" onClick={() => onNav("networks")}>
