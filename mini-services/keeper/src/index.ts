@@ -239,6 +239,7 @@ const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror fr
 const RESTORE_DRILL_EVERY = 144; // v45.1 — restore drill every 144th cycle (≈24min)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
 const GRID_EVERY = 12; // v116 — השתלטות: grid tick every 12th cycle (≈2min) — the ladder lives on the real book
+const MM_FLEET_EVERY = 18; // v126 — עושה-השוק: fleet tick every 18th cycle (≈3min) — 9 soldiers, paper-forever from the keeper
 const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
 
 // v66 — auto-expansion scout (התפשטות-אוטומטית). The web tier owns the engine
@@ -1081,6 +1082,31 @@ async function runHiveGridTick(): Promise<void> {
     }
   } catch (e) {
     journal("grid-error", String(e).slice(0, 140));
+  }
+}
+
+/** v126 — עושה-השוק: one honest fleet tick against the real HBD:HIVE book.
+ *  The keeper ONLY drives paper ticks (the route itself never broadcasts);
+ *  a miss is data — the next cadence retries. Killswitches surface in the
+ *  journal so the sovereignty panel sees paused soldiers immediately. */
+async function runMmFleetTick(): Promise<void> {
+  try {
+    const res = await fetch("http://127.0.0.1:3000/api/saos/mm-fleet", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...loopbackAuthHeaders() },
+      body: JSON.stringify({ action: "fleet-tick" }),
+      signal: AbortSignal.timeout(45_000)
+    });
+    const j = (await res.json()) as { ok?: boolean; he?: string; internalMatches?: number; killed?: string[]; advised?: boolean };
+    if (res.ok && j.ok) {
+      const k = (j.killed ?? []).length > 0 ? ` · killswitch: ${j.killed!.join(",")}` : "";
+      const a = j.advised ? " · יועץ-נקרא" : "";
+      journal("mm-tick", `${j.he ?? ""}${k}${a}`);
+    } else {
+      journal("mm-error", `HTTP ${res.status} — ${(j.he ?? "").slice(0, 120)}`);
+    }
+  } catch (e) {
+    journal("mm-error", String(e).slice(0, 140));
   }
 }
 
@@ -2876,6 +2902,12 @@ async function cycle(): Promise<void> {
   // + armed + active key — the arming law lives in the engine, fail-closed).
   if (RT.cycle === 6 || (RT.cycle > 6 && RT.cycle % GRID_EVERY === 0)) {
     await runHiveGridTick();
+  }
+  // v126 עושה-השוק — טיק-הצי: every ≈3min the 9-soldier fleet ticks the REAL
+  // HBD:HIVE book (fee-modeled paper; NEVER broadcasts from the keeper — live
+  // orders are only behind requireAuth + the separate live-switch in mm-live).
+  if (RT.cycle === 9 || (RT.cycle > 9 && RT.cycle % MM_FLEET_EVERY === 0)) {
+    await runMmFleetTick();
   }
   // v93 — sovereignty census every ≈15min (first 60s after boot): 17 git
   // folders + key layer measured over loopback; verdict journaled either way.

@@ -14,8 +14,9 @@
  *     מוצגים כרווח חי.
  *  3. שער-החיים: הנפקת-פקודות חי (limit_order_create) מותרת רק כשכל
  *     התנאים מתקיימים TOGETHER: חותם-הכספת פתוח + roleWifAvailable("active")
- *     + armed=true + רצפת-RC. כרגע הכספת חתומה (מפתחות הושמדו בפקודת-השמד
- *     2026-09-08 וממתינים להנפקת-בעלים) — ולכן המנוע יורה נייר בלבד, בכנות.
+ *     + armed=true + רצפת-RC. מאז v122 הכספת מחזיקה מפתחות-חיילים 4/4 —
+ *     ולכן התווית-הכנה היא קריטית: מילויי-הטיק נייר תמיד; שידור חי אמיתי
+ *     מתרחש רק במסילת mm-live עם txid מאומת (v126).
  *  4. תצוגה-מקדימה שקופה: גם כשהשער סגור, המנוע מכין את הפקודות המדויקות
  *     שיונפקו בפתיחה (limit_order_create ops) — שקיפות מלאה, אפס הפתעות.
  *  5. תקרות-סיכון: notional מקסימלי, רצפת-פיזור (אדוורס-סלקשן), גודל-מדרגה,
@@ -270,7 +271,7 @@ export async function tickHiveGrid(): Promise<TickOutcome> {
       s.inventory.hbd -= cost;
       // weighted avg cost: (oldAvg*oldQty + price*qty) / newQty — oldQty = hive - sizeHive
       s.kpi.avgCost = s.kpi.avgCost === null ? lvl.price : (s.kpi.avgCost * (s.inventory.hive - lvl.sizeHive) + lvl.price * lvl.sizeHive) / s.inventory.hive;
-      const f: GridFill = { at: book.at, side: "buy", price: lvl.price, sizeHive: lvl.sizeHive, hbd: cost, mode: s.mode };
+      const f: GridFill = { at: book.at, side: "buy", price: lvl.price, sizeHive: lvl.sizeHive, hbd: cost, mode: "paper" }; // v126 חוק-תווית: מילוי-טיק הוא נייר תמיד — "live" רק עם txid (mm-live)
       s.fills.push(f);
       fills.push(f);
       lvl.filled += 1;
@@ -283,7 +284,7 @@ export async function tickHiveGrid(): Promise<TickOutcome> {
       s.inventory.hive -= lvl.sizeHive;
       s.inventory.hbd += proceeds;
       s.kpi.realizedHbd += realized;
-      const f: GridFill = { at: book.at, side: "sell", price: lvl.price, sizeHive: lvl.sizeHive, hbd: proceeds, mode: s.mode, realizedHbd: realized };
+      const f: GridFill = { at: book.at, side: "sell", price: lvl.price, sizeHive: lvl.sizeHive, hbd: proceeds, mode: "paper", realizedHbd: realized }; // v126 חוק-תווית
       s.fills.push(f);
       fills.push(f);
       lvl.filled += 1;
@@ -328,7 +329,7 @@ export async function armCheck(): Promise<ArmCheck> {
   const roleOk = await roleWifAvailable("active").catch(() => false);
   const canGoLive = seal.present && seal.state === "sealed" ? roleOk : false;
   const mode: "paper" | "live" = canGoLive && s.armed ? "live" : "paper";
-  const refusal = canGoLive ? undefined : roleOk ? undefined : "הכספת חתומה/מפתח-active לא זמין (פקודת-השמד 2026-09-08) — הנפקת-פקודות חי נדחית fail-closed; המנוע יורה נייר בכנות עד הנפקת-מפתחות-בעלים";
+  const refusal = canGoLive ? undefined : roleOk ? undefined : "חסר מפתח-active זמין בכספת — נייר בלבד. שידור-חי אמיתי דורש מסילת-חי עם txid (mm-live v126)";
   return { sealPresent: seal.present, sealState: seal.state, roleActiveAvailable: roleOk, armed: s.armed, mode, canGoLive: canGoLive && s.armed, refusal };
 }
 
@@ -340,11 +341,11 @@ export async function armGrid(): Promise<{ ok: boolean; he: string; arm: ArmChec
     s.armed = false;
     s.mode = "paper";
     saveState(s);
-    return { ok: false, he: "חימוש נדחה fail-closed: אין מפתח-active זמין (כספת חתומה) — נייר בלבד", arm: await armCheck() };
+    return { ok: false, he: "חימוש נדחה fail-closed: אין מפתח-active זמין בכספת — נייר בלבד", arm: await armCheck() };
   }
   s.armed = true;
   s.mode = "live";
-  pushLog(s, "arm", "חומש! מצב-חי חומש — הנפקת-פקודות limit_order_create תתבצע בטיקים");
+  pushLog(s, "arm", "חומש — מצב-חי סומן בשער. v126: מילויי-הטיק נייר תמיד; שידור-חי אמיתי רק דרך mm-live (requireAuth + txid)");
   saveState(s);
   return { ok: true, he: "מצב-חי חומש (שער פתוח + armed)", arm: await armCheck() };
 }

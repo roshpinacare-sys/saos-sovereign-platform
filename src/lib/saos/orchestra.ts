@@ -45,6 +45,15 @@ import {
   type SoldierBoard,
   type OrchestraVerdict
 } from "./soldiers";
+// v126 — עזרי-הגזירה עברו למקור-אחד (soldier-keys.ts) — אפס עותק-שלישי של נוסחאות-כספת
+import {
+  derivePriv32,
+  privToWif,
+  privToStmPub,
+  extractMasterPasswords,
+  isWifShape,
+  wifToPub,
+} from "./soldier-keys";
 
 // ─── constants — ALL VISIBLE, no hidden magic ───────────────────────────────
 
@@ -218,43 +227,7 @@ async function loadSteem(): Promise<SteemLib> {
   return mod.default ?? mod;
 }
 
-// ─── derivation (steem-rearm.ts formulas, measured R10/keys-v117) ───────────
-
-function derivePriv32(account: string, role: string, password: string): Buffer {
-  return Buffer.from(createHash("sha256").update(`${account}${role}${password}`).digest());
-}
-
-function privToWif(priv: Buffer): string {
-  // uncompressed 0x80+priv32+chk4 — exactly the steem-js toWif form
-  const body = Buffer.concat([Buffer.from([0x80]), priv]);
-  const chk = createHash("sha256").update(createHash("sha256").update(body).digest()).digest().subarray(0, 4);
-  return bs58.encode(Buffer.concat([body, chk]));
-}
-
-function privToStmPub(priv: Buffer): string {
-  // measured (R10): steem-js toPublicKeyString = ripemd160(pub) DIRECTLY
-  const pub = Buffer.from(secp256k1.getPublicKey(priv, true));
-  const chk = Buffer.from(ripemd160(pub)).subarray(0, 4);
-  return "STM" + bs58.encode(Buffer.concat([pub, chk]));
-}
-
-function extractMasterPasswords(content: string): string[] {
-  return [...new Set([...content.matchAll(/\bP[57][1-9A-HJ-NP-Za-km-z]{48,50}\b/g)].map((m) => m[0]))];
-}
-
-/** v121 — chain-agnostic WIF→STM pubkey (pure crypto, no steem lib needed) */
-function isWifShape(wif: string): boolean {
-  return /^[5KLP][1-9A-HJ-NP-Za-km-z]{48,52}$/.test(wif);
-}
-
-function wifToPub(wif: string): string {
-  const raw = Buffer.from(bs58.decode(wif));
-  const payload = raw.subarray(0, raw.length - 4);
-  const calc = createHash("sha256").update(createHash("sha256").update(payload).digest()).digest().subarray(0, 4);
-  if (!raw.subarray(raw.length - 4).equals(calc)) throw new Error("WIF checksum invalid");
-  if (payload[0] !== 0x80) throw new Error("WIF version unexpected");
-  return privToStmPub(payload.subarray(1, 33));
-}
+// ─── derivation moved to soldier-keys.ts (v126 — one source, three rails) ───────────
 
 // ─── RPC helpers (trusted rail, honest per-node errors) ─────────────────────
 
