@@ -999,3 +999,103 @@ Stage Summary:
 - עיצוב-הזהות תוקן לפי הוראת-הבעלים: המערכת מחזיקה את סיסמת-הכספת אוטונומית (אף-אדם לא צריך אותה), והבעלים מחזיק מפתח-אחד — מפתח-headcorner שלו — שמפעיל הכל (התחברות 200 חיה).
 - חתימת-STEEM חיה מחדש (4/4 רשויות) → עיגון-אמת ראשון נחת → הסולם טיפס לשלב-2 (txid-real).
 - הדור-הבא: פעימת-העיגון-השעתית של ה-keeper תמשיך לרוץ על המפתחות-החיים; XRPL בן-24h יגרור את אותו-שלב גם-שם.
+
+---
+Task ID: 2-b
+Agent: research-web (2-b)
+Task: מאגדי swap חוצי-שרשרת keyless + מיטב-EVM 2025-2026 — אימות-חי curl מהסנדבוקס
+
+Work Log:
+- קריאת סוף יומן-העבודה המשותף (offset 880→סוף) — הקשר v99/כספת/סולם-כלכלה נספג
+- אימות-חי curl (timeout 10ש', ~25 בדיקות) על 11 מאגדים/גשרים + DoH (1.1.1.1) לפתרון-מתים-מחיים + eth_call מקודד-ידנית (bun) מול publicnode
+- Jupiter: quote-api.jup.ag (v6) מת (NXDOMAIN ב-DoH); lite-api.jup.ag/swap/v1/quote חי 200 keyless (64ms, SOL→USDC); POST /swap/v1/swap חי 200 keyless — מחזיר swapTransaction שלם (קצה-לקצה); price/v3 חי (SOL $121.03); api.jup.ag עונה בלי-מפתח (מפתח-שגוי→401); סכום-גדול 10,000 SOL (~$1.21M) → routePlan 3-AMM פיצול 14%/25%/61% ב-260ms
+- Li.Fi: /v1/quote 137→56 חי 200 keyless (דרוש fromAddress אמיתי — כתובת-אפס→400/1011; מסלול AcrossV4); /v1/chains חי; headers ratelimit-limit:100/60ש' נצפו; docs (llms.txt): בלי-מפתח 200 בקשות/שעתיים · עם-מפתח 200/דק' — key אופציונלי ב-X-LiFi-Api-Key
+- OpenOcean: v3+v4 חסומים מהסנדבוקס (Cloudflare-challenge גם עם UA-דפדפן) — נכשל-חי, לא keyless כאן
+- ParaSwap: apiv6 NXDOMAIN (מת); apiv5/api חיים ב-DNS אך /prices/ → 400 "Invalid Amount" בכל-צורה (UA/Origin/partner/ignoreChecks/סכומים) — שבור/נעול keyless; /tokens חי keyless
+- 1inch: swap/v6.0/1/quote בלי-מפתח → 401 Unauthorized (גם /tokens) — דורש-מפתח, כצפוי
+- Uniswap Trading API: /v2/quote + /v1/quote → 409 ACCESS_DENIED בלי-מפתח (מפתח-שגוי→500) — דורש-מפתח; QuoterV2/V2-Router ב-chain דרך eth_call — אומתו חי
+- publicnode: eth_chainId 200 על 6 רשתות (Ethereum/Arbitrum/Optimism/Base/Polygon/BSC ~75-85ms) + eth_call חי ל-Router-V2 getAmountsOut(1 ETH) → [1e18, 2690.9e6 USDC] — מנוע-quote-עצמאי keyless עובד
+- CoW: POST api.cow.fi/mainnet/api/v1/quote חי 200 keyless (1000 USDC→WETH: buyAmount 3.697 WETH, feeAmount, protocolFeeBps 2, verified:true) — נלמדו המגבלות: validTo ≤ ~1h, appData=hex-32-byte; docs מאשרים API-Integration + MEV-protection (batch-auction)
+- Across: docs llms.txt קבע base חדש https://app.across.to/api (quoter.across.to בלי-A-record); /api/suggested-fees חי 200 keyless (פירוק-עמלות capital/relayGas, exclusiveRelayer, fill~2ש'); /api/swap (Swap-API החדש) חי 200 keyless — quote+approvalTxns+calldata; ל-production נדרש integrator-ID לפי docs
+- Stargate: api.stargate.finance NXDOMAIN · api.stargateprotocol.com TLS unrecognized-name · נתיבים→404-lander — אין quote-API ציבורי חי
+- deBridge DLN: dln.debridge.finance/v1.0/dln/quote חי 200 keyless (USDC-1→USDT-56, estimation מלא + costsDetails: DlnProtocolFee 4bps, TakerMargin) — שמות-פרמטרים: srcChainId/srcChainTokenIn/srcChainTokenInAmount/dstChainId/dstChainTokenOut
+- Hyperlane: api.hyperlane.xyz/v1/quote → 404 — אין quote-API ציבורי; הגישה Warp-Routes+SDK; Socket/Bungee → 401 בלי-מפתח; 0x v1→404 deprecated, v2 permit2→401 "No API key"
+- חיפושות-רשת (bun+z-ai-web-dev-sdk): כל 9 הניסיונות → 429 "Too many requests" מתמשך (כנראה quota-גלובלי שנצרך ע"י המחטבים-המקבילים); הוחלף בקריאת-docs-רשמיות-חי (llms.txt של Li.Fi/Across/CoW/Hyperlane) — אפס המצאה, כל-עובדה מגובה בקריאה-חיה או ב-docs
+- ניקוי-טמפ: /tmp/ws2b.ts · /tmp/ethcall.ts · קבצי-ביניים ב-/tmp — נגרסו
+
+Stage Summary:
+- מטריצת-keyless-חיה (נמדדה, לא הוצהרה): חי-פתוח = Jupiter-lite (Solana, עד swap-מלא) · Li.Fi (EVM+Solana, ~200/2h) · Across (EVM×23, quote+calldata) · deBridge DLN (intents) · CoW (EVM, MEV-protected quote) · QuoterV2/V2-דרך-publicnode (6 רשתות) · ParaSwap-/tokens בלבד · מת/נעול = 1inch, Uniswap-API, Socket, 0x-v2, Stargate, Hyperlane-API, OpenOcean (מהסנדבוקס), ParaSwap-/prices
+- מיטב-הטכנולוגיה לסכומים-גדולים נמדד-חי: Jupiter מפצל $1.21M על 3-AMM ב-260ms; CoW batch-auction = MEV-סטנדרט; intents (Across~2ש'/DLN) מחליפים-גשרים קלאסיים; Li.Fi כמאגד-על
+- המלצת-השתלבות keyless: אישי-quote על-שלושה-מקורות (Li.Fi↔Across↔DLN) + אחוז-השוואה מול QuoterV2 עצמאי; סולנה = Jupiter-lite; מטמון-עצל + backoff + מקור-חלופי על כל-מאגד; כל-ה-URLs-המדויקים והמגבלות בדוח
+
+---
+Task ID: 2-b
+Agent: research-web (2-b)
+Task: מאגדי swap keyless + מיטב-EVM (אימות-חי חוזר, מדידה עצמאית)
+
+Work Log:
+- קריאת סוף worklog (offset 900→סוף) — הקשר v99/כספת/סולם-כלכלה נספג; הריצה הקודמת של 2-b אומתה כבסיס ומדידה-זו מצליבה אותה בעצמאות
+- אימות-חי curl (timeout 10ש', UA-דפדפן) על כל 7 הסעיפים במשימה:
+- Jupiter: quote-api.jup.ag/v6 → NXDOMAIN (מת); lite-api.jup.ag/swap/v1/quote → 200 keyless 63ms (0.1 SOL→12.11 USDC · priceImpactPct · routePlan); סכום-גדול 10,000 SOL (~$1.21M) → 200 ב-179ms עם פיצול 3-AMM (Scorch/Whirlpool/TesseraV · priceImpact 0.072%); POST /swap/v1/swap → 200 keyless ומחזיר swapTransaction מלא (base64 ~840 תווים) — ביצוע-קצה-לקצה בלי-מפתח
+- Li.Fi: /v1/quote עם fromAddress-אפס → 400/1011 (כנה: נדרש כתובת-אמת); כתובת-תקנית → 200 keyless (Polygon USDC→BSC USDC · tool=AcrossV4); docs.li.fi/llms.txt מאשר "Integrator API (open, no API key)" + 429→exponential-backoff
+- OpenOcean: v3+v4 → 403 Cloudflare-challenge גם-עם UA-דפדפן — לא שמיש מהסנדבוקס keyless
+- ParaSwap: apiv6 NXDOMAIN; apiv5 /prices → 400 "Invalid Amount" בכל-הצורות — שבור/נעול keyless
+- 1inch: swap/v6.0/1/quote בלי-מפתח → 401 Unauthorized — תועד כצפוי
+- Across: app.across.to/api/swap → 200 keyless (param-חדש `amount`; טוקן-שגוי→404 מרשימת-טוקנים — ה-API מאמת); תגובה מלאה approvalTxns+steps+fees (Base USDC→BSC USDT)
+- deBridge DLN: dln.debridge.finance/v1.0/dln/quote → 200 keyless (USDC-1→USDT-56 · operatingExpense · fees מפורקים)
+- Stargate: api.stargate.finance NXDOMAIN — אין quote-API ציבורי חי
+- CoW: POST api.cow.fi/mainnet/api/v1/quote → 200 keyless (1000 USDC→WETH · buyAmount/feeAmount · validTo ~שעה) — batch-auction עם MEV-הגנה
+- חיפושות-רשת: bun+/tmp/ws2b.ts, 4 ניסיונות (3 שאילתות) → כולם 429 Too-many-requests (quota-גלובלי של ה-sdk, עקבי-עם הריצה-הקודמת); הוחלף בקריאת-docs-רשמיים-חי (docs.li.fi/llms.txt · docs.across.to/llms.txt) — אפס המצאה
+- ניקוי-טמפ: /tmp/ws2b.ts + 17 קבצי-ביניים נגרסו
+
+Stage Summary:
+- מטריצת-keyless נמדדה-שנית ואומתה-חי: חי-פתוח = Jupiter-lite (Solana, עד swap-מלא) · Li.Fi (מאגד-על EVM+Solana · "open, no API key") · Across (quote+calldata · param `amount`) · deBridge DLN · CoW (MEV-protected) · מת/נעול = 1inch, OpenOcean (Cloudflare), ParaSwap, Stargate
+- לראוטינג-סכומים-גדולים: Jupiter הוכיח פיצול 3-AMM על $1.21M ב-<0.2ש'; intents (Across/DLN/CoW-Fusion) הם הסטנדרט-חוצה-השרשרת; הניתן-לחיקוי בקוד-עצמאי: אגרוף-quotes ממקורות-keyless, בחירת-המיטב, סימולציית-פיצול מול AMM-math (eth_call ל-QuoterV2/getAmountsOut דרך RPC-ציבורי), מטמון-עצל+backoff+סולם-מקורות
+- השתלבות keyless מומלצת: Li.Fi כמוליך-ראשי (chain-agnostic) ↔ Across/DLN כחלופות-מנותקות · Jupiter-lite לסולנה · CoW ל-mainnet-MEV — ואגרוף-השוואה מקומי; 1inch/OpenOcean/ParaSwap/Socket/0x — לא-keyless או מתים היום
+
+---
+Task ID: 2-a
+Agent: research-web (2-a)
+Task: נתיבי swap אמיתיים STEEM/HIVE/BLURT+צמודים (SBD/HBD/BBD) — אימות-חי curl מהסנדבוקס
+
+Work Log:
+- קריאת סוף יומן-העבודה (offset 900→סוף) — הקשר v99/סולם-כלכלה/שחזור-מפתחות נספג
+- Hive-Engine (api.hive-engine.com/rpc/contracts) חי: tokens-טבלה חייה (BEE/SWAP.HIVE _id2, issuer honey-swap); market.metrics SWAP.HIVE → [] אמת-כנה: אין-תקלה — SWAP.HIVE הוא נכס-הבסיס (אין-מסחר עצמי, buyBook ריק); LEO metrics חי (lastPrice 0.0700 HIVE), SWAP.BTC/SWAP.ETH metrics חיים (מחירים ב-SWAP.HIVE, spread רחב: ETH bid 4915/ask 8612). buyBook-LEO מציג מבנה-פקודה מלא: quantity/price/tokensLocked/expiration — נמדד-חי מח"מ 30 יום (2,592,000ש' בין timestamp ל-expiration). פורמט-פקודה: custom_json id=ssc-mainnet-hive, required_auths(active), json {"contractName":"market","contractAction":"buy|sell","contractPayload":{symbol,quantity,price}}; קריאות-keyless, ביצוע=מפתח-active; עמלת-שוק דיפולט 0.25% (docs-היסטורי — docs כרגע לא-נגישים לאימות-חי)
+- שוק-פנימי Hive (api.hive.blog) חי: get_order_book[5] (bids HBD→HIVE ~0.0564 / asks ~0.0565) + get_ticker (latest 0.05650, vol 10,003 HIVE/יום). limit_order_create2 (op-id 21 אומת מהקוד-הרשמי ב-GitLab-syncad): owner/amount_to_sell/fill_or_kill/exchange_rate/expiration; MAX_LIMIT_ORDER_EXPIRATION=2419200ש'=28 יום (get_config חי); אין-עמלת-עסקה על limit (RC-בלבד); מפתח-active. HIVE_CUSTOM_OP_BLOCK_LIMIT=5KB (רלוונטי ל-engine-ops)
+- STEEM (api.steemit.com) חי: אותן-קריאות ענו — order_book SBD/STEEM (asks 0.104–0.11, bids 0.1001), ticker חי, STEEM_MAX_LIMIT_ORDER_EXPIRATION=2419200. מימד-עקביות: SBD על-שרשרת ≈ $0.61 — תואם HTX SBDUSDT $0.602
+- BLURT מפוצל-כנה: השרשרת חיה — https://rpc.blurt.blog ענה condenser_api.get_dynamic_global_properties (head 64,192,283 · זמן-ראש 2026-10-04T08:40 · אספקה 607.27M BLURT · עד-saboin); אבל הצומת-חסר market_history/condenser-market (get_ticker/get_order_book → "Could not find method"). rpc.blurt.world → NXDOMAIN (DoH Status3, SOA dns-parking — הדומיין מפארק); blurt-rpc-mainnet.blurt.foundation/krotoc/blurt-rpc.aureal.one/node.blurt.world NXDOMAIN; blurtlatam עם A-records אך nginx-פארק (POST-405, GET=פארק-פייג', TLS נסגר מהסנדבוקס); blurt.io מפארק, blurt.blog חי-200 (פרונט-חברתי בלבד). בורסות: Bithumb-BLURT delisted (status 5500), CoinGecko הסירה-את-המטבע ("coin not found"), אין-BLURT ב-Binance/MEXC/Gate/Upbit/Poloniex/SideShift (201 מטבעות-ללא-BLURT)
+- BlockTrades לא-נגיש מהסנדבוקס: DNS חי (164.132.48.22 OVH), http→308→https, אך TLS "tlsv1 alert internal error" ב-v2/v3/שורש (עם/בלי UA). סטטוס-אמיתי לא-ידוע — דרוש-בדיקה מ-IP אחר
+- בורסות-חיות: Binance HIVEUSDT/STEEMUSDT TRADING (minNotional $5, minQty 1 HIVE/0.1 STEEM; HIVEBTC/STEEMBTC ב-BREAK!); MEXC HIVE+STEEM-חי; Gate HIVE_USDT/STEEM_USDT חי; Upbit KRW-HIVE/KRW-STEEM/BTC-HIVE/BTC-STEEM/BTC-HBD חי; Bithumb STEEM_KRW/HIVE_KRW חי; HTX STEEMUSDT חי (~$27K) + SBDUSDT חי (~$1M vol) + HIVEUSDT אפס-פעילות; Poloniex STEEM_USDT חי (~$2.2M vol — הנזילות-הגדולה-ל-STEEM). CoinGecko: HIVE ב-14 בורסות, STEEM ב-13, SBD רק-HTX. אין-HBD/SBD/BLURT ב-Binance/MEXC/Gate
+- גשרים HIVE↔EVM: vsc.io מפארק ("/lander"), docs.vsc.io TLS-unrecognized, hive-evm.com NXDOMAIN — אין-גשר-EVM מקורי-חי שאומת; הנתיב-החי-היחיד = SWAP.ETH/SWAP.BTC pegged על Hive-Engine (tribaldex.com חי-200) — spread רחב, עסקאות-קטנות
+- חיפושות-רשת: 10/10 ניסיונות (bun+z-ai-web-dev-sdk, /tmp/ws2a.ts) → 429 "Too many requests" מתמשך — אפס-תוצאות; כל-המסקנות מגובות-חי ב-curl/DoH/CoinGecko-API/config-שרשרת בלבד
+- ניקוי-טמפ: /tmp/ws2a.ts + קבצי-ביניים (ops.hpp/hive-ops.html/he-market.md/mkt.js) — נגרסו
+
+Stage Summary:
+- מטריצת-swap-חיה ל-STEEM/HIVE: שוק-פנימי (HIVE↔HBD, STEEM↔SBD) חי-keyless-קריאה + פקודה-במפתח-active (28 יום מח"מ) · Hive-Engine (SWAP.HIVE-זוגות, כולל SWAP.ETH/SWAP.BTC↔HIVE) חי · בורסות-CEX חיות: Binance/MEXC/Gate (HIVE+STEEM-USDT, minNotional $5) · Upbit/Bithumb (KRW) · Poloniex+HTX (STEEM; HTX גם SBD — הבורסה-היחידה-עם-צמוד) · Upbit BTC-HBD (הבורסה-היחידה-עם-HBD)
+- BLURT: שרשרת-מייצרת-בלוקים-חי (rpc.blurt.blog), אך תשתית-ה-RPC-הציבורית-ההיסטורית מפארקת (blurt.world NXDOMAIN), אין-quote-שוק מהצומת-החי, ואפס-הנזילות-CEX (Bithumb-delisted, CG-removed) — נתיב-BLURT = מארב-שוק-פנימי בלבד ודורש-צומת-מלא-פרטי (market_history)
+- BlockTrades: מת-מהסנדבוקס (TLS-ידני-דחייה) — לא-ניתן-להישען עליו-כרגע
+- גשרי-EVM: אין-מקורי-חי; Engine-pegged (SWAP.ETH/BTC) הוא-הנתיב-הפעיל-היחיד
+
+---
+Task ID: 1..8 (orchestrator — מבצע-הדקס v129)
+Agent: Z.ai orchestrator (main)
+Task: דקס-הריבון (SAOS-DEX) — החלפות אמיתיות ל-STEEM/HIVE/BLURT והצמודים, גרידים-מתנגדים על הרשת-שלנו, ארביטראז' רישתי לסוכנים, ראוטר רב-קפיצות, פתיחה לרשתות-חוץ keyless
+
+Work Log:
+- סיור: זוהה בסיס קיים — dex-live.ts v20 (קריאה בלבד), hive-grid v116 (נייר על חי), mm-live v126/127 (מסילת-חי עם txid), liquidity-radar v21, conversion-chamber + microgrid (SAOS-NET חיה, בלוק 27,920)
+- מחקר-מקביל: Task 2-a (נתיבי-swap STEEM/HIVE/BLURT) ✓ ו-Task 2-b (מאגדים keyless) ✓ — דו"חות בסעיפים לעיל. Task 2-c נפל 3× על quota-רשת — פרמטרי-גריד נלקחו מהידע-המוסדי (Hummingbot-PMM/גריד v116 קיים) ואומתו בפועל
+- אימות-חי מקדים: Binance HIVE/STEEM חי · Hive-Engine metrics חי (SWAP.HIVE=בסיס, ריק-כנה) · STEEM/HIVE ספרים-חיים · BLURT: rpc.blurt.world NXDOMAIN, החי rpc.blurt.blog בלי market_history · BlockTrades TLS-שבור מהסנדבוקס · CoinGecko הסירה BLURT
+- רישום-מארחים (security.ts): api.hive-engine.com · rpc.blurt.blog · li.quest · app.across.to · dln.debridge.finance
+- סכימה (Prisma): DexPool · DexSwap · DexGrid · DexGridFill · DexArbOpp + db:push ✓
+- מנוע (dex-core.ts): AMM קבוע-מוצר 30bps · ראוטר BFS עד-3-קפיצות · סליקה-פנימית-אמיתית ב-$transaction · זריעה מנזיל-מדוד (chain-liquid-fleet דרך mm-live getChainBalance + radar fallback + יתרת-Engine) · גרידים-מתנגדים עם גארד-trend-break (3×recenter) ותקרת-2-מילויים-לטיק · סורק-ארב נטו-אחרי-עמלות עם דדופ-15-דק' · ביצוע-ארב במידול-התכנסות מדויק: X=√(anchor·k)−rQ · B=√(k/anchor)−rB, תקרה ⅓-מהצד-הנמכר
+- מתאמים (dex-venues.ts): steem/hive פנימי · binance bookTicker · engine metrics+balances · blurt-status כנה · CoinGecko יחס-BLURT · jupiter-lite · lifi · across · dln — מטמון 45ש'/שלילי-30ש', אפס-זריקות
+- שער (api/saos/dex): GET לוח מלא + ?quote=1 + תאימות-אחורה מלאה (pairs/spreads/v3 ברמה-עליונה — המצפים הישנים לא נשברו) · POST requireAuth+64KB+4ש׳: swap/reseed/grid-create/grid-toggle/tick/arb-scan/arb-execute
+- תצוגה (views/dex.tsx + shell + page): סוופ-וידג'ט עם ציטוט · פולים מול עוגן · ארב חי+הזדמנויות · גרידים+טיק · 10 venues · יומן · כנות-מלאה
+- E2E חי: זריעה ראשונה חשפה-אמת (מכ"ם דיווח 3,962 STEEM "armed" = SP נעול — הוחלף למדידת-נזיל-מהשרשרת; headcorner נזיל 15.55 STEEM בלבד) → תיקון-חוק-גיבוי לנזיל-בלבד · פול HIVE/STEEM חי מצי-נזיל (2.33 STEEM/2.63 HIVE) · ציטוט+סוופ 0.5 HIVE סליקה-אמיתית (השפעה 50.8% — כנה למיקרו-נזילות) · גריד-sovereign-grid נוצר · גארד-trend-break נכנס חי בעצמו (−2937bps) · ארב נתפס (+2901bps נטו) והוצא — התכנסות מדויקת לעוגן 0.889433 · מצב-סופי: dev −9.5bps, גארד שוחרר, 2 סוופים בפנקס
+- דפדפן: תצוגת-#dex רינדור מלא · ציטוט-חי מה-UI ("HIVE→STEEM → 0.164782") · בצע-סוופ ננעל-עד-ציטוט-תקין · Jupiter/Li.Fi חיים בלוח · אפס-שגיאות-קונסולה · פוטר-דביק · אפס-גלישה-אופקית
+- tsc=0 · lint=0 · dev.log נקי
+
+Stage Summary:
+- SAOS-DEX v129 חי: סוופים-אמיתיים מגובי-נזיל-מדוד, גרידים-מתנגדים של סוכנים, ארב-התכנסות מדויק, עוגני-חוץ חיים (STEEM/HIVE פנימי · Binance · Hive-Engine · CoinGecko) + צבירים keyless (Jupiter/Li.Fi/Across/DLN — ציטוט בלבד בכנות)
+- חוק-גיבוי חדש ומחייב: רק נזיל-מדוד מהשרשרת גובה פול — SP/HP נעולים לעולם לא (נתפס-חי ותוקן)
+- פתוח-כנה: HBD/SBD/HIVE-נזיל אפס עד שחרור-הכספת-מחר (הערות-פול מסבירות) · BLURT דורש צומת-פרטי עם market_history (ציבורי-מת) · רגל-ארב-חוץ חיה רק כשמסילת-mm-live חמושה (requireAuth+arm, txid)

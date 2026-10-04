@@ -20,7 +20,7 @@ import { SAOS_VERSION, SAOS_CODENAME, SAOS_CODENAME_SHORT } from "@/lib/saos/ver
 import { MESH_CONTRACT_COUNT, MESH_LINK_CHAIN_LENGTH } from "@/lib/saos/mesh-facts";
 import type { LiveProbesData, StatusData } from "./types";
 
-export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "hive-grid" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam" | "review" | "system1" | "resilience" | "steem-market" | "soldiers" | "orchestra";
+export type ViewId = "overview" | "worth" | "treasury" | "irrigation" | "agri" | "snapshot" | "syncradar" | "roast" | "networkmap" | "bridges" | "breakthrough" | "conversion" | "tuner" | "sovereign-net" | "network360" | "security" | "reshut" | "keeper" | "networks" | "agents" | "seals" | "ops" | "mesh" | "workboard" | "fleet" | "sovereign-key" | "sovereignty" | "hands" | "smartlink" | "agentchat" | "one-net" | "proofs" | "energy" | "microgrid" | "coin" | "exchange" | "dex" | "hive-grid" | "flow" | "roses" | "economy" | "recovery" | "research" | "ax" | "redteam" | "review" | "system1" | "resilience" | "steem-market" | "soldiers" | "orchestra";
 
 export interface ViewDef {
   id: ViewId;
@@ -326,6 +326,14 @@ export const VIEWS: ViewDef[] = [
     label: "הבורסה",
     short: "הבורסה",
     desc: "בורסה ריבונית על SAOS-NET — צמדי המטבעות שלנו מול הגדולים בלבד · SAOS-M $0.001 · קציר לאוצר · ראוטר לדקסים · השרת על הרשת שלנו",
+    icon: <ArrowLeftRight size={16} />,
+    group: "כלכלה ואנרגיה"
+  },
+  {
+    id: "dex",
+    label: "דקס-הריבון (SAOS-DEX)",
+    short: "דקס",
+    desc: "v129 דקס-הריבון: החלפות אמיתיות ל-STEEM/HIVE/BLURT והצמודים (SBD/HBD) — סליקה-פנימית מגובת-מלאי-אוצר-מדוד · ראוטר רב-קפיצות · גרידים-מתנגדים של סוכנים על הרשת-שלנו · סורק-ארביטראז' רישתי פה-מול-שם נטו-אחרי-עמלות · עוגני-חוץ חיים (STEEM/HIVE פנימי · Binance · Hive-Engine · CoinGecko) · צבירים keyless (Jupiter/Li.Fi/Across/DLN)",
     icon: <ArrowLeftRight size={16} />,
     group: "כלכלה ואנרגיה"
   },
