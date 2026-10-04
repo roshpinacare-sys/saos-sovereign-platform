@@ -33,8 +33,12 @@ export const MM_FLEET_SOLDIERS = [
   "cashmachine", "haran", "israelnews", "lsa", "macrame", "siq", "wic", "wog", "woq",
 ] as const;
 
-/** עמלת-השוק-הפנימי — ברירת-מחדל שמרנית; ניתנת לתצורה (docs/MARKET-MAKER-STRATEGY.md §1.5) */
-export const DEFAULT_FEE_BPS = 75;
+/** עמלת-השוק-הפנימי — v127 תיקון-כיול: פקודת-לימיט (מייקר) בשוק-הפנימי של
+ *  HIVE/STEEM אינה משלמת עמלת-מסחר כלל — עובדה על-השרשרת. ברירת-ה-75bps
+ *  מ-v126 הייתה שמרנות-יתר שחסמה כל-מדרגה (נמדד: noopFeeGate 10/10 חיילים,
+ *  אפס-מילויים ב-10 טיקים) — רווח-נייר חסר, לא רווח-מופרז. העמלה נשארת בתצורה
+ *  (כללי-venue להתאמות-פנימיות) והחיצוני הוא אפס-אמיתי. */
+export const DEFAULT_FEE_BPS = 0;
 /** שולי-רווח מעל-העמלה שהמדרגה חייבת להציע */
 export const DEFAULT_MIN_EDGE_BPS = 15;
 /** killswitch: הפסד% מהתקציב שמשהה חייל */
@@ -47,6 +51,18 @@ export const SPREAD_FLOOR_BPS = 10;
 export const MAX_INTERNAL_MATCHES_PER_TICK = 2;
 /** יועץ-LLM: כל כמה טיקים */
 export const ADVISE_EVERY_TICKS = 30;
+
+/**
+ * v127 כיול-פיזור-אדפטיבי: בשוק-רגוע (σ נמוך) הסולמות מתכווצים סביב המחיר
+ * כדי שהספר באמת יחצה אותם (נמדד: σ≈8bps מול פיזור-פרופיל 60..300bps = אפס
+ * מילויים לנצח); בשוק-סוער הפיזור מתרחב עד חסם-הפרופיל. חצי-מדרגה חייב תמיד
+ * לשלם עמלה+שוליים — שער-הרווחיות מ-v126 נשמר בדיוק.
+ */
+export function effectiveSpacing(st: MmSoldierState, sigmaBps: number, minEdgeBps: number): number {
+  const floor = Math.max(minEdgeBps * 2, 25); // שער-רווחיות + רצפת-גריד מעשית
+  const adaptive = Math.ceil(Math.max(floor, sigmaBps * 2.5));
+  return Math.min(st.spacingBps, adaptive); // פרופיל-החייל הוא החסם-הרחב
+}
 
 /** פרופיל פר-חייל: נגזר דטרמיניסטית מהאינדקס — שונות-מכוונת בין החיילים כדי
  *  שהסולמות לא ישכבו זה-על-זה והווליום יתפרס על פס-מחירים רחב */
@@ -103,7 +119,7 @@ export interface MmNote {
 }
 
 export interface MmFleetState {
-  version: 2;
+  version: 3; // v127 — הגירה-כנה: v126 החזיק עמלה-שמרנית 75bps שחסמה הכל; v3 = תצורה-מכוילת (עמלה-0 אמיתית למייקר)
   feeBps: number;
   minEdgeBps: number;
   drawdownKillPct: number;
@@ -149,7 +165,7 @@ function freshSoldier(soldier: string, idx: number): MmSoldierState {
 
 function freshState(): MmFleetState {
   return {
-    version: 2,
+    version: 3,
     feeBps: DEFAULT_FEE_BPS,
     minEdgeBps: DEFAULT_MIN_EDGE_BPS,
     drawdownKillPct: DEFAULT_DRAWDOWN_KILL_PCT,
@@ -167,7 +183,10 @@ function loadState(): MmFleetState {
   try {
     const raw = fs.readFileSync(STATE_PATH, "utf8");
     const s = JSON.parse(raw) as MmFleetState;
-    if (s && s.version === 2 && Array.isArray(s.soldiers) && s.soldiers.length === MM_FLEET_SOLDIERS.length) return s;
+    if (s && s.version === 3 && Array.isArray(s.soldiers) && s.soldiers.length === MM_FLEET_SOLDIERS.length) return s;
+    // v127 — הגירה: מצב-v126 (version 2) נזרק כנה — הוא החזיק עמלת-75bps
+    // שחסמה כל-מדרגה (נמדד noopFeeGate 21/חייל). אפס-מילויים-אמיתיים הלכו
+    // לאיבוד (כנות: המצב-הישן היה אפסי); הספר-וה-σ נמדדים-מחדש בטיק-הבא.
   } catch {
     /* absent → fresh (self-healing, כמו hive-grid v116) */
   }
@@ -205,11 +224,11 @@ export function reservationOf(st: MmSoldierState, mid: number): number {
 
 interface LadderLevel { side: "buy" | "sell"; price: number; sizeHive: number; filled: number }
 
-function buildLadder(st: MmSoldierState, reservation: number): LadderLevel[] {
+function buildLadder(st: MmSoldierState, reservation: number, spacingBps: number): LadderLevel[] {
   const levels: LadderLevel[] = [];
   for (let i = 1; i <= 4; i++) {
-    levels.push({ side: "sell", price: reservation * (1 + (st.spacingBps * i) / 10_000), sizeHive: st.sizeHive, filled: 0 });
-    levels.push({ side: "buy", price: reservation * (1 - (st.spacingBps * i) / 10_000), sizeHive: st.sizeHive, filled: 0 });
+    levels.push({ side: "sell", price: reservation * (1 + (spacingBps * i) / 10_000), sizeHive: st.sizeHive, filled: 0 });
+    levels.push({ side: "buy", price: reservation * (1 - (spacingBps * i) / 10_000), sizeHive: st.sizeHive, filled: 0 });
   }
   return levels;
 }
@@ -292,8 +311,10 @@ export async function tickMmFleet(): Promise<FleetTickOutcome> {
   // ── מילויים חיצוניים (הספר האמיתי חוצה את המדרגות) ──
   for (const st of s.soldiers) {
     if (st.paused) continue;
+    // v127 — פיזור-אדפטיבי: הסולם נבנה על הפיזור-האפקטיבי, לא על פרופיל-הרחב
+    const eff = effectiveSpacing(st, s.sigmaBps, s.minEdgeBps);
     // שער-רווחיות: חצי-מדרגה חייב לשלם עמלה + שוליים
-    if (st.spacingBps / 2 < s.feeBps + s.minEdgeBps) {
+    if (eff / 2 < s.feeBps + s.minEdgeBps) {
       st.noopFeeGate += 1;
       continue;
     }
@@ -301,7 +322,7 @@ export async function tickMmFleet(): Promise<FleetTickOutcome> {
       st.noopSpread += 1;
       continue;
     }
-    const levels = buildLadder(st, st.reservation ?? book.mid);
+    const levels = buildLadder(st, st.reservation ?? book.mid, eff);
     for (const lvl of levels) {
       if (lvl.side === "buy" && book.bestAsk! <= lvl.price) {
         const f = applyBuy(st, lvl.price, lvl.sizeHive, s.feeBps, false);
@@ -318,12 +339,14 @@ export async function tickMmFleet(): Promise<FleetTickOutcome> {
     for (const a of s.soldiers) {
       if (internalMatches >= MAX_INTERNAL_MATCHES_PER_TICK) break;
       if (a.paused) continue;
-      if (a.spacingBps / 2 < s.feeBps + s.minEdgeBps) continue;
-      const aBuy = a.reservation! * (1 - a.spacingBps / 10_000); // המדרגה-הפנימית ביותר
+      const effA = effectiveSpacing(a, s.sigmaBps, s.minEdgeBps);
+      if (effA / 2 < s.feeBps + s.minEdgeBps) continue;
+      const aBuy = a.reservation! * (1 - effA / 10_000); // המדרגה-הפנימית ביותר
       for (const b of s.soldiers) {
         if (a.soldier === b.soldier || b.paused) continue;
-        if (b.spacingBps / 2 < s.feeBps + s.minEdgeBps) continue;
-        const bSell = b.reservation! * (1 + b.spacingBps / 10_000);
+        const effB = effectiveSpacing(b, s.sigmaBps, s.minEdgeBps);
+        if (effB / 2 < s.feeBps + s.minEdgeBps) continue;
+        const bSell = b.reservation! * (1 + effB / 10_000);
         if (aBuy >= bSell && a.inventory.hbd > 0 && b.inventory.hive >= b.sizeHive) {
           const pm = (aBuy + bSell) / 2;
           const q = Math.min(b.sizeHive, Math.floor((a.inventory.hbd / (pm * (1 + s.feeBps / 10_000))) * 100) / 100);
@@ -391,7 +414,7 @@ export async function tickMmFleet(): Promise<FleetTickOutcome> {
 
 const ADVISOR_SYSTEM = [
   "אתה היועץ הריבוני של צי עושה-השוק (9 חיילים על השוק הפנימי HIVE HBD:HIVE).",
-  "תקבל סיכום-KPI כנה (נייר על מחירים אמיתיים, עמלה 75bps מודלה).",
+  "תקבל סיכום-KPI כנה (נייר על מחירים אמיתיים; עמלה חיצונית אפס-אמיתית למייקר, עמלת-venue רק בהתאמות-פנימיות).",
   "כתב הערת-כיוונון אחת בעברית, 3-6 שורות: מה עובד, מה מסוכן, והמלצה מספרית אחת",
   "(למשל: הגדל/הקטן spacingBps של חייל מסוים, הרווח/הצמק גודל). בלי מילים-סתם, בלי קישורים.",
 ].join(" ");
@@ -494,6 +517,28 @@ export async function adviseNow(): Promise<{ ok: boolean; he: string }> {
 
 // ─── פעולות-מפעיל (הנתיב-מאומת) ────────────────────────────────────────────
 
+/** v127 — כיווץ-פרופיל-פיזור אל הרצפה-האדפטיבית (כלי-המושל): כשהשוק רגוע,
+ *  פרופיל-החייל הרחב (60..300bps) מבטיח סולם-שמעולם לא נחצה — הכיווץ נשמר
+ *  במצב-החייל עצמו (לא רק בטיק) כדי שהלוח והמסך יראו את-האמת.
+ *  גבולות-קשיחים: לעולם לא מתחת ל-30bps ולא מעל פרופיל-המקור. */
+export function calibrateFleetSpacing(): { ok: boolean; he: string; changed: string[] } {
+  const s = loadState();
+  const changed: string[] = [];
+  for (const st of s.soldiers) {
+    if (st.paused) continue;
+    const target = Math.max(30, Math.min(st.spacingBps, Math.ceil(s.sigmaBps * 2.5)));
+    if (target < st.spacingBps) {
+      st.spacingBps = target;
+      changed.push(`${st.soldier}→${target}`);
+    }
+  }
+  if (changed.length) {
+    pushLog(s, "calibrate", `פיזורים כווצו לרצפת-ה-σ (נמדד ${s.sigmaBps.toFixed(0)}bps): ${changed.join(" · ")}`);
+    saveState(s);
+  }
+  return { ok: true, he: changed.length ? `${changed.length} חיילים כווצו — ${changed.join(" · ")}` : "אין כיווץ נדרש", changed };
+}
+
 export function pauseSoldier(soldier: string, reason = "השהיה ידנית מאומת"): { ok: boolean; he: string } {
   const s = loadState();
   const st = s.soldiers.find((x) => x.soldier === soldier);
@@ -544,7 +589,7 @@ export interface MmFleetBoard {
   drawdownKillPct: number;
   sigmaBps: number;
   fleetKpi: MmFleetState["fleetKpi"];
-  soldiers: Array<Omit<MmSoldierState, "fills"> & { lastFillAt: string | null }>;
+  soldiers: Array<Omit<MmSoldierState, "fills"> & { lastFillAt: string | null; effectiveSpacingBps: number }>;
   recentFills: MmFill[];
   notes: MmNote[];
   log: MmFleetState["log"];
@@ -572,6 +617,7 @@ export async function mmFleetBoard(): Promise<MmFleetBoard> {
     soldiers: s.soldiers.map((st) => ({
       soldier: st.soldier,
       spacingBps: st.spacingBps,
+      effectiveSpacingBps: effectiveSpacing(st, s.sigmaBps, s.minEdgeBps),
       sizeHive: st.sizeHive,
       skewK: st.skewK,
       reservation: st.reservation,

@@ -56,4 +56,13 @@ export async function register(): Promise<void> {
   } catch (err) {
     console.error("[saos-oversight] register failed (honest, non-fatal):", err);
   }
+  try {
+    // v127 — המושל הריבוני: הלולאה שמרוויחה — קציר-מילויים-חיים לפנקס-האוצר,
+    // רה-באנד-ספר-STEEM בתוך-חסמים, כיול-צי, שער-קיורציה-חי. פוליסה-עצמית
+    // (state/sovereign-policy.json) — חסמים-קשיחים בקוד גבוהים-ממנה.
+    const { startSovereignGovernor } = await import("./lib/saos/governor");
+    startSovereignGovernor();
+  } catch (err) {
+    console.error("[saos-governor] register failed (honest, non-fatal):", err);
+  }
 }

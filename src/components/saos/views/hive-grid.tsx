@@ -281,6 +281,7 @@ export default function HiveGridView() {
       )}
 
       <FleetMmPanel onNote={(m) => setNote(m)} />
+      <SovereignProfitPanel onNote={(m) => setNote(m)} />
     </div>
   );
 }
@@ -298,7 +299,7 @@ interface MmFleetBoardView {
   drawdownKillPct: number;
   sigmaBps: number;
   fleetKpi: { ticks: number; lastTickAt: string | null; fills: number; volumeHive: number; volumeHbd: number; internalVolumeHbd: number; internalMatches: number; realizedHbd: number; feePaidHbd: number; advises: number };
-  soldiers: Array<{ soldier: string; spacingBps: number; sizeHive: number; skewK: number; reservation: number | null; inventory: { hive: number; hbd: number }; avgCost: number | null; realizedHbd: number; feePaidHbd: number; volumeHive: number; volumeHbd: number; fillBuy: number; fillSell: number; internalBuys: number; internalSells: number; noopFeeGate: number; noopSpread: number; paused: boolean; pauseReason: string | null; lastFillAt: string | null }>;
+  soldiers: Array<{ soldier: string; spacingBps: number; effectiveSpacingBps: number; sizeHive: number; skewK: number; reservation: number | null; inventory: { hive: number; hbd: number }; avgCost: number | null; realizedHbd: number; feePaidHbd: number; volumeHive: number; volumeHbd: number; fillBuy: number; fillSell: number; internalBuys: number; internalSells: number; noopFeeGate: number; noopSpread: number; paused: boolean; pauseReason: string | null; lastFillAt: string | null }>;
   recentFills: MmFillView[];
   notes: MmNoteView[];
   log: { at: string; kind: string; he: string }[];
@@ -414,7 +415,7 @@ function FleetMmPanel({ onNote }: { onNote: (m: string) => void }) {
                 {data.soldiers.map((s) => (
                   <tr key={s.soldier} className="border-t border-white/[0.04]">
                     <td className="py-1 font-medium text-zinc-200">{s.soldier}</td>
-                    <td className="py-1 text-zinc-400">{s.spacingBps}bps × {s.sizeHive} HIVE</td>
+                    <td className="py-1 text-zinc-400">{s.spacingBps}bps (אפקטיבי {s.effectiveSpacingBps}) × {s.sizeHive} HIVE</td>
                     <td className="py-1 text-zinc-300">{s.inventory.hive.toFixed(1)}</td>
                     <td className="py-1 text-zinc-300">{s.inventory.hbd.toFixed(1)}</td>
                     <td className="py-1 text-zinc-400">{s.avgCost ? s.avgCost.toFixed(5) : "—"}</td>
@@ -503,7 +504,7 @@ function FleetMmPanel({ onNote }: { onNote: (m: string) => void }) {
                     <td className="py-1 text-zinc-400">{o.orderid}</td>
                     <td className={`py-1 ${o.side === "buy" ? "text-emerald-300" : "text-rose-300"}`}>{o.side === "buy" ? "קנייה" : "מכירה"}</td>
                     <td className="py-1 text-zinc-200">{o.price.toFixed(6)}</td>
-                    <td className="py-1">{o.status === "open" ? <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">פתוחה</Badge> : o.status === "assumed-filled" ? <Badge variant="outline" className="border-amber-500/30 text-amber-300">מילוי-מניח</Badge> : <Badge variant="outline" className="border-zinc-600 text-zinc-400">{o.status === "canceled" ? "בוטלה" : "פקעה"}</Badge>}</td>
+                    <td className="py-1">{o.status === "open" ? <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">פתוחה</Badge> : o.status === "filled" ? <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/10 text-emerald-200">מולאה-מאומת</Badge> : o.status === "assumed-filled" ? <Badge variant="outline" className="border-amber-500/30 text-amber-300">מילוי-מניח</Badge> : <Badge variant="outline" className="border-zinc-600 text-zinc-400">{o.status === "canceled" ? "בוטלה" : "פקעה"}</Badge>}</td>
                     <td className="py-1 font-mono text-[10px] text-zinc-500">{o.txid.slice(0, 14)}…</td>
                   </tr>
                 ))}
@@ -533,6 +534,216 @@ function FleetMmPanel({ onNote }: { onNote: (m: string) => void }) {
           </ScrollArea>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ─── v127 — קופת-הריבונות · המושל האוטונומי ─────────────────────────────────
+
+interface SovereignProfitView {
+  ok?: boolean;
+  law: string;
+  hardCaps: { spacingBpsMin: number; spacingBpsMax: number; sizeSteemMax: number; sizeHiveMax: number; maxOpenOrders: number; rebankDriftMinBps: number };
+  policy: { version: number; liveTrading: boolean; liveCuration: boolean; steemGrid: { spacingBps: number; sizeSteem: number; rebankDriftBps: number }; updatedAt: string; law: string };
+  lastRun: { ok: boolean; he: string; steps: string[]; fills: number; realized: number; deployed: number; at: string; sweep: number } | null;
+  treasury: {
+    total: number;
+    byKind: Array<{ kind: string; count: number; amount: number }>;
+    recent: Array<{ id: number; ref: string; kind: string; chain: string; owner: string; amount: number; currency: string; note: string; at: string }>;
+  };
+  decisions: Array<{ ref: string; subject: string; verdict: string; reason: string; evidence: string; at: string }>;
+  pnlBook: { owners: Record<string, { avgCost: number | null; baseHeld: number; quoteSpent: number; quoteReceived: number; realized: number }>; updatedAt: string };
+  live: { liveArmed: boolean; openOrders: number; assumedFilled: number; foreignOpenOrders: number };
+  fleet: { ticks: number; fills: number; realizedHbd: number; feePaidHbd: number; sigmaBps: number };
+  journalLines: number;
+  updatedAt: string;
+}
+
+function SovereignProfitPanel({ onNote }: { onNote: (m: string) => void }) {
+  const { data, error, loading, updatedAt, refresh } = useLive<SovereignProfitView>("/api/saos/sovereign-profit", 30000);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const post = async (action: string, extra: object = {}) => {
+    setBusy(action);
+    try {
+      const res = await fetch("/api/saos/sovereign-profit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      const j = (await res.json()) as { ok?: boolean; he?: string; error?: string };
+      onNote(j.ok ? (j.he ?? "בוצע") : (j.error ?? j.he ?? "נדחה (דרוש אימות-בעלים)"));
+      if (j.ok) refresh();
+    } catch (e) {
+      onNote(`כשל-רשת כנה: ${String(e).slice(0, 90)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (error && !data) {
+    return (
+      <Card className="border-red-500/30 bg-red-500/5">
+        <CardContent className="p-4 text-sm text-red-300">קופת-הריבונות לא נגישה כרגע — כנות, לא נתונים מדומים. {String(error).slice(0, 160)}</CardContent>
+      </Card>
+    );
+  }
+  if (!data) return <Card className="border-white/[0.08] bg-zinc-900/40"><CardContent className="p-4 text-sm text-zinc-400">{loading ? "טוען את קופת-הריבונות…" : "אין נתוני-אוצר"}</CardContent></Card>;
+
+  const t = data.treasury;
+  const liveFills = t.byKind.find((k) => k.kind === "mm-live-fill");
+  const fleetProfit = t.byKind.find((k) => k.kind === "mm-fleet-realized");
+  const owners = Object.entries(data.pnlBook.owners);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold text-zinc-100">קופת-הריבונות · המושל האוטונומי</h2>
+        <Badge className={data.policy.liveTrading ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-300" : "border-zinc-600 bg-zinc-800 text-zinc-400"}>
+          סחר-חי: {data.policy.liveTrading ? "פתוח" : "סגור"}
+        </Badge>
+        <Badge className={data.policy.liveCuration ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-300" : "border-zinc-600 bg-zinc-800 text-zinc-400"}>
+          קיורציה-חי: {data.policy.liveCuration ? "פתוח" : "סגור"}
+        </Badge>
+        <span className="text-[11px] text-zinc-500">עודכן {timeAgo(updatedAt)}</span>
+      </div>
+      <p className="text-xs leading-relaxed text-zinc-400">{data.law}</p>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+        {[
+          { l: "רווח-נטו-כולל בפנקס", v: `${t.total >= 0 ? "+" : ""}${t.total.toFixed(6)} SBD/HBD` },
+          { l: "מילויים-חיים בפנקס", v: `${liveFills?.count ?? 0} · ${liveFills?.amount?.toFixed(6) ?? "0"} רווח` },
+          { l: "רווח-צי-פנימי (נייר)", v: `${fleetProfit?.amount?.toFixed(6) ?? "0"} HBD` },
+          { l: "מחזורי-מושל", v: `${data.journalLines} · פקודות-פתוחות ${data.live.openOrders}` },
+          { l: "פקודות-זרות-פתוחות (מפעילים-מקבילים)", v: data.live.foreignOpenOrders < 0 ? "לא נמדד" : String(data.live.foreignOpenOrders) },
+          { l: "גריד-STEEM ריבוני", v: `${data.policy.steemGrid.spacingBps}bps × ${data.policy.steemGrid.sizeSteem} STEEM` },
+          { l: "מילויים-מניח-במסילה", v: `${data.live.assumedFilled}` },
+        ].map((k) => (
+          <Card key={k.l} className="border-white/[0.08] bg-zinc-900/40">
+            <CardContent className="p-3">
+              <p className="text-[10px] text-zinc-500">{k.l}</p>
+              <p className="mt-1 truncate text-sm font-semibold text-zinc-100" title={k.v}>{k.v}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={busy !== null} onClick={() => post("governor-cycle")} aria-label="מחזור מושל עכשיו">מחזור-מושל עכשיו</Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy !== null}
+          onClick={() => post("policy-toggle", { liveTrading: !data.policy.liveTrading })}
+          aria-label="מתג סחר-חי"
+        >
+          {data.policy.liveTrading ? "סגירת סחר-חי" : "פתיחת סחר-חי"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy !== null}
+          onClick={() => post("policy-toggle", { liveCuration: !data.policy.liveCuration })}
+          aria-label="מתג קיורציה-חי"
+        >
+          {data.policy.liveCuration ? "סגירת קיורציה-חי" : "פתיחת קיורציה-חי"}
+        </Button>
+        <span className="text-[10px] leading-relaxed text-zinc-500">
+          חסמים-קשיחים בקוד: פיזור {data.hardCaps.spacingBpsMin}-{data.hardCaps.spacingBpsMax}bps · גודל ≤{data.hardCaps.sizeSteemMax} · ≤{data.hardCaps.maxOpenOrders} פקודות-פתוחות · דריפת-רה-באנד ≥{data.hardCaps.rebankDriftMinBps}bps
+        </span>
+      </div>
+
+      {data.lastRun && (
+        <Card className="border-white/[0.08] bg-zinc-900/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-zinc-200">
+              מחזור-המושל האחרון #{data.lastRun.sweep} — {data.lastRun.ok ? "הושלם" : "נכשל כנה"} ({data.lastRun.at.slice(11, 19)})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-xs text-zinc-200">{data.lastRun.he}</p>
+            <ScrollArea className="mt-2 max-h-48 overflow-y-auto scroll-slim">
+              <ul className="space-y-1 text-[11px]">
+                {data.lastRun.steps.map((s, i) => (
+                  <li key={i} className="rounded-md border border-white/[0.06] bg-black/20 p-2 text-zinc-300">{s}</li>
+                ))}
+              </ul>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-white/[0.08] bg-zinc-900/40">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">פנקס-האוצר — 25 הרשומות-האחרונות (כל-רשומה עם ראיה)</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ScrollArea className="max-h-80 overflow-y-auto scroll-slim">
+              <table className="w-full text-xs">
+                <thead className="text-zinc-500"><tr><th className="py-1 text-start">זמן</th><th className="py-1 text-start">סוג</th><th className="py-1 text-start">שרשרת</th><th className="py-1 text-start">בעלים</th><th className="py-1 text-start">סכום</th><th className="py-1 text-start">מה-קרה</th></tr></thead>
+                <tbody>
+                  {t.recent.map((r) => (
+                    <tr key={r.id} className="border-t border-white/[0.04]">
+                      <td className="py-1 text-zinc-500">{r.at.slice(5, 16)}</td>
+                      <td className="py-1 text-zinc-400">{r.kind}</td>
+                      <td className="py-1 text-zinc-300">{r.chain}</td>
+                      <td className="py-1 text-zinc-300">{r.owner}</td>
+                      <td className={`py-1 font-medium ${r.amount > 0 ? "text-emerald-300" : r.amount < 0 ? "text-rose-300" : "text-zinc-400"}`}>{r.amount > 0 ? "+" : ""}{r.amount.toFixed(6)} {r.currency}</td>
+                      <td className="py-1 text-zinc-300" title={r.ref}>{r.note}</td>
+                    </tr>
+                  ))}
+                  {t.recent.length === 0 && <tr><td colSpan={6} className="py-2 text-zinc-500">הפנקס ריק — מחזור-המושל הראשון יקצור את הפקודות-החיות</td></tr>}
+                </tbody>
+              </table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card className="border-white/[0.08] bg-zinc-900/40">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">הכרעות-המושל (SovereignDecision · ראיות-נמדדות)</CardTitle></CardHeader>
+            <CardContent className="p-4 pt-0">
+              <ScrollArea className="max-h-60 overflow-y-auto scroll-slim">
+                <ul className="space-y-2 text-[11px]">
+                  {data.decisions.map((d, i) => (
+                    <li key={i} className="rounded-md border border-white/[0.06] bg-black/20 p-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-zinc-600">{d.at.slice(5, 16)}</span>
+                        <Badge variant="outline" className={d.verdict === "executed" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/30 text-amber-300"}>{d.verdict}</Badge>
+                        <span className="text-zinc-300">{d.subject}</span>
+                      </div>
+                      <p className="mt-1 leading-relaxed text-zinc-400">{d.reason}</p>
+                    </li>
+                  ))}
+                  {data.decisions.length === 0 && <li className="text-zinc-500">אין הכרעות עדיין — מחזור-המושל הראשון יחליט</li>}
+                </ul>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/[0.08] bg-zinc-900/40">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">ספר-המלאי של הפקודות-החיות (מומש/מלאי/הוצא/התקבל)</CardTitle></CardHeader>
+            <CardContent className="p-4 pt-0">
+              <ScrollArea className="max-h-40 overflow-y-auto scroll-slim">
+                <table className="w-full text-xs">
+                  <thead className="text-zinc-500"><tr><th className="py-1 text-start">בעלים</th><th className="py-1 text-start">מלאי</th><th className="py-1 text-start">עלות-ממוצעת</th><th className="py-1 text-start">רווח-ממומש</th><th className="py-1 text-start">הוצא/התקבל</th></tr></thead>
+                  <tbody>
+                    {owners.map(([owner, b]) => (
+                      <tr key={owner} className="border-t border-white/[0.04]">
+                        <td className="py-1 text-zinc-200">{owner}</td>
+                        <td className="py-1 text-zinc-300">{b.baseHeld.toFixed(3)}</td>
+                        <td className="py-1 text-zinc-400">{b.avgCost ? b.avgCost.toFixed(6) : "—"}</td>
+                        <td className={`py-1 ${b.realized >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{b.realized >= 0 ? "+" : ""}{b.realized.toFixed(6)}</td>
+                        <td className="py-1 text-zinc-500">{b.quoteSpent.toFixed(3)} / {b.quoteReceived.toFixed(3)}</td>
+                      </tr>
+                    ))}
+                    {owners.length === 0 && <tr><td colSpan={5} className="py-2 text-zinc-500">אין-מלאי-בספר עדיין</td></tr>}
+                  </tbody>
+                </table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -760,3 +760,26 @@ model OrchestraVote {
   @@index([windowIndex, createdAt])
   @@index([createdAt])
 }
+
+// ─── v127.0.0 "הריבונות-המרוויחה" — פנקס-הרווח (THE PROFIT LEDGER) ──────────
+// חוק-האמת: כל-רווח/הפסד נרשם עם ref-דטרמיניסטי (dedupe) + ראיה ב-meta.
+// אין-ראיה = אין-רשומה. סכום שלילי מסומן בכנות (הפסד), אין-הסתרת-הפסדים.
+// kind: mm-live-fill (מילוי-פקודה-חי בשרשרת) · mm-fleet-realized (רווח-צי-פנימי
+// ממומש) · venue-fee (עמלת-venue מהתאמה-פנימית) · curation-vote (הצבעת-קיורציה
+// חיה — שווי-משוער בכנות) · governor-adjust (התאמת-מושל ללא-כסף).
+model TreasuryEntry {
+  id       Int      @id @default(autoincrement())
+  ref      String   @unique // מפתח-דדופ: "mm-live-fill:steem:889901" · "fleet-realized:tick-42:soldier"
+  kind     String
+  chain    String   // steem | hive | internal
+  owner    String   // החשבון-הריבוני (headcorner / חייל)
+  amount   Float    // +רווח / −הפסד במטבע-הציטוט
+  currency String   // SBD | HBD
+  note     String   // עברית — מה-קרה בדיוק
+  meta     String   @default("{}") // JSON: {txids, orderids, price, size, realizedFrom}
+  at       DateTime @default(now())
+
+  @@index([kind, at])
+  @@index([owner, at])
+  @@index([at])
+}
