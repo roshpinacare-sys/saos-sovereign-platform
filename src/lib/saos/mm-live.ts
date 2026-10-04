@@ -31,6 +31,7 @@ import {
   isWifShape,
   wifToPub,
 } from "./soldier-keys";
+import { isHalted } from "./deliberation";
 
 const STATE_PATH = path.join(process.cwd(), "state", "mm-live.json");
 
@@ -398,6 +399,29 @@ export interface DeployResult {
 export async function deployLiveLadder(chain: MmChain, book: { mid: number | null; bestBid: number | null; bestAsk: number | null }, spacingBps: number, sizeHive: number, feeBps: number, ownerOverride?: string): Promise<DeployResult> {
   const s = loadLiveState();
   const owner = chain === "steem" ? HEAD_CORNER : (ownerOverride && (MM_FLEET_SOLDIERS as readonly string[]).includes(ownerOverride) ? ownerOverride : MM_FLEET_SOLDIERS[0]!);
+  // v129 — שער-המחשבה: עצירה + הצהרת-כוונה חובה לפני כל פריסה-חיה
+  const { isHalted, deliberate } = await import("./deliberation");
+  if (isHalted()) {
+    pushLiveLog(s, "deploy-refused", `פריסה נדחתה — עצירת-חירום פעילה (${chain}/${owner})`);
+    saveLiveState(s);
+    return { ok: false, he: "פריסה נדחתה — עצירת-חירום פעילה (שער-המחשבה)", chain, owner, placed: [], skippedTaker: 0, refusal: "sovereign-halt" };
+  }
+  const verdict = await deliberate(
+    { kind: "order", action: "deploy-live-ladder", subject: `פריסת-ספר-חי ${chain} סביב המחיר-החי`, actor: owner, chain, params: { spacingBps, sizeHive } },
+    {
+      why: "הספר-החי נסחף מעבר-הסף או שאין-פקודות — פריסת-מייקר-מאוזנת סביב המחיר-החי בתוך-תקרות-הפוליסה",
+      worstCase: `מילוי-חד-צדדי בסיבוב-מחיר חד — הפסד עד ${sizeHive.toFixed(1)} יחידות-בסיס לפני-קיזוז`,
+      expectedGain: "רווח-פיזור מייקר על מילויים חיים, בתוך-שער-הרווחיות spacing/2 ≥ fee+edge",
+      maxLoss: "הפרש-מחיר בין-מדרגות במקרה-סחר-חד-צדדי מתמשך — מוגבל-ע״י killswitch-הפסד",
+      reversible: true,
+      alternative: "להשאיר-ספר-ריק (מפסיד-רווח-פיזור) — נדחה כי הספר-החי הוא עיקר-המודל המאושר",
+    }
+  );
+  if (!verdict.allowed) {
+    pushLiveLog(s, "deploy-refused", `פריסה נדחתה — שער-המחשבה (${verdict.gate}): ${verdict.reasons.join(" · ").slice(0, 160)}`);
+    saveLiveState(s);
+    return { ok: false, he: `פריסה נדחתה ע״י שער-המחשבה (${verdict.gate}) — ${verdict.reasons.join(" · ").slice(0, 140)}`, chain, owner, placed: [], skippedTaker: 0, refusal: `deliberation:${verdict.gate}` };
+  }
   if (!s.liveArmed) {
     pushLiveLog(s, "deploy-refused", `פריסה נדחתה — מתג-החי כבוי (${chain}/${owner})`);
     saveLiveState(s);
@@ -599,6 +623,12 @@ export async function reconcileLiveOrders(): Promise<{ he: string; checked: numb
 
 export function armLive(): { ok: boolean; he: string } {
   const s = loadLiveState();
+  // v129 — חימוש נאסר תחת-עצירת-חירום (fail-closed)
+  if (isHalted()) {
+    pushLiveLog(s, "arm-refused", "חימוש נדחה — עצירת-חירום פעילה (שער-המחשבה)");
+    saveLiveState(s);
+    return { ok: false, he: "חימוש נדחה — עצירת-חירום פעילה" };
+  }
   s.liveArmed = true;
   s.liveArmedAt = new Date().toISOString();
   pushLiveLog(s, "arm-live", "מתג-החי חומש (requireAuth בדלת + שערי-מסילה)");

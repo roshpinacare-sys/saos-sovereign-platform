@@ -514,6 +514,15 @@ export async function runGovernorCycle(trigger: "loop" | "manual" = "loop"): Pro
   sweepCounter += 1;
   const sweep = sweepCounter;
   try {
+    // v129 — שער-המחשבה: עצירת-חירום עוצרת את המחזור כולו (fail-closed)
+    const { isHalted } = await import("./deliberation");
+    if (isHalted()) {
+      const outcome: GovernorCycleOutcome = { ok: true, he: "מחזור-מושל נעצר — עצירת-חירום פעילה (שער-המחשבה)", steps: ["עצירה: כל-הפעולות הריבוניות מוקפאות עד-הוראת-הבעלים"], fills, realized, deployed, at, sweep };
+      atomicWrite(LAST_RUN_PATH, JSON.stringify(outcome, null, 1));
+      atomicWrite(LAST_STAMP_PATH, JSON.stringify({ ts: Date.now() }, null, 1));
+      void logOp("governor.cycle.halted", { sweep, trigger });
+      return outcome;
+    }
     const policy = readPolicy();
     steps.push(`פוליסה: liveTrading=${policy.liveTrading} · liveCuration=${policy.liveCuration} (סומנה ${policy.updatedAt.slice(0, 16)})`);
 
@@ -688,11 +697,19 @@ export async function governorBoard(): Promise<GovernorBoard> {
   } catch {
     /* מדידה-כשלה — כנה */
   }
+  let haltBoard: { halted: boolean; reason: string; recentDeliberations: Array<unknown> } = { halted: true, reason: "שער-המחשבה לא-נבדק (fail-closed)", recentDeliberations: [] };
+  try {
+    const delib = await import("./deliberation");
+    haltBoard = { halted: delib.isHalted(), reason: delib.haltReason(), recentDeliberations: delib.recentDeliberations(10).reverse() };
+  } catch {
+    /* fail-closed: ברירת-המחדל עצירה */
+  }
   return {
     law: GOVERNOR_LAW,
     policy,
     hardCaps: HARD_CAPS,
     lastRun,
+    halt: haltBoard,
     treasury: {
       total: +total.toFixed(6),
       byKind: [...kindMap.entries()].map(([kind, v]) => ({ kind, count: v.count, amount: +v.amount.toFixed(6) })).sort((a, b) => b.amount - a.amount),

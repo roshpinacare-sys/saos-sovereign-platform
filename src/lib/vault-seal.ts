@@ -593,6 +593,29 @@ function isValidWif(v: unknown): boolean {
   return typeof v === "string" && (/^5[1-9A-HJ-NP-Za-km-z]{49,51}$/.test(v) || /^[KL][1-9A-HJ-NP-Za-km-z]{51}$/.test(v));
 }
 
+/**
+ * v129 — vault.json 回退轨：seal 的 .env 骨架（guardian-restore）不含 ACTIVE_WIF/
+ * POSTING_WIF，但 keys/vault.json 成员持有 headcorner 各链各角色的 wif+pub。
+ * 全部调用方在回调内对链上实时公钥做 self-verify（fail-closed），因此回退轨
+ * 绝不会比 .env 轨更弱。返回 null → 调用方得到原来的 fail-closed 报错。
+ */
+function roleWifFromVaultJson(bundle: SealedBundle, account: string, role: SigningRole): string | null {
+  try {
+    const raw = bundle.files["keys/vault.json"];
+    if (!raw) return null;
+    const vj = JSON.parse(raw) as { accounts?: Array<{ username?: string; keys?: Record<string, Record<string, Record<string, unknown> | undefined>> }> };
+    const entry = (vj.accounts ?? []).find((a) => String(a.username ?? "").toLowerCase() === account.toLowerCase());
+    if (!entry?.keys) return null;
+    for (const chain of ["steem", "hive"]) {
+      const wif = entry.keys[chain]?.[role]?.wif;
+      if (isValidWif(wif)) return String(wif);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function withRoleWif<T>(
   role: SigningRole,
   fn: (wif: string, authority: SigningAuthority) => Promise<T>
@@ -604,9 +627,12 @@ export async function withRoleWif<T>(
     if (i > 0) env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   });
   const account = (env.AGENT_ACCOUNT || "headcorner").toLowerCase();
-  const wif = role === "active" ? env.ACTIVE_WIF : env.POSTING_WIF;
+  let wif = role === "active" ? env.ACTIVE_WIF : env.POSTING_WIF;
   if (!isValidWif(wif)) {
-    throw new Error(`vault: ${role} signing key absent from envelope`);
+    // v129 — 回退：从 keys/vault.json 成员取（调用方 self-verify 仍 fail-closed）
+    const fallback = roleWifFromVaultJson(bundle, account, role);
+    if (!fallback) throw new Error(`vault: ${role} signing key absent from envelope`);
+    wif = fallback;
   }
   const authority: SigningAuthority = {
     account,
@@ -631,7 +657,9 @@ export async function roleWifAvailable(role: SigningRole): Promise<boolean> {
       if (i > 0) env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     });
     const wif = role === "active" ? env.ACTIVE_WIF : env.POSTING_WIF;
-    return isValidWif(wif);
+    if (isValidWif(wif)) return true;
+    const account = (env.AGENT_ACCOUNT || "headcorner").toLowerCase();
+    return roleWifFromVaultJson(bundle, account, role) !== null;
   } catch {
     return false;
   }
