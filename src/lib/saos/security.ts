@@ -129,7 +129,13 @@ export const TRUSTED_HOSTS: TrustedHost[] = [
   // R9 פריצת-האפס — Z Chain (Zero Network, chainId 9369): רשת EVM ראשית שבה
   // eth_gasPrice מדוד 0x0 — עגינת-נתונים אמיתית בעלות אפס. המדידה החיה
   // (2026-09-12): 3 טרנזקציות אמיתיות אושרו (status 0x1) מכתובת באיזון 0.
-  { host: "rpc.zero.tech", org: "Zero Network · Z Chain (רשמי)", tier: "official", role: "RPC Z Chain — עגינת EVM בגז-אפס (R9 פריצת-האפס)" }
+  { host: "rpc.zero.tech", org: "Zero Network · Z Chain (רשמי)", tier: "official", role: "RPC Z Chain — עגינת EVM בגז-אפס (R9 פריצת-האפס)" },
+  // v129 דקס-הריבון — מתאמי-venues שנמדדו-חי (2026-10-04) ואומתו מהסנדבוקס:
+  { host: "api.hive-engine.com", org: "Hive-Engine · sidechain DEX (רשמי)", tier: "official", role: "metrics/ספרי-שוק של טוקני-Engine (קריאה)" },
+  { host: "rpc.blurt.blog", org: "BLURT (צומת קהילה חי)", tier: "official", role: "צומת BLURT חי — rpc.blurt.world מפארק (נמדד NXDOMAIN 2026-10-04); אין market_history על הצומת — כנות-מלאה במתאם" },
+  { host: "li.quest", org: "LI.FI · צביר חוצה-שרשרת", tier: "major", role: "ציטוטי-swap חוצי-שרשרת keyless (docs.li.fi: open, no API key)" },
+  { host: "app.across.to", org: "Across · גשר-intents", tier: "major", role: "ציטוטי-גשר keyless (אומת חי 200)" },
+  { host: "dln.debridge.finance", org: "deBridge DLN · מודל-maker", tier: "major", role: "ציטוטי-DLN keyless (אומת חי 200)" }
 ];
 
 const HOST_INDEX = new Map(TRUSTED_HOSTS.map((t) => [t.host, t]));

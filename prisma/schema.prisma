@@ -783,3 +783,107 @@ model TreasuryEntry {
   @@index([owner, at])
   @@index([at])
 }
+
+// ─── v129.0.0 "דקס-הריבון" (SAOS-DEX) — סליקה-פנימית מגובת-מלאי אמיתי ────────
+// חוק-האמת: כל פול גובה-עצמו במלאי-אוצר שנמדד חי (liquidity-radar);
+// עתודה שחורגת מהמלאי-המדוד → יורדת כנה והפול מסומן degraded.
+// אין-מלאי = פול לא-פעיל עם הערה כנה, לעולם לא סוופ מדומה.
+model DexPool {
+  id              String   @id @default(cuid())
+  base            String   // HIVE · STEEM · BLURT · LEO
+  quote           String   // HBD · SBD · HIVE
+  reserveBase     Float    @default(0)
+  reserveQuote    Float    @default(0)
+  feeBps          Int      @default(30)
+  capQuote        Float    @default(60) // תקרת-הזרע ביחידות-quote מהמלאי-המדוד
+  active          Boolean  @default(false)
+  degraded        Boolean  @default(false)
+  note            String   @default("") // הערת-כנות (מה חוסם הפעלה)
+  lastMidExternal Float?   // אחרון שנמדד מה-venue החוץ
+  swaps           DexSwap[]
+  grids           DexGrid[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([base, quote])
+  @@index([active])
+}
+
+model DexSwap {
+  id         String   @id @default(cuid())
+  poolId     String
+  pool       DexPool  @relation(fields: [poolId], references: [id])
+  trader     String   // headcorner · סוכן · grid:<owner> · arb-agent
+  path       String   // "HIVE→HBD" או רב-קפיצות "HIVE→STEEM→SBD"
+  amountIn   Float
+  amountOut  Float
+  spotBefore Float
+  impactPct  Float
+  feePaid    Float    // ביחידות-quote של הקפיצה-האחרונה
+  minOut     Float?
+  mode       String   @default("internal-real") // סליקה-פנימית-אמיתית מגובת-מלאי
+  arbId      String?  // קישור להזדמנות-ארביטראז' שהניבה את העסקה
+  createdAt  DateTime @default(now())
+
+  @@index([poolId, createdAt])
+  @@index([trader, createdAt])
+}
+
+model DexGrid {
+  id               String  @id @default(cuid())
+  poolId           String
+  pool             DexPool @relation(fields: [poolId], references: [id])
+  owner            String  // הסוכן/חייל שמחזיק את הגריד-המתנגד
+  levelsPerSide    Int     @default(3)
+  spacingBps       Int     @default(60)
+  levelSizeQuote   Float   @default(10)
+  maxNotionalQuote Float   @default(60)
+  recenterBps      Int     @default(400)
+  status           String  @default("active") // active | paused
+  invBase          Float   @default(0)
+  invQuote         Float   @default(0)
+  avgCost          Float?
+  fillsCount       Int     @default(0)
+  realizedQuote    Float   @default(0)
+  guardPause       String? // סיבת-השהיה (trend-break guard — הגנת adverse-selection)
+  fills            DexGridFill[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([poolId, owner])
+  @@index([status])
+}
+
+model DexGridFill {
+  id        String   @id @default(cuid())
+  gridId    String
+  grid      DexGrid  @relation(fields: [gridId], references: [id])
+  side      String   // buy | sell
+  price     Float    // המחיר-האפקטיבי בפול (quote ל-1 base)
+  extMid    Float    // ה-mid החוץ ברגע-המילוי (מדידת-התזוזה)
+  sizeBase  Float
+  notional  Float
+  pnlQuote  Float?   // עבור sell — מול מחיר-מוצע
+  swapId    String?  // קישור ל-DexSwap שביצע בפועל
+  createdAt DateTime @default(now())
+
+  @@index([gridId, createdAt])
+}
+
+model DexArbOpp {
+  id        String   @id @default(cuid())
+  poolId    String
+  symbol    String   // ה-base של הפול
+  spot      Float    // מחיר-פנימי (quote/base)
+  extMid    Float    // מחיר-venue-חוץ
+  extVenue  String   // hive-internal · steem-internal · binance · hive-engine · coingecko
+  spreadBps Float
+  netBps    Float    // אחרי עמלות שני-הצדדים (פול + venue)
+  side      String   // buy-internal | sell-internal
+  status    String   @default("detected") // detected | executed-internal | executed-full | skipped
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([poolId, createdAt])
+}

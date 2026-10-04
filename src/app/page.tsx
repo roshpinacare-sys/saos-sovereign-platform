@@ -51,6 +51,7 @@ import { ViewEnergy } from "@/components/saos/views/energy";
 import { MicrogridView } from "@/components/saos/views/microgrid";
 import CoinView from "@/components/saos/views/coin";
 import { ExchangeView } from "@/components/saos/views/exchange";
+import DexView from "@/components/saos/views/dex";
 import HiveGridView from "@/components/saos/views/hive-grid";
 import { ReviewView } from "@/components/saos/views/review";
 import { System1View } from "@/components/saos/views/system1";
@@ -103,6 +104,7 @@ const TITLES: Record<ViewId, string> = {
   microgrid: "מיקרו-גריד",
   coin: "המטבע — SAOS-M · כרטיס-זהות",
   exchange: "בורסת SAOS",
+  dex: "דקס-הריבון — SAOS-DEX · החלפות אמיתיות · גרידים-מתנגדים · ארביטראז' רישתי (v129)",
   flow: "נזילות וזרימה",
   roses: "שושנים",
   economy: "כלכלה",
@@ -207,6 +209,7 @@ export default function Home() {
         {view === "microgrid" && <MicrogridView />}
         {view === "coin" && <CoinView />}
         {view === "exchange" && <ExchangeView />}
+        {view === "dex" && <DexView />}
         {view === "hive-grid" && <HiveGridView />}
         {view === "flow" && <FlowView />}
         {view === "roses" && <RosesView />}
