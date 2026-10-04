@@ -15,6 +15,7 @@
 
 import { withRoleWif, type SigningAuthority } from "@/lib/vault-seal";
 import { isWifShape, wifToPub } from "./soldier-keys";
+import { deliberate, isHalted } from "./deliberation";
 
 const STEEM_RPC = "https://api.steemit.com";
 const HIVE_RPC = "https://api.hive.blog";
@@ -105,11 +106,22 @@ export async function buildParityPlan(chain: "steem" | "hive", commander: string
   const cmdOwnHP = parseFloat(cmd.vesting_shares) * ratio;
   const cmdOutHP = parseFloat(cmd.delegated_vesting_shares ?? "0") * ratio;
   const pool = Math.max(0, cmdOwnHP - cmdOutHP - COMMANDER_RESERVE_HP);
-  const soldiers = PARITY_SOLDIERS.map((s) => ({ soldier: s, row: byName.get(s) })).filter((x) => x.row);
-  const soldierNetSum = soldiers.reduce((acc, x) => acc + netHP(x.row!), 0);
-  const equalShare = soldiers.length ? (pool + soldierNetSum) / soldiers.length : 0;
+  // בניית-תוכנית-שוויון — מדידה-בלבד, אפס-שידור
+  // v129 — שער-מפתח: חייל-בלי-מפתח-מוכח אינו-יעד-האצלה (הלקח: הואצל-כוח
+  // ל-hcsoldier1/2/3 שאין-לנו-מפתחות-אליהם — כוח-מת על-השרשרת)
+  const { actorCanSign } = await import("./deliberation");
+  const keyOk: Array<{ soldier: string; ok: boolean; he: string }> = [];
+  for (const s of PARITY_SOLDIERS) {
+    const k = await actorCanSign(s, "steem", "active");
+    keyOk.push({ soldier: s, ok: k.ok, he: k.he });
+  }
+  const keyless = keyOk.filter((k) => !k.ok).map((k) => k.soldier);
+  const sold = PARITY_SOLDIERS.filter((s) => !keyless.includes(s));
+  const soldierRows = sold.map((s) => ({ soldier: s, row: byName.get(s) })).filter((x) => x.row);
+  const soldierNetSum = soldierRows.reduce((acc, x) => acc + netHP(x.row!), 0);
+  const equalShare = soldierRows.length ? (pool + soldierNetSum) / soldierRows.length : 0;
   const current = await existingDelegations(chain, PARITY_SOLDIERS);
-  const rows = soldiers.map(({ soldier, row }) => {
+  const rows = soldierRows.map(({ soldier, row }) => {
     const net = netHP(row!);
     const ownHP = parseFloat(row!.vesting_shares) * ratio; // ה-own-של-החייל (בלי-האצלות-שהוא-מקבל)
     const currentlyDelegatedVESTS = current.get(soldier) ?? 0;
@@ -120,13 +132,18 @@ export async function buildParityPlan(chain: "steem" | "hive", commander: string
   return {
     chain, ratio, commanderNetHP: cmdNet, commanderReserveHP: COMMANDER_RESERVE_HP,
     totalDelegableHP: pool, equalShareHP: equalShare, rows,
-    note: `STEEM: מאגר-המפקד-האציל-בר-האצלה ${pool.toFixed(0)} HP (own ${cmdOwnHP.toFixed(0)} − out ${cmdOutHP.toFixed(0)} − רזרבה ${COMMANDER_RESERVE_HP}) · יעד-שוויון ${equalShare.toFixed(0)} HP לכל-אחד`,
+    note: `STEEM: מאגר-המפקד-האציל-בר-האצלה ${pool.toFixed(0)} HP (own ${cmdOwnHP.toFixed(0)} − out ${cmdOutHP.toFixed(0)} − רזרבה ${COMMANDER_RESERVE_HP}) · יעד-שוויון ${equalShare.toFixed(0)} HP לכל-אחד` + (keyless.length ? ` · מרוחקים-מהתוכנית (אין-מפתח-מוכח): ${keyless.join(", ")}` : ""),
   };
 }
 
-/** ביצוע-התוכנית על STEEM — delegate_vesting_shares מאומת-עצמית */
+/** ביצוע-התוכנית על STEEM — delegate_vesting_shares מאומת-עצמית.
+ *  v129 — שער-המחשבה: עצירה + מפתח-פר-חייל + הצהרת-כוונה + ייעוץ לפני כל האצלה */
 export async function executeParityPlan(plan: ParityPlan): Promise<{ ok: boolean; he: string; executed: Array<{ soldier: string; vests: string }>; failures: string[] }> {
   if (plan.chain !== "steem") return { ok: false, he: plan.note, executed: [], failures: ["hive-skipped"] };
+  if (isHalted()) {
+    return { ok: false, he: `האצלה נדחתה — עצירת-חירום פעילה (שער-המחשבה): ${isHalted() ? "halt" : ""}`, executed: [], failures: ["sovereign-halt"] };
+  }
+  const { actorCanSign } = await import("./deliberation");
   const steem = (await import("steem")) as unknown as { default?: SteemLib } & SteemLib;
   const lib = steem.default ?? steem;
   const executed: Array<{ soldier: string; vests: string }> = [];
@@ -143,6 +160,28 @@ export async function executeParityPlan(plan: ParityPlan): Promise<{ ok: boolean
       for (const row of plan.rows) {
         if (row.toDelegateVESTS <= 0) continue;
         if (Math.abs(row.deltaHP) < DELEGATION_MIN_HP_STEP) continue; // אין-טעם-בשידור-זעיר
+        // v129 — שער-מפתח-פר-חייל: אין-האצלה-לחייל-בלי-מפתח-מוכח
+        const k = await actorCanSign(row.soldier, "steem", "active");
+        if (!k.ok) {
+          failures.push(`${row.soldier}: נדחה בשער-המפתח — ${k.he.slice(0, 80)}`);
+          continue;
+        }
+        // v129 — שער-המחשבה: הצהרת-כוונה + ייעוץ (האצלה = פעולת-כסף)
+        const verdict = await deliberate(
+          { kind: "delegate", action: "power-parity", subject: `האצלת-כוח ל-${row.soldier} לשוויון-HP`, actor: row.soldier, chain: "steem", params: { vests: row.toDelegateVESTS, targetHP: row.targetHP } },
+          {
+            why: `חייל מתחת-יעד-השוויון ב-${row.deltaHP.toFixed(0)} HP — דלתא-האצלה אחת-ביום לפי-התוכנית`,
+            worstCase: `האצלת-כוח-מת אם החייל לא-פעיל; HP מוחזר-רק-אחרי-7 ימים`,
+            expectedGain: `כוח-הצבעה-ופעילות מלא לכל-חייל — הכנסת-קיורציה אפשרית`,
+            maxLoss: `HP-מושהה-7 ימים (${row.toDelegateVESTS.toFixed(0)} VESTS)`,
+            reversible: true,
+            alternative: `האצלה-גדולה-פעם-בשבוע — נדחתה כי דריפה-יומית-קטנה מדי`,
+          }
+        );
+        if (!verdict.allowed) {
+          failures.push(`${row.soldier}: שער-המחשבה (${verdict.gate}) — ${verdict.reasons.join(" · ").slice(0, 80)}`);
+          continue;
+        }
         const vestsStr = `${row.toDelegateVESTS.toFixed(6)} VESTS`;
         try {
           const conf = await lib.broadcast.sendAsync({

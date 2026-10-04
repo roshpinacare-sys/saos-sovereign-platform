@@ -131,6 +131,15 @@ const COMMENT_OP_FIELDS = [
 ] as const;
 
 export async function publishSocial(input: SocialPublishInput): Promise<SocialPublishResult> {
+  // v129 — שער-המחשבה: עצירה + מפתח-מוכח לפני כל פרסום
+  const { isHalted, actorCanSign } = await import("./deliberation");
+  if (isHalted()) {
+    return { ok: false, he: "פרסום נדחה — עצירת-חירום פעילה (שער-המחשבה)", txid: null, refusal: "sovereign-halt" };
+  }
+  const key = await actorCanSign(input.soldier, input.chain, "posting");
+  if (!key.ok) {
+    return { ok: false, he: `פרסום נדחה — שער-מפתח: ${key.he.slice(0, 100)}`, txid: null, refusal: "key-gate" };
+  }
   const rc = await rcPercent(input.chain, input.soldier);
   if (rc === null) return { ok: false, he: "שער-RC לא נמדד — שידור נדחה (fail-closed)", txid: null, refusal: "rc-unmeasured" };
   if (rc < SOCIAL_RC_FLOOR_PCT) {

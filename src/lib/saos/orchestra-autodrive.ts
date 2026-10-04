@@ -73,6 +73,17 @@ function stampLastTick(): void {
 
 async function tick(): Promise<void> {
   if (!lastTickOk()) return; // v125 — דילוג-שקט: הקצב כבר נאכף על-הדיסק
+  // v129 — שער-המחשבה: עצירת-חירום → אפס הצבעות (fail-closed)
+  try {
+    const { isHalted } = await import("./deliberation");
+    if (isHalted()) {
+      const { logOp } = await import("./oplog");
+      await logOp("orchestra.autodrive.halted", "עצירת-חירום פעילה — הצבעות מוקפאות (שער-המחשבה)");
+      return;
+    }
+  } catch {
+    return; // כשל-שער — לא מצביעים (fail-closed)
+  }
   stampLastTick();
   const state = readState();
   const live = state.live === true; // כבוי-כברירת-מחדל; חוק v120 נשמר

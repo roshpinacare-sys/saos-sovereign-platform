@@ -1697,6 +1697,13 @@ export function ensureMrHeartbeat(): void {
     if (MR_G.__exchangeMrInflight) return; // single-flight — פעמה לא על-גבי פעמה
     MR_G.__exchangeMrInflight = true;
     (async () => {
+      // v129 — שער-המחשבה: עצירת-חירום מקפיאה את סוחרי-המנוע (fail-closed)
+      try {
+        const { isHalted } = await import("./deliberation");
+        if (isHalted()) return;
+      } catch {
+        return; // כשל-שער — לא סוחרים בלי שער
+      }
       if (mrLockHeldByOther()) return; // תהליך-ווב אחר מחזיק את הפעמה — כנה
       mrRenewLock();
       // v100 — סוחר-ההיפוך (זרם-2)
