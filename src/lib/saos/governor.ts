@@ -74,6 +74,10 @@ export interface SovereignPolicy {
   version: 1;
   liveTrading: boolean;
   liveCuration: boolean;
+  /** v128 — הדופק-האנושי: פוסטים/תגובות מתוזמנים-אנושית דרך-הפורום-הריבוני */
+  humanActivity: boolean;
+  /** v128 — שוויון-כוח: האצלת-HP שווה-לחיילים (רזרבה-מפקד בקוד) */
+  powerParity: boolean;
   steemGrid: { spacingBps: number; sizeSteem: number; rebankDriftBps: number };
   createdAt: string;
   updatedAt: string;
@@ -107,13 +111,20 @@ function readJson<T>(p: string): T | null {
 export function readPolicy(): SovereignPolicy {
   const existing = readJson<SovereignPolicy>(POLICY_PATH);
   if (existing && existing.version === 1 && typeof existing.liveTrading === "boolean") {
-    return existing;
+    // v128 — הגירת-פוליסה: שדות-חדשים נכנסים-כברירת-מחדל-פתוחים (מכוח-ההוראה-העליונה)
+    return {
+      ...existing,
+      humanActivity: existing.humanActivity ?? true,
+      powerParity: existing.powerParity ?? true,
+    };
   }
   const now = new Date().toISOString();
   const fresh: SovereignPolicy = {
     version: 1,
     liveTrading: true,
     liveCuration: true,
+    humanActivity: true,
+    powerParity: true,
     steemGrid: { spacingBps: 40, sizeSteem: 6, rebankDriftBps: 45 },
     createdAt: now,
     updatedAt: now,
@@ -125,12 +136,14 @@ export function readPolicy(): SovereignPolicy {
   return fresh;
 }
 
-export function writePolicyPatch(patch: Partial<Pick<SovereignPolicy, "liveTrading" | "liveCuration">>): SovereignPolicy {
+export function writePolicyPatch(patch: Partial<Pick<SovereignPolicy, "liveTrading" | "liveCuration" | "humanActivity" | "powerParity">>): SovereignPolicy {
   const cur = readPolicy();
   const next: SovereignPolicy = {
     ...cur,
     liveTrading: typeof patch.liveTrading === "boolean" ? patch.liveTrading : cur.liveTrading,
     liveCuration: typeof patch.liveCuration === "boolean" ? patch.liveCuration : cur.liveCuration,
+    humanActivity: typeof patch.humanActivity === "boolean" ? patch.humanActivity : cur.humanActivity,
+    powerParity: typeof patch.powerParity === "boolean" ? patch.powerParity : cur.powerParity,
     updatedAt: new Date().toISOString(),
   };
   atomicWrite(POLICY_PATH, JSON.stringify(next, null, 1));
@@ -526,6 +539,41 @@ export async function runGovernorCycle(trigger: "loop" | "manual" = "loop"): Pro
 
     // (4) כיול-צי
     steps.push(await calibrateFleetIfNeeded(sweep));
+
+    // (4.5) v128 — הדופק-האנושי: פוסטים/תגובות מתוזמנים + שוויון-כוח יומי
+    if (policy.humanActivity) {
+      try {
+        const { humanTick } = await import("./community");
+        const ht = await humanTick("steem", 2);
+        steps.push(ht.he);
+        for (const s of ht.skipped.slice(0, 3)) steps.push(`דופק-דילוג: ${s}`);
+      } catch (e) {
+        steps.push(`דופק-אנושי כשל כנה: ${String(e).slice(0, 100)}`);
+      }
+    } else {
+      steps.push("דופק-אנושי: כבוי מכוח-הפוליסה (humanActivity=false)");
+    }
+    if (policy.powerParity) {
+      try {
+        const { ensurePowerParity } = await import("./community");
+        const pp = await ensurePowerParity();
+        if (pp.executed.length > 0) {
+          steps.push(`שוויון-כוח: ${pp.he}`);
+          await decide({
+            ref: `governor-power-parity:${new Date().toISOString().slice(0, 10)}`,
+            subject: "האצלת-כוח — שוויון-HP לחיילים (STEEM)",
+            question: "האם כוח-ההצבעה-והפעילות מחולק-שווה, ואם לא — להאציל-את-הדלתא?",
+            verdict: "executed",
+            rule: "parity:commander_reserve=1000HP → פיצול-שווה-בין-9-חיילים",
+            reason: pp.he,
+            evidence: pp.executed.slice(0, 9).map((e) => ({ label: e.soldier, value: e.vests })),
+            sweep,
+          });
+        }
+      } catch (e) {
+        steps.push(`שוויון-כוח כשל כנה: ${String(e).slice(0, 100)}`);
+      }
+    }
 
     // (5) שער-קיורציה
     steps.push(await ensureCurationGate());

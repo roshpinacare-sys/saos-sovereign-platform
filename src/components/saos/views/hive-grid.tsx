@@ -282,6 +282,7 @@ export default function HiveGridView() {
 
       <FleetMmPanel onNote={(m) => setNote(m)} />
       <SovereignProfitPanel onNote={(m) => setNote(m)} />
+      <ForumPanel onNote={(m) => setNote(m)} />
     </div>
   );
 }
@@ -739,6 +740,127 @@ function SovereignProfitPanel({ onNote }: { onNote: (m: string) => void }) {
                     {owners.length === 0 && <tr><td colSpan={5} className="py-2 text-zinc-500">אין-מלאי-בספר עדיין</td></tr>}
                   </tbody>
                 </table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── v128 — הפורום-הריבוני · דופק-אנושי ─────────────────────────────────────
+
+interface ForumBoardView {
+  ok?: boolean;
+  law: string;
+  tag: string;
+  roster: Array<{ soldier: string; voice: string; postMinuteUTC: string; commentMinutesUTC: string[] }>;
+  journal: { items: Array<{ at: string; chain: string; author: string; permlink: string; kind: string; title: string; opening: string; txid: string | null; ok: boolean; note?: string }>; todayDone: string[] };
+  parity: { note: string; lastRun: string | null; reserveHP: number };
+  community: { ready: boolean; liquidSteem: number; costSteem: number; he: string };
+  nowUTC: string;
+  humanActivity: boolean;
+  powerParityEnabled: boolean;
+}
+
+function ForumPanel({ onNote }: { onNote: (m: string) => void }) {
+  const { data, error, loading, updatedAt, refresh } = useLive<ForumBoardView>("/api/saos/community", 30000);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const post = async (action: string) => {
+    setBusy(action);
+    try {
+      const res = await fetch("/api/saos/community", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const j = (await res.json()) as { ok?: boolean; he?: string; error?: string };
+      onNote(j.ok ? (j.he ?? "בוצע") : (j.error ?? j.he ?? "נדחה (דרוש אימות-בעלים)"));
+      if (j.ok) refresh();
+    } catch (e) {
+      onNote(`כשל-רשת כנה: ${String(e).slice(0, 90)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (error && !data) {
+    return (
+      <Card className="border-red-500/30 bg-red-500/5">
+        <CardContent className="p-4 text-sm text-red-300">לוח-הפורום לא נגיש כרגע — כנות. {String(error).slice(0, 160)}</CardContent>
+      </Card>
+    );
+  }
+  if (!data) return <Card className="border-white/[0.08] bg-zinc-900/40"><CardContent className="p-4 text-sm text-zinc-400">{loading ? "טוען את הפורום…" : "אין נתוני-פורום"}</CardContent></Card>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold text-zinc-100">הפורום-הריבוני · דופק-אנושי (#{data.tag})</h2>
+        <Badge className={data.humanActivity ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-300" : "border-zinc-600 bg-zinc-800 text-zinc-400"}>דופק: {data.humanActivity ? "חי" : "כבוי"}</Badge>
+        <Badge className={data.powerParityEnabled ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-300" : "border-zinc-600 bg-zinc-800 text-zinc-400"}>שוויון-כוח: {data.powerParityEnabled ? "פעיל" : "כבוי"}</Badge>
+        <span className="text-[11px] text-zinc-500">עכשיו UTC {data.nowUTC} · עודכן {timeAgo(updatedAt)}</span>
+      </div>
+      <p className="text-xs leading-relaxed text-zinc-400">{data.law}</p>
+
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={busy !== null} onClick={() => post("human-tick")} aria-label="הרצת דופק אנושי">דופק-אנושי עכשיו</Button>
+        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => post("power-parity")} aria-label="בדיקת שוויון כוח">שוויון-כוח עכשיו</Button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-white/[0.08] bg-zinc-900/40">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">הדמויות והשעות-שלהן (פיזור-160דק' — אף-שניים-באותו-רגע)</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ScrollArea className="max-h-72 overflow-y-auto scroll-slim">
+              <table className="w-full text-xs">
+                <thead className="text-zinc-500"><tr><th className="py-1 text-start">חייל</th><th className="py-1 text-start">קול</th><th className="py-1 text-start">פוסט (UTC)</th><th className="py-1 text-start">תגובות (UTC)</th></tr></thead>
+                <tbody>
+                  {data.roster.map((r) => (
+                    <tr key={r.soldier} className="border-t border-white/[0.04]">
+                      <td className="py-1 font-medium text-zinc-200">{r.soldier}</td>
+                      <td className="py-1 text-zinc-400">{r.voice}</td>
+                      <td className="py-1 text-emerald-300">{r.postMinuteUTC}</td>
+                      <td className="py-1 text-zinc-400">{r.commentMinutesUTC.join(" · ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card className="border-white/[0.08] bg-zinc-900/40">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">שוויון-הכוח (האצלת-HP) ומצב-הקהילה</CardTitle></CardHeader>
+            <CardContent className="space-y-2 p-4 pt-0 text-xs">
+              <p className="leading-relaxed text-zinc-300"><span className="text-zinc-500">האצלה: </span>{data.parity.note}</p>
+              <p className="leading-relaxed text-zinc-300"><span className="text-zinc-500">קהילה: </span>{data.community.he}</p>
+              <p className="text-[10px] text-zinc-500">רזרבת-המפקד {data.parity.reserveHP} HP (RC-לפעולות-השוק) · הורדת-האצלה משתחררת-בשרשרת-אחרי-7-ימי-קירור — השוויון-מתכנס-במחזורים-היומיים.</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/[0.08] bg-zinc-900/40">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">פנקס-התוכן (מה-יצא-באמת · כולל-כישלונות-כנים)</CardTitle></CardHeader>
+            <CardContent className="p-4 pt-0">
+              <ScrollArea className="max-h-56 overflow-y-auto scroll-slim">
+                <ul className="space-y-2 text-[11px]">
+                  {data.journal.items.slice(0, 12).map((it, i) => (
+                    <li key={i} className="rounded-md border border-white/[0.06] bg-black/20 p-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-zinc-600">{it.at.slice(5, 16)}</span>
+                        <Badge variant="outline" className={it.ok ? "border-emerald-500/30 text-emerald-300" : "border-rose-500/40 text-rose-300"}>{it.ok ? (it.kind === "post" ? "פוסט" : "תגובה") : "לא-פורסם"}</Badge>
+                        <span className="text-zinc-300">{it.author}</span>
+                        {it.txid && <span className="font-mono text-[10px] text-zinc-500">{it.txid.slice(0, 12)}…</span>}
+                      </div>
+                      <p className="mt-1 text-zinc-400">{it.title}{it.opening ? ` — ${it.opening.slice(0, 90)}…` : ""}</p>
+                      {it.note && <p className="mt-1 text-[10px] text-zinc-500">{it.note}</p>}
+                    </li>
+                  ))}
+                  {data.journal.items.length === 0 && <li className="text-zinc-500">הפנקס-ריק עדיין — הדופק-הראשון-ירוץ-לפי-התזמון</li>}
+                </ul>
               </ScrollArea>
             </CardContent>
           </Card>
