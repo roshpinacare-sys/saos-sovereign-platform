@@ -688,7 +688,24 @@ async function probeMempoolBtc(address: string): Promise<ProbeOutcome> {
   }
 }
 
-async function probeBlockcypher(coin: "doge" | "ltc", address: string): Promise<ProbeOutcome> {
+/**
+ * v99.1 — BTC probe with honest failover: mempool.space first (canonical),
+ * api.blockcypher.com on ANY failure (timeout/HTTP/parse). Born from a live
+ * measurement (2026-10-04): mempool answered in 11.4s from this sandbox while
+ * blockcypher answered in 0.26s — with the 8s probe budget the single-source
+ * BTC row was dying on every census. The failover reports the endpoint that
+ * actually answered, and when BOTH fail the primary's error is returned
+ * (the more informative truth). No fabricated balances, ever.
+ */
+async function probeBtcWithFailover(address: string): Promise<ProbeOutcome> {
+  const primary = await probeMempoolBtc(address);
+  if (primary.ok) return primary;
+  const backup = await probeBlockcypher("btc", address);
+  if (backup.ok) return { ...backup, endpoint: `${backup.endpoint} (failover←mempool: ${primary.error ?? "?"})` };
+  return primary;
+}
+
+async function probeBlockcypher(coin: "btc" | "doge" | "ltc", address: string): Promise<ProbeOutcome> {
   try {
     const r = await httpGetJson(`https://api.blockcypher.com/v1/${coin}/main/addrs/${address}/balance`);
     const j = r.json as { balance?: number; error?: string } | null;
@@ -814,7 +831,7 @@ export async function networkCensus(opts: { force?: boolean } = {}): Promise<Net
           const c = EVM_CHAINS.find((x) => x.id === chain.id)!;
           return probeEvm(c.url, c.chainId, address);
         }
-        case "mempool-btc": return probeMempoolBtc(address);
+        case "mempool-btc": return probeBtcWithFailover(address);
         case "blockcypher": return probeBlockcypher(chain.id === "dogecoin" ? "doge" : "ltc", address);
         case "xrp-rpc": return probeXrp(address);
         case "tron-api": return probeTron(address);
