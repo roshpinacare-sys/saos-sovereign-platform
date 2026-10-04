@@ -768,7 +768,7 @@ model OrchestraVote {
   createdAt   DateTime @default(now())
 
   @@index([voter, createdAt])
-  @@index([mode])
+  @@index([permlink]) // v125 — תיקון-שחזור: היה @@index(ode]) (פסולת-עריכה שעברה validate בשתיקה) — אינדקס-הדה-דופ לפרמלינק שוחזר
   @@index([windowIndex, createdAt])
   @@index([createdAt])
 }

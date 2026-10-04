@@ -47,4 +47,13 @@ export async function register(): Promise<void> {
   } catch (err) {
     console.error("[saos-orchestra-autodrive] register failed (honest, non-fatal):", err);
   }
+  try {
+    // v125 — פיקוח-הריבונות: הלולאה שסורקת את האורגניזם (איברים, כספת, גיט,
+    // ממסר, דופק, רעש) ומתעדת ממצאים כנים — "לתת לריבונות גם לפקח וגם לחפש
+    // עוד מה לתקן". אפס סוד, אפס אלרם — נתונים בלבד.
+    const { startSovereignOversight } = await import("./lib/saos/oversight");
+    startSovereignOversight();
+  } catch (err) {
+    console.error("[saos-oversight] register failed (honest, non-fatal):", err);
+  }
 }

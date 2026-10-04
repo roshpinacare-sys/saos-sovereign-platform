@@ -18,6 +18,7 @@
 const AUTODRIVE_INTERVAL_MS = 30 * 60 * 1000; // כל 30 דק'
 const AUTODRIVE_WARMUP_MS = 60 * 1000; // הטיק-הראשון אחרי דק'-התחממות
 const STATE_PATH = "state/orchestra-autodrive.json";
+const LAST_TICK_PATH = "state/orchestra-autodrive-last.json"; // v125 — שער-הקצב המתמשך
 
 import fs from "fs";
 import path from "path";
@@ -39,7 +40,40 @@ function readState(): AutodriveState {
   }
 }
 
+/**
+ * v125 — שער-הקצב המתמשך (ממצא-ביקורת 2026-10-04): נמדדו 33 טיקים בקצב ~2-3דק'
+ * במקום 30דק' — כל-ריסטרט dev מריץ warmup-tick חדש, וה-guard ב-globalThis שורד
+ * רק בתוך-תהליך. הריפוי: חותמת-הטיק-האחרון נשמרת על-הדיסק (אטומי tmp+rename) —
+ * הקצב נאכף גם חוצה-תהליכים; דילוג שקט (אפס-רעש-פנקס).
+ */
+function lastTickOk(): boolean {
+  try {
+    const p = path.join(process.cwd(), LAST_TICK_PATH);
+    if (!fs.existsSync(p)) return true;
+    const raw = JSON.parse(fs.readFileSync(p, "utf8")) as { ts?: number };
+    const ts = Number(raw.ts ?? 0);
+    if (!Number.isFinite(ts) || ts <= 0) return true;
+    // שולי-חסד 60ש' — כדי שריצה-כפולה-כמעט-במקביל לא תשבור את החלון-החי
+    return Date.now() - ts >= AUTODRIVE_INTERVAL_MS - 60_000;
+  } catch {
+    return true; // כשל-קריאה — לא כובלים את הלולאה (הריבונות קודמת לפנקס)
+  }
+}
+
+function stampLastTick(): void {
+  try {
+    const p = path.join(process.cwd(), LAST_TICK_PATH);
+    const tmp = `${p}.tmp-${process.pid}`;
+    fs.writeFileSync(tmp, JSON.stringify({ ts: Date.now() }), "utf8");
+    fs.renameSync(tmp, p);
+  } catch {
+    // כשל-כתיבה — הטיק עצמו כבר רץ; הפנקס יגלה קצב-חוזר בכנות
+  }
+}
+
 async function tick(): Promise<void> {
+  if (!lastTickOk()) return; // v125 — דילוג-שקט: הקצב כבר נאכף על-הדיסק
+  stampLastTick();
   const state = readState();
   const live = state.live === true; // כבוי-כברירת-מחדל; חוק v120 נשמר
   try {

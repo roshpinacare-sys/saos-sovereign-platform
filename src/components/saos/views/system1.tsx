@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Zap, Loader2, AlertTriangle, CheckCircle2, XCircle, MemoryStick,
-  Brain, Gauge, Activity, Layers, Scale, PauseCircle
+  Brain, Gauge, Activity, Layers, Scale, PauseCircle, BookOpenCheck
 } from "lucide-react";
 import { useLive, timeAgo } from "../lib";
 import { useToast } from "../ui";
@@ -88,6 +88,185 @@ const DECISION_META: Record<string, { he: string; cls: string; icon: ReactNode }
     icon: <PauseCircle size={16} />
   }
 };
+
+// ─── בית-הזיכרון (חיבור-הנתיב /api/saos/memory-house) ─────────────────────
+
+interface MemoryRelayDto {
+  chain: string;
+  address: string;
+  live: boolean | null;
+  rowHe: string;
+}
+
+interface MemoryHouseDto {
+  ok?: boolean;
+  version?: string;
+  at?: string;
+  wipeSignatureHe?: string;
+  recovered?: boolean;
+  relays?: MemoryRelayDto[];
+  sealSeeded?: boolean;
+  anchorRows?: number;
+  dripRows?: number;
+  noteHe?: string;
+  lastRunAt?: string | null;
+  error?: string;
+}
+
+/**
+ * בית-הזיכרון: GET = מצב-על זול (הספר, שורות-השחזור, החותמים — בלי קריאות-שרשרת),
+ * POST "הרץ שחזור כעת" = פקודת-מפעיל (requireAuth — fail-closed; אידמפוטנטי:
+ * ספר בריא לא נוגע). 401 = הודעה כנה "דרוש אימות-בעלים" — לא תקלה.
+ */
+function MemoryHousePanel() {
+  const { data, error, loading, updatedAt, refresh } = useLive<MemoryHouseDto>("/api/saos/memory-house", 60_000);
+  const { push: toast } = useToast();
+  const [running, setRunning] = useState(false);
+  const [runTone, setRunTone] = useState<"green" | "rose">("green");
+  const [runMsg, setRunMsg] = useState<string | null>(null);
+
+  const runRestore = async () => {
+    setRunning(true);
+    setRunMsg(null);
+    try {
+      const res = await fetch("/api/saos/memory-house", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: "{}"
+      });
+      const j = (await res.json().catch(() => null)) as MemoryHouseDto | null;
+      if (res.status === 401 || res.status === 403 || (j?.error ?? "").includes("auth")) {
+        setRunTone("rose");
+        setRunMsg("דרוש אימות-בעלים — השחזור הוא פקודת-מפעיל רגישה ונדחית fail-closed (כנה)");
+      } else if (!j) {
+        setRunTone("rose");
+        setRunMsg(`התשובה לא נפרשה (HTTP ${res.status})`);
+      } else if (j.ok === false) {
+        setRunTone("rose");
+        setRunMsg(j.error ?? "השחזור נכשל (כנה)");
+      } else {
+        setRunTone("green");
+        setRunMsg(
+          `${j.noteHe ?? "השחזור הורץ"}${j.recovered ? " · שחזור בוצע כעת" : " · הספר בריא — לא נגע (אידמפוטנטי)"}`
+        );
+        toast({ title: "שחזור בית-הזיכרון הורץ", desc: (j.noteHe ?? "").slice(0, 140), tone: "green" });
+        refresh();
+      }
+    } catch (e) {
+      setRunTone("rose");
+      setRunMsg(e instanceof Error ? `שגיאת-רשת בשחזור — ${e.message}` : "שגיאת-רשת בשחזור");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  if (loading && !data) {
+    return (
+      <Card className="border-white/[0.06]">
+        <CardContent className="pt-4">
+          <div className="h-16 animate-pulse rounded-lg bg-white/[0.03]" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const relays = Array.isArray(data?.relays) ? data!.relays : [];
+  const bookHealthy = data?.wipeSignatureHe?.includes("בריא") ?? data?.ok === true;
+
+  return (
+    <Card className="border-white/[0.06] bg-gradient-to-b from-emerald-400/[0.04] to-transparent">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex flex-wrap items-center gap-2 text-sm text-zinc-100">
+          <BookOpenCheck size={15} className="text-emerald-300" />
+          בית-הזיכרון — הספר ששורד איפוסים (חיבור /api/saos/memory-house)
+          {data?.ok === false ? (
+            <Badge className="border-red-500/30 bg-red-500/10 text-[9px] text-red-300">הנתיב נכשל (כנה)</Badge>
+          ) : bookHealthy ? (
+            <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[9px] text-emerald-300">הספר חי</Badge>
+          ) : (
+            <Badge className="border-amber-500/30 bg-amber-500/10 text-[9px] text-amber-300">חתימת-איפוס — נדרש שחזור</Badge>
+          )}
+          <span className="text-[10px] font-normal text-zinc-500">עודכן {timeAgo(updatedAt)}</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {error ? (
+          <p className="text-[11.5px] leading-relaxed text-red-300 break-words">
+            מצב-בית-הזיכרון לא נמדד: {error}
+          </p>
+        ) : (
+          <>
+            <p className="text-[11.5px] leading-relaxed text-zinc-300 break-words" dir="rtl">
+              {data?.wipeSignatureHe ?? "—"} · {data?.noteHe ?? "אין הערה"}
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                { k: "עוגני-relay בספר", v: data?.anchorRows ?? "—" },
+                { k: "שורות-טפטוף", v: data?.dripRows ?? "—" },
+                { k: "חותמי-יסוד", v: data?.sealSeeded ? "נזרעו" : "קיימים" },
+                { k: "שחזור אחרון", v: data?.lastRunAt ? timeAgo(data.lastRunAt) : "לא הורץ" }
+              ].map((s) => (
+                <div key={s.k} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  <p className="text-[10px] text-zinc-500">{s.k}</p>
+                  <p className="text-sm font-bold tabular-nums text-zinc-100" dir="ltr">{s.v}</p>
+                </div>
+              ))}
+            </div>
+            {relays.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10.5px] font-semibold text-zinc-400">שורות-ה-relay ששוחזרו (חיות-על-השרשרת מול הכתובות הריבוניות)</p>
+                {relays.map((r) => (
+                  <div key={`${r.chain}-${r.address}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5">
+                    <Badge className="border-white/[0.08] bg-white/[0.04] text-[9px] text-zinc-300" dir="ltr">{r.chain}</Badge>
+                    <span className="font-mono text-[10.5px] text-zinc-400 break-all" dir="ltr">{r.address}</span>
+                    <span className="ms-auto text-[10px] text-zinc-500">{r.rowHe}</span>
+                    {r.live === true ? (
+                      <Badge className="border-emerald-500/25 bg-emerald-500/10 text-[9px] text-emerald-300">חי</Badge>
+                    ) : r.live === false ? (
+                      <Badge className="border-red-500/25 bg-red-500/10 text-[9px] text-red-300">מת על השרשרת (נתון כנה)</Badge>
+                    ) : (
+                      <Badge className="border-zinc-500/25 bg-zinc-500/10 text-[9px] text-zinc-400">לא נבדק</Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+          <Button
+            onClick={runRestore}
+            disabled={running}
+            className="h-9 bg-emerald-500/90 px-4 text-[12px] text-white hover:bg-emerald-500"
+            aria-label="הרץ שחזור בית-הזיכרון כעת"
+          >
+            {running ? (
+              <><Loader2 size={14} className="animate-spin" /> משחזר (קריאות-שרשרת חיות)…</>
+            ) : (
+              <><BookOpenCheck size={14} /> הרץ שחזור כעת</>
+            )}
+          </Button>
+          <span className="text-[10px] leading-relaxed text-zinc-500">
+            אותה יד של המפקד האוטומטי — אידמפוטנטי: ספר בריא לא נוגע; relay מת = נתון כנה, לא שורה. פקודת-מפעיל רגישה (fail-closed).
+          </span>
+        </div>
+
+        {runMsg && (
+          <div
+            role="status"
+            className={`rounded-lg border p-3 text-[11.5px] leading-relaxed break-words ${
+              runTone === "green" ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200" : "border-red-500/30 bg-red-500/[0.06] text-red-200"
+            }`}
+          >
+            {runMsg}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function System1View() {
   const { data, error, loading, updatedAt, refresh } = useLive<System1Board>("/api/saos/system1", 10000);
@@ -438,6 +617,9 @@ export function System1View() {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* בית-הזיכרון — חיבור /api/saos/memory-house (מצב-על זול + שחזור-מפעיל) */}
+      <MemoryHousePanel />
     </div>
   );
 }

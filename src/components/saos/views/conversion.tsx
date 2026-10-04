@@ -25,14 +25,14 @@
 
 import { useCallback, useState } from "react";
 import {
-  ArrowLeftRight, BookOpenCheck, CheckCircle2, Coins, Database, Flame, Gavel,
+  AlertTriangle, ArrowLeftRight, BookOpenCheck, CheckCircle2, Coins, Database, Flame, Gavel,
   Layers, ListChecks, Lock, Radar, Repeat, Rocket, ShieldCheck, Sparkles, Timer, Vault
 } from "lucide-react";
 import {
   Btn, Callout, CopyBtn, ErrorNotice, Kpi, Panel, PanelBody, PanelHeader, Pill,
   SkeletonPanel, Table, Tag, Td, Th
 } from "../ui";
-import { postJson, short, useLive, timeAgo } from "../lib";
+import { fullTime, postJson, short, useLive, timeAgo } from "../lib";
 import { PageHead } from "../shell";
 import { SAOS_VERSION } from "@/lib/saos/version";
 import { cn } from "../ui";
@@ -383,6 +383,137 @@ function CheapRoutesPanel({ scan }: { scan: CheapRouteScan }) {
   );
 }
 
+// ─── (1.9) מסילות-ההמרה הזולות — סריקה חיה (הנתיב הייעודי /api/saos/cheap-routes) ──
+
+/**
+ * הפאנל החי הייעודי: ניזון ישירות מ-GET /api/saos/cheap-routes (מטמון-דקה בצד-השרת,
+ * לכן רענון-חי כל 60ש׳), וכפתור "סרוק עכשיו" קורא GET ?force=1 (fetch רגיל — לא postJson)
+ * ועוקף את המטמון: מדידה חיה חדשה של כל-המסילות מול השירותים עצמם.
+ * אין מסילה עובדת = נאמר כנה וגלוי, לא מוסתר.
+ */
+function CheapRoutesLiveScanPanel() {
+  const live = useLive<CheapRouteScan>("/api/saos/cheap-routes", 60_000);
+  const [forcing, setForcing] = useState(false);
+  const [forceError, setForceError] = useState<string | null>(null);
+  const scan = live.data;
+
+  const forceScan = async () => {
+    setForcing(true);
+    setForceError(null);
+    try {
+      const res = await fetch("/api/saos/cheap-routes?force=1", { cache: "no-store" });
+      const j = (await res.json()) as (CheapRouteScan & { error?: string }) | null;
+      if (j && j.ok === false) setForceError(j.error ?? "הסריקה המאולצת נכשלה (כנה)");
+      live.refresh();
+    } catch (e) {
+      setForceError(e instanceof Error ? `שגיאת-רשת בסריקה המאולצת — ${e.message}` : "שגיאת-רשת בסריקה המאולצת");
+    } finally {
+      setForcing(false);
+    }
+  };
+
+  if (live.error && !scan) return <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />;
+  if (!scan) return <SkeletonPanel rows={5} />;
+
+  const openCount = scan.routes.filter((r) => r.state === "open").length;
+  const liveKindHe = (k: CheapRoute["kind"]): string =>
+    k === "instant-exchange" ? "בורסת-מייד" : k === "solana-dex" ? "בורסת-רשת (לא-משמורתית)" : "גשר";
+
+  return (
+    <Panel accent className="border-teal-400/25">
+      <PanelHeader
+        icon={<Radar size={15} />}
+        title="מסילות-ההמרה הזולות — סריקה חיה"
+        sub="הנתיב הייעודי /api/saos/cheap-routes: כל מסילה נמדדת חי מול השירות עצמו בכל סריקה (מטמון-דקה), והסריקה-המאולצת עוקפת את המטמון — הסביבה זזה והסורק זז איתה."
+        actions={
+          <>
+            <Pill tone={scan.gate === "open" ? "green" : "amber"} pulse={scan.gate === "open"}>
+              {scan.gate === "open" ? "השער פתוח — probe-first מורשה" : "השער סגור — עובדה נמדדת"}
+            </Pill>
+            <Pill tone="zinc">{timeAgo(scan.measuredAt)}</Pill>
+            <Btn onClick={forceScan} disabled={forcing} loading={forcing}>
+              {forcing ? "סורק חי…" : "סרוק עכשיו"}
+            </Btn>
+          </>
+        }
+      />
+      <PanelBody className="space-y-3">
+        {forceError && (
+          <Callout tone="rose" icon={<AlertTriangle size={14} />}>
+            הסריקה המאולצת נכשלה (כנה): {forceError}
+          </Callout>
+        )}
+
+        {/* קריאת-היופיטר החיה — התעריף החי על מאזן ה-SOL הריבוני בפועל */}
+        {scan.jupiter?.ok && scan.jupiter.usdcOut !== null ? (
+          <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/[0.05] px-3.5 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                <CheckCircle2 size={13} /> קריאת-יופיטר החיה — התעריף על המאזן הריבוני בפועל
+              </p>
+              <Pill tone="green">{(scan.jupiter.solNative ?? 0).toFixed(9)} SOL ≈ {scan.jupiter.usdcOut.toFixed(3)} USDC</Pill>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-300">{scan.jupiter.detailHe}</p>
+          </div>
+        ) : (
+          <Callout tone="zinc">
+            קריאת-היופיטר לא הושלמה בסריקה זו — {scan.jupiter?.detailHe ?? "הציטוט החי לא חזר"}; תינסה שוב במחזור הבא.
+          </Callout>
+        )}
+
+        {/* כנות-מלאה: אין מסילה עובדת — נאמר ולא מוסתר */}
+        {openCount === 0 && (
+          <Callout tone="rose" icon={<AlertTriangle size={14} />}>
+            <b>אין מסילה עובדת כעת:</b> אף מסלול לא נמדד פתוח ללא מפתח בסריקה זו ({scan.routes.length} נבדקו) — עובדה נמדדת בכנות, לא תקלת-תצוגה. הסריקה הבאה תבדוק שוב.
+          </Callout>
+        )}
+
+        {/* טבלת המסילות החיה */}
+        <div className="overflow-x-auto -mx-1 px-1">
+          <Table>
+            <thead>
+              <tr>
+                <Th>שם-ספק</Th>
+                <Th>סוג</Th>
+                <Th>זמינות</Th>
+                <Th>מה חוסם</Th>
+                <Th>המדידה החיה</Th>
+                <Th>גז-EVM</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {scan.routes.map((r) => {
+                const st = routeStatePill(r.state);
+                return (
+                  <tr key={r.id} className="align-top">
+                    <Td className="whitespace-nowrap font-semibold">{r.he}</Td>
+                    <Td className="whitespace-nowrap text-[11px] text-zinc-400">{liveKindHe(r.kind)}</Td>
+                    <Td className="whitespace-nowrap">
+                      <Pill tone={st.tone}>{st.he}</Pill>
+                      {r.httpStatus !== null && (
+                        <span className="ms-1.5 font-mono text-[10px] text-zinc-600" dir="ltr">HTTP {r.httpStatus}</span>
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap text-[11px] text-zinc-400">{r.blockerHe ?? "—"}</Td>
+                    <Td className="min-w-[200px] text-[11px] leading-relaxed text-zinc-400">{r.detailHe}</Td>
+                    <Td className="whitespace-nowrap">
+                      {r.reachesEvmGas ? <Tag tone="green">מגיע</Tag> : <Tag tone="zinc">לא — בתוך-הרשת</Tag>}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </div>
+
+        <p className="text-[10px] leading-relaxed text-zinc-600">
+          מדידה אחרונה: {fullTime(scan.measuredAt)} · משך-הסריקה {(scan.tookMs / 1000).toFixed(1)} שניות · {scan.routes.length} מסילות נבדקו במקביל ({openCount} פתוחות · {scan.routes.length - openCount} נעולות/בלתי-נגישות). {scan.gateHe}
+        </p>
+      </PanelBody>
+    </Panel>
+  );
+}
+
 // ─── (4) שני מסלולי ההמרה ───────────────────────────────────────────────────
 
 function RouteCards({ routes }: { routes: RouteCard[] }) {
@@ -678,6 +809,9 @@ export function ConversionView() {
 
       {/* (1.8) ההמרה הזולה — v72: הניסיון שנעשה קבוע */}
       {d.cheapRoutes && <CheapRoutesPanel scan={d.cheapRoutes} />}
+
+      {/* (1.9) הסריקה החיה — הנתיב הייעודי /api/saos/cheap-routes + סריקה-מאולצת */}
+      <CheapRoutesLiveScanPanel />
 
       {/* (2) מחוונים */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">

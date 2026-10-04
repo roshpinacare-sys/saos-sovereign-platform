@@ -19,9 +19,32 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScanSearch, Play, Loader2, ShieldCheck, AlertTriangle, CheckCircle2, XCircle, FileSearch, Lock, ThumbsUp, ThumbsDown, Zap, Gavel } from "lucide-react";
+import { ScanSearch, Play, Loader2, ShieldCheck, AlertTriangle, CheckCircle2, XCircle, FileSearch, Lock, ThumbsUp, ThumbsDown, Zap, Gavel, Eye } from "lucide-react";
 import { useLive, timeAgo, postJson } from "../lib";
 import { useToast } from "../ui";
+
+// ─── פיקוח-הריבונות (v125) — צורות-נורמלות מפורשות (שיעור-v113: לעולם לא קורס) ──
+
+interface OversightCheckUi {
+  part: string;
+  ok: boolean;
+  detail: string;
+  ms?: number;
+}
+interface OversightReportUi {
+  ts: string;
+  tookMs: number;
+  ok: boolean;
+  checks: OversightCheckUi[];
+  findings: string[];
+}
+interface OversightEnvelope {
+  ok?: boolean;
+  mode?: string;
+  report?: OversightReportUi | null;
+  note?: string;
+  error?: string;
+}
 
 // ─── צורות-הלוח (מנורמלות-מפורשות — שיעור-v113: HMR/partial-payload לעולם לא קורס) ──
 
@@ -207,6 +230,106 @@ function FindingCard({ f, onAct, busyId }: { f: FindingRow; onAct: (findingId: s
   );
 }
 
+// ─── פיקוח-הריבונות — הלוח החי (v125) ──────────────────────────────────────
+
+function OversightPanel() {
+  const { data, loading, updatedAt, refresh } = useLive<OversightEnvelope>("/api/saos/oversight", 60_000);
+  const { push: toast } = useToast();
+  const [sweeping, setSweeping] = useState(false);
+
+  const report: OversightReportUi | null = data && typeof data === "object" && data.report && typeof data.report === "object" ? {
+    ts: typeof data.report.ts === "string" ? data.report.ts : "",
+    tookMs: typeof data.report.tookMs === "number" ? data.report.tookMs : 0,
+    ok: data.report.ok === true,
+    checks: Array.isArray(data.report.checks)
+      ? data.report.checks.map((c) => ({
+          part: typeof c?.part === "string" ? c.part : "?",
+          ok: c?.ok === true,
+          detail: typeof c?.detail === "string" ? c.detail : "",
+          ms: typeof c?.ms === "number" ? c.ms : undefined
+        }))
+      : [],
+    findings: Array.isArray(data.report.findings) ? data.report.findings.filter((f): f is string => typeof f === "string") : []
+  } : null;
+
+  const sweepNow = async () => {
+    setSweeping(true);
+    try {
+      const res = await fetch("/api/saos/oversight?fresh=1");
+      if (res.status === 401 || res.status === 403) {
+        toast({ title: "הסריקה-הרגעית דורשת אימות-בעלים", desc: "הלולאה-המתמשכת ממשיכה לסרוק מאחורי-הקלעים", tone: "gold" });
+        return;
+      }
+      const j = (await res.json()) as OversightEnvelope;
+      if (j.report) {
+        toast({
+          title: j.report.ok ? "הסריקה-הרגעית נקייה" : "הסריקה מצאה נקודות-מצוקה",
+          desc: `${j.report.checks.length} חלקים נמדדו · ${j.report.findings.length} ממצאים · ${j.report.tookMs}מ"ש`,
+          tone: j.report.ok ? "green" : "rose"
+        });
+      } else {
+        toast({ title: "הסריקה כשלה כנה", desc: (j.error ?? "לא ידוע").slice(0, 160), tone: "rose" });
+      }
+      refresh();
+    } catch {
+      toast({ title: "השרת לא ענה", desc: "נסה שוב בעוד רגע", tone: "rose" });
+    } finally {
+      setSweeping(false);
+    }
+  };
+
+  return (
+    <Card className="border-white/[0.06]">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex flex-wrap items-center gap-2 text-sm text-zinc-100">
+          <Eye size={15} className="text-cyan-300" />
+          פיקוח-הריבונות — האורגניזם מסתכל על עצמו (v125)
+          <Badge className={report ? (report.ok ? "border-emerald-400/20 bg-emerald-400/10 text-[9px] text-emerald-300" : "border-red-400/20 bg-red-400/10 text-[9px] text-red-300") : "border-white/[0.08] bg-white/[0.04] text-[9px] text-zinc-400"}>
+            {report ? (report.ok ? "6/6 חיים" : "נדרש-טיפול") : loading ? "נמדד..." : "ממתין-לסריקה"}
+          </Badge>
+          <span className="text-[10px] font-normal text-zinc-500">{report ? `סריקה: ${timeAgo(report.ts)}` : data?.note ? data.note.slice(0, 60) : ""}</span>
+          <span className="grow" />
+          <Button size="sm" variant="outline" className="h-7 gap-1 border-white/[0.08] text-[10px]" onClick={sweepNow} disabled={sweeping}>
+            {sweeping ? <Loader2 size={11} className="animate-spin" /> : <ScanSearch size={11} />}
+            סרוק עכשיו
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {report ? (
+          <>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              {report.checks.map((c) => (
+                <div key={c.part} className="flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  {c.ok ? <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-300" /> : <XCircle size={13} className="mt-0.5 shrink-0 text-red-300" />}
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-zinc-200" dir="auto">{c.part}</p>
+                    <p className="text-[10px] text-zinc-500 break-words" dir="auto">{c.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {report.findings.length > 0 ? (
+              <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2">
+                <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-amber-300"><AlertTriangle size={11} /> ממצאים לתיקון ({report.findings.length})</p>
+                <ul className="space-y-0.5 text-[10px] leading-relaxed text-amber-200/80">
+                  {report.findings.map((f, i) => (
+                    <li key={i} className="break-words" dir="auto">• {f}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-[10px] text-emerald-300/80">אפס ממצאים — כל-החלקים חיים והראיות מסונכרנות</p>
+            )}
+          </>
+        ) : (
+          <p className="text-[11px] text-zinc-500">הלולאה-המתמשכת סורקת כל 5 דק׳ (איברים · כספת · גיט · ממסר · דופק · רעש) — הדוח יופיע כאן בסריקה-הראשונה</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ReviewView() {
   const { data, error, loading, updatedAt, refresh } = useLive<ReviewBoard>("/api/saos/review", 15000);
   const { push: toast } = useToast();
@@ -332,6 +455,9 @@ export default function ReviewView() {
 
   return (
     <div className="space-y-4" dir="rtl">
+      {/* פיקוח-הריבונות — הלולאה שמפקחת ומחפשת מה-עוד לתקן (v125) */}
+      <OversightPanel />
+
       {/* כותרת + חותמת + KPIs */}
       <Card className="border-white/[0.06] bg-gradient-to-b from-cyan-400/[0.05] to-transparent">
         <CardHeader className="pb-2">

@@ -23,9 +23,9 @@
 import { useState } from "react";
 import {
   ShieldCheck, ShieldAlert, Radar, KeyRound, Fingerprint, Globe2,
-  CheckCircle2, AlertTriangle, Lock, Eye, Coins, Server, Landmark, FileCheck2
+  CheckCircle2, AlertTriangle, Lock, Eye, Coins, Server, Landmark, FileCheck2, LogOut
 } from "lucide-react";
-import { useLive, timeAgo, postJson, fmtInt } from "../lib";
+import { useLive, timeAgo, postJson, fmtInt, short } from "../lib";
 import {
   Panel, PanelHeader, PanelBody, Kpi, Pill, Table, Th, Td, Callout,
   SkeletonPanel, ErrorNotice, Btn, Tag
@@ -90,6 +90,296 @@ interface SecurityData {
   };
   policy: string[];
   highCount: number;
+}
+
+// ─── חיואל-שליטת STEEM (R10) — חיבור-הנתיב /api/saos/rearm/steem ──────────
+
+type SteemRole = "owner" | "active" | "posting" | "memo";
+
+interface SteemRearmStatusDto {
+  passwordFound?: boolean;
+  candidates?: number;
+  roles?: Partial<Record<SteemRole, { derived: string; live: string | null; match: boolean }>>;
+  allMatch?: boolean;
+  liveAt?: string;
+  source?: string;
+  account?: string;
+  error?: string;
+}
+
+interface SteemRearmResultDto {
+  armed?: boolean;
+  account?: string;
+  roles?: Partial<Record<SteemRole, { pub: string; live: boolean }>>;
+  envKeysWritten?: string[];
+  rosterUpdated?: boolean;
+  mirroredHomes?: string[];
+  resealedAt?: string;
+  error?: string;
+}
+
+const STEEM_ROLE_HE: Record<SteemRole, string> = {
+  owner: "בעלים",
+  active: "פעיל",
+  posting: "פרסום",
+  memo: "מזכר"
+};
+
+const STEEM_ROLES: SteemRole[] = ["owner", "active", "posting", "memo"];
+
+/**
+ * חיואל-שליטת STEEM (R10): GET = מטריצת-התאמה חיה בין הסיסמה-האם-החתומה בכספת
+ * לבין סמכויות-השליטה החיות על השרשרת (מפתחות-ציבוריים + בוליאנים בלבד — אפס סוד).
+ * POST = אימות-וכתיבה fail-closed: רק התאמה מלאה 4/4 מתקדמת לאטימה-מחדש.
+ * אישור-משתמש דו-שלבי (מצב armConfirm) + טיפול-401 כנה.
+ */
+function SteemRearmPanel() {
+  const live = useLive<SteemRearmStatusDto>("/api/saos/rearm/steem", 60_000);
+  const [armConfirm, setArmConfirm] = useState(false);
+  const [arming, setArming] = useState(false);
+  const [armTone, setArmTone] = useState<"green" | "rose">("green");
+  const [armMsg, setArmMsg] = useState<string | null>(null);
+  const [armResult, setArmResult] = useState<SteemRearmResultDto | null>(null);
+
+  const executeArm = async () => {
+    setArming(true);
+    setArmMsg(null);
+    try {
+      const res = await postJson<SteemRearmResultDto>("/api/saos/rearm/steem", {});
+      if (res.ok && res.data) {
+        setArmTone("green");
+        setArmResult(res.data);
+        setArmMsg(
+          res.data.armed
+            ? `החיואל הושלם — ההתאמה נמדדה 4/4, המעטפת נאטמה מחדש (${res.data.resealedAt ? timeAgo(res.data.resealedAt) : "כעת"}) והועתקה ל-${res.data.mirroredHomes?.length ?? 0} בתי-שחזור.`
+            : "החיואל נעצר fail-closed — אימות-ההתאמה לא עבר; שום כתיבה לא בוצעה."
+        );
+        setArmConfirm(false);
+        live.refresh();
+      } else {
+        setArmTone("rose");
+        setArmMsg(
+          (res.error ?? "").includes("auth")
+            ? "דרוש אימות-בעלים — חיואל-השליטה הוא פעולה רגישה ונדחה fail-closed (כנה)"
+            : `החיואל נדחה — ${res.error ?? "לא ידוע"}`
+        );
+      }
+    } catch (e) {
+      setArmTone("rose");
+      setArmMsg(e instanceof Error ? `שגיאת-רשת בחיואל — ${e.message}` : "שגיאת-רשת בחיואל");
+    } finally {
+      setArming(false);
+    }
+  };
+
+  const onArmClick = () => {
+    if (arming) return;
+    if (!armConfirm) {
+      setArmConfirm(true);
+      return;
+    }
+    void executeArm();
+  };
+
+  if (live.error && !live.data) return <ErrorNotice message={String(live.error)} onRetry={() => live.refresh()} />;
+  const st = live.data;
+
+  return (
+    <Panel accent className={st?.allMatch ? "border-emerald-400/25" : "border-amber-400/25"}>
+      <PanelHeader
+        icon={<KeyRound size={15} />}
+        title="חיואל-שליטת STEEM (R10) — הכספת מרפאת את עצמה"
+        sub="המטריצה בודקת חי בכל רענון: האם הסיסמה-האם החתומה בכספת נגזרת בדיוק לסמכויות-השליטה החיות של החשבון על השרשרת. מוצגים מפתחות-ציבוריים ובוליאנים בלבד — אפס חומר-סוד בתצוגה, בתשובה וביומן."
+        actions={
+          <>
+            <Pill tone={st?.allMatch ? "green" : "rose"}>
+              {st?.allMatch ? "4/4 תואמים — השליטה חיה" : "יש סטייה — נדרש חיואל"}
+            </Pill>
+            <Pill tone="zinc">{st?.liveAt ? timeAgo(st.liveAt) : "—"}</Pill>
+            <Btn
+              onClick={onArmClick}
+              disabled={arming}
+              loading={arming}
+              variant={armConfirm ? "primary" : "secondary"}
+              title={armConfirm ? "לחיצה שנייה — הרצת אימות-וכתיבה בפועל" : "לחיצה ראשונה — אישור"}
+            >
+              {arming ? "מריץ חיואל…" : armConfirm ? "אישור שני — הרץ עכשיו" : "הרץ חיואל-אימות-וכתיבה"}
+            </Btn>
+          </>
+        }
+      />
+      <PanelBody className="space-y-3">
+        {armConfirm && (
+          <Callout tone="gold" icon={<AlertTriangle size={14} />}>
+            <b>אישור נדרש:</b> הרצת החיואל תאמת מול השרשרת החיה, ורק בהתאמה מלאה תאטום מחדש את מעטפת-החתימה ותשקף אותה לכל בתי-השחזור. כתיבה fail-closed — אין התאמה, אין כתיבה.
+          </Callout>
+        )}
+        {armMsg && (
+          <Callout tone={armTone} icon={armTone === "green" ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}>
+            {armMsg}
+            {armResult?.armed && armResult.envKeysWritten && armResult.envKeysWritten.length > 0 && (
+              <span className="mt-1 block text-[10.5px] text-zinc-400" dir="ltr">
+                {armResult.envKeysWritten.join(" · ")}
+              </span>
+            )}
+          </Callout>
+        )}
+
+        {st ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
+              <span>חשבון: <span className="font-mono text-zinc-200" dir="ltr">{st.account ?? "—"}</span></span>
+              <span>·</span>
+              <span>מקור-חתום: <span className="font-mono text-zinc-200" dir="ltr">{st.source ?? "—"}</span></span>
+              <span>·</span>
+              <span>מועמדים-נבדקו: {st.candidates ?? "—"}</span>
+              <span>·</span>
+              <span>{st.passwordFound ? "נמצאה סיסמה מתאימה מלאה" : "לא נמצאה סיסמה מתאימה (כנה)"}</span>
+            </div>
+            <div className="overflow-x-auto -mx-1 px-1">
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>תפקיד</Th>
+                    <Th>מצב</Th>
+                    <Th>נגזר מהכספת (מפתח-ציבורי)</Th>
+                    <Th>חי על השרשרת</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {STEEM_ROLES.map((role) => {
+                    const r = st.roles?.[role];
+                    return (
+                      <tr key={role}>
+                        <Td className="whitespace-nowrap font-medium">
+                          <span className="font-mono text-[11px]" dir="ltr">{role}</span>
+                          <span className="ms-1.5 text-[10.5px] text-zinc-500">{STEEM_ROLE_HE[role]}</span>
+                        </Td>
+                        <Td>{r?.match ? <Tag tone="green">תואם</Tag> : <Tag tone="rose">לא תואם</Tag>}</Td>
+                        <Td className="font-mono text-[10.5px] text-zinc-300" dir="ltr" title={r?.derived}>
+                          {r?.derived ? short(r.derived, 16) : "—"}
+                        </Td>
+                        <Td className="font-mono text-[10.5px] text-zinc-400" dir="ltr" title={r?.live ?? undefined}>
+                          {r?.live ? short(r.live, 16) : "—"}
+                        </Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+            <p className="text-[10px] leading-relaxed text-zinc-600">
+              תואם = הנגזרה מהחומר-החתום בכספת שווה בדיוק למפתח-הציבורי החי על השרשרת. ההצגה מקוצרת לקריאות — המפתחות המלאים ציבוריים ונבדקים במלואם בקצה-האחורי.
+            </p>
+          </>
+        ) : (
+          <SkeletonPanel lines={4} />
+        )}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+// ─── ביטול-כל-ההפעלות (foundry model) — חיבור-הנתיב /api/saos/auth/revoke-all ──
+
+/**
+ * סיבוב-epoch: כל-קוקי-הפעלה שנחתם לפני הקריאה מתים מיד — כולל ההפעלה
+ * הנוכחית שממנה הפעולה מבוצעת. מפתחות-Bearer אינם נפגעים (מעוצב כך).
+ * כפתור אדום-מסוכן עם אישור-כפול (שתי לחיצות) וטיפול-401 כנה.
+ */
+function RevokeAllPanel() {
+  const [stage, setStage] = useState(0); // 0 רגיל · 1 אישור-ראשון · 2 אישור-סופי
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const revoke = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await postJson<{ ok: boolean; note?: string }>("/api/saos/auth/revoke-all", {});
+      if (res.ok) {
+        setDone(true);
+        setMsg("כל-ההפעלות בוטלו — יש להתחבר מחדש. ההפעלה הנוכחית (כולל מסך זה) מתה מיד — epoch חדש נפתח.");
+      } else if ((res.error ?? "").includes("auth")) {
+        setMsg("דרוש אימות-בעלים — ביטול-ההפעלות הוא פעולה רגישה ונדחה fail-closed (כנה)");
+      } else {
+        setMsg(`הביטול נדחה — ${res.error ?? "לא ידוע"}`);
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? `שגיאת-רשת בביטול — ${e.message}` : "שגיאת-רשת בביטול");
+    } finally {
+      setBusy(false);
+      setStage(0);
+    }
+  };
+
+  const onDangerClick = () => {
+    if (busy) return;
+    if (stage === 0) {
+      setStage(1);
+      return;
+    }
+    if (stage === 1) {
+      setStage(2);
+      return;
+    }
+    void revoke();
+  };
+
+  return (
+    <Panel className="border-rose-400/25">
+      <PanelHeader
+        icon={<LogOut size={15} />}
+        title="ביטול-כל-ההפעלות (foundry model) — סיבוב-epoch"
+        sub="הנשק המוסדי נגד קוקי-גנוב או הפעלה חשודה: סיבוב ה-epoch גורם לכל-קוקי שנחתם לפני הרגע הזה להיות בלתי-תקף מיד. מפתחות-Bearer אינם נפגעים — הביטול הורג הפעלות, לא מפתח-מנהל."
+        actions={<Pill tone="rose">פעולה מנתקת</Pill>}
+      />
+      <PanelBody className="space-y-3">
+        <Callout tone="rose" icon={<AlertTriangle size={14} />}>
+          <b>אזהרה ברורה:</b> הפעולה מנתקת את כל-ההפעלות — כולל ההפעלה הנוכחית שלך במסך זה. אחרי-הצלחה תידרש התחברות-מחדש בכל חלון פתוח.
+        </Callout>
+
+        {stage > 0 && !done && (
+          <Callout tone="gold" icon={<AlertTriangle size={14} />}>
+            {stage === 1
+              ? "אישור ראשון התקבל — הפעולה עדיין לא בוצעה. לחיצה נוספת תעבור לאישור-הסופי."
+              : "אישור סופי דרוש: הלחיצה הבאה מבצעת את הביטול בפועל ומנתקת אותך מיד."}
+          </Callout>
+        )}
+
+        {done && msg ? (
+          <Callout tone="green" icon={<CheckCircle2 size={14} />}>
+            {msg}
+          </Callout>
+        ) : msg ? (
+          <Callout tone="rose" icon={<AlertTriangle size={14} />}>
+            {msg}
+          </Callout>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Btn variant="danger" size="md" onClick={onDangerClick} disabled={busy} loading={busy}>
+            {busy
+              ? "מבטל…"
+              : stage === 0
+                ? "בטל את כל-ההפעלות"
+                : stage === 1
+                  ? "אישור ראשון — אני מבין שהכל מתנתק"
+                  : "אישור סופי — בצע ביטול עכשיו"}
+          </Btn>
+          {stage > 0 && !busy && (
+            <Btn variant="ghost" onClick={() => setStage(0)}>
+              ביטול — אל תעשה דבר
+            </Btn>
+          )}
+        </div>
+        <p className="text-[10px] leading-relaxed text-zinc-600">
+          POST /api/saos/auth/revoke-all — דורש אימות-בעלים (fail-closed). הפעולה נרשמת ביומן-הביקורת.
+        </p>
+      </PanelBody>
+    </Panel>
+  );
 }
 
 // ─── הוויו ─────────────────────────────────────────────────────────────────
@@ -530,6 +820,12 @@ export function SecurityView() {
           </div>
         </PanelBody>
       </Panel>
+
+      {/* ─── חיואל-שליטת STEEM — חיבור /api/saos/rearm/steem ────────────── */}
+      <SteemRearmPanel />
+
+      {/* ─── ביטול-כל-ההפעלות — חיבור /api/saos/auth/revoke-all ─────────── */}
+      <RevokeAllPanel />
     </div>
   );
 }

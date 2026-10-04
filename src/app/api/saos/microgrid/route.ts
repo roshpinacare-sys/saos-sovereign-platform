@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { microgridStatus, microgridCycle, microgridCreate, microgridFund } from "@/lib/saos/microgrid-live";
 import { appendChainedReceipt } from "@/lib/chained-receipt";
+import { audit, requireAuth } from "@/lib/saos/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,10 @@ export const dynamic = "force-dynamic";
  *   { action: "cycle" }                    → אורקל + טיק + שטיפה (מחזור ידני)
  *   { action: "create", pair, levels }     → גריד חדש (עוגן = מחיר חי שנמדד)
  *   { action: "fund", amount }             → הזרמת SAOS-M לקרן-הרווח
+ *
+ * v125 — איטום-השער (ממצא-ביקורת CRITICAL 2026-10-04): cycle/create/fund היו POST
+ * פתוח לכל-מקור ברשת — פעולות-HQ על-השרשרת. מעתה דורש requireAuth + נרשם
+ * ב-AuditEvent. GET נשאר קריא-ציבורי (סטטוס בלבד, אפס סוד). fail-closed.
  */
 export async function GET() {
   // v91 — house style: every route owns its boundary. microgridStatus catches
@@ -27,6 +32,11 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuth(req);
+  if (!auth.ok) {
+    await audit({ kind: "microgrid", actor: auth.actorRef, action: "POST /api/saos/microgrid", allowed: false, req, detail: `owner-gate:${auth.status}` });
+    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
+  }
   try {
     const body = (await req.json().catch(() => ({}))) as {
       action?: string;
@@ -68,6 +78,7 @@ export async function POST(req: Request) {
     } catch {
       /* receipt best-effort — the action itself already answered */
     }
+    await audit({ kind: "microgrid", actor: auth.actorRef, action: `POST ${action}`, allowed: true, req });
 
     return NextResponse.json(out);
   } catch (e) {
