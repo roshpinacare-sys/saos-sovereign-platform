@@ -8,6 +8,7 @@ import {
   configureFleet,
   adviseNow,
   mmFleetBoard,
+  DEFAULT_FEE_BPS,
 } from "@/lib/saos/mm-fleet";
 import {
   deployLiveLadder,
@@ -146,9 +147,9 @@ export async function POST(req: NextRequest) {
     const chain = chainOf(body.chain);
     // חוק-הספר-הנכון: פקודות-STEEM על ספר-STEEM · פקודות-HIVE על ספר-HIVE
     const book = chain === "hive" ? await fetchHiveBook() : await fetchSteemBook();
-    const spacingBps = typeof body.spacingBps === "number" && body.spacingBps >= 100 && body.spacingBps <= 600 ? body.spacingBps : 200;
-    const sizeHive = typeof body.sizeHive === "number" && body.sizeHive >= 5 && body.sizeHive <= 50 ? body.sizeHive : 10;
-    const r = await deployLiveLadder(chain, book, spacingBps, sizeHive, 75, typeof body.soldier === "string" ? body.soldier : undefined);
+    const spacingBps = typeof body.spacingBps === "number" && body.spacingBps >= 20 && body.spacingBps <= 600 ? body.spacingBps : 40;
+    const sizeHive = typeof body.sizeHive === "number" && body.sizeHive >= 1 && body.sizeHive <= 50 ? body.sizeHive : 10;
+    const r = await deployLiveLadder(chain, book, spacingBps, sizeHive, DEFAULT_FEE_BPS, typeof body.soldier === "string" ? body.soldier : undefined);
     await logOp("mm-fleet.deploy-live", { chain, ok: r.ok, placed: r.placed.length, skippedTaker: r.skippedTaker, he: r.he });
     return NextResponse.json({ ok: r.ok, he: r.he, placed: r.placed, skippedTaker: r.skippedTaker, refusal: r.refusal ?? null });
   }

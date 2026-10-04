@@ -239,7 +239,7 @@ const BACKUP_EVERY = 60; // every 60th cycle = 10 min (v36: was 30 — mirror fr
 const RESTORE_DRILL_EVERY = 144; // v45.1 — restore drill every 144th cycle (≈24min)
 const BACKUP_FIRST_AT = 3; // first snapshot 30s after boot (grip from minute one)
 const GRID_EVERY = 12; // v116 — השתלטות: grid tick every 12th cycle (≈2min) — the ladder lives on the real book
-const MM_FLEET_EVERY = 18; // v126 — עושה-השוק: fleet tick every 18th cycle (≈3min) — 9 soldiers, paper-forever from the keeper
+const MM_FLEET_EVERY = 9; // v127 — עושה-השוק: fleet tick every 9th cycle (≈90s) — קצב-צפוף יותר = ספר-נמדד-לעיתים-תכופות (paper-forever from the keeper)
 const DEV_LOG_MAX_BYTES = 20 * 1024 * 1024; // rotate dev.log at 20 MB
 
 // v66 — auto-expansion scout (התפשטות-אוטומטית). The web tier owns the engine

@@ -59,14 +59,15 @@ export interface MmLiveOrder {
   notional: number;
   txid: string;
   at: string;
-  status: "open" | "assumed-filled" | "expired" | "canceled";
+  status: "open" | "filled" | "assumed-filled" | "expired" | "canceled"; // v127: filled = מאומת מול fill_order
   closedAt?: string;
 }
 
 export interface MmLiveState {
-  version: 1;
+  version: 2; // v127 — הגירה: + nextOrderid (orderids ייחודיים — נמדד חי: פריסה-חוזרת-עם-אותם-ids החליפה-פקודות-בשקט)
   liveArmed: boolean;
   liveArmedAt: string | null;
+  nextOrderid: number;
   orders: MmLiveOrder[];
   receipts: { at: string; chain: MmChain; owner: string; orderid: number; txid: string; verified: boolean; he: string }[];
   log: { at: string; kind: string; he: string }[];
@@ -74,14 +75,23 @@ export interface MmLiveState {
 }
 
 function freshLiveState(): MmLiveState {
-  return { version: 1, liveArmed: false, liveArmedAt: null, orders: [], receipts: [], log: [], updatedAt: new Date().toISOString() };
+  return { version: 2, liveArmed: false, liveArmedAt: null, nextOrderid: 890_000, orders: [], receipts: [], log: [], updatedAt: new Date().toISOString() };
 }
 
 function loadLiveState(): MmLiveState {
   try {
     const raw = fs.readFileSync(STATE_PATH, "utf8");
-    const s = JSON.parse(raw) as MmLiveState;
-    if (s && s.version === 1 && Array.isArray(s.orders)) return s;
+    const s = JSON.parse(raw) as MmLiveState & { version?: number };
+    const v = Number(s?.version ?? 0);
+    if (s && (v === 2 || v === 1) && Array.isArray(s.orders)) {
+      // הגירה כנה מ-v1: orderids ייחודיים מהרגע הזה (הישנים נשארים בפנקס)
+      if (v === 1) {
+        s.version = 2;
+        s.nextOrderid = 890_000;
+        pushLiveLog(s, "migrate-v2", "הגירה ל-v2: orderids ייחודיים-מונוטוניים (פריסה-חוזרת-עם-אותם-ids הייתה מחליפה-פקודות-בשקט — נמדד חי 2026-10-04)");
+      }
+      return s;
+    }
   } catch {
     /* absent → fresh */
   }
@@ -176,6 +186,28 @@ async function getOpenOrders(chain: MmChain, owner: string): Promise<OpenOrderRo
 
 export interface MmBook { ok: boolean; mid: number | null; bestBid: number | null; bestAsk: number | null; spreadBps: number | null; error?: string }
 
+export interface ChainBalance { ok: boolean; base: number | null; quote: number | null; error?: string }
+
+/** v127 — מאזן-חי של הבעלים: המדידה שמונעת "Assert Exception: available >= -delta"
+ *  (נמדד חי 2026-10-04: פריסה-רביעית נדחתה ע"י השרשרת על-איזון — השער-הזה
+ *  הוא הריפוי: סירוב-מדוד מקומי במקום כישלון-שידור). */
+export async function getChainBalance(chain: MmChain, owner: string): Promise<ChainBalance> {
+  try {
+    if (chain === "hive") {
+      const accs = await hiveRpc<Array<{ balance: string; hbd_balance: string }>>(HIVE_RPC_RAIL[0]!, "condenser_api.get_accounts", [[owner]], 15_000);
+      const a = accs?.[0];
+      if (!a) return { ok: false, base: null, quote: null, error: "חשבון לא נמדד" };
+      return { ok: true, base: parseFloat(a.balance), quote: parseFloat(a.hbd_balance) };
+    }
+    const accs = await steemRpc<Array<{ balance: string; sbd_balance: string }>>("condenser_api.get_accounts", [[owner]]);
+    const a = accs?.[0];
+    if (!a) return { ok: false, base: null, quote: null, error: "חשבון לא נמדד" };
+    return { ok: true, base: parseFloat(a.balance), quote: parseFloat(a.sbd_balance) };
+  } catch (e) {
+    return { ok: false, base: null, quote: null, error: String(e).slice(0, 140) };
+  }
+}
+
 /** ספר-השוק הפנימי של STEEM (STEEM/SBD) — אמת-מדידה עצמאית לפריסה-חי על STEEM.
  *  אסור לפרוס פקודות STEEM על מחירי-ספר-HIVE — ערבוב-שרשרות = מילוי-מיידי מזיק. */
 export async function fetchSteemBook(): Promise<MmBook> {
@@ -236,7 +268,7 @@ async function broadcastSteemCancel(orderid: number, wif: string): Promise<strin
 
 export interface DeployPlanOp { side: "buy" | "sell"; orderid: number; price: number; sizeHive: number; notional: number; amountToSell: string; minToReceive: string }
 
-export function buildDeployPlan(chain: MmChain, book: { mid: number | null; bestBid: number | null; bestAsk: number | null }, spacingBps: number, sizeHive: number, ownerIdx: number, feeBps: number): { ops: DeployPlanOp[]; skippedTaker: number; refusal?: string } {
+export function buildDeployPlan(chain: MmChain, book: { mid: number | null; bestBid: number | null; bestAsk: number | null }, spacingBps: number, sizeHive: number, ownerIdx: number, feeBps: number, idSeed?: number): { ops: DeployPlanOp[]; skippedTaker: number; refusal?: string } {
   // סמלי-נכס מודעי-שרשרת: HIVE→HIVE/HBD · STEEM→STEEM/SBD (ערבוב-סמלים =
   // "Cannot parse asset symbol" מהשרשרת — נמדד חי 2026-10-04)
   const BASE = chain === "hive" ? "HIVE" : "STEEM";
@@ -244,8 +276,10 @@ export function buildDeployPlan(chain: MmChain, book: { mid: number | null; best
   if (!book.mid || !book.bestBid || !book.bestAsk) return { ops: [], skippedTaker: 0, refusal: "אין ספר-חי — פריסה נדחית (fail-closed)" };
   const half = spacingBps / 2;
   if (half < feeBps + 10) return { ops: [], skippedTaker: 0, refusal: `מדרגה ${half.toFixed(0)}bps < עמלה ${feeBps}bps+10 — פריסה נדחית (שער-רווחיות)` };
+  const idBase = idSeed ?? ORDER_ID_BASE + ownerIdx * 100;
   const ops: DeployPlanOp[] = [];
   let skippedTaker = 0;
+  let seq = 0;
   // 2 קניות מתחת ל-bid (מייקר) + 2 מכירות מעל ה-ask — מהמדרגות הפנימיות כלפי חוץ
   for (const i of [1, 2]) {
     const buy = book.mid * (1 - (spacingBps * i) / 10_000);
@@ -253,7 +287,7 @@ export function buildDeployPlan(chain: MmChain, book: { mid: number | null; best
     const notional = buy * sizeHive;
     if (notional > MAX_NOTIONAL_PER_OWNER) { skippedTaker += 1; continue; }
     ops.push({
-      side: "buy", orderid: ORDER_ID_BASE + ownerIdx * 100 + i, price: buy, sizeHive, notional,
+      side: "buy", orderid: idBase + (seq++), price: buy, sizeHive, notional,
       amountToSell: `${notional.toFixed(3)} ${QUOTE}`, minToReceive: `${sizeHive.toFixed(3)} ${BASE}`,
     });
   }
@@ -261,14 +295,95 @@ export function buildDeployPlan(chain: MmChain, book: { mid: number | null; best
     const sell = book.mid * (1 + (spacingBps * i) / 10_000);
     if (sell <= book.bestBid) { skippedTaker += 1; continue; }
     ops.push({
-      side: "sell", orderid: ORDER_ID_BASE + ownerIdx * 100 + 10 + i, price: sell, sizeHive, notional: sell * sizeHive,
+      side: "sell", orderid: idBase + (seq++), price: sell, sizeHive, notional: sell * sizeHive,
       amountToSell: `${sizeHive.toFixed(3)} ${BASE}`, minToReceive: `${(sell * sizeHive).toFixed(3)} ${QUOTE}`,
     });
   }
   return { ops: ops.slice(0, MAX_ORDERS_PER_DEPLOY), skippedTaker };
 }
 
-// ─── deploy (STEEM: headcorner · HIVE: חייל) ────────────────────────────────
+/** v127 — מילויים-מאומתים מהיסטוריית-החשבון (fill_order ops): ההוכחה-המוחלטת.
+ *  מסילת-המדידה: steemapi.boylikegirl.club (הצומת-המוכח להיסטוריה —
+ *  api.steemit חתך/דחה) + justyy. הבוט-המקביל על החשבון מציף-את-ההיסטוריה
+ *  בעשרות-ops לדקה — החלון צריך להיות רחב (limit 1200). */
+export interface SteemFillRow { blockNum: number; ts: string; openOwner: string; openOrderid: number; currentPays: string; openPays: string }
+
+async function steemHistoryRail(account: string, limit: number): Promise<unknown[] | null> {
+  const HISTORY_RAIL = ["https://steemapi.boylikegirl.club", "https://api.justyy.com", "https://api.steemit.com"];
+  let lastErr = "no-attempt";
+  for (const node of HISTORY_RAIL) {
+    try {
+      const j = await fetch(node, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "condenser_api.get_account_history", params: [account, -1, limit], id: 1 }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      const body = (await j.json()) as { result?: unknown[]; error?: { message?: string } };
+      if (body.error) throw new Error(body.error.message ?? "rpc-error");
+      if (Array.isArray(body.result)) return body.result;
+      throw new Error("empty-result");
+    } catch (e) {
+      lastErr = String(e).slice(0, 120);
+    }
+  }
+  throw new Error(`מסילת-היסטוריה כשלה: ${lastErr}`);
+}
+
+export async function fetchSteemFills(owner: string, limit = 1200): Promise<SteemFillRow[]> {
+  try {
+    const hist = (await steemHistoryRail(owner, limit)) ?? [];
+    const fills: SteemFillRow[] = [];
+    for (const row of hist) {
+      try {
+        const rec = row as [number, { op?: [string, Record<string, unknown>]; timestamp?: string; block?: number }];
+        const [type, op] = rec?.[1]?.op ?? [];
+        if (type !== "fill_order" || !op) continue;
+        fills.push({
+          blockNum: Number(rec[1]?.block ?? 0),
+          ts: String(rec[1]?.timestamp ?? ""),
+          openOwner: String(op.open_owner ?? ""),
+          openOrderid: Number(op.open_orderid ?? 0),
+          currentPays: String(op.current_pays ?? ""),
+          openPays: String(op.open_pays ?? ""),
+        });
+      } catch {
+        /* שורה-לא-תקנית — דלג כנה */
+      }
+    }
+    return fills;
+  } catch {
+    return []; // כשל-מדידה — הקציר מדלג כנה (אין ראיה = אין רשומה)
+  }
+}
+
+/** v127 — פקודות-פתוחות-זרות על החשבון: פעילות-מפעילים-מקבילים מזוהה ומדווחת
+ *  כנה (נמדד חי 2026-10-04: בוט-מקביל מסחר-ב-headcorner — הפקודות שלא בפנקס
+ *  שלנו אינן שלנו ולעולם לא ייחשבו לנו). −1 = לא נמדד. */
+export async function steemForeignOpenOrders(): Promise<number> {
+  try {
+    const rows = await getOpenOrders("steem", HEAD_CORNER);
+    const ours = new Set(loadLiveState().orders.filter((o) => o.chain === "steem" && o.status === "open").map((o) => o.orderid));
+    return rows.filter((r) => !ours.has(r.orderid)).length;
+  } catch {
+    return -1;
+  }
+}
+
+/** v127 — פנקס-הפקודות-שלנו (לקציר-המילויים — אימות-צד/מחיר מול הפקודה-המקורית) */
+export function ownOrdersSnapshot(): MmLiveOrder[] {
+  return loadLiveState().orders;
+}
+
+/** v127 — סימון-פקודה-כמולאה-מאומתת (fill_order) ושמירה אטומית */
+export function markOrderFilled(chain: MmChain, owner: string, orderid: number, closedTs: string): void {
+  const s = loadLiveState();
+  const o = s.orders.find((x) => x.chain === chain && x.owner === owner && x.orderid === orderid && x.status === "open");
+  if (!o) return;
+  o.status = "filled";
+  o.closedAt = closedTs;
+  saveLiveState(s);
+}
 
 export interface DeployResult {
   ok: boolean;
@@ -289,7 +404,12 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
     return { ok: false, he: "מתג-החי כבוי — חימוש דורש פעולה-מאומתת נפרדת", chain, owner, placed: [], skippedTaker: 0, refusal: "liveArmed=false" };
   }
   const ownerIdx = chain === "steem" ? 99 : Math.max(0, (MM_FLEET_SOLDIERS as readonly string[]).indexOf(owner));
-  const plan = buildDeployPlan(chain, book, spacingBps, sizeHive, ownerIdx, feeBps);
+  // v127 — orderids ייחודיים-מונוטוניים (לעולם לא משומשים-שוב): פריסה-חוזרת-עם-אותם-ids
+  // החליפה-פקודות-קיימות-בשקט (נמדד חי) וקלקלה את פנקס-הדדופ
+  s.nextOrderid = Math.max(s.nextOrderid ?? 890_000, 890_000);
+  const idSeed = s.nextOrderid;
+  s.nextOrderid += 16;
+  const plan = buildDeployPlan(chain, book, spacingBps, sizeHive, ownerIdx, feeBps, idSeed);
   if (plan.ops.length === 0) {
     saveLiveState(s);
     return { ok: false, he: plan.refusal ?? "אין מדרגות-מייקר חוקיות", chain, owner, placed: [], skippedTaker: plan.skippedTaker, refusal: plan.refusal };
@@ -298,6 +418,32 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
   const openNow = (s.orders.filter((o) => o.chain === chain && o.owner === owner && o.status === "open")).length;
   if (openNow + plan.ops.length > MAX_OPEN_ORDERS_PER_OWNER) {
     return { ok: false, he: `תקרת-פקודות-פתוחות (${MAX_OPEN_ORDERS_PER_OWNER}) תיחרג — בטל קודם`, chain, owner, placed: [], skippedTaker: plan.skippedTaker, refusal: "open-order-cap" };
+  }
+
+  // ── v127 — שער-איזונים: אף פריסה לא משדרת יותר ממה שיש (80% מהמאזן-החי)
+  const bal = await getChainBalance(chain, owner);
+  if (!bal.ok || bal.base === null || bal.quote === null) {
+    pushLiveLog(s, "deploy-refused", `${chain}/${owner} איזון-חי לא נמדד — פריסה נדחית (fail-closed): ${bal.error ?? "?"}`);
+    saveLiveState(s);
+    return { ok: false, he: "איזון-חי לא נמדד — פריסה נדחית (fail-closed)", chain, owner, placed: [], skippedTaker: plan.skippedTaker, refusal: "balance-unmeasured" };
+  }
+  const sizedOps: DeployPlanOp[] = [];
+  let quoteNeeded = 0;
+  let baseNeeded = 0;
+  for (const op of plan.ops) {
+    if (op.side === "buy") {
+      if (quoteNeeded + op.notional > bal.quote! * 0.8) { plan.skippedTaker += 1; continue; }
+      quoteNeeded += op.notional;
+    } else {
+      if (baseNeeded + op.sizeHive > bal.base! * 0.8) { plan.skippedTaker += 1; continue; }
+      baseNeeded += op.sizeHive;
+    }
+    sizedOps.push(op);
+  }
+  if (sizedOps.length === 0) {
+    pushLiveLog(s, "deploy-refused", `${chain}/${owner} אין-מדרגות-בתוך-האיזון (base ${bal.base!.toFixed(3)} · quote ${bal.quote!.toFixed(3)}) — פריסה נדחית כנה`);
+    saveLiveState(s);
+    return { ok: false, he: `אין-מדרגות-בתוך-האיזון-החי — פריסה נדחית`, chain, owner, placed: [], skippedTaker: plan.skippedTaker, refusal: "insufficient-balance" };
   }
 
   const placed: DeployResult["placed"] = [];
@@ -310,7 +456,7 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
         if (auth.rolePub && auth.rolePub !== derived) throw new Error("self-verify FAILED: המפתח אינו גוזר לציבורי-הכספת");
         const livePub = await liveActivePub("steem", HEAD_CORNER);
         if (!livePub || livePub !== derived) throw new Error(`self-verify FAILED: המפתח אינו סמכות-active החיה של ${HEAD_CORNER} ב-STEEM`);
-        for (const op of plan.ops) {
+        for (const op of sizedOps) {
           const txid = await broadcastSteemOrder({
             owner: HEAD_CORNER, orderid: op.orderid,
             amount_to_sell: op.amountToSell, min_to_receive: op.minToReceive,
@@ -341,7 +487,7 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
         }
         throw new Error("אף סיסמאת-כספת אינה גוזרת את סמכות-active החיה של החייל (fail-closed)");
       });
-      const ops = plan.ops.map((op) => ["limit_order_create", {
+      const ops = sizedOps.map((op) => ["limit_order_create", {
         owner, orderid: op.orderid,
         amount_to_sell: op.amountToSell, min_to_receive: op.minToReceive,
         fill_or_kill: false,
@@ -349,8 +495,8 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
       }] as [string, Record<string, unknown>]);
       const txid = await broadcastHiveOps(owner, ops, wif);
       let verified = false;
-      try { verified = (await getOpenOrders("hive", owner)).some((o) => plan.ops.some((p) => p.orderid === o.orderid)); } catch { verified = false; }
-      for (const op of plan.ops) {
+      try { verified = (await getOpenOrders("hive", owner)).some((o) => sizedOps.some((p) => p.orderid === o.orderid)); } catch { verified = false; }
+      for (const op of sizedOps) {
         s.orders.push({ chain, owner, orderid: op.orderid, side: op.side, price: op.price, sizeHive: op.sizeHive, notional: op.notional, txid, at: new Date().toISOString(), status: "open" });
         s.receipts.push({ at: new Date().toISOString(), chain, owner, orderid: op.orderid, txid, verified, he: verified ? "התכללות מוכחת בספר" : "שודר — הוכחת-ספר טרם נמדדה" });
         placed.push({ orderid: op.orderid, side: op.side, price: op.price, txid, verified });
