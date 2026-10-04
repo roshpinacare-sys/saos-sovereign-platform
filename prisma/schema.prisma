@@ -41,6 +41,7 @@ model SealLeaf {
   @@unique([sealId, index])
   @@index([digest])
 }
+// v126-תיקון-כנות: SealLeaf שוחזר — ביקורת-123-b טענה "מת" לפי accessor, אך הוא חי דרך include-היחסים leaves ב-7 קבצים (אמת-על-מסך).
 
 // ─── Public anchoring (העגינה הציבורית) ──────────────────────────────────────
 
@@ -60,21 +61,8 @@ model AnchorTx {
   @@index([sealId])
 }
 
-// ─── Energy sovereignty (ריבונות אנרגיה) ─────────────────────────────────────
 
-model EnergyPlan {
-  id          String   @id @default(cuid())
-  network     String // TRON | HIVE
-  mode        String // energize | powerup | delegate
-  trxStaked   Int? // sun
-  energyOut   Int? // estimated daily energy
-  settlements Int? // USDT settlements per day (~65k energy each)
-  burnCost    Int? // sun/day if no staking
-  rcFloorPct  Float? // hive floors
-  notes       String?
-  payload     String // full canonical plan JSON
-  createdAt   DateTime @default(now())
-}
+// v126 — ניקוי-מתים מאומת: המודל EnergyPlan הוסר — אפס accessor · אפס שימוש · 0 שורות.
 
 // ─── Economy (המשק — harvest & grid) ────────────────────────────────────────
 

@@ -781,10 +781,10 @@
  *    מורחב ל-*.z.ai (שורש "refused to connect" השני).
  */
 
-export const SAOS_VERSION = "125.0.0";
+export const SAOS_VERSION = "126.0.0";
 
 /** שם המהדורה — עברית, לתצוגה */
-export const SAOS_CODENAME = "פיקוח-הריבונות";
+export const SAOS_CODENAME = "עושה-השוק-הריבוני";
 
 /** שם קצר לסרגל — החלק העברי לפני התרגום */
 export const SAOS_CODENAME_SHORT = SAOS_CODENAME.split(" (")[0]!;

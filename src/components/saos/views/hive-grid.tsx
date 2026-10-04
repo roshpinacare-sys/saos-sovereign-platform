@@ -279,6 +279,260 @@ export default function HiveGridView() {
           </CardContent>
         </Card>
       )}
+
+      <FleetMmPanel onNote={(m) => setNote(m)} />
+    </div>
+  );
+}
+
+// ─── v126 — צי עושה-השוק (9 חיילים על השוק הפנימי האמיתי) ─────────────────
+
+interface MmFillView { at: string; soldier: string; side: "buy" | "sell"; price: number; sizeHive: number; hbd: number; feeHbd: number; realizedHbd?: number; internal: boolean; counterparty?: string }
+interface MmNoteView { at: string; kind: string; text: string }
+interface MmLiveOrderView { chain: string; owner: string; orderid: number; side: string; price: number; sizeHive: number; notional: number; txid: string; at: string; status: string; closedAt?: string }
+interface MmFleetBoardView {
+  ok?: boolean;
+  law: string;
+  feeBps: number;
+  minEdgeBps: number;
+  drawdownKillPct: number;
+  sigmaBps: number;
+  fleetKpi: { ticks: number; lastTickAt: string | null; fills: number; volumeHive: number; volumeHbd: number; internalVolumeHbd: number; internalMatches: number; realizedHbd: number; feePaidHbd: number; advises: number };
+  soldiers: Array<{ soldier: string; spacingBps: number; sizeHive: number; skewK: number; reservation: number | null; inventory: { hive: number; hbd: number }; avgCost: number | null; realizedHbd: number; feePaidHbd: number; volumeHive: number; volumeHbd: number; fillBuy: number; fillSell: number; internalBuys: number; internalSells: number; noopFeeGate: number; noopSpread: number; paused: boolean; pauseReason: string | null; lastFillAt: string | null }>;
+  recentFills: MmFillView[];
+  notes: MmNoteView[];
+  log: { at: string; kind: string; he: string }[];
+  book: { ok: boolean; mid: number | null; bestBid: number | null; bestAsk: number | null; spreadBps: number | null; hiveVolume24h: number | null; error?: string; at: string };
+  updatedAt: string;
+  startedAt: string;
+  live: {
+    law: string;
+    liveArmed: boolean;
+    liveArmedAt: string | null;
+    openOrders: MmLiveOrderView[];
+    recentClosed: MmLiveOrderView[];
+    receipts: { at: string; chain: string; owner: string; orderid: number; txid: string; verified: boolean; he: string }[];
+    log: { at: string; kind: string; he: string }[];
+    steemActiveReachable: boolean;
+  };
+}
+
+function FleetMmPanel({ onNote }: { onNote: (m: string) => void }) {
+  const { data, error, loading, updatedAt, refresh } = useLive<MmFleetBoardView>("/api/saos/mm-fleet", 30000);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const post = async (action: string, extra: object = {}) => {
+    setBusy(action);
+    try {
+      const res = await fetch("/api/saos/mm-fleet", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      const j = (await res.json()) as { ok?: boolean; he?: string; error?: string };
+      onNote(j.ok ? (j.he ?? "בוצע") : (j.error ?? j.he ?? "נדחה (דרוש אימות-בעלים)"));
+      if (j.ok) refresh();
+    } catch (e) {
+      onNote(`כשל-רשת כנה: ${String(e).slice(0, 90)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (error && !data) {
+    return (
+      <Card className="border-red-500/30 bg-red-500/5">
+        <CardContent className="p-4 text-sm text-red-300">לוח-הצי לא נגיש כרגע — כנות, לא נתונים מדומים. {String(error).slice(0, 160)}</CardContent>
+      </Card>
+    );
+  }
+  if (!data) return <Card className="border-white/[0.08] bg-zinc-900/40"><CardContent className="p-4 text-sm text-zinc-400">{loading ? "טוען את לוח-הצי…" : "אין נתוני-צי"}</CardContent></Card>;
+
+  const f = data.fleetKpi;
+  const internalPct = f.volumeHbd > 0 ? (f.internalVolumeHbd / f.volumeHbd) * 100 : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* כותרת-צי + KPI */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold text-zinc-100">צי עושה-השוק — 9 חיילים על השוק הפנימי HBD:HIVE</h2>
+        <Badge className="bg-amber-500/15 text-amber-300 border-amber-500/30">נייר על מחירים אמיתיים · עמלה {data.feeBps}bps מודלה</Badge>
+        <span className="text-[11px] text-zinc-500">עודכן {timeAgo(updatedAt)}</span>
+      </div>
+      <p className="text-xs leading-relaxed text-zinc-400">{data.law}</p>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+        {[
+          { l: "ווליום-צי", v: `${f.volumeHbd.toFixed(2)} HBD`, s: `${f.volumeHive.toFixed(1)} HIVE` },
+          { l: "ווליום-פנימי (מתויג)", v: `${f.internalVolumeHbd.toFixed(2)} HBD`, s: `${internalPct.toFixed(1)}% מהווליום` },
+          { l: "רווח-נטו אחרי-עמלות (נייר)", v: `${f.realizedHbd.toFixed(4)} HBD` },
+          { l: "עמלות-משולמות", v: `${f.feePaidHbd.toFixed(4)} HBD` },
+          { l: "מילויים", v: String(f.fills), s: `${f.internalMatches} התאמות-פנימיות` },
+          { l: "טיקים", v: String(f.ticks), s: `${f.advises} ייעוצים` },
+          { l: "σ נמדד", v: `${data.sigmaBps.toFixed(0)} bps` },
+        ].map((k) => (
+          <Card key={k.l} className="border-white/[0.08] bg-zinc-900/40">
+            <CardContent className="p-3">
+              <p className="text-[10px] text-zinc-500">{k.l}</p>
+              <p className="mt-1 truncate text-sm font-semibold text-zinc-100" title={k.v}>{k.v}</p>
+              {k.s && <p className="truncate text-[10px] text-zinc-500">{k.s}</p>}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* שורת-פעולות-צי */}
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={busy !== null} onClick={() => post("fleet-tick")} aria-label="טיק-צי">טיק-צי עכשיו (נייר)</Button>
+        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => post("advise")} aria-label="היועץ הריבוני">היועץ-הריבוני (LLM)</Button>
+        {data.live.liveArmed ? (
+          <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => post("disarm-live")} aria-label="כיבוי מתג-החי">כיבוי מתג-החי</Button>
+        ) : (
+          <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => post("arm-live")} aria-label="חימוש מתג-החי">חימוש מתג-החי (fail-closed)</Button>
+        )}
+        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => post("deploy-live", { chain: "steem" })} aria-label="פריסת סולם חי על STEEM">פריסה-חי STEEM (headcorner)</Button>
+        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => post("deploy-live", { chain: "hive" })} aria-label="פריסת סולם חי על HIVE">פריסה-חי HIVE (חייל)</Button>
+        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => post("cancel-all-live", { chain: "steem" })} aria-label="ביטול כל הפקודות ב-STEEM">ביטול-הכל STEEM</Button>
+        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => post("reconcile-live")} aria-label="התאמת פקודות-פתוחות">התאמת-ספר</Button>
+      </div>
+      {data.live.liveArmed && (
+        <p className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-2 text-[11px] text-emerald-200/90">
+          מתג-החי חמוש ({data.live.liveArmedAt?.slice(0, 19) ?? ""}) — {data.live.law}
+        </p>
+      )}
+
+      {/* טבלת-החיילים */}
+      <Card className="border-white/[0.08] bg-zinc-900/40">
+        <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">החיילים על הסולמות (סקיו-מלאי · שער-רווחיות · killswitch {data.drawdownKillPct}%)</CardTitle></CardHeader>
+        <CardContent className="p-4 pt-0">
+          <ScrollArea className="max-h-96 overflow-y-auto scroll-slim">
+            <table className="w-full text-xs">
+              <thead className="text-zinc-500">
+                <tr><th className="py-1 text-start">חייל</th><th className="py-1 text-start">מדרגה</th><th className="py-1 text-start">מלאי HIVE</th><th className="py-1 text-start">תקציב HBD</th><th className="py-1 text-start">עלות-ממוצעת</th><th className="py-1 text-start">רווח-נטו</th><th className="py-1 text-start">מילויים (פנימי)</th><th className="py-1 text-start">מצב</th><th className="py-1 text-start">פעולה</th></tr>
+              </thead>
+              <tbody>
+                {data.soldiers.map((s) => (
+                  <tr key={s.soldier} className="border-t border-white/[0.04]">
+                    <td className="py-1 font-medium text-zinc-200">{s.soldier}</td>
+                    <td className="py-1 text-zinc-400">{s.spacingBps}bps × {s.sizeHive} HIVE</td>
+                    <td className="py-1 text-zinc-300">{s.inventory.hive.toFixed(1)}</td>
+                    <td className="py-1 text-zinc-300">{s.inventory.hbd.toFixed(1)}</td>
+                    <td className="py-1 text-zinc-400">{s.avgCost ? s.avgCost.toFixed(5) : "—"}</td>
+                    <td className={`py-1 ${s.realizedHbd >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{s.realizedHbd.toFixed(4)}</td>
+                    <td className="py-1 text-zinc-400">{s.fillBuy + s.fillSell} ({s.internalBuys + s.internalSells})</td>
+                    <td className="py-1">
+                      {s.paused ? (
+                        <Badge variant="outline" className="border-rose-500/40 text-rose-300" title={s.pauseReason ?? ""}>מושהה</Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">פעיל</Badge>
+                      )}
+                    </td>
+                    <td className="py-1">
+                      {s.paused ? (
+                        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" disabled={busy !== null} onClick={() => post("resume", { soldier: s.soldier })}>הפעלה</Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" disabled={busy !== null} onClick={() => post("pause", { soldier: s.soldier })}>השהיה</Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* יועץ + מילויים פנימיים */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-white/[0.08] bg-zinc-900/40">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">היועץ-הריבוני (runLlmChain כל 30 טיקים)</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ScrollArea className="max-h-72 overflow-y-auto scroll-slim">
+              <ul className="space-y-2 text-[11px]">
+                {data.notes.map((n, i) => (
+                  <li key={i} className="rounded-md border border-white/[0.06] bg-black/20 p-2">
+                    <span className="text-zinc-600">{n.at.slice(11, 19)}</span>{" "}
+                    <Badge variant="outline" className={n.kind === "advisor" ? "border-violet-500/30 text-violet-300" : n.kind === "killswitch" ? "border-rose-500/40 text-rose-300" : "border-zinc-600 text-zinc-400"}>{n.kind}</Badge>
+                    <p className="mt-1 whitespace-pre-wrap leading-relaxed text-zinc-300">{n.text}</p>
+                  </li>
+                ))}
+                {data.notes.length === 0 && <li className="text-zinc-500">אין הערות עדיין — היועץ נקרא בטיק ה-30</li>}
+              </ul>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+        <Card className="border-white/[0.08] bg-zinc-900/40">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">מילויים אחרונים של הצי (נייר · עמלה נספרת · פנימי מתויג)</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ScrollArea className="max-h-72 overflow-y-auto scroll-slim">
+              <table className="w-full text-xs">
+                <thead className="text-zinc-500"><tr><th className="py-1 text-start">זמן</th><th className="py-1 text-start">חייל</th><th className="py-1 text-start">צד</th><th className="py-1 text-start">מחיר</th><th className="py-1 text-start">עמלה</th><th className="py-1 text-start">רווח</th><th className="py-1 text-start">סוג</th></tr></thead>
+                <tbody>
+                  {data.recentFills.map((x, i) => (
+                    <tr key={i} className="border-t border-white/[0.04]">
+                      <td className="py-1 text-zinc-500">{x.at.slice(11, 19)}</td>
+                      <td className="py-1 text-zinc-300">{x.soldier}</td>
+                      <td className={`py-1 ${x.side === "buy" ? "text-emerald-300" : "text-rose-300"}`}>{x.side === "buy" ? "קנייה" : "מכירה"}</td>
+                      <td className="py-1 text-zinc-200">{x.price.toFixed(6)}</td>
+                      <td className="py-1 text-zinc-500">{x.feeHbd.toFixed(4)}</td>
+                      <td className="py-1 text-zinc-400">{typeof x.realizedHbd === "number" ? x.realizedHbd.toFixed(4) : "—"}</td>
+                      <td className="py-1">{x.internal ? <Badge variant="outline" className="border-violet-500/30 text-violet-300">פנימי{typeof x.counterparty === "string" && x.counterparty ? ` · ${x.counterparty}` : ""}</Badge> : <span className="text-zinc-500">שוק</span>}</td>
+                    </tr>
+                  ))}
+                  {data.recentFills.length === 0 && <tr><td colSpan={7} className="py-2 text-zinc-500">אין מילויים — הרץ טיק-צי</td></tr>}
+                </tbody>
+              </table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* מסילת-החי */}
+      <Card className="border-white/[0.08] bg-zinc-900/40">
+        <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">מסילת-הפקודות-החיות (limit_order_create/cancel · txid מאומת)</CardTitle></CardHeader>
+        <CardContent className="p-4 pt-0">
+          <ScrollArea className="max-h-72 overflow-y-auto scroll-slim">
+            <table className="w-full text-xs">
+              <thead className="text-zinc-500"><tr><th className="py-1 text-start">זמן</th><th className="py-1 text-start">שרשרת</th><th className="py-1 text-start">בעלים</th><th className="py-1 text-start">orderid</th><th className="py-1 text-start">צד</th><th className="py-1 text-start">מחיר</th><th className="py-1 text-start">סטטוס</th><th className="py-1 text-start">txid</th></tr></thead>
+              <tbody>
+                {[...data.live.openOrders, ...data.live.recentClosed].map((o, i) => (
+                  <tr key={`${o.chain}-${o.orderid}-${i}`} className="border-t border-white/[0.04]">
+                    <td className="py-1 text-zinc-500">{o.at.slice(5, 16)}</td>
+                    <td className="py-1 text-zinc-300">{o.chain}</td>
+                    <td className="py-1 text-zinc-300">{o.owner}</td>
+                    <td className="py-1 text-zinc-400">{o.orderid}</td>
+                    <td className={`py-1 ${o.side === "buy" ? "text-emerald-300" : "text-rose-300"}`}>{o.side === "buy" ? "קנייה" : "מכירה"}</td>
+                    <td className="py-1 text-zinc-200">{o.price.toFixed(6)}</td>
+                    <td className="py-1">{o.status === "open" ? <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">פתוחה</Badge> : o.status === "assumed-filled" ? <Badge variant="outline" className="border-amber-500/30 text-amber-300">מילוי-מניח</Badge> : <Badge variant="outline" className="border-zinc-600 text-zinc-400">{o.status === "canceled" ? "בוטלה" : "פקעה"}</Badge>}</td>
+                    <td className="py-1 font-mono text-[10px] text-zinc-500">{o.txid.slice(0, 14)}…</td>
+                  </tr>
+                ))}
+                {data.live.openOrders.length + data.live.recentClosed.length === 0 && <tr><td colSpan={8} className="py-2 text-zinc-500">אין פקודות-חי בפנקס — פריסה רק מאחורי requireAuth + מתג-החי</td></tr>}
+              </tbody>
+            </table>
+          </ScrollArea>
+          <p className="mt-2 text-[10px] text-zinc-500">סמכות-active של headcorner על STEEM נמדדה: {data.live.steemActiveReachable ? "זמינה ✔" : "לא נמדדה כרגע (כנה)"}</p>
+        </CardContent>
+      </Card>
+
+      {/* יומן-הצי */}
+      <Card className="border-white/[0.08] bg-zinc-900/40">
+        <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-200">יומן-הצי (האמת המלאה)</CardTitle></CardHeader>
+        <CardContent className="p-4 pt-0">
+          <ScrollArea className="max-h-60 overflow-y-auto scroll-slim">
+            <ul className="space-y-1 text-[11px]">
+              {data.log.map((l, i) => (
+                <li key={i} className="flex gap-2 border-b border-white/[0.03] py-1">
+                  <span className="shrink-0 text-zinc-600">{l.at.slice(11, 19)}</span>
+                  <span className="shrink-0 text-zinc-500">{l.kind}</span>
+                  <span className="text-zinc-300">{l.he}</span>
+                </li>
+              ))}
+              {data.log.length === 0 && <li className="text-zinc-500">היומן ריק — הרץ טיק-צי ראשון</li>}
+            </ul>
+          </ScrollArea>
+        </CardContent>
+      </Card>
     </div>
   );
 }
