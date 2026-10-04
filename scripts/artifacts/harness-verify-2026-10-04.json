@@ -1,12 +1,12 @@
 {
   "kind": "harness-verify",
   "date": "2026-10-04",
-  "measuredAt": "2026-10-04T03:05:35Z",
+  "measuredAt": "2026-10-04T20:09:11Z",
   "verdict": "fail",
   "pass": 9,
   "fail": 1,
   "failFast": true,
   "gates": ["toolchain","gate-clear","deps","tsc","lint","db-sync","harness-files","web-resume","live-api","guard","mini-parse","hands-probe"],
-  "stages": [{"stage":"toolchain","status":"pass","detail":"bun+node present","ms":30},{"stage":"gate-clear","status":"pass","detail":"web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap)","ms":2},{"stage":"deps","status":"pass","detail":"node_modules present","ms":21},{"stage":"tsc","status":"pass","detail":"","ms":22838},{"stage":"lint","status":"pass","detail":"$ eslint . --cache --cache-location .cache/eslint --cache-strategy content","ms":2885},{"stage":"db-sync","status":"pass","detail":" The database is already in sync with the Prisma schema.","ms":1581},{"stage":"harness-files","status":"pass","detail":"6/6 harness files present","ms":3},{"stage":"web-resume","status":"pass","detail":"web resumed and warm (12s)","ms":11977},{"stage":"live-api","status":"pass","detail":"status API live (200)","ms":22},{"stage":"guard","status":"fail","detail":"bash: line 1: /home/z/.local/bin/dcg: No such file or directory","ms":4}],
+  "stages": [{"stage":"toolchain","status":"pass","detail":"bun+node present","ms":2},{"stage":"gate-clear","status":"pass","detail":"web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap)","ms":2},{"stage":"deps","status":"pass","detail":"node_modules present","ms":3},{"stage":"tsc","status":"pass","detail":"","ms":22041},{"stage":"lint","status":"pass","detail":"$ eslint . --cache --cache-location .cache/eslint --cache-strategy content","ms":33954},{"stage":"db-sync","status":"pass","detail":" The database is already in sync with the Prisma schema.","ms":1428},{"stage":"harness-files","status":"pass","detail":"6/6 harness files present","ms":2},{"stage":"web-resume","status":"pass","detail":"web resumed and warm (8s)","ms":6830},{"stage":"live-api","status":"pass","detail":"status API live (200)","ms":910},{"stage":"guard","status":"fail","detail":"bash: line 1: /home/z/.local/bin/dcg: No such file or directory","ms":47}],
   "doctrine": "no done without runnable proof (harness engineering, adopted v106)"
 }

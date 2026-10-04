@@ -3,7 +3,7 @@
   "verdict": "fail",
   "pass": 9,
   "fail": 1,
-  "ms": 39710,
+  "ms": 66163,
   "evidenceFile": "harness-verify-2026-10-04.json",
-  "tail": "[verify] toolchain    pass (30ms) bun+node present | [verify] gate-clear   pass (2ms) web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap) | [verify] deps         pass (21ms) node_modules present | [verify] tsc          pass (22838ms)  | [verify] lint         pass (2885ms) $ eslint . --cache --cache-location .cache/eslint --cache-strategy content | [verify] db-sync      pass (1581ms)  The database is already in sync with the Prisma schema. | [verify] harness-fi"
+  "tail": "[verify] toolchain    pass (2ms) bun+node present | [verify] gate-clear   pass (2ms) web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap) | [verify] deps         pass (3ms) node_modules present | [verify] tsc          pass (22041ms)  | [verify] lint         pass (33954ms) $ eslint . --cache --cache-location .cache/eslint --cache-strategy content | [verify] db-sync      pass (1428ms)  The database is already in sync with the Prisma schema. | [verify] harness-fil"
 }
