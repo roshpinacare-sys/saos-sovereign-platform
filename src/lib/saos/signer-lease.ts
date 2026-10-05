@@ -273,6 +273,10 @@ async function commitAndPushLease(account: string, payload: LeaseFile, msg: stri
 
 // ─── רכישה / שחרור ───────────────────────────────────────────────────────────
 
+/** זיכרון-הסירוב-האחרון — «למה לא חתמתי?» חייב להיענות מהלוח, לא מחפירה.
+ * זיכרון-בלבד; ההיסטוריה המלאה חיה ב-OpLog (signer-lease.*). */
+let lastRefusal: { at: string; code: string; account: string; message: string } | null = null;
+
 async function acquireCycle(account: string, purpose: string, myId: string): Promise<LeaseHandle> {
   const now = new Date();
   const payload: LeaseFile = {
@@ -347,10 +351,17 @@ export async function acquireSignerLease(account: string, purpose: string): Prom
         return h;
       }
     } catch (e) {
+      // כל-סירוב נזכר — סירוב צריך להיות קריא-בלוח-המצב, לא תיבה-שחורה
+      lastRefusal = {
+        at: new Date().toISOString(),
+        code: e instanceof SignerLeaseRefusal ? e.code : "error",
+        account,
+        message: (e instanceof SignerLeaseRefusal ? e.message : e instanceof Error ? e.message : String(e)).slice(0, 160)
+      };
       if (e instanceof SignerLeaseRefusal) throw e;
       // תקלת-תשתית (git/כתיבה) — fail-closed: לא חותמים בלי השכרה
-      const msg = e instanceof Error ? e.message.slice(0, 220) : String(e).slice(0, 220);
-      await logOpSafe("signer-lease.error", { account, purpose: purpose.slice(0, 60), error: msg, at: new Date().toISOString() });
+      const msg = lastRefusal.message;
+      await logOpSafe("signer-lease.error", { account, purpose: purpose.slice(0, 60), error: msg, at: lastRefusal.at });
       throw new SignerLeaseRefusal("error", account, `תקלת-מרשם-ההשכרות: ${msg} — סירוב fail-closed`);
     }
   });
@@ -409,6 +420,7 @@ export function signerLeaseStatus(): {
   ttlMs: number;
   held: LeaseHandle[];
   locks: Array<{ account: string; locked: boolean; queued: number }>;
+  lastRefusal: { at: string; code: string; account: string; message: string } | null;
 } {
   const locks: Array<{ account: string; locked: boolean; queued: number }> = [];
   for (const [account, m] of mutexes) {
@@ -420,6 +432,7 @@ export function signerLeaseStatus(): {
     repoPath: VAULT_REPO_PATH,
     ttlMs: LEASE_TTL_MS,
     held: heldLeaseSnapshot(),
-    locks
+    locks,
+    lastRefusal
   };
 }

@@ -288,6 +288,7 @@ async function statusHandler(): Promise<unknown> {
             leasePurpose: active?.purpose ?? null,
             leaseRef: active?.ref ?? null,
             leaseTtlMs: lease.ttlMs,
+            lastRefusal: lease.lastRefusal ?? null,
             heldLeases: lease.held
           };
         } catch (e) {
