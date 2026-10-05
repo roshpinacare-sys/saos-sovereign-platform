@@ -52,6 +52,8 @@ import { withRoleWif, sealExists, roleWifAvailable, type SigningAuthority, type 
 import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
 import { logOp } from "./oplog";
+import { withSignerLease } from "./signer-lease";
+import { getInstanceId } from "./instance-identity";
 
 const WEAVE_ANCHOR_ID = "saos.weave.v1";
 const STEEM_RPC = process.env.STEEM_RPC || "https://api.steemit.com";
@@ -581,6 +583,7 @@ export async function anchorSealLiveOnSteem(
   let payload = "";
   let account = "";
   let txid: string | null = null;
+  let leaseRef = "no-lease"; // v129.2 — מוטבע באירועי-הביקורת של המסילה
 
   /* ── stage 1/6 — session-gate: לפני כל פתרון-מפתח (סשן + step-up לפי-דרישה,
    * באותו סדר של ה-orchestrator: ensureUnlocked ואז אימות-ה-step-up) ── */
@@ -607,6 +610,9 @@ export async function anchorSealLiveOnSteem(
     /* ── stage 4/6 — reveal-once: נקודת-יציאת-המפתח-הגלוי היחידה במודול ── */
     await revealKeyFor(role, async (wif, auth: SigningAuthority) => {
       account = auth.account;
+      // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה על חשבון-החתימה סביב האימות-העצמי והשידור
+      await withSignerLease(account, "weave-anchor-steem", async (lease) => {
+      leaseRef = lease.ref;
       const steem = await loadSteem();
 
       // 1) fail-closed self-verification BEFORE any signing
@@ -631,11 +637,12 @@ export async function anchorSealLiveOnSteem(
       const conf = await steem.broadcast.sendAsync({ operations: [op], extensions: [] }, [wif]);
       txid = (conf && conf.id) || null;
       if (!txid) throw new Error("node accepted the op but answered without a transaction id (honest)");
+      });
     });
 
     /* ── stage 6/6 — audit-trail: key_used + broadcast (הצלחה) + commit שערי-המדיניות ── */
     await appendAudit({ type: "key_used", actor: { account }, target: { role, height: seal.height }, result: "success" });
-    await appendAudit({ type: "broadcast", actor: { account }, target: { role, height: seal.height, root: seal.root, txid }, result: "success", reason: `custom_json ${WEAVE_ANCHOR_ID} broadcast to STEEM with ${role} authority` });
+    await appendAudit({ type: "broadcast", actor: { account }, target: { role, height: seal.height, root: seal.root, txid }, result: "success", reason: `custom_json ${WEAVE_ANCHOR_ID} broadcast to STEEM with ${role} authority · instance=${getInstanceId().slice(0, 8)} · lease=${leaseRef}` });
     commitPolicySuccess(seal);
   } catch (e) {
     /* stage 6/6 — ניסיון-כושל נרשם בכנות; השגיאה-המקורית מנצחת תמיד */

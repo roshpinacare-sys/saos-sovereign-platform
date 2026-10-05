@@ -40,6 +40,7 @@ import { saosLedger } from "./saos-mint";
 import { probeTronVault } from "./tron-live";
 import { ethers } from "ethers";
 import { assertTrustedEndpoints } from "./security";
+import { withSignerLease } from "./signer-lease";
 
 // ─── arming policy (spec-frozen constants — request can never touch) ───────
 
@@ -484,6 +485,9 @@ export async function armSteemFleet(): Promise<ArmOutcome> {
       throw new Error("self-verify FAILED: vault key does not derive to the registered public key");
     }
 
+    // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה על חשבון-המפקד סביב כל-חימוש-הצי
+    await withSignerLease(auth.account, "fleet-arm-steem", async (lease) => {
+
     for (const soldier of soldiers) {
       // v129.1 GATE-RECIPIENT — הוכחת-מפתח-אישית לכל-נמען לפני שקל-אחד (fail-closed)
       const { actorCanSign } = await import("./deliberation");
@@ -516,7 +520,9 @@ export async function armSteemFleet(): Promise<ArmOutcome> {
           txid,
           explorer: `https://steemscan.com/transaction/${txid}`,
           delegatee: soldier,
-          transfer: STEEM_TRANSFER_AMOUNT
+          transfer: STEEM_TRANSFER_AMOUNT,
+          instanceId: lease.instanceId,
+          lease: lease.ref
         });
       } catch (e) {
         const error = e instanceof Error ? e.message : "broadcast failed";
@@ -524,6 +530,8 @@ export async function armSteemFleet(): Promise<ArmOutcome> {
         await recordArm("STEEM-RC", soldier, vestingShares, "failed", { error });
       }
     }
+
+    }); // שחרור-השכרת-החתימה (lease→release)
   });
 
   // honest read-back: soldiers' VESTS + liquid after the arming

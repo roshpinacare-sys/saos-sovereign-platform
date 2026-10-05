@@ -23,6 +23,7 @@ import {
   isWifShape,
   wifToPub,
 } from "./soldier-keys";
+import { withSignerLease } from "./signer-lease";
 
 const HIVE_CHAIN_ID = "beeab0de00000000000000000000000000000000000000000000000000000000";
 const HIVE_RPC_RAIL = ["https://api.hive.blog", "https://api.deathwing.me", "https://anyx.io"];
@@ -159,6 +160,10 @@ export async function publishSocial(input: SocialPublishInput): Promise<SocialPu
   try {
     const wif = await soldierPostingWif(input.chain, input.soldier);
     let txid: string | null = null;
+    let leaseStamp = "";
+    // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה על חשבון-החייל סביב השידור
+    await withSignerLease(input.soldier, `social-publish-${input.chain}`, async (lease) => {
+    leaseStamp = `instance=${lease.instanceId.slice(0, 8)} · lease=${lease.ref}`;
     if (input.chain === "hive") {
       const dh = await loadDhive();
       const client = new dh.Client([...HIVE_RPC_RAIL], { chainId: HIVE_CHAIN_ID });
@@ -170,8 +175,10 @@ export async function publishSocial(input: SocialPublishInput): Promise<SocialPu
       const conf = await steem.broadcast.sendAsync({ operations: [["comment", op]], extensions: [] }, [wif]);
       txid = conf?.id ?? null;
     }
-    if (!txid) throw new Error("הצומת קיבל-את-ה-op אך לא החזיר txid (כנה)");
-    return { ok: true, he: `${input.soldier} ${input.kind === "post" ? "פרסם" : "הגיב"} (${input.chain}) → txid ${txid.slice(0, 14)}…`, txid };
+    });
+    const tx = txid as string | null; // ההצבה-החיה קורית בתוך-הסגר (lease→sign→release) — הרחבה-כנה של הטיפוס
+    if (!tx) throw new Error("הצומת קיבל-את-ה-op אך לא החזיר txid (כנה)");
+    return { ok: true, he: `${input.soldier} ${input.kind === "post" ? "פרסם" : "הגיב"} (${input.chain}) → txid ${tx.slice(0, 14)}… · ${leaseStamp}`, txid: tx };
   } catch (e) {
     const msg = String(e instanceof Error ? e.message : e).slice(0, 180);
     return { ok: false, he: `כשל-שידור כנה: ${msg}`, txid: null, refusal: msg };

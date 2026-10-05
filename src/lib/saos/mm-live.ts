@@ -32,6 +32,7 @@ import {
   wifToPub,
 } from "./soldier-keys";
 import { isHalted } from "./deliberation";
+import { withSignerLease, type LeaseHandle } from "./signer-lease";
 
 const STATE_PATH = path.join(process.cwd(), "state", "mm-live.json");
 
@@ -476,6 +477,8 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
   const placed: DeployResult["placed"] = [];
   try {
     if (chain === "steem") {
+      // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה על headcorner סביב מקטע-השידור כולו
+      await withSignerLease(HEAD_CORNER, "mm-deploy-steem", async (lease: LeaseHandle) => {
       // מסילת-ה-drill המוכחת: withRoleWif("active") + אימות-עצמי מול הסמכות-החיה
       await withRoleWif("active", async (wif: string, auth: { account: string; rolePub: string | null }) => {
         if (!isWifShape(wif)) throw new Error("self-verify FAILED: המפתח אינו WIF תקין");
@@ -493,12 +496,15 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
           let verified = false;
           try { verified = (await getOpenOrders("steem", HEAD_CORNER)).some((o) => o.orderid === op.orderid); } catch { verified = false; }
           s.orders.push({ chain, owner, orderid: op.orderid, side: op.side, price: op.price, sizeHive: op.sizeHive, notional: op.notional, txid, at: new Date().toISOString(), status: "open" });
-          s.receipts.push({ at: new Date().toISOString(), chain, owner, orderid: op.orderid, txid, verified, he: verified ? "התכללות מוכחת בספר" : "שודר — הוכחת-ספר טרם נמדדה" });
+          s.receipts.push({ at: new Date().toISOString(), chain, owner, orderid: op.orderid, txid, verified, he: `${verified ? "התכללות מוכחת בספר" : "שודר — הוכחת-ספר טרם נמדדה"} · lease=${lease.ref}` });
           placed.push({ orderid: op.orderid, side: op.side, price: op.price, txid, verified });
-          pushLiveLog(s, "deploy-steem", `${HEAD_CORNER} ${op.side} ${op.sizeHive} @ ${op.price.toFixed(6)} → txid ${txid.slice(0, 18)}… ${verified ? "✔מוכח" : "✔שודר"}`);
+          pushLiveLog(s, "deploy-steem", `${HEAD_CORNER} ${op.side} ${op.sizeHive} @ ${op.price.toFixed(6)} → txid ${txid.slice(0, 18)}… ${verified ? "✔מוכח" : "✔שודר"} · lease=${lease.ref}`);
         }
       });
+      });
     } else {
+      // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה על חשבון-החייל סביב גזירה+שידור
+      await withSignerLease(owner, "mm-deploy-hive", async (lease: LeaseHandle) => {
       // מסילת-ה-חיילים: גזירת-active בסקופ-כספת + אימות-עצמי מול הסמכות-החיה
       const livePub = await liveActivePub("hive", owner);
       if (!livePub) throw new Error("סמכות-active חיה של החייל לא נמדדה — מסירה כנה (fail-closed)");
@@ -528,7 +534,8 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
         s.receipts.push({ at: new Date().toISOString(), chain, owner, orderid: op.orderid, txid, verified, he: verified ? "התכללות מוכחת בספר" : "שודר — הוכחת-ספר טרם נמדדה" });
         placed.push({ orderid: op.orderid, side: op.side, price: op.price, txid, verified });
       }
-      pushLiveLog(s, "deploy-hive", `${owner}: ${plan.ops.length} פקודות בטרנזקציה אחת → txid ${txid.slice(0, 18)}… ${verified ? "✔מוכח" : "✔שודר"}`);
+      pushLiveLog(s, "deploy-hive", `${owner}: ${plan.ops.length} פקודות בטרנזקציה אחת → txid ${txid.slice(0, 18)}… ${verified ? "✔מוכח" : "✔שודר"} · lease=${lease.ref}`);
+      });
     }
     saveLiveState(s);
     return { ok: placed.length > 0, he: placed.length ? `${placed.length} פקודות-חי שודרו עבור ${owner} (${chain})` : "אף פקודה לא שודרה", chain, owner, placed, skippedTaker: plan.skippedTaker };
@@ -549,6 +556,8 @@ export async function cancelAllLive(chain: MmChain, ownerOverride?: string): Pro
   let canceled = 0;
   try {
     if (chain === "steem") {
+      // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה על headcorner סביב מקטע-הביטולים
+      await withSignerLease(HEAD_CORNER, "mm-cancel-steem", async () => {
       await withRoleWif("active", async (wif: string) => {
         for (const o of open) {
           await broadcastSteemCancel(o.orderid, wif);
@@ -557,10 +566,13 @@ export async function cancelAllLive(chain: MmChain, ownerOverride?: string): Pro
           canceled += 1;
         }
       });
+      });
     } else {
       for (const ownerName of [...new Set(open.map((o) => o.owner))]) {
+        // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה פר-חייל סביב גזירה+ביטולים
+        await withSignerLease(ownerName, "mm-cancel-hive", async () => {
         const livePub = await liveActivePub("hive", ownerName);
-        if (!livePub) continue;
+        if (!livePub) return; // המשך-הלולאה האם — סמכות-חיה לא נמדדה (כנה)
         const wif = await withVaultMember(MASTER_SOURCE_MEMBER, (content): string => {
           const passwords = extractMasterPasswords(content);
           for (const password of passwords) {
@@ -576,6 +588,7 @@ export async function cancelAllLive(chain: MmChain, ownerOverride?: string): Pro
           pushLiveLog(s, "cancel-hive", `${ownerName} ביטול ${o.orderid} → txid ${txid.slice(0, 18)}…`);
           canceled += 1;
         }
+        });
       }
     }
     pushLiveLog(s, "cancel-all", `${chain}: ${canceled} פקודות בוטלו (מאומת)`);

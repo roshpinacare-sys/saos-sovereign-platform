@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "verdict": "fail",
+  "pass": 3,
+  "fail": 1,
+  "ms": 22724,
+  "evidenceFile": "harness-verify-2026-10-05.json",
+  "tail": "[verify] toolchain    pass (2ms) bun+node present | [verify] gate-clear   pass (4ms) web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap) | [verify] deps         pass (11ms) node_modules present | [verify] tsc          fail (22528ms) src/lib/saos/governor.ts(716,5): error TS2353: Object literal may only specify known properties, and 'halt' does not exist in type 'GovernorBoard'. | [verify] VERDICT=fail pass=3 fail=1 evidence=/home/z/my-project/scripts/artifacts"
+}

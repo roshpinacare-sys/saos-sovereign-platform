@@ -1,0 +1,12 @@
+{
+  "kind": "harness-verify",
+  "date": "2026-10-05",
+  "measuredAt": "2026-10-05T10:39:07Z",
+  "verdict": "fail",
+  "pass": 3,
+  "fail": 1,
+  "failFast": true,
+  "gates": ["toolchain","gate-clear","deps","tsc","lint","db-sync","harness-files","web-resume","live-api","guard","mini-parse","hands-probe"],
+  "stages": [{"stage":"toolchain","status":"pass","detail":"bun+node present","ms":2},{"stage":"gate-clear","status":"pass","detail":"web parked — heavy stages own the memory budget (resume is unconditional via EXIT trap)","ms":4},{"stage":"deps","status":"pass","detail":"node_modules present","ms":11},{"stage":"tsc","status":"fail","detail":"src/lib/saos/governor.ts(716,5): error TS2353: Object literal may only specify known properties, and 'halt' does not exist in type 'GovernorBoard'.","ms":22528}],
+  "doctrine": "no done without runnable proof (harness engineering, adopted v106)"
+}

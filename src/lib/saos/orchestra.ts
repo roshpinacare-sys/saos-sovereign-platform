@@ -34,6 +34,7 @@ import bs58 from "bs58";
 import { db } from "@/lib/db";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { logOp } from "./oplog";
+import { withSignerLease } from "./signer-lease";
 import { probeHiveRc } from "./hive-rc-live";
 import { withVaultMember, withRoleWif, type SigningAuthority } from "@/lib/vault-seal";
 import {
@@ -788,6 +789,8 @@ async function executeLiveOps(
         if (auth.rolePub && auth.rolePub !== derivedPub) {
           throw new Error("self-verify FAILED: vault key does not derive to the registered public key");
         }
+        // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה על הראש סביב כל-הצבעות-הראש
+        await withSignerLease(auth.account, `orchestra-vote-${chain}`, async (lease) => {
         for (const op of headOps) {
           try {
             const livePub = await authorityOf(op.voter);
@@ -795,12 +798,13 @@ async function executeLiveOps(
               throw new Error(`self-verify FAILED: vault key is not ${op.voter}'s LIVE posting authority — refusing to sign`);
             }
             const { txid } = await broadcastOne(wif, op);
-            results.push({ ...op, ok: true, txid, errorClass: null, note: "live:broadcast-accepted" });
+            results.push({ ...op, ok: true, txid, errorClass: null, note: `live:broadcast-accepted · lease=${lease.ref}` });
           } catch (e) {
             const msg = e instanceof Error ? e.message : "broadcast failed";
             results.push({ ...op, ok: false, txid: null, errorClass: classifyBroadcastError(msg), note: msg.slice(0, 160) });
           }
         }
+        }); // שחרור-השכרת-הראש (lease→release)
       });
     } catch (e) {
       // the gate itself refused (fail-closed) — every head op is an honest auth-failure row
@@ -843,8 +847,10 @@ async function executeLiveOps(
             if (derivedPub !== livePub) {
               throw new Error("self-verify FAILED: lib roundtrip mismatch vs live authority");
             }
-            const { txid } = await broadcastOne(wif, op);
-            results.push({ ...op, ok: true, txid, errorClass: null, note: "live:broadcast-accepted (derived-key, self-verified)" });
+            // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה פר-חייל סביב השידור
+            const leaseRes = await withSignerLease(op.voter, `orchestra-vote-${chain}`, async (lease) => ({ ...(await broadcastOne(wif, op)), leaseRef: lease.ref }));
+            const { txid, leaseRef } = leaseRes;
+            results.push({ ...op, ok: true, txid, errorClass: null, note: `live:broadcast-accepted (derived-key, self-verified) · lease=${leaseRef}` });
           } catch (e) {
             const msg = e instanceof Error ? e.message : "broadcast failed";
             results.push({ ...op, ok: false, txid: null, errorClass: classifyBroadcastError(msg), note: msg.slice(0, 160) });

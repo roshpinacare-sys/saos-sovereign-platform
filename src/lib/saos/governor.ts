@@ -648,6 +648,11 @@ export interface GovernorBoard {
   policy: SovereignPolicy;
   hardCaps: typeof HARD_CAPS;
   lastRun: GovernorCycleOutcome | null;
+  halt: {
+    halted: boolean;
+    reason: string;
+    recentDeliberations: Array<unknown>;
+  };
   treasury: {
     total: number;
     byKind: Array<{ kind: string; count: number; amount: number }>;
