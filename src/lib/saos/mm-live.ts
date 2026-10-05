@@ -397,6 +397,9 @@ export interface DeployResult {
 }
 
 export async function deployLiveLadder(chain: MmChain, book: { mid: number | null; bestBid: number | null; bestAsk: number | null }, spacingBps: number, sizeHive: number, feeBps: number, ownerOverride?: string): Promise<DeployResult> {
+  // v129.1 — רצפת-ריווח קשיחה במסילה-עצמה: אף-קורא (כולל dex-core ארב, שקרא עם 15bps)
+  // לא יכול לפרוס דק יותר מהרצפה-הקנונית 30bps — מתחתיה כל-מדרגה הייתה noop מול-העמלה
+  const spacingEff = Math.max(30, Math.round(spacingBps));
   const s = loadLiveState();
   const owner = chain === "steem" ? HEAD_CORNER : (ownerOverride && (MM_FLEET_SOLDIERS as readonly string[]).includes(ownerOverride) ? ownerOverride : MM_FLEET_SOLDIERS[0]!);
   // v129 — שער-המחשבה: עצירה + הצהרת-כוונה חובה לפני כל פריסה-חיה
@@ -407,7 +410,7 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
     return { ok: false, he: "פריסה נדחתה — עצירת-חירום פעילה (שער-המחשבה)", chain, owner, placed: [], skippedTaker: 0, refusal: "sovereign-halt" };
   }
   const verdict = await deliberate(
-    { kind: "order", action: "deploy-live-ladder", subject: `פריסת-ספר-חי ${chain} סביב המחיר-החי`, actor: owner, chain, params: { spacingBps, sizeHive } },
+    { kind: "order", action: "deploy-live-ladder", subject: `פריסת-ספר-חי ${chain} סביב המחיר-החי`, actor: owner, chain, params: { spacingBps: spacingEff, sizeHive } },
     {
       why: "הספר-החי נסחף מעבר-הסף או שאין-פקודות — פריסת-מייקר-מאוזנת סביב המחיר-החי בתוך-תקרות-הפוליסה",
       worstCase: `מילוי-חד-צדדי בסיבוב-מחיר חד — הפסד עד ${sizeHive.toFixed(1)} יחידות-בסיס לפני-קיזוז`,
@@ -433,7 +436,7 @@ export async function deployLiveLadder(chain: MmChain, book: { mid: number | nul
   s.nextOrderid = Math.max(s.nextOrderid ?? 890_000, 890_000);
   const idSeed = s.nextOrderid;
   s.nextOrderid += 16;
-  const plan = buildDeployPlan(chain, book, spacingBps, sizeHive, ownerIdx, feeBps, idSeed);
+  const plan = buildDeployPlan(chain, book, spacingEff, sizeHive, ownerIdx, feeBps, idSeed);
   if (plan.ops.length === 0) {
     saveLiveState(s);
     return { ok: false, he: plan.refusal ?? "אין מדרגות-מייקר חוקיות", chain, owner, placed: [], skippedTaker: plan.skippedTaker, refusal: plan.refusal };

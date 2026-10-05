@@ -81,6 +81,27 @@ async function tick(): Promise<void> {
       await logOp("orchestra.autodrive.halted", "עצירת-חירום פעילה — הצבעות מוקפאות (שער-המחשבה)");
       return;
     }
+    // v129.1 — חשיבה-מפורשת לפני חלון-הצבעה (הוראת-הבעלים "שיחשבו תמיד לפני שהם עושים"):
+    // הצהרת-כוונה על-החלון כולו נרשמת בפנקס-המחשבה. הוכחות-המפתח-הפרטניות לכל-מצביע
+    // נשארות בתוך executeSlot (fail-closed), וכאן מתווספת שכבת-הכוונה והרישום-הכנה.
+    const { deliberate } = await import("./deliberation");
+    const v = await deliberate(
+      { kind: "vote", action: "orchestra-curation-window", subject: "חלון-קיורציה HIVE — הצבעות-ראיה לפי-תוכנית-החלונות", actor: "", params: { chain: "hive" } },
+      {
+        why: "חלון-קיורציה נפתח לפי-תוכנית-החלונות — הצבעה-מקסימה תוך-שמירת-VP/RC ותקרת-הצבעות-יומית-לחייל",
+        worstCase: "הצבעה-לפוסט-שאינו-ראוי — עלות-VP קטנה, הפיכה-חלקית ביטול-אין; הפסד-מרבי VP-חלקי",
+        expectedGain: "קיורציה-אמיתית: חשיפה, מוניטין ורווח-VP פוטנציאלי — נמדד חי בצי (8/9 txids)",
+        maxLoss: "VP שנשרף על-הצבעות-חלשות — מוגבל-ע״י תקרת-הצבעות-יומית-לחייל (10) וסף-VP",
+        reversible: false,
+        alternative: "הימנעות-מהחלון (מפסידה-קיורציה וחשיפה) — נדחה כי הקיורציה היא עיקר-הנוכחות-המאושר",
+      }
+    );
+    if (!v.allowed) {
+      const { logOp } = await import("./oplog");
+      await logOp("orchestra.autodrive.refused", `חלון-הצבעה נדחה ע״י שער-המחשבה (${v.gate}): ${v.reasons.join(" · ").slice(0, 160)}`);
+      stampLastTick(); // החלון נדחה-במחשבה — לא מצביעים; נרשם כנה
+      return;
+    }
   } catch {
     return; // כשל-שער — לא מצביעים (fail-closed)
   }

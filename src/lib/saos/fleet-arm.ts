@@ -419,11 +419,39 @@ export interface ArmOutcome {
  * Arms the fleet on STEEM: per soldier ONE broadcast carrying both
  * whitelisted ops — delegate_vesting_shares (RC capacity) + transfer
  * (small liquid balance). Signed with headcorner/active from the vault.
+ *
+ * v129.1 — שער-המחשבה על-מסילת-המימון (הוראת-הבעלים "בלי לממן חיילים מתים"):
+ *  GATE-0 עצירה → כל-החימוש נדחה
+ *  GATE-PLAN הצהרת-כוונה + ייעוץ-LLM על תוכנית-החימוש כולה (למה-עכשיו · מקרה-גרוע)
+ *  GATE-RECIPIENT הוכחת-מפתח-אישית לכל-נמען (actorCanSign + רשימת-חסימה)
+ *    — נמען-בלי-מפתח-מוכח מדולג כנה ונרשם gated. אין-כסף-לחייל-מת.
  */
 export async function armSteemFleet(): Promise<ArmOutcome> {
+  const { isHalted, deliberate } = await import("./deliberation");
+  if (isHalted()) {
+    await logOp("fleet-arm.refused", "עצירת-חירום פעילה — אף-חימוש (שער-המחשבה)");
+    throw new Error("עצירת-חירום פעילה — חימוש-צי נדחה (שער-המחשבה)");
+  }
   const inv = await readSealInventory();
   const soldiers = inv.fleet.map((f) => f.username).filter(Boolean);
   if (soldiers.length === 0) throw new Error("vault fleet roster empty (fail-closed)");
+
+  // v129.1 GATE-PLAN — חשיבה-מפורשת על התוכנית כולה לפני כל-שידור
+  const planVerdict = await deliberate(
+    { kind: "transfer", action: "fleet-arm-plan", subject: `חימוש-צי STEEM ל-${soldiers.length} חיילים (האצלה ${STEEM_DELEGATE_VESTS.toLocaleString()} VESTS + ${STEEM_TRANSFER_AMOUNT} לכל-אחד)`, actor: "headcorner", chain: "steem", params: { soldiers: soldiers.length } },
+    {
+      why: "חיילים-חיים-עם-מפתח-מוכח זקוקים ל-RC ויתרת-הפעלה כדי לעבוד (פוסטים/הצבעות/שוק) — חימוש-חודשי-מושעה-אידמפוטנטי",
+      worstCase: "האצלה-שלא-תחזור עד 7-ימים + יתרה-קטנה שתשרף — מוגבל-ע״י שערי-העתודה למטה",
+      expectedGain: "צי-מתפקד: RC-גבוה לכל-חייל + נוכחות-חיה (נמדד: RC 92-95% בצי-המחומש)",
+      maxLoss: `${(0.05 * soldiers.length).toFixed(3)} STEEM נזילים + האצלה-הפיכה (ריסוק ל-0)`,
+      reversible: true,
+      alternative: "אי-חימוש (צי-משותק) — נדחה כי הצי הוא עיקר-המודל; נמענים-בלי-מפתח ידולגו כנה בשער-הנמען",
+    }
+  );
+  if (!planVerdict.allowed) {
+    await logOp("fleet-arm.refused", `שער-המחשבה דחה את תוכנית-החימוש (${planVerdict.gate}): ${planVerdict.reasons.join(" · ").slice(0, 160)}`);
+    throw new Error(`תוכנית-החימוש נדחתה ע״י שער-המחשבה (${planVerdict.gate}) — ${planVerdict.reasons.join(" · ").slice(0, 140)}`);
+  }
 
   // gate: measure the sovereign's STEEM state first
   const accounts = await jsonRpc<unknown[]>(STEEM_RPC, "condenser_api.get_accounts", [["headcorner"]]);
@@ -457,6 +485,16 @@ export async function armSteemFleet(): Promise<ArmOutcome> {
     }
 
     for (const soldier of soldiers) {
+      // v129.1 GATE-RECIPIENT — הוכחת-מפתח-אישית לכל-נמען לפני שקל-אחד (fail-closed)
+      const { actorCanSign } = await import("./deliberation");
+      const keyCheck = await actorCanSign(soldier, "steem", "active");
+      if (!keyCheck.ok) {
+        const why = `נמען-בלי-מפתח-מוכח — אין-מימון (שער-הנמען): ${keyCheck.he.slice(0, 120)}`;
+        skipped.push({ agent: soldier, status: "skipped", error: why });
+        await recordArm("STEEM-RC", soldier, STEEM_TRANSFER_AMOUNT, "gated", { error: why, gate: "keyless-recipient" });
+        await logOp("fleet-arm.gated", `${soldier}: ${why}`);
+        continue;
+      }
       if (await alreadyArmed("STEEM-RC", soldier)) {
         skipped.push({ agent: soldier, status: "skipped" });
         continue;
