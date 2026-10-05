@@ -31,6 +31,7 @@ import { buildLiveWeaveJson, type LiveSeal } from "./anchor-live";
 import { probeHiveRc, hiveAnchorAccount, hiveRpc, HIVE_NODES } from "./hive-rc-live";
 import { HIVE_RC_FLOOR_LIGHT } from "./anchor-gates";
 import { assertTrustedEndpoints } from "./security";
+import { withSignerLease } from "./signer-lease";
 
 const WEAVE_ANCHOR_ID = "saos.weave.v1";
 const HIVE_CHAIN_ID = "beeab0de00000000000000000000000000000000000000000000000000000000"; // mainnet, fixed
@@ -52,6 +53,8 @@ export interface HiveLiveOutcome {
   confirmedByHistory: boolean;
   selfVerified: boolean;
   rcPctAtBroadcast: number | null;
+  /** v129.2 — פרובננס-שער-חותם-היחיד: instance+lease-ref של השידור (מטא בלבד). */
+  lease?: string | null;
   explorer: string | null;
   at: string;
   error?: string;
@@ -307,8 +310,11 @@ export async function anchorSealLiveOnHive(seal: LiveSeal): Promise<HiveLiveOutc
 
   let payload = "";
   let txid: string | null = null;
+  let leaseStamp = ""; // v129.2 — פרובננס-ההשכרה של השידור (מוחזר בתוצאה)
 
   await withRoleWif("active", async (wif, auth) => {
+    // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה על חשבון-העוגן סביב האימות-העצמי והשידור
+    await withSignerLease(account, "weave-anchor-hive", async (lease) => {
     const key = PrivateKey.from(wif);
 
     // 1) fail-closed self-verification BEFORE any signing
@@ -341,6 +347,8 @@ export async function anchorSealLiveOnHive(seal: LiveSeal): Promise<HiveLiveOutc
     const conf = (await client.broadcast.sendOperations([op], key)) as { id?: string };
     txid = conf?.id || null;
     if (!txid) throw new Error("node accepted the op but answered without a transaction id (honest)");
+    leaseStamp = `instance=${lease.instanceId.slice(0, 8)} · lease=${lease.ref}`;
+    });
   });
 
   // 4) inclusion proof against the live HIVE chain
@@ -359,6 +367,7 @@ export async function anchorSealLiveOnHive(seal: LiveSeal): Promise<HiveLiveOutc
     confirmedByHistory: inclusion.confirmed,
     selfVerified: true,
     rcPctAtBroadcast: rc.rcPct,
+    lease: leaseStamp || null,
     explorer: txid ? hiveExplorerLink(txid) : null,
     at
   };

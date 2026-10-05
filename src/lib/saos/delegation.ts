@@ -16,6 +16,7 @@
 import { withRoleWif, type SigningAuthority } from "@/lib/vault-seal";
 import { isWifShape, wifToPub } from "./soldier-keys";
 import { deliberate, isHalted } from "./deliberation";
+import { withSignerLease } from "./signer-lease";
 
 const STEEM_RPC = "https://api.steemit.com";
 const HIVE_RPC = "https://api.hive.blog";
@@ -148,6 +149,7 @@ export async function executeParityPlan(plan: ParityPlan): Promise<{ ok: boolean
   const lib = steem.default ?? steem;
   const executed: Array<{ soldier: string; vests: string }> = [];
   const failures: string[] = [];
+  let leaseRef = "no-lease"; // v129.2 — פרובננס-ההשכרה של ההאצלות
   try {
     await withRoleWif("active", async (wif: string, auth: SigningAuthority) => {
       if (!isWifShape(wif)) throw new Error("self-verify FAILED: המפתח אינו WIF תקין");
@@ -156,6 +158,9 @@ export async function executeParityPlan(plan: ParityPlan): Promise<{ ok: boolean
       const liveAcc = await rpc<Array<{ active: { key_auths: Array<[string, number]> } }>>(STEEM_RPC, "condenser_api.get_accounts", [["headcorner"]]);
       const livePub = liveAcc?.[0]?.active?.key_auths?.[0]?.[0] ?? null;
       if (!livePub || livePub !== derived) throw new Error("self-verify FAILED: המפתח אינו סמכות-active החיה של headcorner");
+      // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה סביב מקטע-ההאצלות כולו
+      await withSignerLease("headcorner", "power-parity-steem", async (lease) => {
+      leaseRef = lease.ref;
       lib.api.setOptions({ url: STEEM_RPC });
       for (const row of plan.rows) {
         if (row.toDelegateVESTS <= 0) continue;
@@ -195,12 +200,13 @@ export async function executeParityPlan(plan: ParityPlan): Promise<{ ok: boolean
           failures.push(`${row.soldier}: ${String(e instanceof Error ? e.message : e).slice(0, 100)}`);
         }
       }
+      }); // שחרור-השכרת-החתימה (lease→release)
     });
     return {
       ok: executed.length > 0 || failures.length === 0,
       he: executed.length
-        ? `הואצל בהצלחה ל-${executed.length} חיילים (${failures.length} כשלים כנים)`
-        : `לא בוצעו האצלות (${failures.length ? "כשלים: " + failures.join(" · ").slice(0, 160) : "הכל-ביעד-כבר"})`,
+        ? `הואצל בהצלחה ל-${executed.length} חיילים (${failures.length} כשלים כנים) · lease=${leaseRef}`
+        : `לא בוצעו האצלות (${failures.length ? "כשלים: " + failures.join(" · ").slice(0, 160) : "הכל-ביעד-כבר"}) · lease=${leaseRef}`,
       executed, failures,
     };
   } catch (e) {

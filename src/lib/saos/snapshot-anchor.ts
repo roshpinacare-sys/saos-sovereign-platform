@@ -60,6 +60,7 @@ import { withRoleWif, roleWifAvailable, type SigningAuthority } from "@/lib/vaul
 import { canonicalize, canonicalDigest } from "./canonical-json";
 import { logOp } from "./oplog";
 import { assertTrustedEndpoints } from "./security";
+import { withSignerLease } from "./signer-lease";
 import { SAOS_VERSION } from "./version";
 
 const SNAPSHOT_ANCHOR_ID = "saos.snapshot.v1";
@@ -581,6 +582,7 @@ export async function anchorSnapshotOnSteem(source: "manual" | "auto"): Promise<
   let txid: string | null = null;
   let payloadBytes = 0;
   let broadcastError: string | null = null;
+  let leaseStamp = ""; // v129.2 — פרובננס-ההשכרה
   try {
     await withRoleWif("active", async (wif, auth: SigningAuthority) => {
       account = auth.account;
@@ -598,10 +600,14 @@ export async function anchorSnapshotOnSteem(source: "manual" | "auto"): Promise<
       const op = buildSnapshotOp(auth.account, digest, snapshot);
       payloadBytes = String(op[1].json).length;
 
+      // שער-חותם-יחיד (v129.2): lease→sign→release — השכרה סביב חתימה-מקומית+שידור-HTTPS
+      await withSignerLease(account, "snapshot-anchor-steem", async (lease) => {
+      leaseStamp = `instance=${lease.instanceId.slice(0, 8)} · lease=${lease.ref}`;
       // v73 — מסלול מפורש: חתימה מקומית + שידור HTTPS (לא שכבת-ה-ws של הספרייה)
       const out = await broadcastOpViaHttps(steem, op, wif);
       if (out.error) throw new Error(out.error);
       txid = out.txid;
+      });
     });
   } catch (e) {
     broadcastError = e instanceof Error ? e.message : String(e);
@@ -704,7 +710,8 @@ export async function anchorSnapshotOnSteem(source: "manual" | "auto"): Promise<
     digest,
     source,
     txid,
-    confirmedByHistory: inclusion.confirmed
+    confirmedByHistory: inclusion.confirmed,
+    signer: leaseStamp || null
   });
 
   return {

@@ -8,6 +8,8 @@ import { probeSteemWeaveHistory, type SteemWeaveHistory } from "@/lib/saos/steem
 import { ensureMeshGate } from "@/lib/saos/mesh-gate";
 import { vaultPassState } from "@/lib/vault-seal";
 import { authConfigured } from "@/lib/saos/auth";
+import { getInstanceMeta } from "@/lib/saos/instance-identity";
+import { signerLeaseStatus } from "@/lib/saos/signer-lease";
 
 export const dynamic = "force-dynamic";
 
@@ -270,6 +272,29 @@ async function statusHandler(): Promise<unknown> {
       //   adminState     — האם מנהל-הפלטפורמה מוגדר (configured/unconfigured)
       vaultPassState: await vaultPassState(),
       adminState: authConfigured() ? ("configured" as const) : ("unconfigured" as const),
+      // v129.2 — שער-חותם-יחיד: זהות-המופע + מצב-ההשכרה החי (מטא בלבד — אפס סודות).
+      // leaseState: held = מקטע-חתימה פעיל כרגע · free = אין-השכרה מוחזקת.
+      signer: (() => {
+        try {
+          const meta = getInstanceMeta();
+          const lease = signerLeaseStatus();
+          const active = lease.held[0] ?? null;
+          return {
+            instanceId: meta.instanceId,
+            machine: meta.machine,
+            bootAt: meta.bootAt,
+            leaseAccount: active?.account ?? null,
+            leaseState: active ? ("held" as const) : ("free" as const),
+            leasePurpose: active?.purpose ?? null,
+            leaseRef: active?.ref ?? null,
+            leaseTtlMs: lease.ttlMs,
+            heldLeases: lease.held
+          };
+        } catch (e) {
+          // כנה — מדידת-הזהות לא תפיל את לוח-המצב
+          return { instanceId: null, leaseState: "unknown" as const, error: e instanceof Error ? e.message.slice(0, 120) : "signer-identity read failed" };
+        }
+      })(),
       matrix,
       meshGate: {
         runs: gate.runs,
