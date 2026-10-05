@@ -198,6 +198,13 @@ function bumpCounter(kind: string, key: string): void {
 
 // ─── שער-מפתח (GATE-1) — יכולת-חתימה מוכחת, אפס-חשיפת-סוד ──────────────────
 
+/**
+ * v129.1 — רשימת-חסימה קשיחה (הלקח hcsoldier1/2/3, הוראת-הבעלים "בלי לממן חיילים מתים"):
+ * חשבונות-שאין-לנו-ולעולם-לא-יהיה-להם מפתח-חתימה. אף-פעולה (האצלה/העברה/פקודה/הצבעה/פוסט)
+ * לא תעבור למענם באף-מסילה — גם אם מופיעים ברוסטר-כספת. זו ההגנה-הכפולה מעבר ל-roster-exclusion.
+ */
+export const KEYLESS_BLOCKLIST: ReadonlySet<string> = new Set(["hcsoldier1", "hcsoldier2", "hcsoldier3"]);
+
 export interface ActorKeyCheck { ok: boolean; he: string }
 
 const keyCache = new Map<string, { ok: boolean; he: string; at: number }>();
@@ -208,6 +215,10 @@ const KEY_CACHE_MS = 10 * 60_000;
  * headcorner נבדק דרך הכספת-החתומה. חייל-בלי-מפתח-מוכח = false (הלקח hcsoldier1/2/3).
  */
 export async function actorCanSign(actor: string, chain: "steem" | "hive", role: "posting" | "active" = "active"): Promise<ActorKeyCheck> {
+  // v129.1 — רשימת-החסימה קודמת לכל-בדיקה (fail-closed מידי, בלי-קאש)
+  if (KEYLESS_BLOCKLIST.has(actor.toLowerCase())) {
+    return { ok: false, he: `רשימת-חסימה קשיחה: ל-${actor} אין ולא יהיה מפתח אצלנו — אף-פעולה-בשמו (הלקח hcsoldier1/2/3)` };
+  }
   const ck = `${chain}:${actor}:${role}`;
   const c = keyCache.get(ck);
   if (c && Date.now() - c.at < KEY_CACHE_MS) return { ok: c.ok, he: c.he };

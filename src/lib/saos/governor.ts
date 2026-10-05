@@ -631,7 +631,11 @@ export function startSovereignGovernor(): void {
       await runGovernorCycle("loop");
     })();
   }, GOVERNOR_INTERVAL_MS);
+  // v129.1 (ממצא-ביקורת 2026-10-05): ה-warmup עקף את שער-הקצב — כל-ריסטרט הריץ מחזור-מלא
+  // אוטומטי (נמדד: 15 מחזורים-מלאים ב-41 דק' אחרי-איפוס). הריפוי: גם-ה-warmup מציית
+  // לחותמת-הקצב-המתמשכת — ריסטרט-טרי לא יזנק על-הקצב (זהה-לריפוי ב-autodrive v125).
   setTimeout(() => {
+    if (!lastStampOk()) return; // שער-הקצב חל גם על-ה-warmup — אף-זינוק-בלי-חשיבה
     void runGovernorCycle("loop");
   }, GOVERNOR_WARMUP_MS);
   console.log(`[saos-governor] live — המושל הריבוני כל ${GOVERNOR_INTERVAL_MS / 60_000}דק' (פוליסה-עצמית · פנקס-רווח · רה-באנד-חי · קיורציה)`);
