@@ -46,6 +46,7 @@ import { createHash } from "crypto";
 import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
 import { withVaultMember } from "@/lib/vault-seal";
+import { withSignerLease } from "./signer-lease";
 
 // ─── endpoints (measured live 2026-09-12) ──────────────────────────────────
 
@@ -140,6 +141,8 @@ export interface ZeroAnchorOutcome {
   selfVerified: boolean;
   explorer: string | null;
   at: string;
+  /** v129.3 — single-signer lease provenance (vault-repo commit). */
+  lease?: { instanceId: string; ref: string };
   error?: string;
 }
 
@@ -287,9 +290,19 @@ export async function anchorSealLiveOnZero(seal: ZeroLiveSeal): Promise<ZeroAnch
   const derived = await deriveFleetHeadEvm();
   const wallet = new ethers.Wallet(derived.privateKey);
 
-  const provider = new ethers.JsonRpcProvider(ZERO_ENDPOINTS[0], ZERO_CHAIN_ID, { batchMaxCount: 1 });
-  let hash: string;
-  try {
+  // v129.3 — single-signer lease: even a zero-fee pulse must hold the
+  // cross-machine lease on the treasury home before any signature.
+  const { hash, provider, leaseRef, leaseInstance } = await withSignerLease<{
+    hash: string;
+    provider: ethers.JsonRpcProvider;
+    leaseRef: string;
+    leaseInstance: string;
+  }>(
+    wallet.address,
+    "anchor-zero:weave-seal",
+    async (lease) => {
+    const provider = new ethers.JsonRpcProvider(ZERO_ENDPOINTS[0], ZERO_CHAIN_ID, { batchMaxCount: 1 });
+    try {
     // live gates — measured, not assumed
     const [gasWei, chainIdHex] = await Promise.all([
       provider.send("eth_gasPrice", []),
@@ -324,11 +337,13 @@ export async function anchorSealLiveOnZero(seal: ZeroLiveSeal): Promise<ZeroAnch
       type: 0,
       chainId: ZERO_CHAIN_ID
     });
-    hash = tx.hash;
-  } catch (e) {
-    provider.destroy();
-    throw e;
+    return { hash: tx.hash, provider, leaseRef: lease.ref, leaseInstance: lease.instanceId };
+    } catch (e) {
+      provider.destroy();
+      throw e;
+    }
   }
+  );
 
   // inclusion proof — receipt + FULL data read-back (prefix + payload)
   const receipt = await waitForReceipt(provider, hash);
@@ -358,6 +373,7 @@ export async function anchorSealLiveOnZero(seal: ZeroLiveSeal): Promise<ZeroAnch
     costEth: "0.000000", // gasPrice measured 0 — the whole point; read-back proves inclusion
     selfVerified: true,
     explorer: zeroExplorerLink(hash),
-    at
+    at,
+    lease: { instanceId: leaseInstance, ref: leaseRef }
   };
 }

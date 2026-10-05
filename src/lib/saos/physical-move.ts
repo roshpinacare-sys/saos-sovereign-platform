@@ -35,6 +35,15 @@
  * מופיעים בלוגים, DB, תשובות או opLog. יעדי הסוויפ ברשימת-האוצר
  * הלבנה (FLOW_DESTINATIONS) — תנועה פנימית בין כתובות האורגניזם בלבד;
  * יציאה חיצונה נשארת שער-הרשות (RESHUT) של הבעלים בלבד.
+ *
+ * v129.3 — אינווריאנטת-החותם-היחיד מגיעה לתזוזות-הפיזיות: כל פעולת POST
+ * עוברת ראשית שער-הרשות (guardPermission) ואז שער-ההשכרה (withSignerLease)
+ * על כתובת-המקור החתומה — זהה ל-13-השערים של מסילות STEEM/HIVE. המקטע
+ * הקריטי (מדידה ← חתימה ← שידור) חייב השכרה; המתנת-האישור אחרי-השידור
+ * עשויה לחרוג מה-TTL (90ש') — כנה: אחרי-השידור ההוכחה היא ה-txid על-השרשרת
+ * עצמה, וההשכרה היא בלתי-ליניאריזבילית מלכתחילה (כותרת signer-lease).
+ * שתי מכונות חותמות על אותה כתובת רק דרך המרשם — פרובננס בשלוש-שכבות:
+ * OpLog מקומי + קומיט-ההשכרה בריפו-הכספת + השרשרת עצמה.
  */
 
 import { ethers } from "ethers";
@@ -49,6 +58,7 @@ import { guardPermission } from "./permissions";
 import { trustedFetch, assertTrustedEndpoints } from "./security";
 import { logOp } from "./oplog";
 import { withXrpSequence } from "./xrp-sequence-lock";
+import { withSignerLease, type LeaseHandle } from "./signer-lease";
 
 // ─── כתובות ציבוריות (הזרע חתום; כאן רק הכתובות) ───────────────────────────
 
@@ -642,7 +652,7 @@ export interface MoveResult {
   reason: string;
 }
 
-async function sweepEvm(net: keyof typeof EVM_NETS): Promise<MoveResult> {
+async function sweepEvm(net: keyof typeof EVM_NETS, lease?: LeaseHandle): Promise<MoveResult> {
   const cfg = EVM_NETS[net];
   const m = await measureEvm(net);
   if (!m.ok) return { ok: false, action: cfg.kind, moved: false, reason: m.note };
@@ -679,7 +689,8 @@ async function sweepEvm(net: keyof typeof EVM_NETS): Promise<MoveResult> {
       to: TREASURY_HOME,
       amount: ethers.formatEther(value),
       fee: ethers.formatEther(fee),
-      network: cfg.symbol
+      network: cfg.symbol,
+      leaseRef: lease?.ref ?? null
     });
     // אישור: חסימה אחת ברשת האמיתית (מיינט ~12ש' · BSC ~3ש')
     let confirmed = false;
@@ -700,7 +711,8 @@ async function sweepEvm(net: keyof typeof EVM_NETS): Promise<MoveResult> {
       status: confirmed ? "confirmed" : "submitted",
       metaJson: {
         explorer: `${cfg.explorer}/tx/${txid}`,
-        note: `הכסף זז פיזית: ${ethers.formatEther(value)} ${cfg.symbol} מ-Coinomi הישן לסוכן אבן-הפינה (אותו זרע, מסלול סטנדרטי)`
+        note: `הכסף זז פיזית: ${ethers.formatEther(value)} ${cfg.symbol} מ-Coinomi הישן לסוכן אבן-הפינה (אותו זרע, מסלול סטנדרטי)`,
+        lease: lease ? { instanceId: lease.instanceId, ref: lease.ref } : undefined
       }
     });
     return {
@@ -761,7 +773,7 @@ async function heartbeatXrpCritical() {
   return { kind: "sent" as const, m, engine, hash, accepted: sub?.accepted === true };
 }
 
-async function heartbeatXrp(): Promise<MoveResult> {
+async function heartbeatXrp(lease?: LeaseHandle): Promise<MoveResult> {
   // v50 — המקטע הקריטי (מדידה ← חתימה ← הגשה) רץ תחת נעילת-הרצף המשותפת
   // ל-anchor-xrp: פעימת-החיים ועוגן ה-weave חותמים מאותו חשבון r3Tq66 —
   // בלי הנעילה היו שתי קריאוּת באותו חלון מחזיקות את אותו מספר רצף
@@ -782,7 +794,8 @@ async function heartbeatXrp(): Promise<MoveResult> {
     txid: hash,
     engineResult: engine,
     fee: `${XRP_FEE_DROPS} drops`,
-    sequence: m.sequence
+    sequence: m.sequence,
+    leaseRef: lease?.ref ?? null
   });
   await record({
     kind: "xrp-heartbeat",
@@ -796,7 +809,8 @@ async function heartbeatXrp(): Promise<MoveResult> {
     metaJson: {
       ledger: m.ledgerIndex,
       engineResult: engine,
-      note: `פעימה בספר האמיתי (AccountSet חתום) — רצף ${m.sequence}, דמי-שריפה ${XRP_FEE_DROPS} drops, תזכיר חקוק לצמיתות`
+      note: `פעימה בספר האמיתי (AccountSet חתום) — רצף ${m.sequence}, דמי-שריפה ${XRP_FEE_DROPS} drops, תזכיר חקוק לצמיתות`,
+      lease: lease ? { instanceId: lease.instanceId, ref: lease.ref } : undefined
     }
   });
   return {
@@ -817,7 +831,7 @@ async function heartbeatXrp(): Promise<MoveResult> {
 
 /** א. ETH ישן — 0x2767 (ארנק-הצי) → 0x01Bd (בית-האוצר) — מיינט אמיתי.
  *  המפתח שרד בכספת (תגלית v31) — self-verify fail-closed מול 0x2767. */
-async function sweepLegacyEvm(): Promise<MoveResult> {
+async function sweepLegacyEvm(lease?: LeaseHandle): Promise<MoveResult> {
   const cfg = EVM_NETS.ethereum;
   const m = await measureLegacyEvm();
   if (!m.ok) return { ok: false, action: "sweep-legacy-eth", moved: false, reason: m.note };
@@ -854,7 +868,8 @@ async function sweepLegacyEvm(): Promise<MoveResult> {
       to: TREASURY_HOME,
       amount: ethers.formatEther(value),
       fee: ethers.formatEther(fee),
-      network: "ETH"
+      network: "ETH",
+      leaseRef: lease?.ref ?? null
     });
     let confirmed = false;
     try {
@@ -874,7 +889,8 @@ async function sweepLegacyEvm(): Promise<MoveResult> {
       status: confirmed ? "confirmed" : "submitted",
       metaJson: {
         explorer: `${cfg.explorer}/tx/${txid}`,
-        note: `הכסף הישן זז: ${ethers.formatEther(value)} ETH מארנק-הצי 0x2767 (המפתח שרד בכספת — v31) לבית-האוצר`
+        note: `הכסף הישן זז: ${ethers.formatEther(value)} ETH מארנק-הצי 0x2767 (המפתח שרד בכספת — v31) לבית-האוצר`,
+        lease: lease ? { instanceId: lease.instanceId, ref: lease.ref } : undefined
       }
     });
     return {
@@ -897,7 +913,7 @@ async function sweepLegacyEvm(): Promise<MoveResult> {
 /** ב. TRX ישן — TG6Srs → TMXHfFQd — TRON mainnet אמיתי. הבנייה והחתימה
  *  מתבצעות אופליין ב-TronWeb (blockHeader ניתן — אפס קריאות רשת פנימיות);
  *  כל יציאת הרשת — בלוק-הייחוס, השידור והאימות — דרך שער-הפישינג. */
-async function sweepLegacyTrx(): Promise<MoveResult> {
+async function sweepLegacyTrx(lease?: LeaseHandle): Promise<MoveResult> {
   const m = await measureLegacyTrx();
   if (!m.ok) return { ok: false, action: "sweep-legacy-trx", moved: false, reason: m.note };
   if (!m.canMove) return { ok: true, action: "sweep-legacy-trx", moved: false, reason: m.note };
@@ -951,7 +967,8 @@ async function sweepLegacyTrx(): Promise<MoveResult> {
     to: TREASURY_HOME_TRON,
     amount: (amount / 1e6).toFixed(6),
     fee: `חיץ-רוחב-פס ${(TRX_SWEEP_BUFFER_SUN / 1e6).toFixed(1)} TRX`,
-    engineResult: sub?.Error ?? sub?.code ?? (accepted ? "accepted" : "no-result")
+    engineResult: sub?.Error ?? sub?.code ?? (accepted ? "accepted" : "no-result"),
+    leaseRef: lease?.ref ?? null
   });
   if (!accepted) {
     await record({
@@ -963,7 +980,10 @@ async function sweepLegacyTrx(): Promise<MoveResult> {
       amount: (amount / 1e6).toFixed(6),
       fee: "—",
       status: "failed",
-      metaJson: { note: `השידור נדחה: ${sub?.Error ?? sub?.code ?? "ללא תשובת מנוע"} — נוסה שוב במחזור הבא` }
+      metaJson: {
+        note: `השידור נדחה: ${sub?.Error ?? sub?.code ?? "ללא תשובת מנוע"} — נוסה שוב במחזור הבא`,
+        lease: lease ? { instanceId: lease.instanceId, ref: lease.ref } : undefined
+      }
     });
     return { ok: false, action: "sweep-legacy-trx", moved: false, reason: `השידור נדחה — ${sub?.Error ?? sub?.code ?? "ללא תשובה"}` };
   }
@@ -990,7 +1010,8 @@ async function sweepLegacyTrx(): Promise<MoveResult> {
     status: confirmed ? "confirmed" : "submitted",
     metaJson: {
       explorer: `https://tronscan.org/#/transaction/${txid}`,
-      note: `הכסף הישן זז: ${(amount / 1e6).toFixed(6)} TRX מארנק-הצי TG6Srs לבית-האוצר TMXHfFQd (אבן-הפינה m/44'/195'/0'/0/0, קיים מ-2020)`
+      note: `הכסף הישן זז: ${(amount / 1e6).toFixed(6)} TRX מארנק-הצי TG6Srs לבית-האוצר TMXHfFQd (אבן-הפינה m/44'/195'/0'/0/0, קיים מ-2020)`,
+      lease: lease ? { instanceId: lease.instanceId, ref: lease.ref } : undefined
     }
   });
   return {
@@ -1009,7 +1030,7 @@ async function sweepLegacyTrx(): Promise<MoveResult> {
 
 /** ג. SOL ישן — 9knfn → A2Y1d3 — Solana mainnet-beta אמיתי. הדפוס המוכח
  *  מ-fleet-arm (v23): Connection + Transaction + sendAndConfirmTransaction. */
-async function sweepLegacySol(): Promise<MoveResult> {
+async function sweepLegacySol(lease?: LeaseHandle): Promise<MoveResult> {
   const m = await measureLegacySol();
   if (!m.ok) return { ok: false, action: "sweep-legacy-sol", moved: false, reason: m.note };
   if (!m.canMove) return { ok: true, action: "sweep-legacy-sol", moved: false, reason: m.note };
@@ -1057,7 +1078,8 @@ async function sweepLegacySol(): Promise<MoveResult> {
     from: LEGACY_FLEET_SOL,
     to: TREASURY_HOME_SOL,
     amount: (send / 1e9).toFixed(9),
-    fee: `${SOL_FEE_LAMPORTS} lamports`
+    fee: `${SOL_FEE_LAMPORTS} lamports`,
+    leaseRef: lease?.ref ?? null
   });
   await record({
     kind: "sweep-legacy-sol",
@@ -1070,7 +1092,8 @@ async function sweepLegacySol(): Promise<MoveResult> {
     status: "confirmed", // sendAndConfirm — המתנה לאישור מובנית
     metaJson: {
       explorer: `https://solscan.io/tx/${signature}`,
-      note: `הכסף הישן זז: ${(send / 1e9).toFixed(9)} SOL מארנק-הצי 9knfn לבית-האוצר A2Y1d3 (אבן-הפינה m/44'/501'/0'/0')`
+      note: `הכסף הישן זז: ${(send / 1e9).toFixed(9)} SOL מארנק-הצי 9knfn לבית-האוצר A2Y1d3 (אבן-הפינה m/44'/501'/0'/0')`,
+      lease: lease ? { instanceId: lease.instanceId, ref: lease.ref } : undefined
     }
   });
   return {
@@ -1193,12 +1216,20 @@ export async function physicalMoveAction(body: { action?: string }): Promise<Mov
     return { ok: false, action, moved: false, reason: `רשות נדחתה: ${gate.reason}` };
   }
   try {
-    if (action === "sweep-eth") return await sweepEvm("ethereum");
-    if (action === "sweep-bsc") return await sweepEvm("bsc");
-    if (action === "heartbeat-xrp") return await heartbeatXrp();
-    if (action === "sweep-legacy-eth") return await sweepLegacyEvm();
-    if (action === "sweep-legacy-trx") return await sweepLegacyTrx();
-    if (action === "sweep-legacy-sol") return await sweepLegacySol();
+    // v129.3 — כל מסילה חתומה עוברת שער-ההשכרה על כתובת-המקור:
+    // רשות (guardPermission למעלה) ← תיאום-חוצה-מכונות (lease) ← חתימה.
+    if (action === "sweep-eth")
+      return await withSignerLease(CORNERSTONE_EVM, "physical-move:sweep-eth", (l) => sweepEvm("ethereum", l));
+    if (action === "sweep-bsc")
+      return await withSignerLease(CORNERSTONE_EVM, "physical-move:sweep-bsc", (l) => sweepEvm("bsc", l));
+    if (action === "heartbeat-xrp")
+      return await withSignerLease(CORNERSTONE_XRP, "physical-move:heartbeat-xrp", (l) => heartbeatXrp(l));
+    if (action === "sweep-legacy-eth")
+      return await withSignerLease(LEGACY_FLEET_EVM, "physical-move:sweep-legacy-eth", (l) => sweepLegacyEvm(l));
+    if (action === "sweep-legacy-trx")
+      return await withSignerLease(LEGACY_FLEET_TRON, "physical-move:sweep-legacy-trx", (l) => sweepLegacyTrx(l));
+    if (action === "sweep-legacy-sol")
+      return await withSignerLease(LEGACY_FLEET_SOL, "physical-move:sweep-legacy-sol", (l) => sweepLegacySol(l));
     return {
       ok: false,
       action,

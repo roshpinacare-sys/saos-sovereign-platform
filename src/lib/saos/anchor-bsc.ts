@@ -26,6 +26,7 @@
 import { ethers } from "ethers";
 import { deriveSovereignEvm, buildEvmWeaveData, type EvmLiveSeal } from "./anchor-evm";
 import { assertTrustedEndpoints } from "./security";
+import { withSignerLease } from "./signer-lease";
 
 const BSC_ENDPOINTS = ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"] as const; // v20.1: llamarpc dead → official dataseed
 
@@ -77,6 +78,8 @@ export interface BscAnchorOutcome {
   selfVerified: boolean;
   explorer: string | null;
   at: string;
+  /** v129.3 — single-signer lease provenance (vault-repo commit). */
+  lease?: { instanceId: string; ref: string };
   error?: string;
 }
 
@@ -183,7 +186,9 @@ export async function anchorSealLiveOnBsc(seal: EvmLiveSeal): Promise<BscAnchorO
 
   // v45: receipt-wait on the OFFICIAL dataseed — publicnode rejects receipt
   // lookups without a personal token (the broadcast still goes out via [0])
-  const sent = await deriveSovereignEvm().then(async (derived) => {
+  const sent = await deriveSovereignEvm().then((derived) =>
+    // v129.3 — single-signer lease on the treasury home before any signature
+    withSignerLease(derived.address, "anchor-bsc:weave-seal", async (lease) => {
     const provider = new ethers.JsonRpcProvider(BSC_ENDPOINTS[0], CHAIN_ID, { batchMaxCount: 1 });
     try {
       const [balanceWei, gasWei] = await Promise.all([
@@ -209,12 +214,13 @@ export async function anchorSealLiveOnBsc(seal: EvmLiveSeal): Promise<BscAnchorO
         chainId: CHAIN_ID
       });
       const costBnb = ethers.formatEther((tx.gasPrice ?? pg) * (tx.gasLimit ?? GAS_LIMIT)).slice(0, 10);
-      return { hash: tx.hash as string, address: derived.address, provider, costBnb };
+      return { hash: tx.hash as string, address: derived.address, provider, costBnb, leaseRef: lease.ref, leaseInstance: lease.instanceId };
     } catch (e) {
       provider.destroy(); // v20.1 — broadcast path had ONE destroy (balance gate) — every other throw leaked
       throw e;
     }
-  });
+    })
+  );
 
   // v45: waitForReceipt + read-back on the official dataseed endpoint
   const receiptProvider = new ethers.JsonRpcProvider(BSC_ENDPOINTS[1], CHAIN_ID, { batchMaxCount: 1 });
@@ -245,6 +251,7 @@ export async function anchorSealLiveOnBsc(seal: EvmLiveSeal): Promise<BscAnchorO
     costBnb: sent.costBnb,
     selfVerified: true,
     explorer: explorerLinkBsc(sent.hash),
-    at
+    at,
+    lease: { instanceId: sent.leaseInstance, ref: sent.leaseRef }
   };
 }
