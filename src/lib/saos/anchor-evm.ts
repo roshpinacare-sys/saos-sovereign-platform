@@ -69,6 +69,7 @@ const AGENT = "headcorner";
  */
 export { ANCHORED_EVM_ADDRESS } from "./anchored-identity";
 import { ANCHORED_EVM_ADDRESS } from "./anchored-identity";
+import { withSignerLease } from "./signer-lease";
 
 /** Public path of the sovereign key — documentation value, not a secret. */
 export const EVM_DERIVATION = "cornerstone-24words → BIP39 → m/44'/60'/0'/0/0 (בית-האוצר)";
@@ -115,6 +116,8 @@ export interface EvmAnchorOutcome {
   selfVerified: boolean;
   explorer: string | null;
   at: string;
+  /** v129.3 — single-signer lease provenance (vault-repo commit). */
+  lease?: { instanceId: string; ref: string };
   error?: string;
 }
 
@@ -281,7 +284,9 @@ export async function anchorSealLiveOnEvm(seal: EvmLiveSeal): Promise<EvmAnchorO
   const derived = await deriveSovereignEvm();
   const wallet = new ethers.Wallet(derived.privateKey);
 
-  const sent = await (async () => {
+  // v129.3 — single-signer lease: the treasury-home signing rail requires
+  // the cross-machine lease before any signature (same gate as STEEM/HIVE).
+  const sent = await withSignerLease(wallet.address, "anchor-evm:weave-seal", async (lease) => {
     // live balance gate — the pulse must fit, with margin
     const provider = new ethers.JsonRpcProvider(ETH_ENDPOINTS[0], CHAIN_ID, { batchMaxCount: 1 });
     try {
@@ -316,12 +321,12 @@ export async function anchorSealLiveOnEvm(seal: EvmLiveSeal): Promise<EvmAnchorO
       const costEth = ethers.formatEther(
         (tx.gasPrice ?? pricedGas) * (tx.gasLimit ?? GAS_LIMIT)
       ).slice(0, 10);
-      return { hash: tx.hash as string, address: wallet.address, provider, costEth };
+      return { hash: tx.hash as string, address: wallet.address, provider, costEth, leaseRef: lease.ref, leaseInstance: lease.instanceId };
     } catch (e) {
       provider.destroy(); // v20.1 — every throw on this path leaked a zombie provider
       throw e;
     }
-  })();
+  });
 
   // inclusion proof — receipt + data read-back (independent of the sender)
   const receipt = await waitForReceipt(sent.provider, sent.hash);
@@ -351,6 +356,7 @@ export async function anchorSealLiveOnEvm(seal: EvmLiveSeal): Promise<EvmAnchorO
     costEth: sent.costEth,
     selfVerified: true,
     explorer: explorerLink(sent.hash),
-    at
+    at,
+    lease: { instanceId: sent.leaseInstance, ref: sent.leaseRef }
   };
 }

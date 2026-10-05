@@ -43,6 +43,7 @@ import {
 import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
 import { deriveHeadcornerSol } from "./cornerstone-derive";
+import { withSignerLease } from "./signer-lease";
 
 // ─── endpoints ─────────────────────────────────────────────────────────────
 
@@ -109,6 +110,8 @@ export interface SolAnchorOutcome {
   selfVerified: boolean;
   explorer: string | null;
   at: string;
+  /** v129.3 — single-signer lease provenance (vault-repo commit). */
+  lease?: { instanceId: string; ref: string };
   error?: string;
 }
 
@@ -255,7 +258,8 @@ export async function anchorSealLiveOnSol(seal: SolLiveSeal): Promise<SolAnchorO
   // v45 — derive + self-verify from the CORNERSTONE (fail-closed with
   // precise diagnosis), then balance gate + sign
   const { address, keypair } = await deriveAndVerify();
-  const sent = await (async () => {
+  // v129.3 — single-signer lease on the treasury home before any signature
+  const sent = await withSignerLease(address, "anchor-svm:weave-seal", async (lease) => {
 
     // balance gate — the fee must fit, with honest margin
     const balance = await connection.getBalance(keypair.publicKey, "confirmed");
@@ -285,8 +289,8 @@ export async function anchorSealLiveOnSol(seal: SolLiveSeal): Promise<SolAnchorO
       skipPreflight: false,
       preflightCommitment: "confirmed"
     });
-    return { signature, address, lastValidBlockHeight };
-  })();
+    return { signature, address, lastValidBlockHeight, leaseRef: lease.ref, leaseInstance: lease.instanceId };
+  });
 
   // inclusion proof — cluster confirmation + memo read-back
   const status = await waitForConfirmation(connection, sent.signature);
@@ -332,6 +336,7 @@ export async function anchorSealLiveOnSol(seal: SolLiveSeal): Promise<SolAnchorO
     feeLamports: FEE_LAMPORTS,
     selfVerified: true,
     explorer: explorerLink(sent.signature),
-    at
+    at,
+    lease: { instanceId: sent.leaseInstance, ref: sent.leaseRef }
   };
 }

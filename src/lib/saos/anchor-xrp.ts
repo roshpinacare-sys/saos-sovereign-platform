@@ -47,6 +47,7 @@ import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
 import { deriveHeadcornerXrp } from "./cornerstone-derive";
 import { withXrpSequence } from "./xrp-sequence-lock";
+import { withSignerLease } from "./signer-lease";
 
 // ─── endpoints ─────────────────────────────────────────────────────────────
 
@@ -105,6 +106,8 @@ export interface XrpAnchorOutcome {
   selfVerified: boolean;
   explorer: string | null;
   at: string;
+  /** v129.3 — provenance of the single-signer lease (vault-repo commit). */
+  lease?: { instanceId: string; ref: string };
   error?: string;
 }
 
@@ -290,10 +293,14 @@ export async function anchorSealLiveOnXrp(seal: XrpLiveSeal): Promise<XrpAnchorO
   // 1) derive + double self-verify from the CORNERSTONE (fail-closed)
   const key = await deriveAndVerify();
 
-  // v50 — מקטע קריטי תחת נעילת-רצף: מקריאת הרצף ועד ההגשה. פעימות-החיים
-  // של physical-move חותמות מאותו חשבון — בלי הנעילה, שתי קריאוּת באותו
-  // חלון היו מחזיקות את אותו מספר רצף (מירוץ-הרצפים, פער v49).
-  const sent = await withXrpSequence(async () => {
+  // v129.3 — שער-החותם-היחיד: גם מסילת-העוגן ב-XRPL חייבת השכרה על r3Tq66
+  // לפני חתימה (היה פער: 13-השערים כיסו STEEM/HIVE בלבד — העוגן החי כאן
+  // היה חותם בלי ראיית-השכרה). v50 — מקטע קריטי תחת נעילת-רצף: מקריאת
+  // הרצף ועד ההגשה. פעימות-החיים של physical-move חותמות מאותו חשבון —
+  // בלי הנעילה, שתי קריאוּת באותו חלון היו מחזיקות את אותו מספר רצף
+  // (מירוץ-הרצפים, פער v49).
+  const sent = await withSignerLease(key.address, "anchor-xrp:weave-seal", (lease) =>
+    withXrpSequence(async () => {
     // 2) live measurements — sequence, ledger window, reserve gate
     const [acct, server] = await Promise.all([
       xrplRpc<{ account_data?: { Balance?: string; Sequence?: number } }>("account_info", [
@@ -347,8 +354,9 @@ export async function anchorSealLiveOnXrp(seal: XrpLiveSeal): Promise<XrpAnchorO
         `submit refused: ${engine || "no engine result"} ${String(sub?.engine_result_message ?? "").slice(0, 160)} — honest refusal`
       );
     }
-    return { hash, sequence, engine };
-  });
+    return { hash, sequence, engine, leaseRef: lease.ref, leaseInstance: lease.instanceId };
+  })
+  );
 
   // 5) inclusion proof — validated ledger + tesSUCCESS + memo read-back
   let confirmed = false;
@@ -377,6 +385,7 @@ export async function anchorSealLiveOnXrp(seal: XrpLiveSeal): Promise<XrpAnchorO
     selfVerified: true,
     explorer: explorerLink(sent.hash),
     at,
+    lease: { instanceId: sent.leaseInstance, ref: sent.leaseRef },
     ...(sent.engine && !sent.engine.startsWith("tesSUCCESS")
       ? { error: `engine: ${sent.engine}` }
       : {})

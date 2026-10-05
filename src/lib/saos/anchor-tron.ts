@@ -55,6 +55,7 @@ import { ethers } from "ethers";
 import { canonicalize } from "./canonical-json";
 import { assertTrustedEndpoints } from "./security";
 import { deriveHeadcornerTron, deriveHeadcornerTronSister } from "./cornerstone-derive";
+import { withSignerLease } from "./signer-lease";
 
 // ─── endpoints ─────────────────────────────────────────────────────────────
 
@@ -123,6 +124,8 @@ export interface TronAnchorOutcome {
   roundTripProven: boolean;
   explorer: string | null;
   at: string;
+  /** v129.3 — single-signer lease provenance (vault-repo commit). */
+  lease?: { instanceId: string; ref: string };
   error?: string;
 }
 
@@ -445,7 +448,9 @@ export async function anchorSealLiveOnTron(seal: TronLiveSeal): Promise<TronAnch
   const key = await deriveAndVerify();
   const sister = await deriveHeadcornerTronSister();
 
-  const sent = await (async () => {
+  // v129.3 — single-signer lease: even the human-gated TRON pulse must
+  // hold the cross-machine lease on the treasury home before any signature.
+  const sent = await withSignerLease(key.address, "anchor-tron:weave-seal", async (lease) => {
     // 2) balance gate — honest margin, one pulse never drains the house
     const acc = await tronPost("/wallet/getaccount", { address: key.address, visible: true });
     const balanceSun = typeof acc.balance === "number" ? acc.balance : 0;
@@ -566,8 +571,8 @@ export async function anchorSealLiveOnTron(seal: TronLiveSeal): Promise<TronAnch
     if (echoTxid !== txid) {
       throw new Error(`broadcast echo txid ${echoTxid} ≠ local ${txid} — refusing to claim`);
     }
-    return { txid, rawLength: raw.length };
-  })();
+    return { txid, rawLength: raw.length, leaseRef: lease.ref, leaseInstance: lease.instanceId };
+  });
 
   // 9) inclusion proof — blockNumber + contractRet + memo read-back
   let confirmed = false;
@@ -598,6 +603,7 @@ export async function anchorSealLiveOnTron(seal: TronLiveSeal): Promise<TronAnch
     feeEstimateTrx: FEE_ESTIMATE_TRX,
     selfVerified: true,
     roundTripProven: true,
+    lease: { instanceId: sent.leaseInstance, ref: sent.leaseRef },
     explorer: explorerLink(sent.txid),
     at,
     ...(contractRet && contractRet !== "SUCCESS" ? { error: `contractRet: ${contractRet}` } : {})
