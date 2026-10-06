@@ -8,10 +8,7 @@
 name: platform-selftest
 
 on:
-  schedule:
-    - cron: '41 13 * * *'
   workflow_dispatch:
-
 permissions:
   contents: write
 

@@ -4,11 +4,8 @@
 # forge-std vendored at commit 6b72d0fcba36f39e07cf08bbe66a0d1525011e1f (MIT, foundry-rs/forge-std).
 name: foundry-tests
 on:
-  push:
-    branches: [main, fleet/r130]
   pull_request:
   workflow_dispatch:
-
 jobs:
   forge-test:
     runs-on: ubuntu-latest
