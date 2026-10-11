@@ -1,5 +1,19 @@
 # SAOS — קונסולת עגינה ריבונית
 
+**ROLE (declared 2026-10-11, task 10-c un-silence sweep):** the
+**LOCAL-MACHINE CONSOLE, line v2** — the operator's full local cockpit
+(web :3000, keeper :3005, anvil :8545, laya :3037; 25 local paths by design).
+Its sibling `saos-sovereign-foundry` is console **v1** (lean agent-ops
+face). **Both stay alive as defined roles — not dead duplicates**: v2 is the
+deep local-machine console; v1 is the lean ops face. This repo is
+event-driven by design (zero cron) — "stale since 10-06" was the design, not
+decay; the red runs were the org-wide Actions billing wall (private repo,
+owner billing decision). **Revival path:** the console runs where the
+machine runs — it needs no Actions minutes at all; on the operator's machine
+`npm run dev` + the keeper bring it fully up, and `platform-selftest`
+(dispatch-only, valid YAML, verified 2026-10-11) proves the irrigation
+engine deterministic from any runner once minutes return.
+
 **גרסה: v122.0.0 · האיטום-החי** — מקור-האמת היחיד: `src/lib/saos/version.ts`.
 
 פלטפורמה ריבונית המנהלת צי של 12 חשבונות (ראש + 11 חיילים) על **STEEM + HIVE**, שרשרת-EVM פרטית (anvil), ותשתית-סוכנים אוטונומית — הכל מכספת-מפתחות אטומה (AES-256-GCM) בשלושה בתים על הדיסק.
