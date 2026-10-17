@@ -255,20 +255,8 @@ async function measure(): Promise<SovereigntyCensus> {
     if (r.sync === "diverged") gaps.push({ repo: r.name, kind: "diverged", he: "התפצל מ-origin — נדרשת הכרעת-מהנדס" });
   }
 
-  // ── שכבת-המפתחות ──
-  const [vault, homes, active, posting] = await Promise.all([
-    sealAvailability(),
-    vaultHomesHealth(),
-    roleWifAvailable("active").catch(() => false),
-    roleWifAvailable("posting").catch(() => false)
-  ]);
-  let steemLive: SovereigntyCensus["vault"]["steemLiveMatch"] = null;
-  try {
-    const st = await rearmSteemStatus();
-    steemLive = { allMatch: st.allMatch, account: st.account, liveAt: st.liveAt };
-  } catch {
-    // אין מקור — כנות
-  }
+  // ── שכבת-המפתחות (תמיד-טרייה — הוראת-הבעלים 2026-10-17, ראה measureVaultLayer) ──
+  const vault = await measureVaultLayer();
 
   // ── חנות-ה-PAT הקנונית (טביעת-אצבע בלבד!) ──
   let canonicalPresent = false;
@@ -288,12 +276,7 @@ async function measure(): Promise<SovereigntyCensus> {
     measuredAt,
     repos,
     gaps,
-    vault: {
-      present: vault.present,
-      homes: homes.map((h) => ({ home: h.home, kind: h.kind, present: h.present, mode: h.mode })),
-      steemSigningReady: { active, posting },
-      steemLiveMatch: steemLive
-    },
+    vault,
     token: {
       canonicalPresent,
       fingerprint,
@@ -310,7 +293,54 @@ async function measure(): Promise<SovereigntyCensus> {
   };
 }
 
-export async function sovereigntyCensus(): Promise<SovereigntyCensus> {
+// ── שכבת-המפתחות החיה — תמיד נוכחית ────────────────────────────────────────
+// הוראת-הבעלים (2026-10-17): "אפשר לקבל תמיד מהר active מה-owner — כל-פעם נוכחי,
+// כי הוא עלול להשתנות". הסמכויות-החיות של חשבון-הבעלים עלולות להתחלף בכל-רגע
+// (רוטציה בצד-הבעלים), ולכן שכבה זו אינה מוטמנת במטמון-ה-60ש' של המרשם האיטי
+// אלא נמדדת טרייה בכל-קריאה — micro-cache 5ש' בודד-טיסה למהירות בלבד.
+// קריאה-בלבד · מפתחות-ציבוריים בלבד · fail-honest (אין-מקור = null כנה).
+const KEYS_TTL_MS = 5_000;
+let keysCache: { at: number; value: SovereigntyCensus["vault"] } | null = null;
+let keysInflight: Promise<SovereigntyCensus["vault"]> | null = null;
+
+async function measureVaultLayer(): Promise<SovereigntyCensus["vault"]> {
+  const [vault, homes, active, posting] = await Promise.all([
+    sealAvailability(),
+    vaultHomesHealth(),
+    roleWifAvailable("active").catch(() => false),
+    roleWifAvailable("posting").catch(() => false)
+  ]);
+  let steemLive: SovereigntyCensus["vault"]["steemLiveMatch"] = null;
+  try {
+    const st = await rearmSteemStatus();
+    steemLive = { allMatch: st.allMatch, account: st.account, liveAt: st.liveAt };
+  } catch {
+    // אין מקור — כנות
+  }
+  return {
+    present: vault.present,
+    homes: homes.map((h) => ({ home: h.home, kind: h.kind, present: h.present, mode: h.mode })),
+    steemSigningReady: { active, posting },
+    steemLiveMatch: steemLive
+  };
+}
+
+async function vaultLayerFresh(): Promise<SovereigntyCensus["vault"]> {
+  if (keysCache && Date.now() - keysCache.at < KEYS_TTL_MS) return keysCache.value;
+  if (!keysInflight) {
+    keysInflight = measureVaultLayer()
+      .then((v) => {
+        keysCache = { at: Date.now(), value: v };
+        return v;
+      })
+      .finally(() => {
+        keysInflight = null;
+      });
+  }
+  return keysInflight;
+}
+
+async function censusSlow(): Promise<SovereigntyCensus> {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
   if (!inflight) {
     inflight = measure()
@@ -323,4 +353,14 @@ export async function sovereigntyCensus(): Promise<SovereigntyCensus> {
       });
   }
   return inflight;
+}
+
+export async function sovereigntyCensus(): Promise<SovereigntyCensus> {
+  const base = await censusSlow();
+  try {
+    const vault = await vaultLayerFresh();
+    return { ...base, vault, measuredAt: new Date().toISOString() };
+  } catch {
+    return base; // כנות: שכבת-המפתחות נפלה — המרשם-האיטי נשאר שלם
+  }
 }
