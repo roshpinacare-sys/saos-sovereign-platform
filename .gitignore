@@ -102,3 +102,10 @@ tool-results/
 /state/
 dev.pid
 *.log.*
+
+# secrets hygiene 2026-11-03
+.env
+.env.*
+*.secret
+pat.env
+upload/*.txt
